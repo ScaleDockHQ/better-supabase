@@ -53,8 +53,8 @@ Setting a value again replaces it, so `setValue` never fails on the key of
 record and field, and an encrypted value is sealed once. `updateValue({ id,
 value })` changes one value row by its id and `deleteValue(id)` removes it. Both
 need `custom_fields.manage` and the record's `fields` action, and fail with
-`FIELD_VALUE_NOT_FOUND` for an unknown id; `updateValue` also fails with
-`FIELD_VALUE_INVALID` for a value the field's format refuses. The SQL functions
+`CUSTOM_FIELD_VALUE_NOT_FOUND` for an unknown id; `updateValue` also fails with
+`CUSTOM_FIELD_VALUE_INVALID` for a value the field's format refuses. The SQL functions
 are `update_field_value(value_id, value)` and `delete_field_value(value_id)`.
 
 ## Types
@@ -75,7 +75,7 @@ are `update_field_value(value_id, value)` and `delete_field_value(value_id)`.
 | `phone_e164`                             | a phone number in E.164 form   | `text`                    |
 
 `set_field_value` checks the value of the last three before it stores it and
-fails with `FIELD_VALUE_INVALID` (SQLSTATE `22023`) when it doesn't pass:
+fails with `CUSTOM_FIELD_VALUE_INVALID` (SQLSTATE `22023`) when it doesn't pass:
 
 | Type         | Passes                                                                                                     |
 | ------------ | ---------------------------------------------------------------------------------------------------------- |
@@ -117,7 +117,7 @@ blocks: {
 
 ## Entities are registered subject types
 
-In the normalized layout, `entity` names a subject type that the app registers: a key of [`config.recordTypes`](/docs/blocks/sql#actions-granted-per-row) or a type an installed block registers (`blocks.custom-fields.on` narrows the list). `save_field_definition` and `install_field_pack` fail with `FIELD_ENTITY_UNKNOWN` (SQLSTATE `22023`) for any other value. Without registered types the entity stays free text, so a project that has no subjects keeps working.
+In the normalized layout, `entity` names a subject type that the app registers: a key of [`config.recordTypes`](/docs/blocks/sql#actions-granted-per-row) or a type an installed block registers (`blocks.custom-fields.on` narrows the list). `save_field_definition` and `install_field_pack` fail with `CUSTOM_FIELD_ENTITY_UNKNOWN` (SQLSTATE `22023`) for any other value. Without registered types the entity stays free text, so a project that has no subjects keeps working.
 
 The list of registered types is one function, `better_supabase.subject_types()`, which returns `text[]`. Code that needs to ask the database which types exist calls it instead of keeping its own list.
 
@@ -163,7 +163,7 @@ blocks: {
 
 - A new key creates the definition, ranked after the others of its entity.
 - A key the pack owns changes only when the label, type, `required`, `sensitive`, `permission` or the pack version differ, so installing the same version twice reports `unchanged` for every field.
-- A key that a definition outside the pack already uses fails with `FIELD_PACK_CONFLICT`, and a malformed pack fails with `FIELD_PACK_INVALID`.
+- A key that a definition outside the pack already uses fails with `CUSTOM_FIELD_PACK_CONFLICT`, and a malformed pack fails with `CUSTOM_FIELD_PACK_INVALID`.
 
 The result is `{ pack, version, created, updated, unchanged }`. `listDefinitions` reports the `pack` and `packVersion` of each definition. Raise `version` when the fields change and install again. A pack never deletes a definition, because the values behind it belong to the organization.
 
@@ -200,7 +200,7 @@ ifAbsent? })`, `readFields(record)` and `deleteValue(id)`. Writing needs
 `custom_fields.manage`, a record that exists in the tenant, and the record's
 `fields` action when [`config.recordTypes`](/docs/blocks/sql#actions-granted-per-row)
 declares one (such as `fields: "product.update"`); a value that doesn't fit its type fails with
-`FIELD_VALUE_INVALID`.
+`CUSTOM_FIELD_VALUE_INVALID`.
 
 A record type can name its own tenant keys in `on.<type>.keys`, so the people
 who edit products also edit product fields without holding

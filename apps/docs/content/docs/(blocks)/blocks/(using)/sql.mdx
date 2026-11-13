@@ -221,8 +221,8 @@ migration. Names without a hash, from earlier releases, are still read.
 | `messaging`                 | Conversations, members, threaded messages with edits, pins and resolution, mentions, read markers, typing over Realtime, scheduled sends through jobs, and files and reactions on messages, for channels, direct messages and record conversations. See [Messaging](/docs/blocks/messaging)                                                                                                                                                                                        |
 | `channels`                  | Named channels on messaging: public ones the whole tenant can browse and join, private ones for their members, a topic, a purpose and an optional linked record. See [Channels](/docs/blocks/channels)                                                                                                                                                                                                                                                                             |
 | `chat-sdk-state`            | The Chat SDK state tables: subscriptions, token-checked locks, a TTL cache, lists and per-thread queues, behind service-only functions, and `purge_chat_state`. See [Chat SDK state](/docs/chat-sdk/state)                                                                                                                                                                                                                                                                         |
-| `webhooks-out`              | Customer webhook destinations with event subscriptions, Vault secrets with rotation, a delivery log with leases, retries, redelivery and auto-disable, and `publish_webhook_event` as a service-only fan-out. See [Outgoing webhooks](/docs/blocks/webhooks)                                                                                                                                                                                                                       |
-| `webhooks-in`               | Per-tenant trigger URLs with hashed tokens, optional Standard Webhooks or HMAC verification with secrets in Vault, a body limit, receive counters and a rate limit; deliveries go to the webhook inbox or a jobs queue, and it can run over your endpoints table. See                                                                                                                                                                                                              |
+| `webhooks`                  | Customer webhook destinations with event subscriptions, Vault secrets with rotation, a delivery log with leases, retries, redelivery and auto-disable, and `publish_webhook_event` as a service-only fan-out. See [Outgoing webhooks](/docs/blocks/webhooks)                                                                                                                                                                                                                       |
+| `incoming-webhooks`         | Per-tenant trigger URLs with hashed tokens, optional Standard Webhooks or HMAC verification with secrets in Vault, a body limit, receive counters and a rate limit; deliveries go to the webhook inbox or a jobs queue, and it can run over your endpoints table. See                                                                                                                                                                                                              |
 | `streams`                   | Durable streams: ordered chunks with idempotent appends, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping per stream and `purge_streams`. See [Durable streams](/docs/blocks/streams)                                                                                                                                                                                                                                      |
 | `credentials`               | `credential_get`, `credential_set` and `credential_delete` over Supabase Vault, for `service_role` only, behind `vaultCredentials()`; it can run over your secrets table. See [Credentials](/docs/extending/credentials)                                                                                                                                                                                                                                                           |
 | `ai-chat`                   | Chats, projects and a branching message tree in the canonical AI message format, runs with a compare-and-set stream claim and step progress, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events, experimental harness sessions, the `ai_sandboxes` registry of chat and harness sandboxes with a service-only idle stop, and private Realtime topics. See [AI chat](/docs/blocks/ai-chat)       |
@@ -300,7 +300,7 @@ migration. Names without a hash, from earlier releases, are still read.
 | `identities`                | Links an email address or a chat user to an app user or a contact, through a one-time code or a confirmed address. See [Identities](/docs/blocks/identities).                                                                                                                                                                                                                                                                                                                      |
 | `service-accounts`          | Organization members that aren't people: `auth.users` rows that can't sign in, with a role through a membership. Organization-owned workflow versions and service webhook endpoints run as the default one. See [Service principals](/docs/blocks/service-accounts).                                                                                                                                                                                                               |
 | `signing-keys`              | Ed25519 and ES256 keys per owner, private keys in Vault, one active key per owner, retired keys published until their tokens expire, and a JWK Set per owner. See [Signing keys](/docs/blocks/signing-keys).                                                                                                                                                                                                                                                                       |
-| `security-events`           | OpenID Shared Signals streams per receiver, push delivery through a webhooks-out endpoint with format `set`, a poll queue, SETs held while a stream is paused, and the receiver replay table. See [Shared signals](/docs/blocks/security-events).                                                                                                                                                                                                                                  |
+| `security-events`           | OpenID Shared Signals streams per receiver, push delivery through a webhooks endpoint with format `set`, a poll queue, SETs held while a stream is paused, and the receiver replay table. See [Shared signals](/docs/blocks/security-events).                                                                                                                                                                                                                                      |
 | `oauth-server`              | OAuth client registry with hashed secrets and registration tokens, authorization codes bound to an S256 PKCE challenge, device codes, grants per user and client, and a revocation list keyed by `jti` and grant. It stores and verifies; your authorization server signs the tokens. See [OAuth server](/docs/blocks/oauth-server).                                                                                                                                               |
 | `domains`                   | Hostnames per organization: custom domains verified by a DNS TXT record, subdomains of `platformDomain` verified when added, one primary per organization, and `resolve_hostname` for the proxy. See [Custom domains](/docs/blocks/domains).                                                                                                                                                                                                                                       |
 | `reviews`                   | Ratings and reviews of catalog products and registered subjects: one per user and subject, a verified flag from paid orders, moderation before or after publishing through the moderation module, the organization's reply and a per-subject aggregate public storefronts can read. See [Reviews](/docs/blocks/reviews).                                                                                                                                                           |
@@ -693,7 +693,7 @@ call them get no entry point, and `functions` refuses them:
 `platform_invitations_readable` (invitations), `comment_subject_readable`
 (comments), the `attachment_*` and `object_clean` policy helpers
 (attachments), `incoming_webhook_tenant_ids` and
-`incoming_webhook_subject_readable` (webhooks-in), `data_export_object_allowed`
+`incoming_webhook_subject_readable` (incoming-webhooks), `data_export_object_allowed`
 (data-lifecycle), `mfa_satisfied` (mfa) and `session_active` (sessions). A
 wrapper an earlier `upgrade` wrote for one of them is dropped. Add the
 schema to `[api] schemas` in `config.toml` and pass it to the transport:
@@ -1157,10 +1157,10 @@ service role, which alone passes `ended_by`. `expire_support_sessions()`,
 for the service role only, ends every running session past its expiry with
 `ended_by` set to `expired` and returns them, so each one gets its
 `support_session.ended` entry. `active_support_session` called
-as the admin checks `impersonation.start` again. Errors carry `SUPPORT_FORBIDDEN`,
-`SUPPORT_SELF`, `SUPPORT_TARGET_MISSING`, `SUPPORT_TARGET_PLATFORM`,
-`SUPPORT_WRITES_DISABLED`, `SUPPORT_TTL`, `SUPPORT_REASON_REQUIRED` or
-`SUPPORT_APPROVAL_REQUIRED` in the `hint`.
+as the admin checks `impersonation.start` again. Errors carry `IMPERSONATION_FORBIDDEN`,
+`IMPERSONATION_SELF`, `IMPERSONATION_TARGET_MISSING`, `IMPERSONATION_TARGET_PLATFORM`,
+`IMPERSONATION_WRITES_DISABLED`, `IMPERSONATION_TTL`, `IMPERSONATION_REASON_REQUIRED` or
+`IMPERSONATION_APPROVAL_REQUIRED` in the `hint`.
 
 A start needs a second admin by default (`options.approval: "distinct"`).
 The admin asks with `request_support_session(target, reason, read_only,
@@ -1173,7 +1173,7 @@ approver in the `support_session.started` audit entry. A request is open for
 `approvalTtl` and starts one session.
 
 The requester never approves their own request: `approve_support_request`
-refuses it with `SUPPORT_SELF_APPROVAL`, and the
+refuses it with `IMPERSONATION_SELF_APPROVAL`, and the
 `support_requests_distinct_approver` check constraint refuses the row even
 for the service role. Clients can read their own requests but can't insert
 or update the table. Without an authorization provider, an approver needs
@@ -1186,8 +1186,8 @@ instead. The service role may pass `admin_id`, `approved_by` and
 can't be the admin. `support_request(request_id)` returns a request to the
 service role, its requester and its approvers, and
 `approved_support_request(target, tenant, read_only)` the request a start
-would use. Errors carry `SUPPORT_REQUEST_MISSING`, `SUPPORT_REQUEST_DECIDED`
-(another admin approved it) or `SUPPORT_REQUEST_CLOSED` (expired or used).
+would use. Errors carry `IMPERSONATION_REQUEST_MISSING`, `IMPERSONATION_REQUEST_DECIDED`
+(another admin approved it) or `IMPERSONATION_REQUEST_CLOSED` (expired or used).
 
 A read-only session (`read_only` true, the default) is refused by every
 `security definer` write granted to `authenticated` or `anon`, with
@@ -1514,7 +1514,7 @@ A block's `on` works three ways:
   `idType`. `add`, `upgrade`, `gen` and doctor read the merged entry. A type
   the registry lacks needs its own `table`.
 
-`webhooks-in` never falls back to the registry, because its subjects are the
+`incoming-webhooks` never falls back to the registry, because its subjects are the
 tables that inbound events write to.
 
 Subject types are lowercase letters, digits and underscores. The

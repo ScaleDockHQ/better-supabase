@@ -19,7 +19,7 @@ describe.skipIf(!live)("api wrappers", () => {
         `create schema ${schema};
          alter default privileges in schema ${schema} grant execute on functions to anon, authenticated, service_role;`,
       );
-      const modules = ["webhooks-in", "webhooks-out", "settings"] as const;
+      const modules = ["incoming-webhooks", "webhooks", "settings"] as const;
       await s.install(["organizations", ...modules], {
         modules: Object.fromEntries(
           modules.map((name) => [name, { api: { schema } }]),

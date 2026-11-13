@@ -166,7 +166,7 @@ describe("BS351", () => {
   it("reports typed client writes to a block's table, not the block client", async () => {
     const findings = await runRules(
       {
-        config: resolveConfig({ blocks: ["webhooks-out"] }, "/project"),
+        config: resolveConfig({ blocks: ["webhooks"] }, "/project"),
         snapshot: base,
         configToml: undefined,
         envFiles: [],
@@ -178,8 +178,8 @@ describe("BS351", () => {
               "export async function save(db) {",
               '  await db.webhookEndpoints.create({ url: "https://x.test" });',
               "  await db.webhookEndpoints.list();",
-              '  await db.webhooksOut.createEndpoint({ url: "https://x.test" });',
-              '  await db.webhooksOut.delete("id");',
+              '  await db.webhooks.createEndpoint({ url: "https://x.test" });',
+              '  await db.webhooks.delete("id");',
               '  await db.notes.update("id", {});',
               "}",
             ].join("\n"),

@@ -7,7 +7,7 @@ export const OPERATIONS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "webhook-endpoints",
     title: "Webhook endpoints",
-    blocks: ["webhooks-out"],
+    blocks: ["webhooks"],
     kind: "screen",
     description:
       "The organization's webhook endpoints with their recent deliveries and a retry button.",

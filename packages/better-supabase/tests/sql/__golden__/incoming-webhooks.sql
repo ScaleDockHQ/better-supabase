@@ -1,7 +1,7 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
--- better-supabase module: webhooks-in
--- @bsb-block webhooks-in@5 managed
--- @bsb-hash sha256:fc05c79e854089a9cf9a2372f0969442668e1ea2164f91dea7dd6d2780fc8e99
+-- ==== alone: schema supabase/schemas/900_better_supabase_027_incoming_webhooks.sql
+-- better-supabase module: incoming-webhooks
+-- @bsb-block incoming-webhooks@5 managed
+-- @bsb-hash sha256:c633105c324dad0af343b354c06de3d14a74ba17c1f512dd11dbb10bd2276952
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -161,16 +161,16 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), tenant, 'webhooks.manage'), false)) then
-    raise exception 'Not allowed to manage incoming webhooks' using errcode = '42501', hint = 'WEBHOOK_IN_FORBIDDEN';
+    raise exception 'Not allowed to manage incoming webhooks' using errcode = '42501', hint = 'INCOMING_WEBHOOK_FORBIDDEN';
   end if;
   if verify not in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret') then
-    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'WEBHOOK_IN_VERIFY_UNKNOWN';
+    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'INCOMING_WEBHOOK_VERIFY_UNKNOWN';
   end if;
   if (subject_type is null) <> (subject_id is null) then
-    raise exception 'Pass subject_type and subject_id together' using errcode = '22023', hint = 'WEBHOOK_IN_SUBJECT_INVALID';
+    raise exception 'Pass subject_type and subject_id together' using errcode = '22023', hint = 'INCOMING_WEBHOOK_SUBJECT_INVALID';
   end if;
   if subject_type is not null and not (true) then
-    raise exception 'No such subject in this tenant' using errcode = '22023', hint = 'WEBHOOK_IN_SUBJECT_INVALID';
+    raise exception 'No such subject in this tenant' using errcode = '22023', hint = 'INCOMING_WEBHOOK_SUBJECT_INVALID';
   end if;
   insert into "better_supabase"."incoming_webhooks" ("id", "tenant", "name", "token_hash", "verify", "secret", "secret_id", "signature_header", "metadata", "subject_type", "subject_id", "created_by")
   values (v_id,
@@ -215,7 +215,7 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   if rotate_secret then
     v_secret := case previous."verify"
@@ -258,7 +258,7 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   v_secret := case previous."verify"
     when 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
@@ -266,7 +266,7 @@ begin
     when 'shared-secret' then encode(extensions.gen_random_bytes(32), 'hex')
   end;
   if v_secret is null then
-    raise exception 'This endpoint verifies no secret' using errcode = '22023', hint = 'WEBHOOK_IN_NO_SECRET';
+    raise exception 'This endpoint verifies no secret' using errcode = '22023', hint = 'INCOMING_WEBHOOK_NO_SECRET';
   end if;
   update "better_supabase"."incoming_webhooks" e set
     "secret" = null,
@@ -307,17 +307,17 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   if name is not null and btrim(name) = '' then
-    raise exception 'An endpoint needs a name' using errcode = '22023', hint = 'WEBHOOK_IN_NAME_REQUIRED';
+    raise exception 'An endpoint needs a name' using errcode = '22023', hint = 'INCOMING_WEBHOOK_NAME_REQUIRED';
   end if;
   if metadata is not null and jsonb_typeof(metadata) <> 'object' then
-    raise exception 'metadata must be a JSON object' using errcode = '22023', hint = 'WEBHOOK_IN_METADATA_INVALID';
+    raise exception 'metadata must be a JSON object' using errcode = '22023', hint = 'INCOMING_WEBHOOK_METADATA_INVALID';
   end if;
   v_verify := coalesce(verify, previous."verify");
   if v_verify not in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret') then
-    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'WEBHOOK_IN_VERIFY_UNKNOWN';
+    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'INCOMING_WEBHOOK_VERIFY_UNKNOWN';
   end if;
   if v_verify <> previous."verify" then
     v_secret := case v_verify
@@ -465,24 +465,30 @@ create policy bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks" a
   for delete to public
   using ("tenant" in (select better_supabase.member_organization_ids()));
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql
--- better-supabase module: webhooks-in
--- @bsb-block-data webhooks-in
--- @bsb-hash sha256:a434458968edf6cbe8f09ea16fb4d40788438a18c05f5dff10e33db45b16d127
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_027_incoming_webhooks.sql
+-- better-supabase module: incoming-webhooks
+-- @bsb-block-data incoming-webhooks
+-- @bsb-hash sha256:a48c9aadbe0fe57ea99872bf5ebb0df44d21670b48728e6f704aea6cf432c462
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+delete from better_supabase.blocks
+  where name = 'webhooks-in'
+    and exists (select 1 from better_supabase.blocks where name = 'incoming-webhooks');
+update better_supabase.blocks set name = 'incoming-webhooks'
+  where name = 'webhooks-in'
+    and not exists (select 1 from better_supabase.blocks where name = 'incoming-webhooks');
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-in', 5, 'managed')
+values ('incoming-webhooks', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
--- better-supabase module: webhooks-in
--- @bsb-block webhooks-in@5 managed
--- @bsb-hash sha256:caf53986c0066a00fdd54103e6caf3cad870172733a9b9999e9673a801c34771
+-- ==== with every module: schema supabase/schemas/900_better_supabase_027_incoming_webhooks.sql
+-- better-supabase module: incoming-webhooks
+-- @bsb-block incoming-webhooks@5 managed
+-- @bsb-hash sha256:5b9f8a36c4829bdabd54ba792bd21507abb63efd2a064281685c07bd65ae6193
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -642,16 +648,16 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), tenant, 'webhooks.manage'), false)) then
-    raise exception 'Not allowed to manage incoming webhooks' using errcode = '42501', hint = 'WEBHOOK_IN_FORBIDDEN';
+    raise exception 'Not allowed to manage incoming webhooks' using errcode = '42501', hint = 'INCOMING_WEBHOOK_FORBIDDEN';
   end if;
   if verify not in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret') then
-    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'WEBHOOK_IN_VERIFY_UNKNOWN';
+    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'INCOMING_WEBHOOK_VERIFY_UNKNOWN';
   end if;
   if (subject_type is null) <> (subject_id is null) then
-    raise exception 'Pass subject_type and subject_id together' using errcode = '22023', hint = 'WEBHOOK_IN_SUBJECT_INVALID';
+    raise exception 'Pass subject_type and subject_id together' using errcode = '22023', hint = 'INCOMING_WEBHOOK_SUBJECT_INVALID';
   end if;
   if subject_type is not null and not (true) then
-    raise exception 'No such subject in this tenant' using errcode = '22023', hint = 'WEBHOOK_IN_SUBJECT_INVALID';
+    raise exception 'No such subject in this tenant' using errcode = '22023', hint = 'INCOMING_WEBHOOK_SUBJECT_INVALID';
   end if;
   insert into "better_supabase"."incoming_webhooks" ("id", "tenant", "name", "token_hash", "verify", "secret", "secret_id", "signature_header", "metadata", "subject_type", "subject_id", "created_by")
   values (v_id,
@@ -670,7 +676,7 @@ begin
     subject_id,
     auth.uid())
   returning * into created;
-  perform "better_supabase".emit_event('incoming_webhook.created', jsonb_build_object('organizationId', created."tenant"::text, 'endpointId', created."id", 'name', created."name"), 'organizations/' || created."tenant"::text || '/incoming-webhooks/' || created."id"::text, (created."tenant")::text, null, 'better-supabase/webhooks-in');
+  perform "better_supabase".emit_event('incoming_webhook.created', jsonb_build_object('organizationId', created."tenant"::text, 'endpointId', created."id", 'name', created."name"), 'organizations/' || created."tenant"::text || '/incoming-webhooks/' || created."id"::text, (created."tenant")::text, null, 'better-supabase/incoming-webhooks');
   perform better_supabase.audit_event(
     event_type => 'incoming_webhook.created',
     category => 'integration',
@@ -704,7 +710,7 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   if rotate_secret then
     v_secret := case previous."verify"
@@ -724,7 +730,7 @@ begin
   if rotate_secret then
     delete from vault.secrets vs where vs.id in (previous."secret_id", previous."previous_secret_id");
   end if;
-  perform "better_supabase".emit_event('incoming_webhook.token_rotated', jsonb_build_object('organizationId', updated."tenant"::text, 'endpointId', updated."id", 'secretRotated', rotate_secret), 'organizations/' || updated."tenant"::text || '/incoming-webhooks/' || updated."id"::text, (updated."tenant")::text, null, 'better-supabase/webhooks-in');
+  perform "better_supabase".emit_event('incoming_webhook.token_rotated', jsonb_build_object('organizationId', updated."tenant"::text, 'endpointId', updated."id", 'secretRotated', rotate_secret), 'organizations/' || updated."tenant"::text || '/incoming-webhooks/' || updated."id"::text, (updated."tenant")::text, null, 'better-supabase/incoming-webhooks');
   perform better_supabase.audit_event(
     event_type => 'incoming_webhook.token_rotated',
     category => 'security',
@@ -755,7 +761,7 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   v_secret := case previous."verify"
     when 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
@@ -763,7 +769,7 @@ begin
     when 'shared-secret' then encode(extensions.gen_random_bytes(32), 'hex')
   end;
   if v_secret is null then
-    raise exception 'This endpoint verifies no secret' using errcode = '22023', hint = 'WEBHOOK_IN_NO_SECRET';
+    raise exception 'This endpoint verifies no secret' using errcode = '22023', hint = 'INCOMING_WEBHOOK_NO_SECRET';
   end if;
   update "better_supabase"."incoming_webhooks" e set
     "secret" = null,
@@ -775,7 +781,7 @@ begin
   returning * into updated;
   delete from vault.secrets vs
   where vs.id = previous."previous_secret_id" or (not v_keep and vs.id = previous."secret_id");
-  perform "better_supabase".emit_event('incoming_webhook.secret_rotated', jsonb_build_object('organizationId', updated."tenant"::text, 'endpointId', updated."id"), 'organizations/' || updated."tenant"::text || '/incoming-webhooks/' || updated."id"::text, (updated."tenant")::text, null, 'better-supabase/webhooks-in');
+  perform "better_supabase".emit_event('incoming_webhook.secret_rotated', jsonb_build_object('organizationId', updated."tenant"::text, 'endpointId', updated."id"), 'organizations/' || updated."tenant"::text || '/incoming-webhooks/' || updated."id"::text, (updated."tenant")::text, null, 'better-supabase/incoming-webhooks');
   perform better_supabase.audit_event(
     event_type => 'incoming_webhook.secret_rotated',
     category => 'security',
@@ -812,17 +818,17 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   if name is not null and btrim(name) = '' then
-    raise exception 'An endpoint needs a name' using errcode = '22023', hint = 'WEBHOOK_IN_NAME_REQUIRED';
+    raise exception 'An endpoint needs a name' using errcode = '22023', hint = 'INCOMING_WEBHOOK_NAME_REQUIRED';
   end if;
   if metadata is not null and jsonb_typeof(metadata) <> 'object' then
-    raise exception 'metadata must be a JSON object' using errcode = '22023', hint = 'WEBHOOK_IN_METADATA_INVALID';
+    raise exception 'metadata must be a JSON object' using errcode = '22023', hint = 'INCOMING_WEBHOOK_METADATA_INVALID';
   end if;
   v_verify := coalesce(verify, previous."verify");
   if v_verify not in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret') then
-    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'WEBHOOK_IN_VERIFY_UNKNOWN';
+    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'INCOMING_WEBHOOK_VERIFY_UNKNOWN';
   end if;
   if v_verify <> previous."verify" then
     v_secret := case v_verify
@@ -849,7 +855,7 @@ begin
   if v_verify <> previous."verify" then
     delete from vault.secrets vs where vs.id in (previous."secret_id", previous."previous_secret_id");
   end if;
-  perform "better_supabase".emit_event('incoming_webhook.updated', jsonb_build_object('organizationId', updated."tenant"::text, 'endpointId', updated."id", 'name', updated."name", 'verify', updated."verify"), 'organizations/' || updated."tenant"::text || '/incoming-webhooks/' || updated."id"::text, (updated."tenant")::text, null, 'better-supabase/webhooks-in');
+  perform "better_supabase".emit_event('incoming_webhook.updated', jsonb_build_object('organizationId', updated."tenant"::text, 'endpointId', updated."id", 'name', updated."name", 'verify', updated."verify"), 'organizations/' || updated."tenant"::text || '/incoming-webhooks/' || updated."id"::text, (updated."tenant")::text, null, 'better-supabase/incoming-webhooks');
   perform better_supabase.audit_event(
     event_type => 'incoming_webhook.updated',
     category => 'integration',
@@ -882,7 +888,7 @@ begin
     return false;
   end if;
   update "better_supabase"."incoming_webhooks" e set "enabled" = set_incoming_webhook_enabled.enabled where e."id" = endpoint;
-  perform "better_supabase".emit_event('incoming_webhook.enabled_changed', jsonb_build_object('organizationId', tenant::text, 'endpointId', endpoint, 'enabled', set_incoming_webhook_enabled.enabled), 'organizations/' || tenant::text || '/incoming-webhooks/' || endpoint::text, (tenant)::text, null, 'better-supabase/webhooks-in');
+  perform "better_supabase".emit_event('incoming_webhook.enabled_changed', jsonb_build_object('organizationId', tenant::text, 'endpointId', endpoint, 'enabled', set_incoming_webhook_enabled.enabled), 'organizations/' || tenant::text || '/incoming-webhooks/' || endpoint::text, (tenant)::text, null, 'better-supabase/incoming-webhooks');
   perform better_supabase.audit_event(
     event_type => 'incoming_webhook.enabled_changed',
     category => 'integration',
@@ -913,7 +919,7 @@ begin
     return false;
   end if;
   delete from "better_supabase"."incoming_webhooks" e where e."id" = endpoint;
-  perform "better_supabase".emit_event('incoming_webhook.deleted', jsonb_build_object('organizationId', tenant::text, 'endpointId', endpoint), 'organizations/' || tenant::text || '/incoming-webhooks/' || endpoint::text, (tenant)::text, null, 'better-supabase/webhooks-in');
+  perform "better_supabase".emit_event('incoming_webhook.deleted', jsonb_build_object('organizationId', tenant::text, 'endpointId', endpoint), 'organizations/' || tenant::text || '/incoming-webhooks/' || endpoint::text, (tenant)::text, null, 'better-supabase/incoming-webhooks');
   perform better_supabase.audit_event(
     event_type => 'incoming_webhook.deleted',
     category => 'integration',
@@ -994,24 +1000,30 @@ create policy bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks" a
   for delete to public
   using ("tenant" in (select better_supabase.member_organization_ids()));
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql
--- better-supabase module: webhooks-in
--- @bsb-block-data webhooks-in
--- @bsb-hash sha256:a434458968edf6cbe8f09ea16fb4d40788438a18c05f5dff10e33db45b16d127
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_027_incoming_webhooks.sql
+-- better-supabase module: incoming-webhooks
+-- @bsb-block-data incoming-webhooks
+-- @bsb-hash sha256:a48c9aadbe0fe57ea99872bf5ebb0df44d21670b48728e6f704aea6cf432c462
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+delete from better_supabase.blocks
+  where name = 'webhooks-in'
+    and exists (select 1 from better_supabase.blocks where name = 'incoming-webhooks');
+update better_supabase.blocks set name = 'incoming-webhooks'
+  where name = 'webhooks-in'
+    and not exists (select 1 from better_supabase.blocks where name = 'incoming-webhooks');
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-in', 5, 'managed')
+values ('incoming-webhooks', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
--- better-supabase module: webhooks-in
--- @bsb-block webhooks-in@5 managed
--- @bsb-hash sha256:8a91d4cd98fdcefd48138881310005e6c1c757af17d80e1b1661d9fb999a540b
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_027_incoming_webhooks.sql
+-- better-supabase module: incoming-webhooks
+-- @bsb-block incoming-webhooks@5 managed
+-- @bsb-hash sha256:821430de0499fe569721b1c1eb267698f746f81d843619ce33b93ed423e185eb
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1176,16 +1188,16 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), tenant, 'webhooks.manage'), false)) then
-    raise exception 'Not allowed to manage incoming webhooks' using errcode = '42501', hint = 'WEBHOOK_IN_FORBIDDEN';
+    raise exception 'Not allowed to manage incoming webhooks' using errcode = '42501', hint = 'INCOMING_WEBHOOK_FORBIDDEN';
   end if;
   if verify not in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret') then
-    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'WEBHOOK_IN_VERIFY_UNKNOWN';
+    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'INCOMING_WEBHOOK_VERIFY_UNKNOWN';
   end if;
   if (subject_type is null) <> (subject_id is null) then
-    raise exception 'Pass subject_type and subject_id together' using errcode = '22023', hint = 'WEBHOOK_IN_SUBJECT_INVALID';
+    raise exception 'Pass subject_type and subject_id together' using errcode = '22023', hint = 'INCOMING_WEBHOOK_SUBJECT_INVALID';
   end if;
   if subject_type is not null and not (true) then
-    raise exception 'No such subject in this tenant' using errcode = '22023', hint = 'WEBHOOK_IN_SUBJECT_INVALID';
+    raise exception 'No such subject in this tenant' using errcode = '22023', hint = 'INCOMING_WEBHOOK_SUBJECT_INVALID';
   end if;
   insert into "app_private"."incoming_webhooks" ("id", "tenant", "name", "token_hash", "verify", "secret", "secret_id", "signature_header", "metadata", "subject_type", "subject_id", "created_by")
   values (v_id,
@@ -1230,7 +1242,7 @@ begin
   end if;
   select * into previous from "app_private"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   if rotate_secret then
     v_secret := case previous."verify"
@@ -1273,7 +1285,7 @@ begin
   end if;
   select * into previous from "app_private"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   v_secret := case previous."verify"
     when 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
@@ -1281,7 +1293,7 @@ begin
     when 'shared-secret' then encode(extensions.gen_random_bytes(32), 'hex')
   end;
   if v_secret is null then
-    raise exception 'This endpoint verifies no secret' using errcode = '22023', hint = 'WEBHOOK_IN_NO_SECRET';
+    raise exception 'This endpoint verifies no secret' using errcode = '22023', hint = 'INCOMING_WEBHOOK_NO_SECRET';
   end if;
   update "app_private"."incoming_webhooks" e set
     "secret" = null,
@@ -1322,17 +1334,17 @@ begin
   end if;
   select * into previous from "app_private"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   if name is not null and btrim(name) = '' then
-    raise exception 'An endpoint needs a name' using errcode = '22023', hint = 'WEBHOOK_IN_NAME_REQUIRED';
+    raise exception 'An endpoint needs a name' using errcode = '22023', hint = 'INCOMING_WEBHOOK_NAME_REQUIRED';
   end if;
   if metadata is not null and jsonb_typeof(metadata) <> 'object' then
-    raise exception 'metadata must be a JSON object' using errcode = '22023', hint = 'WEBHOOK_IN_METADATA_INVALID';
+    raise exception 'metadata must be a JSON object' using errcode = '22023', hint = 'INCOMING_WEBHOOK_METADATA_INVALID';
   end if;
   v_verify := coalesce(verify, previous."verify");
   if v_verify not in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret') then
-    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'WEBHOOK_IN_VERIFY_UNKNOWN';
+    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'INCOMING_WEBHOOK_VERIFY_UNKNOWN';
   end if;
   if v_verify <> previous."verify" then
     v_secret := case v_verify
@@ -1480,24 +1492,30 @@ create policy bsb_tenant_scope_delete on "app_private"."incoming_webhooks" as re
   for delete to public
   using ("tenant" in (select better_supabase.member_organization_ids()));
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql
--- better-supabase module: webhooks-in
--- @bsb-block-data webhooks-in
--- @bsb-hash sha256:a434458968edf6cbe8f09ea16fb4d40788438a18c05f5dff10e33db45b16d127
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_027_incoming_webhooks.sql
+-- better-supabase module: incoming-webhooks
+-- @bsb-block-data incoming-webhooks
+-- @bsb-hash sha256:a48c9aadbe0fe57ea99872bf5ebb0df44d21670b48728e6f704aea6cf432c462
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+delete from better_supabase.blocks
+  where name = 'webhooks-in'
+    and exists (select 1 from better_supabase.blocks where name = 'incoming-webhooks');
+update better_supabase.blocks set name = 'incoming-webhooks'
+  where name = 'webhooks-in'
+    and not exists (select 1 from better_supabase.blocks where name = 'incoming-webhooks');
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-in', 5, 'managed')
+values ('incoming-webhooks', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
--- better-supabase module: webhooks-in
--- @bsb-block webhooks-in@5 managed
--- @bsb-hash sha256:a3111039ab525750472178845a591611c39df55f7064a0c8a2ee5e72688a97d6
+-- ==== api schema: schema supabase/schemas/900_better_supabase_027_incoming_webhooks.sql
+-- better-supabase module: incoming-webhooks
+-- @bsb-block incoming-webhooks@5 managed
+-- @bsb-hash sha256:09dca5877af3bdc7f103c5f9c1459eea29cf5a19d436cf3a3a8359ac70e8494a
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1657,16 +1675,16 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), tenant, 'webhooks.manage'), false)) then
-    raise exception 'Not allowed to manage incoming webhooks' using errcode = '42501', hint = 'WEBHOOK_IN_FORBIDDEN';
+    raise exception 'Not allowed to manage incoming webhooks' using errcode = '42501', hint = 'INCOMING_WEBHOOK_FORBIDDEN';
   end if;
   if verify not in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret') then
-    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'WEBHOOK_IN_VERIFY_UNKNOWN';
+    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'INCOMING_WEBHOOK_VERIFY_UNKNOWN';
   end if;
   if (subject_type is null) <> (subject_id is null) then
-    raise exception 'Pass subject_type and subject_id together' using errcode = '22023', hint = 'WEBHOOK_IN_SUBJECT_INVALID';
+    raise exception 'Pass subject_type and subject_id together' using errcode = '22023', hint = 'INCOMING_WEBHOOK_SUBJECT_INVALID';
   end if;
   if subject_type is not null and not (true) then
-    raise exception 'No such subject in this tenant' using errcode = '22023', hint = 'WEBHOOK_IN_SUBJECT_INVALID';
+    raise exception 'No such subject in this tenant' using errcode = '22023', hint = 'INCOMING_WEBHOOK_SUBJECT_INVALID';
   end if;
   insert into "better_supabase"."incoming_webhooks" ("id", "tenant", "name", "token_hash", "verify", "secret", "secret_id", "signature_header", "metadata", "subject_type", "subject_id", "created_by")
   values (v_id,
@@ -1711,7 +1729,7 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   if rotate_secret then
     v_secret := case previous."verify"
@@ -1754,7 +1772,7 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   v_secret := case previous."verify"
     when 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
@@ -1762,7 +1780,7 @@ begin
     when 'shared-secret' then encode(extensions.gen_random_bytes(32), 'hex')
   end;
   if v_secret is null then
-    raise exception 'This endpoint verifies no secret' using errcode = '22023', hint = 'WEBHOOK_IN_NO_SECRET';
+    raise exception 'This endpoint verifies no secret' using errcode = '22023', hint = 'INCOMING_WEBHOOK_NO_SECRET';
   end if;
   update "better_supabase"."incoming_webhooks" e set
     "secret" = null,
@@ -1803,17 +1821,17 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   if name is not null and btrim(name) = '' then
-    raise exception 'An endpoint needs a name' using errcode = '22023', hint = 'WEBHOOK_IN_NAME_REQUIRED';
+    raise exception 'An endpoint needs a name' using errcode = '22023', hint = 'INCOMING_WEBHOOK_NAME_REQUIRED';
   end if;
   if metadata is not null and jsonb_typeof(metadata) <> 'object' then
-    raise exception 'metadata must be a JSON object' using errcode = '22023', hint = 'WEBHOOK_IN_METADATA_INVALID';
+    raise exception 'metadata must be a JSON object' using errcode = '22023', hint = 'INCOMING_WEBHOOK_METADATA_INVALID';
   end if;
   v_verify := coalesce(verify, previous."verify");
   if v_verify not in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret') then
-    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'WEBHOOK_IN_VERIFY_UNKNOWN';
+    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'INCOMING_WEBHOOK_VERIFY_UNKNOWN';
   end if;
   if v_verify <> previous."verify" then
     v_secret := case v_verify
@@ -1961,7 +1979,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."incoming_webhooks" a
   for delete to public
   using ("tenant" in (select better_supabase.member_organization_ids()));
 
--- blocks.webhooks-in.api: entry points for the Data API.
+-- blocks.incoming-webhooks.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
@@ -2051,24 +2069,30 @@ as $$ select "better_supabase"."record_incoming_webhook"($1, $2) $$;
 revoke execute on function "api"."record_incoming_webhook"(uuid, integer) from public, anon, authenticated;
 grant execute on function "api"."record_incoming_webhook"(uuid, integer) to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql
--- better-supabase module: webhooks-in
--- @bsb-block-data webhooks-in
--- @bsb-hash sha256:a434458968edf6cbe8f09ea16fb4d40788438a18c05f5dff10e33db45b16d127
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_027_incoming_webhooks.sql
+-- better-supabase module: incoming-webhooks
+-- @bsb-block-data incoming-webhooks
+-- @bsb-hash sha256:a48c9aadbe0fe57ea99872bf5ebb0df44d21670b48728e6f704aea6cf432c462
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+delete from better_supabase.blocks
+  where name = 'webhooks-in'
+    and exists (select 1 from better_supabase.blocks where name = 'incoming-webhooks');
+update better_supabase.blocks set name = 'incoming-webhooks'
+  where name = 'webhooks-in'
+    and not exists (select 1 from better_supabase.blocks where name = 'incoming-webhooks');
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-in', 5, 'managed')
+values ('incoming-webhooks', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
--- better-supabase module: webhooks-in
--- @bsb-block webhooks-in@5 managed
--- @bsb-hash sha256:77141fdecdfd167d4849d5d2439f9cebee4b5bbc3c84c6c6afd84c662b5862be
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_027_incoming_webhooks.sql
+-- better-supabase module: incoming-webhooks
+-- @bsb-block incoming-webhooks@5 managed
+-- @bsb-hash sha256:9cae46f62dc679c1de7201cae34ac4829d977100a630691ffb838064ea9727de
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2186,16 +2210,16 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), tenant, 'webhooks.manage'), false)) then
-    raise exception 'Not allowed to manage incoming webhooks' using errcode = '42501', hint = 'WEBHOOK_IN_FORBIDDEN';
+    raise exception 'Not allowed to manage incoming webhooks' using errcode = '42501', hint = 'INCOMING_WEBHOOK_FORBIDDEN';
   end if;
   if verify not in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret') then
-    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'WEBHOOK_IN_VERIFY_UNKNOWN';
+    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'INCOMING_WEBHOOK_VERIFY_UNKNOWN';
   end if;
   if (subject_type is null) <> (subject_id is null) then
-    raise exception 'Pass subject_type and subject_id together' using errcode = '22023', hint = 'WEBHOOK_IN_SUBJECT_INVALID';
+    raise exception 'Pass subject_type and subject_id together' using errcode = '22023', hint = 'INCOMING_WEBHOOK_SUBJECT_INVALID';
   end if;
   if subject_type is not null and not (true) then
-    raise exception 'No such subject in this tenant' using errcode = '22023', hint = 'WEBHOOK_IN_SUBJECT_INVALID';
+    raise exception 'No such subject in this tenant' using errcode = '22023', hint = 'INCOMING_WEBHOOK_SUBJECT_INVALID';
   end if;
   insert into "better_supabase"."incoming_webhooks" ("id", "tenant", "name", "token_hash", "verify", "secret", "secret_id", "signature_header", "metadata", "subject_type", "subject_id", "created_by")
   values (v_id,
@@ -2240,7 +2264,7 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   if rotate_secret then
     v_secret := case previous."verify"
@@ -2283,7 +2307,7 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   v_secret := case previous."verify"
     when 'standard-webhooks' then 'whsec_' || encode(extensions.gen_random_bytes(32), 'base64')
@@ -2291,7 +2315,7 @@ begin
     when 'shared-secret' then encode(extensions.gen_random_bytes(32), 'hex')
   end;
   if v_secret is null then
-    raise exception 'This endpoint verifies no secret' using errcode = '22023', hint = 'WEBHOOK_IN_NO_SECRET';
+    raise exception 'This endpoint verifies no secret' using errcode = '22023', hint = 'INCOMING_WEBHOOK_NO_SECRET';
   end if;
   update "better_supabase"."incoming_webhooks" e set
     "secret" = null,
@@ -2332,17 +2356,17 @@ begin
   end if;
   select * into previous from "better_supabase"."incoming_webhooks" e where e."id" = endpoint for update;
   if previous."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), previous."tenant", 'webhooks.manage'), false)) then
-    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'WEBHOOK_IN_NOT_FOUND';
+    raise exception 'No incoming webhook %', endpoint using errcode = 'P0002', hint = 'INCOMING_WEBHOOK_NOT_FOUND';
   end if;
   if name is not null and btrim(name) = '' then
-    raise exception 'An endpoint needs a name' using errcode = '22023', hint = 'WEBHOOK_IN_NAME_REQUIRED';
+    raise exception 'An endpoint needs a name' using errcode = '22023', hint = 'INCOMING_WEBHOOK_NAME_REQUIRED';
   end if;
   if metadata is not null and jsonb_typeof(metadata) <> 'object' then
-    raise exception 'metadata must be a JSON object' using errcode = '22023', hint = 'WEBHOOK_IN_METADATA_INVALID';
+    raise exception 'metadata must be a JSON object' using errcode = '22023', hint = 'INCOMING_WEBHOOK_METADATA_INVALID';
   end if;
   v_verify := coalesce(verify, previous."verify");
   if v_verify not in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret') then
-    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'WEBHOOK_IN_VERIFY_UNKNOWN';
+    raise exception 'Unknown verification mode' using errcode = '22023', hint = 'INCOMING_WEBHOOK_VERIFY_UNKNOWN';
   end if;
   if v_verify <> previous."verify" then
     v_secret := case v_verify
@@ -2469,16 +2493,22 @@ grant execute on function "better_supabase"."incoming_webhook_by_token"(text) to
 revoke execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_incoming_webhook"(uuid, integer) to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_027_webhooks_in.sql
--- better-supabase module: webhooks-in
--- @bsb-block-data webhooks-in
--- @bsb-hash sha256:a434458968edf6cbe8f09ea16fb4d40788438a18c05f5dff10e33db45b16d127
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_027_incoming_webhooks.sql
+-- better-supabase module: incoming-webhooks
+-- @bsb-block-data incoming-webhooks
+-- @bsb-hash sha256:a48c9aadbe0fe57ea99872bf5ebb0df44d21670b48728e6f704aea6cf432c462
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
+delete from better_supabase.blocks
+  where name = 'webhooks-in'
+    and exists (select 1 from better_supabase.blocks where name = 'incoming-webhooks');
+update better_supabase.blocks set name = 'incoming-webhooks'
+  where name = 'webhooks-in'
+    and not exists (select 1 from better_supabase.blocks where name = 'incoming-webhooks');
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-in', 5, 'managed')
+values ('incoming-webhooks', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

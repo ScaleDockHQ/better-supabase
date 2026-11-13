@@ -42,7 +42,7 @@ describe("ai-evals module", () => {
   });
 
   it("refuses feedback imports without the ai-chat block", () => {
-    expect(body()).toContain("EVAL_FEEDBACK_UNAVAILABLE");
+    expect(body()).toContain("AI_EVAL_FEEDBACK_UNAVAILABLE");
   });
 
   it("reads rated replies from ai-chat when it is installed", () => {
@@ -52,7 +52,7 @@ describe("ai-evals module", () => {
       .join("\n");
 
     expect(sql).toContain('"ai_message_feedback"');
-    expect(sql).not.toContain("EVAL_FEEDBACK_UNAVAILABLE");
+    expect(sql).not.toContain("AI_EVAL_FEEDBACK_UNAVAILABLE");
   });
 
   it("caps the dataset size", () => {
@@ -65,6 +65,6 @@ describe("ai-evals module", () => {
   });
 
   it("compares runs of one dataset only", () => {
-    expect(body()).toContain("EVAL_RUN_MISMATCH");
+    expect(body()).toContain("AI_EVAL_RUN_MISMATCH");
   });
 });

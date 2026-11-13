@@ -69,7 +69,7 @@ export type WebhookStatus = (typeof WEBHOOK_STATUSES)[number];
 const isStatus = (value: string): value is WebhookStatus =>
   WEBHOOK_STATUSES.some((status) => status === value);
 
-/** `blocks.webhooks-out.options.statuses`: the values an adopted table stores. */
+/** `blocks.webhooks.options.statuses`: the values an adopted table stores. */
 function statusValues(
   ctx: BlockSqlContext,
 ): Readonly<Record<WebhookStatus, string>> {
@@ -77,7 +77,7 @@ function statusValues(
 
   if (typeof configured !== "object" || Array.isArray(configured)) {
     throw new TypeError(
-      "blocks.webhooks-out.options.statuses must map status names to the stored values",
+      "blocks.webhooks.options.statuses must map status names to the stored values",
     );
   }
 
@@ -93,19 +93,19 @@ function statusValues(
   for (const [name, value] of Object.entries(configured)) {
     if (!isStatus(name)) {
       throw new TypeError(
-        `blocks.webhooks-out.options.statuses: unknown status "${name}". Statuses: ${WEBHOOK_STATUSES.join(", ")}`,
+        `blocks.webhooks.options.statuses: unknown status "${name}". Statuses: ${WEBHOOK_STATUSES.join(", ")}`,
       );
     }
 
     if (typeof value !== "string" || value.length === 0) {
       throw new TypeError(
-        `blocks.webhooks-out.options.statuses.${name} must be a non-empty string`,
+        `blocks.webhooks.options.statuses.${name} must be a non-empty string`,
       );
     }
 
     if (ctx.owns("deliveries")) {
       throw new TypeError(
-        "blocks.webhooks-out.options.statuses maps the values of your own deliveries table; the block's table uses the default statuses",
+        "blocks.webhooks.options.statuses maps the values of your own deliveries table; the block's table uses the default statuses",
       );
     }
 
@@ -122,7 +122,7 @@ function typeOption(ctx: BlockSqlContext, name: string): string {
 
   if (!TYPE.test(type)) {
     throw new TypeError(
-      `blocks.webhooks-out.options.${name} must be a type name such as "uuid", not "${type}"`,
+      `blocks.webhooks.options.${name} must be a type name such as "uuid", not "${type}"`,
     );
   }
 
@@ -155,7 +155,7 @@ function userMay(
 
 /**
  * Columns added in version 3. An adopted table has them only when
- * `blocks.webhooks-out.columns` maps them, so existing adopters keep working
+ * `blocks.webhooks.columns` maps them, so existing adopters keep working
  * without the columns.
  */
 export const ADDED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
@@ -177,7 +177,7 @@ export function hookNames(
 
   if (storage !== "vault" && storage !== "column") {
     throw new TypeError(
-      `blocks.webhooks-out.options.secretStorage must be "vault" or "column", not "${storage}"`,
+      `blocks.webhooks.options.secretStorage must be "vault" or "column", not "${storage}"`,
     );
   }
 
@@ -185,12 +185,12 @@ export function hookNames(
 
   if (!has("secrets", vault ? "vaultId" : "secret")) {
     throw new TypeError(
-      `blocks.webhooks-out: secretStorage "${storage}" needs the secrets table's ${vault ? "vaultId" : "secret"} column`,
+      `blocks.webhooks: secretStorage "${storage}" needs the secrets table's ${vault ? "vaultId" : "secret"} column`,
     );
   }
 
   const access = ctx.installed("permissions");
-  const permissions = moduleOperations("webhooks-out");
+  const permissions = moduleOperations("webhooks");
   const values = statusValues(ctx);
 
   return {
@@ -659,7 +659,7 @@ function complete(ctx: BlockSqlContext, n: HookNames): string {
 
   if (!/^\d+ (minute|hour|day|week)s?$/.test(window)) {
     throw new TypeError(
-      `blocks.webhooks-out.options.disableAfter must be an interval such as "5 days", not "${window}"`,
+      `blocks.webhooks.options.disableAfter must be an interval such as "5 days", not "${window}"`,
     );
   }
 

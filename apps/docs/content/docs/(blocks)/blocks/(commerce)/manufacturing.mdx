@@ -89,7 +89,7 @@ await db.manufacturing.activateBom(bom.id).orThrow();
 
 A component quantity rounds up to the scale of the component's unit. A
 component can itself have an active version, and `activateBom` fails with
-`BOM_CYCLE` when a variant would end up among its own components at any
+`MANUFACTURING_BOM_CYCLE` when a variant would end up among its own components at any
 level. `explodeBom(variantId, quantity)` lists the components of `quantity`
 units through every level of active versions (20 at most) and totals the
 materials to buy, and `whereUsed(variantId)` lists the versions a variant
@@ -234,10 +234,10 @@ The client's `fields` schema types those columns on every order it returns.
 | Hint                              | Cause                                                        |
 | --------------------------------- | ------------------------------------------------------------ |
 | `MANUFACTURING_FORBIDDEN`         | the caller lacks the permission                              |
-| `BOM_INVALID`                     | a component or operation is invalid, such as a zero quantity |
-| `BOM_CYCLE`                       | the variant would end up among its own components            |
-| `BOM_NOT_ACTIVE`                  | no active version, or a draft where an active one is needed  |
-| `BOM_NOT_FOUND`                   | no version with this id that the caller sees                 |
+| `MANUFACTURING_BOM_INVALID`       | a component or operation is invalid, such as a zero quantity |
+| `MANUFACTURING_BOM_CYCLE`         | the variant would end up among its own components            |
+| `MANUFACTURING_BOM_NOT_ACTIVE`    | no active version, or a draft where an active one is needed  |
+| `MANUFACTURING_BOM_NOT_FOUND`     | no version with this id that the caller sees                 |
 | `WORK_CENTER_NOT_FOUND`           | no work center with this id in the organization              |
 | `PRODUCTION_ORDER_INVALID`        | a field is invalid, such as a quantity of zero               |
 | `PRODUCTION_ORDER_STATUS_INVALID` | the call doesn't fit the status, such as completing a draft  |

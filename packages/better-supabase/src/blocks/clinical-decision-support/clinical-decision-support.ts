@@ -236,8 +236,8 @@ export interface ClinicalDecisionSupportClient {
    * Runs the built-in rules over the record's active medication orders, then
    * each configured engine over the record's context, and returns the record's
    * open alerts, serious ones first. An engine that throws makes the call an
-   * error with hint `CARE_ENGINE_FAILED`; the alerts of the engines before it
-   * are already stored. Needs `clinical_decision_support.write`.
+   * error with hint `DECISION_SUPPORT_ENGINE_FAILED`; the alerts of the engines
+   * before it are already stored. Needs `clinical_decision_support.write`.
    */
   evaluate(
     input: { subject: RecordRef } & { readonly signal?: AbortSignal },
@@ -449,7 +449,7 @@ export function createClinicalDecisionSupport(
             kind: "unexpected",
             message: `engine ${engine.key} failed: ${cause instanceof Error ? cause.message : String(cause)}`,
             status: 502,
-            hint: "CARE_ENGINE_FAILED",
+            hint: "DECISION_SUPPORT_ENGINE_FAILED",
           });
         }
 

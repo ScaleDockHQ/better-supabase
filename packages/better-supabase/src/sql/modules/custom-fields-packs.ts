@@ -26,8 +26,9 @@ function registeredEntities(ctx: BlockSqlContext): readonly string[] {
 }
 
 /**
- * The statement that raises `FIELD_ENTITY_UNKNOWN` unless the text expression
- * `entity` is a registered subject type. Empty without registered types.
+ * The statement that raises `CUSTOM_FIELD_ENTITY_UNKNOWN` unless the text
+ * expression `entity` is a registered subject type. Empty without registered
+ * types.
  */
 export function entityCheck(ctx: BlockSqlContext, entity: string): string {
   const types = registeredEntities(ctx);
@@ -37,7 +38,7 @@ export function entityCheck(ctx: BlockSqlContext, entity: string): string {
   }
 
   return `if ${entity} is null or ${entity} <> all (array[${types.map((type) => sqlString(type)).join(", ")}]::text[]) then
-    ${fail("FIELD_ENTITY_UNKNOWN", "the entity is not a registered subject type", "22023")}
+    ${fail("CUSTOM_FIELD_ENTITY_UNKNOWN", "the entity is not a registered subject type", "22023")}
   end if;`;
 }
 
@@ -116,13 +117,13 @@ declare
   v_unchanged integer := 0;
 begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("install_field_pack.tenant", manage)}) then
-    ${fail("FIELD_FORBIDDEN", "not allowed to manage custom fields")}
+    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to manage custom fields")}
   end if;
   if jsonb_typeof(install_field_pack.pack) is distinct from 'object' or install_field_pack.pack ->> 'apiVersion' is distinct from '1' then
-    ${fail("FIELD_PACK_INVALID", "a field pack is an object with apiVersion 1", "22023")}
+    ${fail("CUSTOM_FIELD_PACK_INVALID", "a field pack is an object with apiVersion 1", "22023")}
   end if;
   if v_key is null or v_key !~ ${sqlString(FIELD_PACK_KEY_PATTERN)} then
-    ${fail("FIELD_PACK_INVALID", "a field pack needs a key in lower case", "22023")}
+    ${fail("CUSTOM_FIELD_PACK_INVALID", "a field pack needs a key in lower case", "22023")}
   end if;
   begin
     v_version := (install_field_pack.pack ->> 'version')::integer;
@@ -130,33 +131,33 @@ begin
     v_version := null;
   end;
   if v_version is null or v_version < 1 then
-    ${fail("FIELD_PACK_INVALID", "a field pack needs a version of 1 or more", "22023")}
+    ${fail("CUSTOM_FIELD_PACK_INVALID", "a field pack needs a version of 1 or more", "22023")}
   end if;
   if jsonb_typeof(install_field_pack.pack -> 'subjects') is distinct from 'object' then
-    ${fail("FIELD_PACK_INVALID", "a field pack needs subjects: { <type>: fields }", "22023")}
+    ${fail("CUSTOM_FIELD_PACK_INVALID", "a field pack needs subjects: { <type>: fields }", "22023")}
   end if;
 
   for v_entity, v_fields in select s.key, s.value from jsonb_each(install_field_pack.pack -> 'subjects') s order by s.key loop
     ${entityCheck(ctx, "v_entity")}
     if jsonb_typeof(v_fields) is distinct from 'array' then
-      ${fail("FIELD_PACK_INVALID", "the fields of a subject type are a list", "22023")}
+      ${fail("CUSTOM_FIELD_PACK_INVALID", "the fields of a subject type are a list", "22023")}
     end if;
     for v_field in select f.value from jsonb_array_elements(v_fields) f loop
       if jsonb_typeof(v_field) is distinct from 'object' then
-        ${fail("FIELD_PACK_INVALID", "a field is an object of key, label and type", "22023")}
+        ${fail("CUSTOM_FIELD_PACK_INVALID", "a field is an object of key, label and type", "22023")}
       end if;
       v_field_key := v_field ->> 'key';
       v_label := v_field ->> 'label';
       v_type := v_field ->> 'type';
       v_permission := nullif(v_field ->> 'permission', '');
       if v_field_key is null or v_field_key !~ ${sqlString(FIELD_PACK_KEY_PATTERN)} or v_label is null or btrim(v_label) = '' then
-        ${fail("FIELD_PACK_INVALID", "a field needs a key in lower case and a label", "22023")}
+        ${fail("CUSTOM_FIELD_PACK_INVALID", "a field needs a key in lower case and a label", "22023")}
       end if;
       if v_type is null or v_type not in (${TYPES}) then
-        ${fail("FIELD_PACK_INVALID", "a field needs one of the custom field types", "22023")}
+        ${fail("CUSTOM_FIELD_PACK_INVALID", "a field needs one of the custom field types", "22023")}
       end if;
       if (v_field ? 'required' and jsonb_typeof(v_field -> 'required') <> 'boolean') or (v_field ? 'sensitive' and jsonb_typeof(v_field -> 'sensitive') <> 'boolean') then
-        ${fail("FIELD_PACK_INVALID", "required and sensitive are booleans", "22023")}
+        ${fail("CUSTOM_FIELD_PACK_INVALID", "required and sensitive are booleans", "22023")}
       end if;
       v_required := coalesce((v_field ->> 'required')::boolean, false);
       v_sensitive := coalesce((v_field ->> 'sensitive')::boolean, ${sensitiveDefault});
@@ -187,7 +188,7 @@ begin
           audit: false,
         })}
       elsif v_row.pack is distinct from v_key then
-        ${fail("FIELD_PACK_CONFLICT", "the field already exists and doesn't belong to this pack", "23505")}
+        ${fail("CUSTOM_FIELD_PACK_CONFLICT", "the field already exists and doesn't belong to this pack", "23505")}
       elsif v_row.label = v_label and v_row.type = v_type and v_row.required = v_required and v_row.sensitive = v_sensitive
         and v_row.permission is not distinct from v_permission and v_row.version is not distinct from v_version then
         v_unchanged := v_unchanged + 1;

@@ -106,7 +106,7 @@ describe("memoized", () => {
 describe("the adoption scan", () => {
   it("gives the same tables with the cache, from the file, and without it", async () => {
     const modules = {
-      "webhooks-out": {
+      webhooks: {
         tables: { secrets: "public.hook_secrets" },
         options: { secretStorage: "column" },
       },

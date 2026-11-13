@@ -13,7 +13,7 @@ a management API, and get SETs pushed to their endpoint (RFC 8935) or poll
 for them (RFC 8936).
 
 ```bash
-better-supabase add signing-keys webhooks-out security-events
+better-supabase add signing-keys webhooks security-events
 ```
 
 ```ts
@@ -25,7 +25,7 @@ import {
 ```
 
 Every function is service-role only. Push delivery needs
-[webhooks-out](/docs/blocks/webhooks); without it, streams can only
+[webhooks](/docs/blocks/webhooks); without it, streams can only
 poll.
 
 ## Transmit
@@ -118,7 +118,7 @@ lists, every CAEP and RISC type by default.
 
 ### Push and poll
 
-A push stream gets a webhooks-out endpoint with format `set`. Its SETs go
+A push stream gets a webhooks endpoint with format `set`. Its SETs go
 through the outbox like any other delivery, with retries, the dead-letter
 queue and the delivery log. The `authorization_header` a receiver sends
 goes into Vault under `ssf/<stream id>` and becomes the endpoint's
@@ -228,7 +228,7 @@ const config = await api
 await api.verify(String(config.stream_id)).orThrow();
 ```
 
-`create` fails with the hint `SSF_AUDIENCE_MISMATCH` when the new stream's
+`create` fails with the hint `SECURITY_EVENT_AUDIENCE_MISMATCH` when the new stream's
 `aud` doesn't name this receiver.
 
 ## Events

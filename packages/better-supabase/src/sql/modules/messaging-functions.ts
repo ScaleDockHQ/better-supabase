@@ -797,7 +797,7 @@ begin
   end;${writeExtraColumns(t("messages"), extras, "(edit_message.attrs -> 'fields')", `x.${ms("id")} = v_msg.${ms("id")}`)}
   if v_msg.${ms("sentAt")} is not null then
     perform ${fn("index_record_mentions")}(v_msg.${ms("id")});
-    ${messageRecord(q, "message.edited", "v_msg")}
+    ${messageRecord(q, "message.updated", "v_msg")}
   end if;
   ${ctx.hook("after_message_edit", [["uuid", `v_msg.${ms("id")}`]])}
   return ${fn("messaging_messages_json")}(array[v_msg.${ms("id")}]) -> 0;

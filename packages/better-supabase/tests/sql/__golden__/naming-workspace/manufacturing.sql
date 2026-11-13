@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:e870a72bc6600dc1143e8bdb43c5e5c8445f1101f676a734e77dde2cb36d7d53
+-- @bsb-hash sha256:8c8b6e34bd1194e27ad8320cee6de8f5d7b1a5a27fd41ed8facffa53821ec491
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -314,34 +314,34 @@ begin
     raise exception 'not allowed to change bills of materials' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
   if jsonb_typeof(save_bom.input) is distinct from 'object' then
-    raise exception 'input must be an object' using errcode = '22023', hint = 'BOM_INVALID';
+    raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = save_bom.variant and cv."tenant_id" = save_bom.tenant) then
-    raise exception 'the variant isn''t a variant of this organization' using errcode = '22023', hint = 'BOM_INVALID';
+    raise exception 'the variant isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   v_quantity := coalesce(nullif(save_bom.input ->> 'quantity', '')::numeric, 1);
   if v_quantity <= 0 then
-    raise exception 'the quantity must be more than zero' using errcode = '22023', hint = 'BOM_INVALID';
+    raise exception 'the quantity must be more than zero' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   v_components := save_bom.input -> 'components';
   v_operations := coalesce(save_bom.input -> 'operations', '[]'::jsonb);
   if jsonb_typeof(v_components) is distinct from 'array' or jsonb_array_length(v_components) = 0 then
-    raise exception 'a bill of materials lists at least one component' using errcode = '22023', hint = 'BOM_INVALID';
+    raise exception 'a bill of materials lists at least one component' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if jsonb_typeof(v_operations) <> 'array' then
-    raise exception 'operations must be an array' using errcode = '22023', hint = 'BOM_INVALID';
+    raise exception 'operations must be an array' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e
     where jsonb_typeof(e) <> 'object' or nullif(e ->> 'variantId', '') is null
       or coalesce(nullif(e ->> 'quantity', '')::numeric, 0) <= 0
       or coalesce(nullif(e ->> 'scrapBps', '')::integer, 0) not between 0 and 10000) then
-    raise exception 'each component names a variant, a quantity above zero and scrapBps from 0 to 10000' using errcode = '22023', hint = 'BOM_INVALID';
+    raise exception 'each component names a variant, a quantity above zero and scrapBps from 0 to 10000' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = save_bom.variant) then
-    raise exception 'a variant can''t be a component of itself' using errcode = '22023', hint = 'BOM_CYCLE';
+    raise exception 'a variant can''t be a component of itself' using errcode = '22023', hint = 'MANUFACTURING_BOM_CYCLE';
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = (e ->> 'variantId')::uuid and cv."tenant_id" = save_bom.tenant)) then
-    raise exception 'a component isn''t a variant of this organization' using errcode = '22023', hint = 'BOM_INVALID';
+    raise exception 'a component isn''t a variant of this organization' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
     where jsonb_typeof(e) <> 'object' or coalesce(nullif(e ->> 'sequence', '')::integer, 0) <= 0
@@ -349,7 +349,7 @@ begin
       or coalesce(nullif(e ->> 'setupMinutes', '')::numeric, 0) < 0
       or coalesce(nullif(e ->> 'runMinutesPerUnit', '')::numeric, 0) < 0)
     or (select count(distinct e ->> 'sequence') from jsonb_array_elements(v_operations) e) <> jsonb_array_length(v_operations) then
-    raise exception 'each operation has a unique sequence above zero, a title and minutes of zero or more' using errcode = '22023', hint = 'BOM_INVALID';
+    raise exception 'each operation has a unique sequence above zero, a title and minutes of zero or more' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(v_operations) e
     where not exists (select 1 from "better_supabase"."work_centers" x where x."id" = nullif(e ->> 'workCenterId', '')::uuid
@@ -358,7 +358,7 @@ begin
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where nullif(e ->> 'operation', '') is not null
     and not exists (select 1 from jsonb_array_elements(v_operations) p where (p ->> 'sequence')::integer = (e ->> 'operation')::integer)) then
-    raise exception 'a component names an operation sequence the bill of materials doesn''t have' using errcode = '22023', hint = 'BOM_INVALID';
+    raise exception 'a component names an operation sequence the bill of materials doesn''t have' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   
   
@@ -373,10 +373,10 @@ begin
   else
     select * into v_row from "better_supabase"."boms" x where x."id" = save_bom.bom_id and x."tenant_id" = save_bom.tenant for update;
     if not found then
-      raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'BOM_NOT_FOUND';
+      raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'MANUFACTURING_BOM_NOT_FOUND';
     end if;
     if v_row."variant_id" <> save_bom.variant or v_row."status" <> 'draft' then
-      raise exception 'only a draft version of the same variant changes; save a new version instead' using errcode = '22023', hint = 'BOM_INVALID';
+      raise exception 'only a draft version of the same variant changes; save a new version instead' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
     end if;
     delete from "better_supabase"."bom_components" x where x."bom_id" = v_row."id";
     delete from "better_supabase"."bom_operations" x where x."bom_id" = v_row."id";
@@ -409,7 +409,7 @@ revoke execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid)
 grant execute on function "better_supabase"."save_bom"(uuid, uuid, jsonb, uuid) to authenticated, service_role;
 
 -- Makes a version its variant's active bill of materials; the version that was
--- active is archived. Refuses with BOM_CYCLE when the variant would end up in
+-- active is archived. Refuses with MANUFACTURING_BOM_CYCLE when the variant would end up in
 -- its own components.
 create or replace function "better_supabase"."activate_bom"(bom_id uuid)
 returns jsonb
@@ -426,7 +426,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."boms" x where x."id" = activate_bom.bom_id for update;
   if not found then
-    raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'BOM_NOT_FOUND';
+    raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'MANUFACTURING_BOM_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'manufacturing.manage'), false))) then
     raise exception 'not allowed to activate bills of materials' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
@@ -443,7 +443,7 @@ begin
   end if;
   if exists (select 1 from "better_supabase"."bom_components" y where y."bom_id" = v_row."id"
     and "better_supabase"."bom_reaches"(y."variant_id", v_row."variant_id")) then
-    raise exception 'a component is made from the variant itself' using errcode = '22023', hint = 'BOM_CYCLE';
+    raise exception 'a component is made from the variant itself' using errcode = '22023', hint = 'MANUFACTURING_BOM_CYCLE';
   end if;
   update "better_supabase"."boms" x set "status" = 'archived', "updated_at" = now()
   where x."variant_id" = v_row."variant_id" and x."status" = 'active';
@@ -477,7 +477,7 @@ declare
 begin
   select * into v_row from "better_supabase"."boms" x where x."id" = get_bom.bom_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'manufacturing.read'), false))) then
-    raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'BOM_NOT_FOUND';
+    raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'MANUFACTURING_BOM_NOT_FOUND';
   end if;
   return (jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'variantId', v_row."variant_id", 'version', v_row."version", 'status', v_row."status", 'quantity', v_row."quantity"::text, 'note', v_row."note", 'activatedAt', v_row."activated_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object(
     'components', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'variantId', y."variant_id", 'quantity', y."quantity"::text,
@@ -517,7 +517,7 @@ grant execute on function "better_supabase"."list_boms"(uuid, uuid) to authentic
 -- materials at every level: { variantId, quantity, lines: [{ level,
 -- variantId, parentVariantId, bomId, quantity, made }], materials: [{
 -- variantId, quantity }] }. Planned scrap counts; materials are the lines no
--- active bill of materials makes. Refuses with BOM_NOT_ACTIVE when the
+-- active bill of materials makes. Refuses with MANUFACTURING_BOM_NOT_ACTIVE when the
 -- variant has no active bill of materials.
 create or replace function "better_supabase"."explode_bom"(variant_id uuid, quantity numeric)
 returns jsonb
@@ -531,13 +531,13 @@ declare
   v_lines jsonb;
 begin
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'manufacturing.read'), false))) then
-    raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'BOM_NOT_FOUND';
+    raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'MANUFACTURING_BOM_NOT_FOUND';
   end if;
   if explode_bom.quantity is null or explode_bom.quantity <= 0 then
-    raise exception 'the quantity must be more than zero' using errcode = '22023', hint = 'BOM_INVALID';
+    raise exception 'the quantity must be more than zero' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if not exists (select 1 from "better_supabase"."boms" x where x."variant_id" = explode_bom.variant_id and x."status" = 'active') then
-    raise exception 'the variant has no active bill of materials' using errcode = '55000', hint = 'BOM_NOT_ACTIVE';
+    raise exception 'the variant has no active bill of materials' using errcode = '55000', hint = 'MANUFACTURING_BOM_NOT_ACTIVE';
   end if;
   with recursive tree(variant, parent, bom, quantity, level, path) as (
     select y."variant_id", x."variant_id", x."id",
@@ -582,7 +582,7 @@ declare
   v_tenant uuid := (select cv."tenant_id" from "better_supabase"."product_variants" cv where cv."id" = bom_where_used.variant_id);
 begin
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'manufacturing.read'), false))) then
-    raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'BOM_NOT_FOUND';
+    raise exception 'no such bill of materials' using errcode = 'P0002', hint = 'MANUFACTURING_BOM_NOT_FOUND';
   end if;
   return coalesce((with recursive used(bom, variant, version, status, quantity, level, path) as (
     select x."id", x."variant_id", x."version", x."status", y."quantity", 1, array[y."variant_id", x."variant_id"]
@@ -623,7 +623,7 @@ begin
     raise exception 'not allowed to change work centers' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
   if jsonb_typeof(save_work_center.input) is distinct from 'object' then
-    raise exception 'input must be an object' using errcode = '22023', hint = 'BOM_INVALID';
+    raise exception 'input must be an object' using errcode = '22023', hint = 'MANUFACTURING_BOM_INVALID';
   end if;
   if save_work_center.work_center_id is not null then
     select * into v_row from "better_supabase"."work_centers" x
@@ -794,7 +794,7 @@ begin
   where x."variant_id" = v_variant and x."status" = 'active'
     and (nullif(create_production_order.input ->> 'bomId', '') is null or x."id" = (create_production_order.input ->> 'bomId')::uuid);
   if v_bom is null then
-    raise exception 'the variant has no active bill of materials' using errcode = '55000', hint = 'BOM_NOT_ACTIVE';
+    raise exception 'the variant has no active bill of materials' using errcode = '55000', hint = 'MANUFACTURING_BOM_NOT_ACTIVE';
   end if;
   if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
     v_number := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'production_order' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);

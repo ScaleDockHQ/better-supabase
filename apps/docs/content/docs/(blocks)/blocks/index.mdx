@@ -222,8 +222,8 @@ expose the module schema itself.
 | [Workflow editor](/docs/blocks/workflow-editor)                     | `better-supabase/blocks/workflow-editor`, `better-supabase/workflow-sdk/builder` | `workflow-editor`                                     |
 | [Notifications](/docs/blocks/notifications)                         | `better-supabase/blocks/notifications`                                           | `notifications`                                       |
 | [Inbox](/docs/blocks/inbox)                                         | `better-supabase/blocks/inbox`, `better-supabase/chat-sdk`                       | `inbox`, `chat-sdk-state`                             |
-| [Outgoing webhooks](/docs/blocks/webhooks)                          | `better-supabase/blocks/webhooks`                                                | `webhooks-out`                                        |
-| [Incoming webhooks](/docs/blocks/incoming-webhooks)                 | `better-supabase/blocks/webhooks`                                                | `webhooks-in`, `webhook-inbox`                        |
+| [Outgoing webhooks](/docs/blocks/webhooks)                          | `better-supabase/blocks/webhooks`                                                | `webhooks`                                            |
+| [Incoming webhooks](/docs/blocks/incoming-webhooks)                 | `better-supabase/blocks/webhooks`                                                | `incoming-webhooks`, `webhook-inbox`                  |
 | [API keys](/docs/blocks/api-keys)                                   | `better-supabase/blocks/api-keys`                                                | `api-keys`                                            |
 | [Settings](/docs/blocks/settings)                                   | `better-supabase/blocks/settings`                                                | `settings`                                            |
 | [Usage and quotas](/docs/blocks/usage)                              | `better-supabase/blocks/usage`                                                   | `usage`                                               |
@@ -427,9 +427,9 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `profiles` | none | `memberships`, `teams` |
 | `outbox` | none | `data-lifecycle` |
 | `notifications` | `updated-at` | `permissions`, `profiles`, `memberships`, `data-lifecycle`, `consents`, `housekeeping` |
-| `webhooks-out` | `updated-at`, `housekeeping` | `permissions`, `service-accounts`, `data-lifecycle` |
+| `webhooks` | `updated-at`, `housekeeping` | `permissions`, `service-accounts`, `data-lifecycle` |
 | `sessions` | none | `permissions`, `memberships` |
-| `webhooks-in` | `permissions`, `updated-at`, `webhook-inbox` | none |
+| `incoming-webhooks` | `permissions`, `updated-at`, `webhook-inbox` | none |
 | `api-keys` | `memberships`, `permissions` | none |
 | `settings` | `memberships`, `permissions` | `jsonb-schemas` |
 | `usage` | `memberships`, `permissions`, `housekeeping` | `entitlements`, `data-lifecycle`, `invoices` |
@@ -507,7 +507,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `employees` | `memberships`, `permissions` | `outbox`, `relations`, `hiring`, `time-entries`, `approvals`, `teams` |
 | `collections` | `memberships`, `permissions`, `subjects` | `outbox`, `teams`, `bulk-actions` |
 | `signing-keys` | none | `outbox`, `audit` |
-| `security-events` | none | `webhooks-out`, `outbox`, `audit` |
+| `security-events` | none | `webhooks`, `outbox`, `audit` |
 | `oauth-server` | none | `outbox`, `audit` |
 | `domains` | `memberships`, `permissions` | `reserved-slugs` |
 | `moderation` | `memberships`, `permissions` | `messaging`, `outbox`, `audit` |

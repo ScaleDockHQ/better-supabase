@@ -23,7 +23,7 @@ describe.skipIf(!live)("security-events module", () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["outbox", "webhooks-out", "security-events"]);
+      await s.install(["outbox", "webhooks", "security-events"]);
       await s.service();
       await s.client.query("set local role service_role");
       const { signer } = await signingKey();
@@ -184,7 +184,7 @@ describe.skipIf(!live)("security-events module", () => {
     }
   });
 
-  it("refuses push streams without webhooks-out and callers other than the service role", async () => {
+  it("refuses push streams without webhooks and callers other than the service role", async () => {
     const s = await BlockSession.open(pool);
 
     try {
@@ -195,12 +195,12 @@ describe.skipIf(!live)("security-events module", () => {
         await s.hint(
           `select better_supabase.create_ssf_stream(gen_random_uuid(), 'rx', null, '{rx}', 'urn:ietf:rfc:8935', '{}', '{}', null, 'https://rx.example')`,
         ),
-      ).toBe("SSF_PUSH_UNAVAILABLE");
+      ).toBe("SECURITY_EVENT_PUSH_UNAVAILABLE");
       await s.client.query("reset role");
       const alice = await s.user("alice");
       await s.asRole(alice);
       expect(await s.hint("select better_supabase.ssf_streams('rx')")).toMatch(
-        /permission denied|SSF_FORBIDDEN/,
+        /permission denied|SECURITY_EVENT_FORBIDDEN/,
       );
     } finally {
       await s.close();

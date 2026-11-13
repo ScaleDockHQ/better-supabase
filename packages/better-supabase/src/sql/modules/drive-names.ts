@@ -97,7 +97,7 @@ export const FILE_EVENTS: BlockSqlEvents<DriveEvents> = {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "objects"],
   },
-  "drive_node.document_saved": {
+  "drive_node.document_updated": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "documentNumber", "documentType", "ownerId"],
   },

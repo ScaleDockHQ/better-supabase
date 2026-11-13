@@ -1973,6 +1973,7 @@
               "imports",
               "inbox",
               "incidents",
+              "incoming-webhooks",
               "inspections",
               "inventory",
               "invitations",
@@ -2071,8 +2072,7 @@
               "warehouse",
               "warranty",
               "webhook-inbox",
-              "webhooks-in",
-              "webhooks-out",
+              "webhooks",
               "workflow-editor",
               "workflow-sdk",
               "workflows"
@@ -2170,6 +2170,7 @@
                   "imports",
                   "inbox",
                   "incidents",
+                  "incoming-webhooks",
                   "inspections",
                   "inventory",
                   "invitations",
@@ -2268,8 +2269,7 @@
                   "warehouse",
                   "warranty",
                   "webhook-inbox",
-                  "webhooks-in",
-                  "webhooks-out",
+                  "webhooks",
                   "workflow-editor",
                   "workflow-sdk",
                   "workflows"
@@ -2523,6 +2523,9 @@
             },
             "incidents": {
               "$ref": "#/$defs/blocks/incidents"
+            },
+            "incoming-webhooks": {
+              "$ref": "#/$defs/blocks/incoming-webhooks"
             },
             "inspections": {
               "$ref": "#/$defs/blocks/inspections"
@@ -2818,11 +2821,8 @@
             "webhook-inbox": {
               "$ref": "#/$defs/blocks/webhook-inbox"
             },
-            "webhooks-in": {
-              "$ref": "#/$defs/blocks/webhooks-in"
-            },
-            "webhooks-out": {
-              "$ref": "#/$defs/blocks/webhooks-out"
+            "webhooks": {
+              "$ref": "#/$defs/blocks/webhooks"
             },
             "workflow-editor": {
               "$ref": "#/$defs/blocks/workflow-editor"
@@ -6083,6 +6083,26 @@
           }
         }
       },
+      "incoming-webhooks": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxBodyBytes": {
+                "type": "number",
+                "default": 1048576
+              },
+              "secretStorage": {
+                "type": "string",
+                "default": "vault"
+              }
+            }
+          }
+        }
+      },
       "inspections": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -8203,27 +8223,7 @@
           }
         }
       },
-      "webhooks-in": {
-        "$ref": "#/$defs/moduleConfig",
-        "type": "object",
-        "properties": {
-          "options": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "maxBodyBytes": {
-                "type": "number",
-                "default": 1048576
-              },
-              "secretStorage": {
-                "type": "string",
-                "default": "vault"
-              }
-            }
-          }
-        }
-      },
-      "webhooks-out": {
+      "webhooks": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {
