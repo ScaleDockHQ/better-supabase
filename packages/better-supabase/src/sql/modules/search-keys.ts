@@ -175,6 +175,13 @@ export function refreshBranch(
 
   const description = config.search?.description;
 
+  const facets = config.search?.facets ?? [];
+
+  const facetsSql =
+    facets.length === 0
+      ? "'{}'::jsonb"
+      : `jsonb_strip_nulls(jsonb_build_object(${facets.map((name) => `${sqlString(name)}, ${source}.${sqlIdent(name)}`).join(", ")}))`;
+
   const subjectIdType =
     config.idType ??
     knownColumnType(
@@ -213,8 +220,8 @@ export function refreshBranch(
       : "";
 
   return `    when ${sqlString(subject.type)} then
-      select s.${subject.tenant ?? sqlIdent("organization_id")}, ${source}.${sqlIdent(title)}::text, ${bodySql}, ${url}${described ? `, ${description === undefined ? "null" : `${source}.${sqlIdent(description)}::text`}` : ""}
-        into v_tenant, v_title, v_body, v_url${described ? ", v_description" : ""}
+      select s.${subject.tenant ?? sqlIdent("organization_id")}, ${source}.${sqlIdent(title)}::text, ${bodySql}, ${url}${described ? `, ${description === undefined ? "null" : `${source}.${sqlIdent(description)}::text`}` : ""}, ${facetsSql}
+        into v_tenant, v_title, v_body, v_url${described ? ", v_description" : ""}, v_facets
         from ${subject.qualified} s${join}
         where ${registeredIdMatches(subject, "search_refresh.subject_id")}${pushed}${deleted}${templated}${excluded};
       v_found := found;`;

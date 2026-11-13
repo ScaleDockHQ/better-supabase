@@ -395,6 +395,7 @@ export function registeredSubjects(
       ...(entry.search?.body ?? []),
       entry.search?.description,
       entry.search?.exclude,
+      ...(entry.search?.facets ?? []),
     ]) {
       if (name !== undefined) {
         column(`${where}.search`, name);
@@ -493,6 +494,10 @@ export function subjectColumns(
 
     for (const name of entry.search?.body ?? []) {
       columns.push(["search.body", name]);
+    }
+
+    for (const name of entry.search?.facets ?? []) {
+      columns.push(["search.facets", name]);
     }
 
     for (const key of ["description", "exclude"] as const) {

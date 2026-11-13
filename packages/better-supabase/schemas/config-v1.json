@@ -1782,6 +1782,12 @@
               "exclude": {
                 "type": "string"
               },
+              "facets": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "from": {
                 "type": "object",
                 "properties": {
