@@ -90,20 +90,6 @@ export function cursorOf(before: ListOptions["cursor"]): {
   return { before: before.createdAt.toString(), before_id: before.id };
 }
 
-export function publicObjectUrl(
-  url: string,
-  bucket: string,
-  path: string,
-): string {
-  const object = path
-    .replace(/^\/+/, "")
-    .split("/")
-    .map(encodeURIComponent)
-    .join("/");
-
-  return `${url.replace(/\/+$/, "")}/storage/v1/object/public/${encodeURIComponent(bucket)}/${object}`;
-}
-
 export function filtersOf(filters: PageOptions): Record<string, unknown> {
   return {
     tenant: filters.tenant ?? null,

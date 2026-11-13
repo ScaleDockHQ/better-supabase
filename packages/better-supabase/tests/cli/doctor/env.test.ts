@@ -65,6 +65,23 @@ describe("BS503", () => {
     expect(JSON.stringify(findings)).not.toContain("sb_publishable_");
   });
 
+  it("warns that exported inline keys override the running stack's JWKS URL", async () => {
+    const bin = await fakeSupabase(`echo '${JSON.stringify(STATUS)}'`);
+    const jwks = JSON.stringify({ keys: [{ kty: "EC", kid: "hosted" }] });
+
+    const stackEnv = await loadStackEnvCheck(
+      root,
+      parseEnv({ SUPABASE_BIN: bin, SUPABASE_JWKS: jwks }),
+    );
+
+    const findings = await check(stackEnv);
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "SUPABASE_JWKS",
+    ]);
+    expect(JSON.stringify(findings)).not.toContain("hosted");
+  });
+
   it("never starts supabase status when no SUPABASE_* variable is exported", async () => {
     const bin = await fakeSupabase("exit 99");
 
@@ -143,6 +160,55 @@ describe("BS506", () => {
     ).toEqual([]);
     expect(
       await checkUrls("SUPABASE_PUBLISHABLE_KEY=sb_publishable_x"),
+    ).toEqual([]);
+  });
+});
+
+describe("BS509", () => {
+  const checkJwks = (text: string) => {
+    const rule = ENV_RULES.find((candidate) => candidate.code === "BS509")!;
+
+    // SAFETY: BS509 reads only envFiles from the context.
+    return rule.check({
+      envFiles: [{ path: ".env.local", text }],
+    } as unknown as DoctorContext);
+  };
+
+  it("reports a SUPABASE_JWKS that loadEnv would reject", async () => {
+    const findings = await checkJwks(
+      ["SUPABASE_URL=http://127.0.0.1:54321", "SUPABASE_JWKS={keys:"].join(
+        "\n",
+      ),
+    );
+
+    expect(findings).toEqual([
+      {
+        message:
+          'SUPABASE_JWKS in .env.local must be JSON: {"keys":[...]} or [...]. Fill it with the output of curl <url>/auth/v1/.well-known/jwks.json, or leave it empty to fetch SUPABASE_JWKS_URL.',
+        target: ".env.local:SUPABASE_JWKS",
+        location: { file: ".env.local", line: 2 },
+      },
+    ]);
+    expect(
+      (await checkJwks('SUPABASE_JWKS={"keys":[]}')).map(
+        (finding) => finding.message,
+      ),
+    ).toEqual([
+      expect.stringContaining("must hold at least one JSON Web Key with a kty"),
+    ]);
+  });
+
+  it("accepts keys in either shape, and an empty value", async () => {
+    const key = { kty: "EC", kid: "k1", crv: "P-256", x: "x", y: "y" };
+
+    expect(
+      await checkJwks(
+        [
+          `SUPABASE_JWKS='${JSON.stringify({ keys: [key] })}'`,
+          `SUPABASE_JWKS=${JSON.stringify([key])}`,
+          "SUPABASE_JWKS=",
+        ].join("\n"),
+      ),
     ).toEqual([]);
   });
 });

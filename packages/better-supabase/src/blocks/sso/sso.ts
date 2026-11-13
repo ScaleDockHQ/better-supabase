@@ -415,6 +415,8 @@ export function createSsoAdmin(options: SsoAdminOptions): SsoAdmin {
         );
       }
 
+      // auth-js has no admin API for SSO providers, so this calls Auth's
+      // `/admin/sso/providers` endpoints with the secret key.
       const fetcher = admin.fetch ?? fetch;
       let response: Response;
 

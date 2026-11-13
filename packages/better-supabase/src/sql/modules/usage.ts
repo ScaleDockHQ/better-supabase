@@ -282,6 +282,8 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     ? `q.${qc("plan")} = '*' or q.${qc("plan")} = any ((select ${ctx.entitlements("usage_overview.tenant") ?? entitled})::text[])${planKeys === "" ? "" : ` or q.${qc("plan")} = any ((select better_supabase.tenant_plans(usage_overview.tenant))::text[])`}`
     : `q.${qc("plan")} = '*'`;
 
+  const planQuotas = `exists (select 1 from ${quotas} pq where pq.${qc("meter")} = any (usage_quotas_for.meters) and pq.${qc("tenant")} is null and pq.${qc("plan")} <> '*')`;
+
   return `${schemaPreamble(ctx)}
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 create table if not exists ${counters} (
@@ -432,21 +434,41 @@ drop function if exists ${fn("consume_quota")}(${id}, text, numeric, text);
 -- The signature before the report could skip meters and tenants.
 drop function if exists ${fn("unreported_usage")}(integer);
 
+-- The quota that applies to each pair of tenants and meters that has one. It
+-- resolves each distinct tenant's plans once, then picks a quota per pair in
+-- the order usage_quota uses: the tenant's own row, then the highest plan
+-- limit, where a null (unlimited) limit is highest. A tenant's entitlements
+-- and plans are read only when a plan quota on these meters exists, as
+-- usage_quota did before.
+create or replace function ${fn("usage_quotas_for")}(tenants ${id}[], meters text[])
+returns table (tenant ${id}, meter text, quota_limit numeric, period text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with t as materialized (
+    select d.tenant${entitled ? `, case when ${planQuotas} then ${ctx.entitlements("d.tenant")}::text[] end as entitled` : ""}${planKeys === "" ? "" : `, case when ${planQuotas} then better_supabase.tenant_plans(d.tenant)::text[] end as plans`}
+    from (select distinct u.tenant from unnest(usage_quotas_for.tenants) u(tenant) where u.tenant is not null) d
+  )
+  select distinct on (t.tenant, q.${qc("meter")}) t.tenant, q.${qc("meter")}, q.${qc("limit")}, ${quotaPeriod("q")}
+  from t
+  join ${quotas} q on q.${qc("meter")} = any (usage_quotas_for.meters)
+    and (q.${qc("tenant")} = t.tenant or (q.${qc("tenant")} is null and (q.${qc("plan")} = '*'${entitled ? ` or q.${qc("plan")} = any (t.entitled)` : ""}${planKeys === "" ? "" : ` or q.${qc("plan")} = any (t.plans)`})))
+  order by t.tenant, q.${qc("meter")}, (q.${qc("tenant")} is not null) desc, q.${qc("limit")} desc nulls first
+$$;
+
 -- The quota that applies to tenant and meter, or no row. An unlimited quota
 -- is a row with a null quota_limit.
 create or replace function ${fn("usage_quota")}(tenant ${id}, meter text)
 returns table (quota_limit numeric, period text)
 language sql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
-  select q.${qc("limit")}, ${quotaPeriod("q")}
-  from ${quotas} q
-  where q.${qc("meter")} = usage_quota.meter
-    and (q.${qc("tenant")} = usage_quota.tenant or (q.${qc("tenant")} is null and (${planMatches})))
-  order by (q.${qc("tenant")} is not null) desc, q.${qc("limit")} desc nulls first
-  limit 1
+  select q.quota_limit, q.period
+  from ${fn("usage_quotas_for")}(array[usage_quota.tenant], array[usage_quota.meter]) q
 $$;
 
 -- Sets the quota of one tenant or one plan (exactly one of them) on a meter;
@@ -1133,6 +1155,8 @@ grant execute on function ${fn("record_usage_batch")}(${id}, jsonb, text, boolea
 revoke execute on function ${fn("unreported_usage")}(integer, text[], ${id}[]) from public, anon, authenticated;
 revoke execute on function ${fn("mark_usage_reported")}(${id}, text, date, numeric) from public, anon, authenticated;
 grant execute on function ${fn("usage_quota")}(${id}, text) to service_role;
+revoke execute on function ${fn("usage_quotas_for")}(${id}[], text[]) from public, anon, authenticated;
+grant execute on function ${fn("usage_quotas_for")}(${id}[], text[]) to service_role;
 revoke execute on function ${fn("set_usage_quota")}(${id}, text, text, numeric, text) from public, anon, authenticated;
 revoke execute on function ${fn("remove_usage_quota")}(${id}, text, text) from public, anon, authenticated;
 grant execute on function ${fn("set_usage_quota")}(${id}, text, text, numeric, text) to service_role;
@@ -1197,6 +1221,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "usage_breakdown", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "usage_quotas_for", args: ["{id}[]", "text[]"], returns: "table" },
     {
       name: "set_usage_quota",
       args: ["{id}", "text", "text", "numeric", "text"],
@@ -1227,7 +1252,7 @@ export const USAGE: BlockSqlDefinition = {
   providerFunctions: ["memberIds"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 8,
+  version: 9,
   upgrades: [
     {
       from: 1,

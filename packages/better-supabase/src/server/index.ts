@@ -198,10 +198,10 @@ export {
   IDENTITY_SCOPES,
   impersonatorOf,
   permissionsOf,
-  readSession,
   resolveAuth,
   sessionCookieName,
   sessionStatus,
+  ssrSession,
   toSession,
 } from "../auth/internal.ts";
 
@@ -311,7 +311,7 @@ export type {
   BootstrapPermissionsWire,
 } from "../core/bootstrap-permissions.ts";
 
-export { passwordGrant, safeRedirectPath } from "../auth/sign-in.ts";
+export { safeRedirectPath } from "../auth/sign-in.ts";
 
 export {
   createVersionCache,
@@ -344,8 +344,6 @@ export type {
   VersionCache,
   VersionStore,
 } from "./authz-versions.ts";
-
-export type { PasswordGrantOptions } from "../auth/sign-in.ts";
 
 export type {
   SessionMemo,

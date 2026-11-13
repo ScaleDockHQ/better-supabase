@@ -290,38 +290,3 @@ jobs:
           read -ra filters <<< "$FILTERS"
           pnpm exec dotenv -e .env.development.local -- \
             pnpm --workspace-concurrency=1 "${filters[@]}" test
-
-  # As of CLI 2.121.0 the stack engine's Realtime denies private channel joins
-  # that the Docker stack allows, so these suites also run on the legacy engine.
-  realtime:
-    name: Integration (Realtime on the legacy engine)
-    needs: affected
-    if: ${{ !cancelled() && needs.affected.outputs.stack == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-      id-token: write
-    env:
-      SUPABASE_EXPERIMENTAL_STACK: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - uses: $/.github/actions/setup
-
-      - name: Create the local signing key
-        run: |
-          pnpm exec turbo run build --filter=better-supabase...
-          pnpm better-supabase dev keys --cwd .
-
-      - name: Start Supabase
-        uses: $/.github/actions/supabase-stack
-
-      - name: Realtime suites
-        run: >-
-          pnpm exec dotenv -e .env.development.local --
-          pnpm --filter better-supabase exec vitest run --project integration
-          tests/integration/realtime.integration.test.ts
-          tests/integration/permissions-policies.integration.test.ts

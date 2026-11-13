@@ -197,6 +197,9 @@
                     },
                     "type_id": {
                       "type": "number"
+                    },
+                    "is_nullable": {
+                      "type": "boolean"
                     }
                   },
                   "required": ["has_default", "mode", "name", "type_id"]
@@ -719,6 +722,9 @@
                                         "type": "null"
                                       }
                                     ]
+                                  },
+                                  "is_nullable": {
+                                    "type": "boolean"
                                   }
                                 },
                                 "required": [

@@ -43,7 +43,7 @@ The committed session never leaves the server: read it with
 `bsb.getClaims()` or `bsb.context()` later in the same action.
 
 Errors are `unauthorized` with Auth's `error_code` as `code`
-(`invalid_credentials`, `otp_expired`, `code_verifier_missing`),
+(`invalid_credentials`, `otp_expired`, `pkce_code_verifier_not_found`),
 `rate_limited`, `network` or `timeout`. Auth's own message never reaches the
 result, so a form can't tell whether an account exists.
 
@@ -224,8 +224,8 @@ form's action.
 
 ## OAuth with PKCE
 
-`signInWithOAuth` writes the PKCE verifier cookie (httpOnly, `SameSite=Lax`, 10
-minutes) and returns the provider URL. `redirectTo` is the callback route and
+`signInWithOAuth` calls auth-js's `signInWithOAuth` on a `createServerClient`,
+which stores the PKCE verifier in a cookie, and returns the provider URL. `redirectTo` is the callback route and
 must be in the project's redirect allow list; a safe `next` rides on it as
 `?next=`.
 
@@ -241,8 +241,8 @@ export async function signInWithGitHub(next: string | null): Promise<never> {
 }
 ```
 
-The callback exchanges the code. The verifier cookie is deleted whether the
-exchange succeeds or not, so a code works once:
+The callback exchanges the code with auth-js's `exchangeCodeForSession`, which
+removes the verifier once the exchange succeeds, so a code works once:
 
 ```ts title="src/app/auth/callback/route.ts"
 export async function GET(request: Request): Promise<never> {
@@ -300,7 +300,7 @@ wrote it at, see
 ## Flows that send an email
 
 `signInWithOtp`, `resetPasswordForEmail`, `signUp` and `resend` start the flow
-with the same PKCE verifier cookie as `signInWithOAuth`, so the link in the email
+with a PKCE verifier cookie like `signInWithOAuth`, so the link in the email
 lands on `redirectTo` with a `?code=` that `exchangeCodeForSession` turns into a
 session. The default email templates (`{{ .ConfirmationURL }}`) work as they
 are, and the callback route from [OAuth with PKCE](#oauth-with-pkce) serves
@@ -352,12 +352,11 @@ For a password reset, point `redirectTo` at the callback with the reset form
 as `next`. The exchange signs the user in, the form calls
 `updateUser({ password })`, then `bsb.evictSession(userId)`.
 
-The verifier cookie holds one flow: a newer flow in the same browser replaces
-it, and it expires after 10 minutes. A link opened in another browser, or
-after that, fails with `code_verifier_missing`; ask the user to request a new
-one. A flow started with the supabase-js client stores its verifier in its own
-format, which `exchangeCodeForSession` doesn't read: start every flow whose link
-`exchangeCodeForSession` handles with these helpers.
+auth-js keeps a verifier per flow, so flows started in several tabs each
+finish. A link opened in another browser fails with
+`pkce_code_verifier_not_found`; ask the user to request a new one. A flow the
+browser client (`createBrowserClient`) starts stores its verifier in the same
+cookies, so `exchangeCodeForSession` finishes it too.
 
 ## Reads in the same request
 

@@ -149,6 +149,7 @@ function actionCheck(
   ctx: BlockSqlContext,
   subject: RegisteredSubject,
   provider: BlockSqlAccessProvider | undefined,
+  action = "can_subject.action",
 ): string {
   const permissions = subject.config.permissions ?? {};
   const actions = actionsOf(subject);
@@ -172,7 +173,7 @@ function actionCheck(
     return parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
   };
 
-  return `(${SERVICE_CALLER} or case can_subject.action\n${actions
+  return `(${SERVICE_CALLER} or case ${action}\n${actions
     .map((action) => {
       const value = permissions[action];
 
@@ -275,8 +276,22 @@ function actionsOf(subject: RegisteredSubject): readonly string[] {
 
 /** The row `s` is `id` and, with `deletedAt`, not soft-deleted. */
 function rowMatches(subject: RegisteredSubject, id: string): string {
-  const match = registeredIdMatches(subject, id);
+  return rowFilter(subject, registeredIdMatches(subject, id));
+}
 
+/** The row `s` is one of `ids` (a `text[]`) and not soft-deleted. */
+function rowMatchesAny(subject: RegisteredSubject, ids: string): string {
+  const idType = subject.config.idType;
+
+  return rowFilter(
+    subject,
+    idType === undefined
+      ? `s.${subject.id}::text = any (${ids})`
+      : `s.${subject.id} = any ((${ids})::${idType}[])`,
+  );
+}
+
+function rowFilter(subject: RegisteredSubject, match: string): string {
   const deleted =
     subject.config.deletedAt === undefined
       ? ""
@@ -575,6 +590,34 @@ end;
 $$;
 ${userGrant(`${fn("can_subject")}(text, text, text)`)}
 
+-- can_subject for many ids of one type: the ids of subject_ids the caller can
+-- see and act on, from one read of the type's table. A list reads it once
+-- instead of calling can_subject per row.
+create or replace function ${fn("can_subjects")}(subject_type text, subject_ids text[], action text)
+returns setof text
+language plpgsql
+stable
+security invoker
+cost 1000
+set search_path = ''
+as $$
+begin
+  case can_subjects.subject_type
+${cases(
+  subjects,
+  (subject) =>
+    `return query
+        select s.${subject.id}::text from ${subject.qualified} s
+        where ${rowMatchesAny(subject, "can_subjects.subject_ids")}
+          and ${actionCheck(ctx, subject, provider, "can_subjects.action")};`,
+)}
+    else
+      return;
+  end case;
+end;
+$$;
+${userGrant(`${fn("can_subjects")}(text, text[], text)`)}
+
 -- A record page's header and tab badges in one call: the subject's title and
 -- path, how many rows each named section has and whether any is newer than
 -- seen_at. Runs as the caller, so each count is what the caller can read;
@@ -710,6 +753,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "subject_titles", args: ["jsonb"], returns: "jsonb" },
     { name: "can_subject", args: ["text", "text", "text"], returns: "boolean" },
     {
+      name: "can_subjects",
+      args: ["text", "text[]", "text"],
+      returns: "setof text",
+    },
+    {
       name: "record_summary",
       args: ["text", "text", "text[]", "timestamptz"],
       returns: "jsonb",
@@ -739,7 +787,7 @@ export const SUBJECTS: BlockSqlDefinition = {
   integrates: ["teams", "memberships", "audit", "relations"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
   build,

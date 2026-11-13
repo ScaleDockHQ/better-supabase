@@ -10,7 +10,7 @@ import {
   vi,
 } from "vitest";
 
-import { readSession, sessionCookieName } from "../../src/auth/session.ts";
+import { sessionCookieName, ssrSession } from "../../src/auth/session.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { parseEnv } from "../../src/env/index.ts";
 import { createNext } from "../../src/next/index.ts";
@@ -180,10 +180,12 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     const bsb = createNext(betterSupabase, { env, server });
     const name = sessionCookieName(url);
 
-    const token = (): string | undefined =>
-      readSession(
-        [...mocks.jar].map(([cookie, value]) => ({ name: cookie, value })),
-        name,
+    const token = async (): Promise<string | undefined> =>
+      (
+        await ssrSession(
+          [...mocks.jar].map(([cookie, value]) => ({ name: cookie, value })),
+          name,
+        )
       )?.access_token;
 
     return { bsb, server, token, verifier: `${name}-code-verifier` };
@@ -225,7 +227,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
         user: { id: user.id, email: user.email },
       },
     });
-    expect(token()).toBeDefined();
+    expect(await token()).toBeDefined();
     expect((await bsb.getClaims())?.userId).toBe(user.id);
     expect(await bsb.claims()).toMatchObject({ user: { id: user.id } });
     expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("user");
@@ -275,7 +277,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       data: { redirectTo: "/welcome", mfa: false },
     });
     expect((await bsb.getClaims())?.userId).toBe(user.id);
-    expect(token()).toBeDefined();
+    expect(await token()).toBeDefined();
 
     const reused = await bsb.verifyOtp({
       type: "magiclink",
@@ -349,7 +351,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     });
     expect(mocks.jar.has(verifier)).toBe(false);
     expect((await bsb.getClaims())?.userId).toBe(user.id);
-    expect(token()).toBe((await bsb.getClaims())?.accessToken);
+    expect(await token()).toBe((await bsb.getClaims())?.accessToken);
   });
 
   it("commits the session signUp returns when confirmation is off", async () => {
@@ -381,7 +383,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
     });
     expect(mocks.jar.has(verifier)).toBe(false);
     expect((await bsb.getClaims())?.userId).toBe(userId);
-    expect(token()).toBeDefined();
+    expect(await token()).toBeDefined();
   });
 
   it("verifies TOTP and commits the aal2 session", async () => {
@@ -448,7 +450,7 @@ describe.skipIf(!live)("Next.js auth flows against Supabase Auth", () => {
       data: { redirectTo: "/signed-out", mfa: false, user: null },
       error: null,
     });
-    expect(token()).toBeUndefined();
+    expect(await token()).toBeUndefined();
     expect(await bsb.getClaims()).toBeNull();
     expect((await bsb.context({ tenant: "org-1" })).auth.kind).toBe("none");
 

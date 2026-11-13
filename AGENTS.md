@@ -57,7 +57,7 @@ The full text is in `.agents/rules/architecture.mdc`.
 4. Repository methods return a `Result` with plain `DbError`s; only `.orThrow()` throws.
 5. Event handlers and sinks can never change a result.
 6. Runtime entries import no Node built-ins (`NODE_ENTRIES` lists the exceptions).
-7. Auth never calls the Auth server for a valid token; refresh happens only in the proxy.
+7. Auth never calls the Auth server for a valid token; only the proxy refreshes, through `@supabase/ssr`.
 8. Every followed spec version is pinned in `SPEC_PINS`.
 9. Every public API has a docs page and an example.
 10. Plugins and extension interfaces are versioned (`apiVersion: 1`).

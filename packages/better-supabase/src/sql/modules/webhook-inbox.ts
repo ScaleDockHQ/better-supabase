@@ -10,6 +10,7 @@ import {
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
+import { workNotifyFunction, workNotifyTrigger } from "./work-notify.ts";
 
 const MESSAGE_COLUMNS = {
   id: "id",
@@ -485,6 +486,9 @@ begin
 end;
 $$;
 
+${workNotifyFunction("better_supabase.webhook_inbox_notify", "inbox")}
+${workNotifyTrigger(t, "better_supabase.webhook_inbox_notify")}
+
 ${serviceOnly([
   `receive_webhook(text, text, text, jsonb, jsonb, text, integer${extra.type})`,
   "claim_webhooks(text, text, integer, interval)",
@@ -537,7 +541,7 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
       },
     },
   },
-  version: 10,
+  version: 11,
   upgrades: [
     {
       from: 1,
@@ -599,6 +603,12 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
       from: 9,
       description:
         "webhook_inbox_has_work() says whether a message is ready to claim, as the probe of the inbox schedule.",
+      sql: () => "",
+    },
+    {
+      from: 10,
+      description:
+        "A statement trigger on the messages table notifies better_supabase_work on each insert, so listenForWork processes a message stored from SQL without waiting for the schedule.",
       sql: () => "",
     },
   ],

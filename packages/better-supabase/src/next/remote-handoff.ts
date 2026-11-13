@@ -4,6 +4,8 @@ import type { RemoteCacheKey } from "./types.ts";
 interface Handoff {
   snapshot: SessionSnapshot;
   count: number;
+  /** The debug request id of the latest caller, for its stats. */
+  requestId: string | undefined;
 }
 
 const HANDOFFS = Symbol.for("better-supabase.remote-handoffs");
@@ -37,11 +39,13 @@ export function handoffKey(key: RemoteCacheKey): string {
 /**
  * Registers the caller's verified snapshot for one call and returns its
  * release. Concurrent calls under one key count up, so the first to finish
- * leaves the token for the others.
+ * leaves the token for the others. `requestId` attributes the fill's calls to
+ * the caller's request; with concurrent callers, the latest one gets them.
  */
 export function handOff<C>(
   key: RemoteCacheKey,
   snapshot: SessionSnapshot<C>,
+  requestId?: string,
 ): () => void {
   const slot = handoffKey(key);
   const map = handoffs();
@@ -50,8 +54,9 @@ export function handOff<C>(
   if (entry) {
     entry.count += 1;
     entry.snapshot = snapshot;
+    entry.requestId = requestId;
   } else {
-    map.set(slot, { snapshot, count: 1 });
+    map.set(slot, { snapshot, count: 1, requestId });
   }
 
   let released = false;
@@ -82,4 +87,9 @@ export function takeHandoff<C>(
   return handoffs().get(handoffKey(key))?.snapshot as
     | SessionSnapshot<C>
     | undefined;
+}
+
+/** The debug request id of the call that registered the key, if any. */
+export function handoffRequestId(key: RemoteCacheKey): string | undefined {
+  return handoffs().get(handoffKey(key))?.requestId;
 }

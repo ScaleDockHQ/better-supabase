@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server.js";
 import { describe, expect, it, vi } from "vitest";
 
-import { writeSession } from "../../../src/auth/session.ts";
 import { createSupabase } from "../../../src/core/define.ts";
 import { createProxy } from "../../../src/next/proxy/index.ts";
 import { createTestSigner } from "../../../src/testing/jwt.ts";
 import { schema } from "../../fixtures/generated-camel.ts";
+import { writeSession } from "../../fixtures/session-cookies.ts";
 
 const PROJECT_URL = "https://abcdefghijklmnopqrst.supabase.co";
 const NAME = "sb-abcdefghijklmnopqrst-auth-token";

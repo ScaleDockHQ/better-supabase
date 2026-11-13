@@ -642,6 +642,64 @@ export const GET = jobs.drainRoute({
 });
 ```
 
+### Starting jobs right away
+
+The drain route runs once a minute, so a job waits up to a minute. Two
+options start it as soon as it is written; keep the route as the fallback.
+
+`kick` drains a queue after each successful `enqueue`, `enqueueOnce`,
+`replay` or `retryDead` on it. `waitUntil` keeps the drain running after the
+response: `bsb.waitUntil` in Next.js (it wraps `after()`), or a Workers
+`ctx.waitUntil`. Writes made before a drain starts share it, and a write made
+while one runs queues one more. A drain that throws is logged and never
+changes the `enqueue` result.
+
+```ts title="lib/jobs.ts"
+import { createQueue } from "better-supabase/blocks/queue";
+
+import { bsb } from "@/lib/bsb";
+
+export const jobs = createQueue({
+  sql: postgres.admin,
+  queues: { send_email: emailSchema },
+  kick: {
+    waitUntil: bsb.waitUntil,
+    run: (queue) =>
+      jobs.drain({ queue, handler: handlers[queue], budgetMs: 10_000 }),
+  },
+});
+```
+
+A job enqueued from SQL (a trigger, `pg_cron`, another service) never passes
+through `kick`. Each queue table has a statement trigger that sends
+`pg_notify('better_supabase_work', '{"kind":"queue","queue":"<name>"}')`
+once per insert statement, delivered when the transaction commits.
+`listenForWork` from `better-supabase/postgres` listens on that channel in a
+long-lived Node process (a worker, a container) and drains the queue that
+got the job:
+
+```ts title="worker.ts"
+import pg from "pg";
+import { listenForWork } from "better-supabase/postgres";
+
+const pool = new pg.Pool({ connectionString: process.env.SUPABASE_DB_URL });
+
+const listener = await listenForWork(pool, {
+  queues: {
+    send_email: () => jobs.drain({ queue: "send_email", handler: sendEmail }),
+  },
+});
+
+process.on("SIGTERM", () => listener.close());
+```
+
+It holds one connection of the pool and needs a session connection: it
+throws for the transaction pooler (port 6543), which drops `LISTEN`.
+Notifications within `debounceMs` (25 ms) start one drain per queue. After it
+connects, and after each reconnect, it asks `ready_job_queues` which queues
+already have a job, so jobs written while it was away still run. It takes
+`inbox` and `outbox` passes the same way.
+
 ### Queue backends
 
 `createQueue` accepts a SQL connection, a Supabase client, or any
@@ -1101,6 +1159,25 @@ renewal fails; the worker then leaves the message for the next claim.
 ```ts title="app/api/inbox/route.ts"
 export const GET = async () =>
   Response.json(await inbox.process(handleMessage, { budgetMs: 50_000 }));
+```
+
+To process a message as soon as it is stored instead of on the next call,
+pass `kick`. It runs after each `receive` that stored a message and each
+successful `store`, and `waitUntil` keeps it running after the response.
+A message stored from SQL wakes `listenForWork`
+([Starting jobs right away](#starting-jobs-right-away)) through the inbox
+table's statement trigger.
+
+```ts
+const inbox = createWebhookInbox({
+  transport: sqlTransport(postgres.admin),
+  source: "billing",
+  secrets: process.env.BILLING_WEBHOOK_SECRET!,
+  kick: {
+    waitUntil: bsb.waitUntil,
+    run: () => inbox.process(handleMessage, { budgetMs: 10_000 }),
+  },
+});
 ```
 
 A webhook carries no session, so pick the identity in the handler. Look up

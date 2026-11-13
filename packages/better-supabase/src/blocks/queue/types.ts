@@ -4,6 +4,7 @@ import type { AuthorizationDetail } from "../../auth/delegation.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { Kick } from "../../core/kick.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Actor, RequestContext } from "../../core/plugin.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
@@ -571,7 +572,13 @@ export interface QueueOptions<
   readonly mappers?: readonly ErrorMapper[];
   /** `withBlockHooks` hooks around the methods that return an `AsyncResult`. */
   readonly hooks?: NoInfer<BlockHooks<Queue<Q>>>;
-  /** Receives the errors `after` hooks throw. */
+  /**
+   * Drains a queue right after a successful `enqueue`, `enqueueOnce`, `replay`
+   * or `retryDead` on it, e.g. `{ waitUntil: bsb.waitUntil, run: (queue) =>
+   * queue.drain({ queue, handler: handlers[queue] }) }`.
+   */
+  readonly kick?: NoInfer<Kick<Extract<keyof Q, string>>>;
+  /** Receives the errors `after` hooks and `kick` throw. */
   readonly logger?: Logger;
   /**
    * The clock for `runAt` delays and schedule runs; pass the definition's `now`
