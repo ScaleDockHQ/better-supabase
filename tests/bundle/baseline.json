@@ -208,7 +208,6 @@
   "./claims": 18421,
   "./cli": 810431,
   "./client": 86553,
-  "./client/lite": 490,
   "./client/native": 99802,
   "./commerce": 41703,
   "./config": 152316,

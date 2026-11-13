@@ -866,15 +866,6 @@
       "WebPushTokenOptions"
     ]
   },
-  "./client/lite": {
-    "values": [
-      "createLiteBrowserClient"
-    ],
-    "types": [
-      "LiteBrowserClient",
-      "LiteBrowserClientOptions"
-    ]
-  },
   "./client/native": {
     "values": [
       "AUTHZ_EVENT",
