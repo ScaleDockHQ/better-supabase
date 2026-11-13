@@ -140,6 +140,27 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("leaves the record pending for Storage's signed upload probe", async () => {
+    await expect(
+      run(
+        MODULES,
+        `${SEED}
+do $$
+declare
+  v_row better_supabase.attachments;
+begin
+  insert into storage.objects (bucket_id, name, metadata)
+  values ('attachments', '${PATH}', '{"mimetype": "application/json", "contentLength": 2}');
+  select * into v_row from better_supabase.attachments where id = '${FILE}';
+  if v_row.uploaded_at is not null or v_row.mime_type <> 'application/pdf' then
+    raise exception 'the probe marked the record uploaded: %', to_jsonb(v_row);
+  end if;
+end;
+$$;`,
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("queues a deleted record's objects until storage or the sweep removes them", async () => {
     await expect(
       run(
