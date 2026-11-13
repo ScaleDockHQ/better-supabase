@@ -460,7 +460,14 @@ add one, and link it from the code or config it explains.
 | [0688](0688-raise-the-server-baselines-after-five-more-blocks.md)                   | Raise the server baselines after five more blocks and the Phase 10 pages                                                                                                                   |
 | [0689](0689-declare-each-entitys-surface-in-the-block-manifest.md)                  | Declare each entity's surface in the block manifest                                                                                                                                        |
 | [0690](0690-raise-the-server-baselines-for-the-entity-declarations.md)              | Raise the server baselines for the entity declarations                                                                                                                                     |
+<<<<<<< HEAD
 | [0729](0729-member-reads-and-clients-for-three-blocks.md)                           | Member reads and clients for three blocks                                                                                                                                                  |
+||||||| 19bd8113c3
+=======
+| [0799](0799-generate-permission-keys-from-the-block-manifests.md)                   | Generate permission keys from the block manifests                                                                                                                                          |
+| [0800](0800-raise-the-server-baselines-for-the-permission-declarations.md)          | Raise the server baselines for the permission declarations                                                                                                                                 |
+|                                                                                     |                                                                                                                                                                                            |          |     |     |     | 6f9b3af232 |
+>>>>>>> origin/main
 | [0819](0819-bind-the-employee-contracts-to-the-record-page.md)                      | Bind the employee contracts to the record page                                                                                                                                             |
 | [0709](0709-name-the-fields-and-words-of-a-block-error.md)                          | Name the fields and the words of a block error                                                                                                                                             |
 | [0710](0710-raise-the-next-build-baselines-for-the-error-message-provider.md)       | Raise the next-build baselines for the error message provider                                                                                                                              |

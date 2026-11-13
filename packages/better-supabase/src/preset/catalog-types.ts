@@ -99,6 +99,13 @@ export interface PresetCatalogManifest {
    */
   readonly entitySchemas?: Readonly<Record<string, PresetCatalogEntitySchemas>>;
   /**
+   * The permission keys its entities declare, by entity key and verb
+   * (`entities.<key>.permissions`), for `gen`'s permission catalog.
+   */
+  readonly entityPermissions?: Readonly<
+    Record<string, Readonly<Record<string, string>>>
+  >;
+  /**
    * The block's events: the event map type its subpath exports and the event
    * types, in its default names.
    */

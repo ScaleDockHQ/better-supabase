@@ -17,7 +17,16 @@ export const advisoriesBlock: BlockOf<
   create: createAdvisories,
   category: "work",
   entities: {
-    advisory: { mutability: "editable", emits: { create: true, update: true } },
+    advisory: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+      permissions: {
+        read: "advisories.read",
+        create: "advisories.write",
+        update: "advisories.write",
+        publish: "advisories.publish",
+      },
+    },
     advisory_product: {
       mutability: "editable",
       emits: { create: true, update: true },

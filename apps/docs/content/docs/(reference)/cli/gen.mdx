@@ -249,6 +249,31 @@ as aliases over the block packages, because writing a concrete interface per
 instance needs a type extraction step that `gen` does not have. Import those
 types with `import type`, which costs nothing at runtime.
 
+## Permission catalog
+
+With `gen.permissionCatalog: true` and `blocks.permissions.model: "catalog"`,
+`gen` writes `<stamp>_better_supabase_permission_catalog.sql`, a migration that
+inserts a row for every permission key the installed blocks check or declare on
+their entities, and the default grants of the `owner`, `admin` and `member`
+roles. A new block's pages no longer answer 403 for the owner until you write a
+catalog migration by hand. When the installed blocks or their keys change, the
+next `gen` writes a new migration that holds every statement again, and
+`gen --check` reports the file as stale. Every statement skips rows that exist,
+and the migration runs again whole, so it grants a key's defaults again after
+you removed one. Change a role's grants in your own migration only for keys the
+generated one does not hold.
+
+The same run writes `permission-scopes.ts` next to `blocks.config.ts`:
+
+| Export         | Holds                                                                            |
+| -------------- | -------------------------------------------------------------------------------- |
+| `apiKeyScopes` | Every tenant permission key, for `scopes` of an API key                          |
+| `oauthScopes`  | The same keys without the `manage` keys, for the scopes an OAuth client requests |
+
+Platform keys get a catalog row and no default grant. The command needs the
+managed catalog tables; it stops with `config_invalid` when
+`blocks.permissions.tables` or `columns` rename them.
+
 ## Options
 
 | Option                 | Effect                                                                                                                                                           |

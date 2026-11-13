@@ -21,8 +21,15 @@ export const referralsBlock: BlockOf<
   recipes: [],
   category: "commerce",
   entities: {
-    referral_code: { mutability: "append-only", emits: { create: true } },
-    referral: { mutability: "state-machine" },
+    referral_code: {
+      mutability: "append-only",
+      emits: { create: true },
+      permissions: { read: "referrals.read", create: "referrals.write" },
+    },
+    referral: {
+      mutability: "state-machine",
+      permissions: { read: "referrals.read", manage: "referrals.manage" },
+    },
   },
   description:
     "Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.",
