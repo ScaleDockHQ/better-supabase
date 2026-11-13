@@ -867,7 +867,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Scope: List contract rollout: work and collaboration
 - Status: PR open
 - Branch: `feat/audit-g2`
-- PR: pending
+- PR: [#921](https://github.com/ScaleDockHQ/better-supabase/pull/921)
 - Findings: EX-1200 to EX-1205, EX-1215
 - Log: 2026-11-12, planned.
   2026-11-13, lane G2 started from main (7f4bcbfdf7) in `../bsb-audit-g2`.
