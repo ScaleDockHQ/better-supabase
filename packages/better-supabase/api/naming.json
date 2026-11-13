@@ -2516,7 +2516,8 @@
       "CREDENTIAL_",
       "IMPORT_ITEM_",
       "NUMBER_",
-      "ORGANIZATION_ROLE_UNKNOWN"
+      "ORGANIZATION_ROLE_UNKNOWN",
+      "STALE_WRITE"
     ],
     "allowlist": {
       "accounting": [
