@@ -5,7 +5,7 @@ import { AsyncResult, err, ok } from "./result.ts";
 import { sha256Hex } from "./sha256.ts";
 
 /** The longest `idempotencyKey`, as for the `Idempotency-Key` header. */
-export const IDEMPOTENCY_KEY_MAX = 255;
+const IDEMPOTENCY_KEY_MAX = 255;
 
 /**
  * What a block needs of the `idempotency` block (`createIdempotency` from

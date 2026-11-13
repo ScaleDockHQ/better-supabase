@@ -78,6 +78,12 @@ export { escapeLike } from "../ir/escape-like.ts";
 
 export { tenantOf } from "../auth/tenant.ts";
 
+export {
+  optimisticArchive,
+  optimisticReorder,
+  optimisticUpdate,
+} from "../blocks/optimistic.ts";
+
 export type {
   ActionForm,
   ActionHandle,
