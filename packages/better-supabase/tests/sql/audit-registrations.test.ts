@@ -66,6 +66,32 @@ select better_supabase.audit('public.c', ignore => '{x}');
     ).toEqual([{ target: "public.c", ignore: ["x"], redact: [] }]);
   });
 
+  it("moves a registration to the new name of a renamed table", () => {
+    expect(
+      auditRegistrations([
+        file(`
+select better_supabase.audit('public.template_workflows', ignore => '{updated_at}');
+select better_supabase.audit('crm."Old Deals"', redact => '{secret}');
+select better_supabase.audit('public.kept');
+`),
+        file(`
+alter table public.template_workflows rename to template_automations;
+ALTER TABLE IF EXISTS ONLY crm."Old Deals" RENAME TO "Deals";
+alter table public.kept rename column a to b;
+alter table public.unaudited rename to other;
+`),
+      ]),
+    ).toEqual([
+      { target: "crm.Deals", ignore: [], redact: ["secret"] },
+      { target: "public.kept", ignore: [], redact: [] },
+      {
+        target: "public.template_automations",
+        ignore: ["updated_at"],
+        redact: [],
+      },
+    ]);
+  });
+
   it("skips comments, the module's own definitions and non-literal arguments", () => {
     expect(
       auditRegistrations([
