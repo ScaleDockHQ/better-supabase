@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { readdir, readFile } from "node:fs/promises";
+import { isAbsolute, posix, relative, resolve, sep } from "node:path";
 
 import { CACHE_DIR, writeAtomic } from "../introspect/cache.ts";
+import { GENERATED_HEADER } from "./emit.ts";
 
 /**
  * The files the last `gen` wrote, so the next one can remove those it no longer
@@ -34,9 +35,57 @@ async function readManifest(root: string): Promise<readonly string[]> {
   );
 }
 
+const insideRoot = (root: string, path: string): boolean => {
+  const inside = relative(root, resolve(root, path));
+
+  return inside !== "" && !inside.startsWith("..") && !isAbsolute(inside);
+};
+
 /**
- * Files in the last manifest that this run doesn't generate and that still
- * exist inside the root.
+ * The TypeScript files next to this run's own that carry gen's header but that
+ * this run doesn't generate. Unlike the manifest, which only the machine that
+ * ran `gen` last has, this reads the tree, so `gen --check` reports the same
+ * leftovers in CI as locally.
+ */
+async function headedLeftovers(
+  root: string,
+  current: ReadonlySet<string>,
+): Promise<readonly string[]> {
+  const folders = new Set(
+    [...current]
+      .filter((path) => path.endsWith(".ts") && insideRoot(root, path))
+      .map((path) => posix.dirname(path)),
+  );
+
+  const found = await Promise.all(
+    [...folders].map(async (folder) => {
+      const names = await readdir(resolve(root, folder)).catch(() => []);
+
+      const headed = await Promise.all(
+        names
+          .filter((name) => name.endsWith(".ts"))
+          .map((name) => posix.join(folder, name))
+          .filter((path) => !current.has(path))
+          .map(async (path) => {
+            const text = await readFile(resolve(root, path), "utf-8").catch(
+              () => "",
+            );
+
+            return text.startsWith(GENERATED_HEADER) ? [path] : [];
+          }),
+      );
+
+      return headed.flat();
+    }),
+  );
+
+  return found.flat();
+}
+
+/**
+ * Files this run doesn't generate that still exist inside the root: those in
+ * the last manifest, and those in the folders gen writes that carry its
+ * header.
  */
 export async function leftoverFiles(
   root: string,
@@ -44,17 +93,16 @@ export async function leftoverFiles(
 ): Promise<string[]> {
   const current = new Set(generated);
 
-  return (await readManifest(root)).filter((path) => {
-    const inside = relative(root, resolve(root, path));
-
-    return (
+  const listed = (await readManifest(root)).filter(
+    (path) =>
       !current.has(path) &&
-      inside !== "" &&
-      !inside.startsWith("..") &&
-      !isAbsolute(inside) &&
-      existsSync(resolve(root, path))
-    );
-  });
+      insideRoot(root, path) &&
+      existsSync(resolve(root, path)),
+  );
+
+  return [
+    ...new Set([...listed, ...(await headedLeftovers(root, current))]),
+  ].toSorted();
 }
 
 export const writeManifest = (

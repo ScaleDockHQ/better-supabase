@@ -5,14 +5,18 @@ import { join } from "node:path";
 const SOURCE = /\.(?:[cm]?[jt]s)$/u;
 
 /**
- * Where the generator's code lives: `src/sql` when this runs from source, and
- * the folder of the bundled chunks otherwise.
+ * Where the generator's code lives: all of `src` when this runs from source,
+ * and all of `dist` otherwise. A render reads more than `src/sql` (the block
+ * subjects in `src/config` and the preset catalog), and the built CLI imports
+ * the generator from `better-supabase/sql`, a chunk at the root of `dist`, so a
+ * narrower folder lets the cache serve renders an older generator wrote.
  */
-const generatorRoot = (): string => {
-  const here = import.meta.dirname;
-
-  return import.meta.url.endsWith(".ts") ? join(here, "../../sql") : here;
-};
+export function generatorRoot(): string {
+  return join(
+    import.meta.dirname,
+    import.meta.url.endsWith(".ts") ? "../.." : "..",
+  );
+}
 
 let held: Promise<string> | undefined;
 
