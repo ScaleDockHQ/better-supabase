@@ -37,7 +37,7 @@ const NOT_LITERAL = [
   "drive: drive.connection_created",
   "drive: drive.connection_removed",
   "drive-files: drive_node.purged",
-  "drive-files: drive_node.document_saved",
+  "drive-files: drive_node.document_updated",
   "drive-files: drive_node.submitted",
   "drive-files: drive_node.released",
   "drive-files: drive_node.obsoleted",

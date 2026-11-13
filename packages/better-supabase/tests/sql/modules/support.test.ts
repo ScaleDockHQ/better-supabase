@@ -33,7 +33,7 @@ describe("impersonation module", () => {
     );
     expect(sql).toContain(`"is_platform"('system.users.manage')`);
     expect(sql).toContain(`"is_platform"('system.audit.read')`);
-    expect(sql).toContain("hint = 'SUPPORT_REASON_REQUIRED'");
+    expect(sql).toContain("hint = 'IMPERSONATION_REASON_REQUIRED'");
     expect(sql).toContain("ttl > '4 hours'::interval");
     expect(sql).toContain("return base -> 'claims';");
     expect(sql).toContain(
@@ -91,7 +91,7 @@ describe("impersonation module", () => {
     expect(sql).toContain(
       "coalesce(public.custom_access_token_hook(base) -> 'claims', base -> 'claims')",
     );
-    expect(sql).not.toContain("SUPPORT_REASON_REQUIRED'");
+    expect(sql).not.toContain("IMPERSONATION_REASON_REQUIRED'");
     expect(sql).toContain("'1 hour'::interval");
     expect(sql).toContain("category => 'users'");
   });
@@ -142,8 +142,8 @@ describe("impersonation module", () => {
     expect(sql).toContain(
       'constraint bsb_support_requests_distinct_approver check ("approved_by" <> "admin_id")',
     );
-    expect(sql).toContain("hint = 'SUPPORT_APPROVAL_REQUIRED'");
-    expect(sql).toContain("hint = 'SUPPORT_SELF_APPROVAL'");
+    expect(sql).toContain("hint = 'IMPERSONATION_APPROVAL_REQUIRED'");
+    expect(sql).toContain("hint = 'IMPERSONATION_SELF_APPROVAL'");
     expect(sql).toContain('and x."approved_by" <> admin');
     expect(sql).toContain(
       'update "better_supabase"."support_requests" x set "session_id" = session_id where x."id" = approval_id;',
@@ -168,7 +168,7 @@ describe("impersonation module", () => {
       options: { approval: "none", approvalTtl: "15 minutes" },
     });
 
-    expect(sql).not.toContain("SUPPORT_APPROVAL_REQUIRED");
+    expect(sql).not.toContain("IMPERSONATION_APPROVAL_REQUIRED");
     expect(sql).not.toContain("approval_id");
     expect(sql).toContain("now() + '15 minutes'::interval");
   });

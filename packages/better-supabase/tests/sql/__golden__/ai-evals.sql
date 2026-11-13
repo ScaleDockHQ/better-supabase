@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:d423bdf7e9b8be2d0cb68637acd279601f50f98042fae73894c35d2e3c82205a
+-- @bsb-hash sha256:169ce4458d8646e3f9837ac63310b6f7f99459cb25517e36413bc37e13b67feb
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -108,16 +108,16 @@ declare
   v_count integer;
 begin
   if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
-    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
-    raise exception 'every item needs an input' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
-    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'EVAL_DATASET_FULL';
+    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "better_supabase"."eval_items" ("dataset_id", "input", "expected", "metadata")
   select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
@@ -137,7 +137,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'EVAL_FEEDBACK_UNAVAILABLE';
+  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
 end;
 $$;
 revoke execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
@@ -187,7 +187,7 @@ declare
 begin
   select x.* into v_dataset from "better_supabase"."eval_datasets" x where x."id" = create_eval_run.dataset;
   if not found then
-    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   insert into "better_supabase"."eval_runs" ("dataset_id", "tenant_id", "prompt_name", "prompt_version", "model", "scorers")
   values (create_eval_run.dataset, v_dataset."tenant_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
@@ -216,16 +216,16 @@ declare
 begin
   select x.* into v_run from "better_supabase"."eval_runs" x where x."id" = record_eval_result.run;
   if not found then
-    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_run."status" <> 'running' then
-    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'EVAL_RUN_CLOSED';
+    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'AI_EVAL_RUN_CLOSED';
   end if;
   if not exists (select 1 from "better_supabase"."eval_items" x where x."id" = record_eval_result.item and x."dataset_id" = v_run."dataset_id") then
-    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'EVAL_ITEM_NOT_FOUND';
+    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'AI_EVAL_ITEM_NOT_FOUND';
   end if;
   if jsonb_typeof(v_scores) <> 'object' then
-    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   insert into "better_supabase"."eval_results" ("run_id", "item_id", "output", "scores", "passed", "error", "latency_ms")
   values (record_eval_result.run, record_eval_result.item, record_eval_result.output, v_scores,
@@ -284,7 +284,7 @@ declare
   v_row "better_supabase"."eval_runs"%rowtype;
 begin
   if finish_eval_run.status not in ('completed', 'failed', 'cancelled') then
-    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   update "better_supabase"."eval_runs" x set "status" = finish_eval_run.status, "summary" = "better_supabase"."eval_run_summary"(finish_eval_run.run), "finished_at" = now()
   where x."id" = finish_eval_run.run and x."status" = 'running'
@@ -292,7 +292,7 @@ begin
   if not found then
     select x.* into v_row from "better_supabase"."eval_runs" x where x."id" = finish_eval_run.run;
     if not found then
-      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
     end if;
   end if;
   return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
@@ -390,14 +390,14 @@ declare
 begin
   select x.* into v_base from "better_supabase"."eval_runs" x where x."id" = compare_eval_runs.base;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   select x.* into v_candidate from "better_supabase"."eval_runs" x where x."id" = compare_eval_runs.candidate;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_base."dataset_id" <> v_candidate."dataset_id" then
-    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'EVAL_RUN_MISMATCH';
+    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'AI_EVAL_RUN_MISMATCH';
   end if;
   v_base_summary := "better_supabase"."eval_run_summary"(compare_eval_runs.base);
   v_candidate_summary := "better_supabase"."eval_run_summary"(compare_eval_runs.candidate);
@@ -452,7 +452,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:6e3c050736b680d3d91418e79fed77be9574ae9438bfbbfcbe8c5e380894ee51
+-- @bsb-hash sha256:804fc23bb6cf2245d75c534f8d1bfac3ec6b6646173a179d2f47122e6a7bde4d
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -559,16 +559,16 @@ declare
   v_count integer;
 begin
   if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
-    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
-    raise exception 'every item needs an input' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
-    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'EVAL_DATASET_FULL';
+    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "better_supabase"."eval_items" ("dataset_id", "input", "expected", "metadata")
   select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
@@ -597,10 +597,10 @@ declare
 begin
   select x.* into v_dataset from "better_supabase"."eval_datasets" x where x."id" = add_eval_items_from_feedback.dataset;
   if not found then
-    raise exception 'No eval dataset %', add_eval_items_from_feedback.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', add_eval_items_from_feedback.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   if add_eval_items_from_feedback.rating not in (-1, 1) then
-    raise exception 'rating must be 1 or -1' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'rating must be 1 or -1' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   with picked as materialized (
     select fb."chat_id" as chat_id, fb."message_id"::text as message_id,
@@ -679,7 +679,7 @@ declare
 begin
   select x.* into v_dataset from "better_supabase"."eval_datasets" x where x."id" = create_eval_run.dataset;
   if not found then
-    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   insert into "better_supabase"."eval_runs" ("dataset_id", "tenant_id", "prompt_name", "prompt_version", "model", "scorers")
   values (create_eval_run.dataset, v_dataset."tenant_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
@@ -708,16 +708,16 @@ declare
 begin
   select x.* into v_run from "better_supabase"."eval_runs" x where x."id" = record_eval_result.run;
   if not found then
-    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_run."status" <> 'running' then
-    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'EVAL_RUN_CLOSED';
+    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'AI_EVAL_RUN_CLOSED';
   end if;
   if not exists (select 1 from "better_supabase"."eval_items" x where x."id" = record_eval_result.item and x."dataset_id" = v_run."dataset_id") then
-    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'EVAL_ITEM_NOT_FOUND';
+    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'AI_EVAL_ITEM_NOT_FOUND';
   end if;
   if jsonb_typeof(v_scores) <> 'object' then
-    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   insert into "better_supabase"."eval_results" ("run_id", "item_id", "output", "scores", "passed", "error", "latency_ms")
   values (record_eval_result.run, record_eval_result.item, record_eval_result.output, v_scores,
@@ -776,7 +776,7 @@ declare
   v_row "better_supabase"."eval_runs"%rowtype;
 begin
   if finish_eval_run.status not in ('completed', 'failed', 'cancelled') then
-    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   update "better_supabase"."eval_runs" x set "status" = finish_eval_run.status, "summary" = "better_supabase"."eval_run_summary"(finish_eval_run.run), "finished_at" = now()
   where x."id" = finish_eval_run.run and x."status" = 'running'
@@ -784,7 +784,7 @@ begin
   if not found then
     select x.* into v_row from "better_supabase"."eval_runs" x where x."id" = finish_eval_run.run;
     if not found then
-      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
     end if;
   end if;
   return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
@@ -882,14 +882,14 @@ declare
 begin
   select x.* into v_base from "better_supabase"."eval_runs" x where x."id" = compare_eval_runs.base;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   select x.* into v_candidate from "better_supabase"."eval_runs" x where x."id" = compare_eval_runs.candidate;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_base."dataset_id" <> v_candidate."dataset_id" then
-    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'EVAL_RUN_MISMATCH';
+    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'AI_EVAL_RUN_MISMATCH';
   end if;
   v_base_summary := "better_supabase"."eval_run_summary"(compare_eval_runs.base);
   v_candidate_summary := "better_supabase"."eval_run_summary"(compare_eval_runs.candidate);
@@ -944,7 +944,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:1a57bb99944de98e29443275c13fe74ba60125c09399a9cc0737396442c1ce34
+-- @bsb-hash sha256:f426ad6ff154a76d79f86e2be9233514c859cd893647c50f544422d77d2a4ae5
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1056,16 +1056,16 @@ declare
   v_count integer;
 begin
   if not exists (select 1 from "app_private"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
-    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
-    raise exception 'every item needs an input' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if (select count(*) from "app_private"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
-    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'EVAL_DATASET_FULL';
+    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "app_private"."eval_items" ("dataset_id", "input", "expected", "metadata")
   select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
@@ -1085,7 +1085,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'EVAL_FEEDBACK_UNAVAILABLE';
+  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
 end;
 $$;
 revoke execute on function "app_private"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
@@ -1135,7 +1135,7 @@ declare
 begin
   select x.* into v_dataset from "app_private"."eval_datasets" x where x."id" = create_eval_run.dataset;
   if not found then
-    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   insert into "app_private"."eval_runs" ("dataset_id", "tenant_id", "prompt_name", "prompt_version", "model", "scorers")
   values (create_eval_run.dataset, v_dataset."tenant_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
@@ -1164,16 +1164,16 @@ declare
 begin
   select x.* into v_run from "app_private"."eval_runs" x where x."id" = record_eval_result.run;
   if not found then
-    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_run."status" <> 'running' then
-    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'EVAL_RUN_CLOSED';
+    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'AI_EVAL_RUN_CLOSED';
   end if;
   if not exists (select 1 from "app_private"."eval_items" x where x."id" = record_eval_result.item and x."dataset_id" = v_run."dataset_id") then
-    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'EVAL_ITEM_NOT_FOUND';
+    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'AI_EVAL_ITEM_NOT_FOUND';
   end if;
   if jsonb_typeof(v_scores) <> 'object' then
-    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   insert into "app_private"."eval_results" ("run_id", "item_id", "output", "scores", "passed", "error", "latency_ms")
   values (record_eval_result.run, record_eval_result.item, record_eval_result.output, v_scores,
@@ -1232,7 +1232,7 @@ declare
   v_row "app_private"."eval_runs"%rowtype;
 begin
   if finish_eval_run.status not in ('completed', 'failed', 'cancelled') then
-    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   update "app_private"."eval_runs" x set "status" = finish_eval_run.status, "summary" = "app_private"."eval_run_summary"(finish_eval_run.run), "finished_at" = now()
   where x."id" = finish_eval_run.run and x."status" = 'running'
@@ -1240,7 +1240,7 @@ begin
   if not found then
     select x.* into v_row from "app_private"."eval_runs" x where x."id" = finish_eval_run.run;
     if not found then
-      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
     end if;
   end if;
   return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
@@ -1338,14 +1338,14 @@ declare
 begin
   select x.* into v_base from "app_private"."eval_runs" x where x."id" = compare_eval_runs.base;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   select x.* into v_candidate from "app_private"."eval_runs" x where x."id" = compare_eval_runs.candidate;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_base."dataset_id" <> v_candidate."dataset_id" then
-    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'EVAL_RUN_MISMATCH';
+    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'AI_EVAL_RUN_MISMATCH';
   end if;
   v_base_summary := "app_private"."eval_run_summary"(compare_eval_runs.base);
   v_candidate_summary := "app_private"."eval_run_summary"(compare_eval_runs.candidate);
@@ -1400,7 +1400,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:e645a3c86c604b8169d333ab1f0ce5c7b31e2e801e07325a8650c721a751b661
+-- @bsb-hash sha256:3b118991c5e8b4792667f3782551fa6aeec144fa102dd8eb0c11c991e1e0e319
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1507,16 +1507,16 @@ declare
   v_count integer;
 begin
   if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
-    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
-    raise exception 'every item needs an input' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
-    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'EVAL_DATASET_FULL';
+    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "better_supabase"."eval_items" ("dataset_id", "input", "expected", "metadata")
   select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
@@ -1536,7 +1536,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'EVAL_FEEDBACK_UNAVAILABLE';
+  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
 end;
 $$;
 revoke execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
@@ -1586,7 +1586,7 @@ declare
 begin
   select x.* into v_dataset from "better_supabase"."eval_datasets" x where x."id" = create_eval_run.dataset;
   if not found then
-    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   insert into "better_supabase"."eval_runs" ("dataset_id", "tenant_id", "prompt_name", "prompt_version", "model", "scorers")
   values (create_eval_run.dataset, v_dataset."tenant_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
@@ -1615,16 +1615,16 @@ declare
 begin
   select x.* into v_run from "better_supabase"."eval_runs" x where x."id" = record_eval_result.run;
   if not found then
-    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_run."status" <> 'running' then
-    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'EVAL_RUN_CLOSED';
+    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'AI_EVAL_RUN_CLOSED';
   end if;
   if not exists (select 1 from "better_supabase"."eval_items" x where x."id" = record_eval_result.item and x."dataset_id" = v_run."dataset_id") then
-    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'EVAL_ITEM_NOT_FOUND';
+    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'AI_EVAL_ITEM_NOT_FOUND';
   end if;
   if jsonb_typeof(v_scores) <> 'object' then
-    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   insert into "better_supabase"."eval_results" ("run_id", "item_id", "output", "scores", "passed", "error", "latency_ms")
   values (record_eval_result.run, record_eval_result.item, record_eval_result.output, v_scores,
@@ -1683,7 +1683,7 @@ declare
   v_row "better_supabase"."eval_runs"%rowtype;
 begin
   if finish_eval_run.status not in ('completed', 'failed', 'cancelled') then
-    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   update "better_supabase"."eval_runs" x set "status" = finish_eval_run.status, "summary" = "better_supabase"."eval_run_summary"(finish_eval_run.run), "finished_at" = now()
   where x."id" = finish_eval_run.run and x."status" = 'running'
@@ -1691,7 +1691,7 @@ begin
   if not found then
     select x.* into v_row from "better_supabase"."eval_runs" x where x."id" = finish_eval_run.run;
     if not found then
-      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
     end if;
   end if;
   return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
@@ -1789,14 +1789,14 @@ declare
 begin
   select x.* into v_base from "better_supabase"."eval_runs" x where x."id" = compare_eval_runs.base;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   select x.* into v_candidate from "better_supabase"."eval_runs" x where x."id" = compare_eval_runs.candidate;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_base."dataset_id" <> v_candidate."dataset_id" then
-    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'EVAL_RUN_MISMATCH';
+    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'AI_EVAL_RUN_MISMATCH';
   end if;
   v_base_summary := "better_supabase"."eval_run_summary"(compare_eval_runs.base);
   v_candidate_summary := "better_supabase"."eval_run_summary"(compare_eval_runs.candidate);
@@ -1969,7 +1969,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:fe8926dc7a06036cf4d3d2ebd916bd4c7d6778c1b19edeb9b39ed6dc5869f09a
+-- @bsb-hash sha256:d0fe1b4ffd910906aa90f8548a9112c83b79f499366fc14be0f7d280512f3052
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2067,16 +2067,16 @@ declare
   v_count integer;
 begin
   if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
-    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
-    raise exception 'every item needs an input' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
-    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'EVAL_DATASET_FULL';
+    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "better_supabase"."eval_items" ("dataset_id", "input", "expected", "metadata")
   select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
@@ -2096,7 +2096,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'EVAL_FEEDBACK_UNAVAILABLE';
+  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
 end;
 $$;
 revoke execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
@@ -2146,7 +2146,7 @@ declare
 begin
   select x.* into v_dataset from "better_supabase"."eval_datasets" x where x."id" = create_eval_run.dataset;
   if not found then
-    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   insert into "better_supabase"."eval_runs" ("dataset_id", "tenant_id", "prompt_name", "prompt_version", "model", "scorers")
   values (create_eval_run.dataset, v_dataset."tenant_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
@@ -2175,16 +2175,16 @@ declare
 begin
   select x.* into v_run from "better_supabase"."eval_runs" x where x."id" = record_eval_result.run;
   if not found then
-    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_run."status" <> 'running' then
-    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'EVAL_RUN_CLOSED';
+    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'AI_EVAL_RUN_CLOSED';
   end if;
   if not exists (select 1 from "better_supabase"."eval_items" x where x."id" = record_eval_result.item and x."dataset_id" = v_run."dataset_id") then
-    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'EVAL_ITEM_NOT_FOUND';
+    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'AI_EVAL_ITEM_NOT_FOUND';
   end if;
   if jsonb_typeof(v_scores) <> 'object' then
-    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   insert into "better_supabase"."eval_results" ("run_id", "item_id", "output", "scores", "passed", "error", "latency_ms")
   values (record_eval_result.run, record_eval_result.item, record_eval_result.output, v_scores,
@@ -2243,7 +2243,7 @@ declare
   v_row "better_supabase"."eval_runs"%rowtype;
 begin
   if finish_eval_run.status not in ('completed', 'failed', 'cancelled') then
-    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   update "better_supabase"."eval_runs" x set "status" = finish_eval_run.status, "summary" = "better_supabase"."eval_run_summary"(finish_eval_run.run), "finished_at" = now()
   where x."id" = finish_eval_run.run and x."status" = 'running'
@@ -2251,7 +2251,7 @@ begin
   if not found then
     select x.* into v_row from "better_supabase"."eval_runs" x where x."id" = finish_eval_run.run;
     if not found then
-      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
     end if;
   end if;
   return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
@@ -2349,14 +2349,14 @@ declare
 begin
   select x.* into v_base from "better_supabase"."eval_runs" x where x."id" = compare_eval_runs.base;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   select x.* into v_candidate from "better_supabase"."eval_runs" x where x."id" = compare_eval_runs.candidate;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_base."dataset_id" <> v_candidate."dataset_id" then
-    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'EVAL_RUN_MISMATCH';
+    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'AI_EVAL_RUN_MISMATCH';
   end if;
   v_base_summary := "better_supabase"."eval_run_summary"(compare_eval_runs.base);
   v_candidate_summary := "better_supabase"."eval_run_summary"(compare_eval_runs.candidate);
@@ -2411,7 +2411,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:4e84f4f971e1970f22d2f068282e06a140f45bb5f15ea1695065701c9deceb47
+-- @bsb-hash sha256:28756c47e205a01419f92d9ac9b2c32d75cd377e35ff7be386e39c253c08c5f3
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2518,16 +2518,16 @@ declare
   v_count integer;
 begin
   if not exists (select 1 from "better_supabase"."eval_datasets" x where x."id" = add_eval_items.dataset) then
-    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', add_eval_items.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   if jsonb_typeof(add_eval_items.items) is distinct from 'array' then
-    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'items must be a JSON array' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if exists (select 1 from jsonb_array_elements(add_eval_items.items) e where jsonb_typeof(e.value) <> 'object' or not (e.value ? 'input')) then
-    raise exception 'every item needs an input' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'every item needs an input' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if (select count(*) from "better_supabase"."eval_items" x where x."dataset_id" = add_eval_items.dataset) + jsonb_array_length(add_eval_items.items) > 5000 then
-    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'EVAL_DATASET_FULL';
+    raise exception 'A dataset holds at most 5000 items' using errcode = '54000', hint = 'AI_EVAL_DATASET_FULL';
   end if;
   insert into "better_supabase"."eval_items" ("dataset_id", "input", "expected", "metadata")
   select add_eval_items.dataset, e.value -> 'input', e.value -> 'expected', coalesce(e.value -> 'metadata', '{}'::jsonb)
@@ -2547,7 +2547,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'EVAL_FEEDBACK_UNAVAILABLE';
+  raise exception 'add_eval_items_from_feedback needs the ai-chat block' using errcode = '55000', hint = 'AI_EVAL_FEEDBACK_UNAVAILABLE';
 end;
 $$;
 revoke execute on function "better_supabase"."add_eval_items_from_feedback"(uuid, integer, timestamptz, integer) from public, anon, authenticated;
@@ -2597,7 +2597,7 @@ declare
 begin
   select x.* into v_dataset from "better_supabase"."eval_datasets" x where x."id" = create_eval_run.dataset;
   if not found then
-    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
+    raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'AI_EVAL_DATASET_NOT_FOUND';
   end if;
   insert into "better_supabase"."eval_runs" ("dataset_id", "org_id", "prompt_name", "prompt_version", "model", "scorers")
   values (create_eval_run.dataset, v_dataset."org_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
@@ -2626,16 +2626,16 @@ declare
 begin
   select x.* into v_run from "better_supabase"."eval_runs" x where x."id" = record_eval_result.run;
   if not found then
-    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', record_eval_result.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_run."status" <> 'running' then
-    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'EVAL_RUN_CLOSED';
+    raise exception 'Eval run % is closed', record_eval_result.run using errcode = '55000', hint = 'AI_EVAL_RUN_CLOSED';
   end if;
   if not exists (select 1 from "better_supabase"."eval_items" x where x."id" = record_eval_result.item and x."dataset_id" = v_run."dataset_id") then
-    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'EVAL_ITEM_NOT_FOUND';
+    raise exception 'No eval item %', record_eval_result.item using errcode = 'P0002', hint = 'AI_EVAL_ITEM_NOT_FOUND';
   end if;
   if jsonb_typeof(v_scores) <> 'object' then
-    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'scores must be a JSON object' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   insert into "better_supabase"."eval_results" ("run_id", "item_id", "output", "scores", "passed", "error", "latency_ms")
   values (record_eval_result.run, record_eval_result.item, record_eval_result.output, v_scores,
@@ -2694,7 +2694,7 @@ declare
   v_row "better_supabase"."eval_runs"%rowtype;
 begin
   if finish_eval_run.status not in ('completed', 'failed', 'cancelled') then
-    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'status must be completed, failed or cancelled' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   update "better_supabase"."eval_runs" x set "status" = finish_eval_run.status, "summary" = "better_supabase"."eval_run_summary"(finish_eval_run.run), "finished_at" = now()
   where x."id" = finish_eval_run.run and x."status" = 'running'
@@ -2702,7 +2702,7 @@ begin
   if not found then
     select x.* into v_row from "better_supabase"."eval_runs" x where x."id" = finish_eval_run.run;
     if not found then
-      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+      raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
     end if;
   end if;
   return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."org_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
@@ -2800,14 +2800,14 @@ declare
 begin
   select x.* into v_base from "better_supabase"."eval_runs" x where x."id" = compare_eval_runs.base;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.base using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   select x.* into v_candidate from "better_supabase"."eval_runs" x where x."id" = compare_eval_runs.candidate;
   if not found then
-    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
+    raise exception 'No eval run %', compare_eval_runs.candidate using errcode = 'P0002', hint = 'AI_EVAL_RUN_NOT_FOUND';
   end if;
   if v_base."dataset_id" <> v_candidate."dataset_id" then
-    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'EVAL_RUN_MISMATCH';
+    raise exception 'Runs belong to different datasets' using errcode = '22023', hint = 'AI_EVAL_RUN_MISMATCH';
   end if;
   v_base_summary := "better_supabase"."eval_run_summary"(compare_eval_runs.base);
   v_candidate_summary := "better_supabase"."eval_run_summary"(compare_eval_runs.candidate);

@@ -32,7 +32,10 @@ export interface IncomingWebhooksOptions
   readonly hooks?: BlockHooks<IncomingWebhooks>;
   /** Receives the errors `after` hooks throw. */
   readonly logger?: Logger;
-  /** The schema of the `webhooks-in` module. Defaults to `better_supabase`. */
+  /**
+   * The schema of the `incoming-webhooks` module. Defaults to
+   * `better_supabase`.
+   */
   readonly schema?: string;
   /**
    * The webhook inbox source deliveries are stored under. Defaults to

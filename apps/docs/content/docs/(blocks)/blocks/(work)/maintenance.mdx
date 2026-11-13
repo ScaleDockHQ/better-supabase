@@ -57,7 +57,10 @@ recurrence rule, such as `FREQ=MONTHLY;BYDAY=1MO`, expanded in the plan's `tz`
 `DAILY`, `WEEKLY`, `MONTHLY` or `YEARLY`. The plan falls due at the first
 occurrence after the last completion, so finishing work late never leaves a
 backlog of missed occurrences. A rule with no occurrence in the next ten years
-is refused.
+is refused. The expansion is `rrule_occurrences` from the [recurrence](/docs/extending/recurrence)
+module, the same one calendar, reminders, tasks, templates and bookings use. A `time`
+plan is not a calendar rule: it counts `everyDays` from the last completion, so it stays
+an interval and does not use the expander.
 
 ```ts
 const plan = await db.maintenance

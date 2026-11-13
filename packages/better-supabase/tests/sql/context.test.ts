@@ -361,7 +361,7 @@ describe("module modes", () => {
     }).toThrow(/outbox\.options\.blockSource/);
     expect(() => {
       checkMigrationOptions({
-        "webhooks-out": { options: { eventIdType: "bigint" } },
+        webhooks: { options: { eventIdType: "bigint" } },
       });
     }).toThrow(/eventIdType/);
     const invitations = { invitations: { options: { tokenStorage: "plain" } } };
@@ -376,12 +376,10 @@ describe("module modes", () => {
       },
     });
     checkMigrationOptions({
-      "webhooks-out": {
-        options: { secretStorage: "vault", eventIdType: "text" },
-      },
+      webhooks: { options: { secretStorage: "vault", eventIdType: "text" } },
     });
     checkMigrationOptions({
-      "webhooks-out": { options: { eventIdType: "uuid", runIdType: "uuid" } },
+      webhooks: { options: { eventIdType: "uuid", runIdType: "uuid" } },
     });
   });
 

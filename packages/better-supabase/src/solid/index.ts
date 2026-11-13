@@ -128,6 +128,16 @@ export type {
   BlockRefetchOn,
 } from "../blocks/block-controller.ts";
 
+export type {
+  BlockListStatus,
+  BlockRealtimeManifest,
+} from "../blocks/block-list-status.ts";
+
+export {
+  blockListStatus,
+  blockRealtimeRefetch,
+} from "../blocks/block-list-status.ts";
+
 /** A value, or an accessor Solid tracks. */
 export type MaybeAccessor<T> = T | Accessor<T>;
 

@@ -126,7 +126,7 @@ The port is versioned with `apiVersion: 1` (omit it for 1). The block bundles
 no engine and no drug database. An engine's `key` becomes the `source` of its
 alerts, and `built-in` is reserved. The alerts an engine stops returning are
 resolved, so return every alert that still holds. An engine that throws makes
-`evaluate` an error with hint `CARE_ENGINE_FAILED`; the alerts of the
+`evaluate` an error with hint `DECISION_SUPPORT_ENGINE_FAILED`; the alerts of the
 engines before it are stored.
 
 Test an engine with `testClinicalDecisionSupport` from
@@ -146,15 +146,15 @@ decision. A `before` hook can refuse it.
 
 ## Errors
 
-| Hint                         | Cause                                                    |
-| ---------------------------- | -------------------------------------------------------- |
-| `CARE_ALERT_FORBIDDEN`       | the caller lacks the permission the call needs           |
-| `CARE_ALERT_INVALID`         | a bad rule, alert or decision, or a missing reason       |
-| `CARE_ALERT_NOT_FOUND`       | no alert with that id                                    |
-| `CARE_ALERT_STATUS`          | the alert is resolved already                            |
-| `CARE_ALERT_SUBJECT_INVALID` | the record isn't registered or isn't in the organization |
-| `CARE_RULE_NOT_FOUND`        | no rule with that id                                     |
-| `CARE_ENGINE_FAILED`         | an external engine threw                                 |
+| Hint                                     | Cause                                                    |
+| ---------------------------------------- | -------------------------------------------------------- |
+| `DECISION_SUPPORT_ALERT_FORBIDDEN`       | the caller lacks the permission the call needs           |
+| `DECISION_SUPPORT_ALERT_INVALID`         | a bad rule, alert or decision, or a missing reason       |
+| `DECISION_SUPPORT_ALERT_NOT_FOUND`       | no alert with that id                                    |
+| `DECISION_SUPPORT_ALERT_STATUS`          | the alert is resolved already                            |
+| `DECISION_SUPPORT_ALERT_SUBJECT_INVALID` | the record isn't registered or isn't in the organization |
+| `DECISION_SUPPORT_RULE_NOT_FOUND`        | no rule with that id                                     |
+| `DECISION_SUPPORT_ENGINE_FAILED`         | an external engine threw                                 |
 
 ## CDS Hooks
 

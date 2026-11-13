@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   expandRule,
+  formatRrule,
+  parseRrule,
   rruleOccurrences,
   weekdayName,
 } from "../../src/core/recurrence.ts";
@@ -281,5 +283,43 @@ describe("rruleOccurrences", () => {
         limit: 3,
       }),
     ).toHaveLength(3);
+  });
+});
+
+describe("parseRrule and formatRrule", () => {
+  it("reads every part of a rule", () => {
+    expect(
+      parseRrule(
+        "RRULE:FREQ=MONTHLY;INTERVAL=2;BYDAY=1MO,-1FR;BYMONTH=3,9;COUNT=4;WKST=SU",
+      ),
+    ).toEqual({
+      frequency: "monthly",
+      interval: 2,
+      count: 4,
+      byDay: [
+        { day: 1, ordinal: 1 },
+        { day: 5, ordinal: -1 },
+      ],
+      byMonthDay: [],
+      byMonth: [3, 9],
+      bySetPos: [],
+      weekStart: 7,
+    });
+  });
+
+  it("refuses a part that has no value", () => {
+    expect(() => parseRrule("FREQ=WEEKLY;COUNT")).toThrow(/Invalid RRULE part/);
+    expect(() => parseRrule("INTERVAL=2")).toThrow(/FREQ/);
+  });
+
+  it("writes the rule back without its defaults", () => {
+    const text =
+      "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;COUNT=6;UNTIL=20300601T000000Z";
+
+    expect(formatRrule(parseRrule(text))).toBe(text);
+    expect(formatRrule({ frequency: "daily", interval: 1 })).toBe("FREQ=DAILY");
+    expect(
+      formatRrule({ frequency: "monthly", byMonthDay: [1, 15], weekStart: 7 }),
+    ).toBe("FREQ=MONTHLY;BYMONTHDAY=1,15;WKST=SU");
   });
 });

@@ -1,6 +1,7 @@
+import type { RecurrenceRule } from "../../core/recurrence.ts";
 import type { Booking } from "./bookings.ts";
 
-import { temporal } from "../../core/temporal-required.ts";
+import { formatRrule, parseRrule, weekdayName } from "../../core/recurrence.ts";
 import {
   oneOf,
   optionalInstant,
@@ -62,18 +63,6 @@ const SERIES_STATUSES: readonly BookingSeriesStatus[] = [
   "ended",
   "cancelled",
 ];
-
-const RRULE_DAYS = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"] as const;
-
-const DAY_NUMBERS: Readonly<Record<string, BookingWeekday>> = {
-  MO: 1,
-  TU: 2,
-  WE: 3,
-  TH: 4,
-  FR: 5,
-  SA: 6,
-  SU: 7,
-};
 
 const numberOf = (value: unknown): number | undefined =>
   typeof value === "number" ? value : undefined;
@@ -145,101 +134,69 @@ export function bookingSeriesOf(value: unknown): BookingSeries {
 /**
  * Reads the subset of an iCalendar RRULE (RFC 5545) a series supports:
  * `FREQ=DAILY|WEEKLY`, `INTERVAL`, `BYDAY` (plain weekdays), `COUNT` and
- * `UNTIL` (UTC, `YYYYMMDDTHHMMSSZ`). Throws a `RangeError` for anything else.
+ * `UNTIL` (UTC, `YYYYMMDDTHHMMSSZ`). The shared recurrence reader parses it; a
+ * part a series does not support throws a `RangeError`.
  */
 export function parseRecurrence(rrule: string): BookingRecurrence {
-  const parts = new Map<string, string>();
+  const text = rrule.replace(/^RRULE:/iu, "");
 
-  for (const part of rrule.replace(/^RRULE:/iu, "").split(";")) {
-    const [key, value, extra] = part.split("=");
+  const names = text
+    .split(";")
+    .map((item) => item.split("=")[0]?.toUpperCase());
 
-    if (!key || value === undefined || extra !== undefined) {
-      throw new RangeError(`Invalid RRULE part "${part}"`);
-    }
-
-    parts.set(key.toUpperCase(), value.toUpperCase());
-  }
-
-  const freq = parts.get("FREQ");
-
-  if (freq !== "DAILY" && freq !== "WEEKLY") {
-    throw new RangeError("A series repeats DAILY or WEEKLY");
-  }
-
-  const unknown = [...parts.keys()].filter(
-    (key) => !["FREQ", "INTERVAL", "BYDAY", "COUNT", "UNTIL"].includes(key),
+  const unknown = names.filter(
+    (key) =>
+      key === undefined ||
+      !["FREQ", "INTERVAL", "BYDAY", "COUNT", "UNTIL"].includes(key),
   );
 
   if (unknown.length > 0) {
     throw new RangeError(`Unsupported RRULE parts: ${unknown.join(", ")}`);
   }
 
-  const integer = (key: string): number | undefined => {
-    const raw = parts.get(key);
+  let rule: RecurrenceRule;
 
-    if (raw === undefined) {
-      return undefined;
-    }
+  try {
+    rule = parseRrule(text.toUpperCase());
+  } catch (error) {
+    throw new RangeError(
+      error instanceof Error ? error.message : "Invalid RRULE",
+      { cause: error },
+    );
+  }
 
-    if (!/^\d+$/u.test(raw)) {
-      throw new RangeError(`${key} must be a positive integer`);
-    }
+  if (rule.frequency !== "daily" && rule.frequency !== "weekly") {
+    throw new RangeError("A series repeats DAILY or WEEKLY");
+  }
 
-    return Number(raw);
-  };
+  const ordinal = rule.byDay.find((item) => item.ordinal !== undefined);
 
-  const weekdays = parts
-    .get("BYDAY")
-    ?.split(",")
-    .map((day) => {
-      const weekday = DAY_NUMBERS[day];
+  if (ordinal !== undefined) {
+    throw new RangeError(
+      `Unsupported BYDAY value "${ordinal.ordinal}${weekdayName(ordinal.day)}"`,
+    );
+  }
 
-      if (weekday === undefined) {
-        throw new RangeError(`Unsupported BYDAY value "${day}"`);
-      }
-
-      return weekday;
-    });
-
-  const rawUntil = parts.get("UNTIL");
-
-  const until =
-    rawUntil === undefined
-      ? undefined
-      : temporal().Instant.from(
-          rawUntil.replace(
-            /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/u,
-            "$1-$2-$3T$4:$5:$6Z",
-          ),
-        );
-
-  const interval = integer("INTERVAL");
-  const count = integer("COUNT");
+  const weekdays = rule.byDay.map((item) => item.day).filter(isWeekday);
 
   return {
-    freq: freq === "DAILY" ? "daily" : "weekly",
-    ...(interval === undefined ? {} : { interval }),
-    ...(weekdays === undefined ? {} : { weekdays }),
-    ...(count === undefined ? {} : { count }),
-    ...(until === undefined ? {} : { until }),
+    freq: rule.frequency,
+    ...(names.includes("INTERVAL") ? { interval: rule.interval } : {}),
+    ...(weekdays.length === 0 ? {} : { weekdays }),
+    ...(rule.count === undefined ? {} : { count: rule.count }),
+    ...(rule.until === undefined ? {} : { until: rule.until }),
   };
 }
 
 /** The rule as an RRULE value, the inverse of `parseRecurrence`. */
 export function formatRecurrence(rule: BookingRecurrence): string {
-  const until = rule.until
-    ?.toString({ smallestUnit: "second" })
-    .replaceAll(/[-:]/gu, "");
-
-  return [
-    `FREQ=${rule.freq.toUpperCase()}`,
-    ...(rule.interval === undefined ? [] : [`INTERVAL=${rule.interval}`]),
-    ...(rule.weekdays === undefined || rule.weekdays.length === 0
-      ? []
-      : [`BYDAY=${rule.weekdays.map((day) => RRULE_DAYS[day - 1]).join(",")}`]),
-    ...(rule.count === undefined ? [] : [`COUNT=${rule.count}`]),
-    ...(until === undefined ? [] : [`UNTIL=${until}`]),
-  ].join(";");
+  return formatRrule({
+    frequency: rule.freq,
+    ...(rule.interval === undefined ? {} : { interval: rule.interval }),
+    byDay: (rule.weekdays ?? []).map((day) => ({ day })),
+    ...(rule.count === undefined ? {} : { count: rule.count }),
+    ...(rule.until === undefined ? {} : { until: rule.until }),
+  });
 }
 
 /** What `bookSeries` booked. */

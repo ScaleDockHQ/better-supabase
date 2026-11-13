@@ -244,7 +244,7 @@ grant execute on function better_supabase.mark_read(uuid[], uuid) to authenticat
     for (const [name, helper] of [
       ["comments", "comment_subject_readable"],
       ["attachments", "attachment_object_allowed"],
-      ["webhooks-in", "incoming_webhook_tenant_ids"],
+      ["incoming-webhooks", "incoming_webhook_tenant_ids"],
       ["data-lifecycle", "data_export_object_allowed"],
       ["mfa", "mfa_satisfied"],
       ["sessions", "session_active"],

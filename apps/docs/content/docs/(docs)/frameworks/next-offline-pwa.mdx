@@ -11,14 +11,14 @@ wires every piece on this page.
 
 ## What runs where
 
-| Piece                     | File                 | What it does                                                                                    |
-| ------------------------- | -------------------- | ----------------------------------------------------------------------------------------------- |
-| `experimental.useOffline` | `next.config.ts`     | keeps a navigation, prefetch or Server Action that failed offline pending, and retries it       |
-| `useOffline()`            | `next/offline`       | tells a client component whether the app is offline                                             |
-| Web app manifest          | `app/manifest.ts`    | served at `/manifest.webmanifest`; Next adds the `<link rel="manifest">` itself                 |
-| `appleWebApp`, `viewport` | the root layout      | the iOS home screen title and icon, and a light and dark `theme-color`                          |
-| Service worker            | `public/sw.js`       | precaches the public shell and `offline.html`, serves `/_next/static` cache first, handles push |
-| Service worker headers    | `createNextConfig()` | serves `/sw.js` with `no-cache` and `Service-Worker-Allowed: /`, so updates reach clients       |
+| Piece                     | File                 | What it does                                                                                       |
+| ------------------------- | -------------------- | -------------------------------------------------------------------------------------------------- |
+| `experimental.useOffline` | `next.config.ts`     | keeps a navigation, prefetch or Server Action that failed offline pending, and retries it          |
+| `useOffline()`            | `next/offline`       | tells a client component whether the app is offline                                                |
+| Web app manifest          | `app/manifest.ts`    | served at `/manifest.webmanifest`; Next adds the `<link rel="manifest">` itself                    |
+| `appleWebApp`, `viewport` | the root layout      | the iOS home screen title and icon, and a light and dark `theme-color`                             |
+| Service worker            | `public/sw.js`       | precaches the public shell and `offline.html`, serves hashed build files cache first, handles push |
+| Service worker headers    | `createNextConfig()` | serves `/sw.js` with `no-cache` and `Service-Worker-Allowed: /`, so updates reach clients          |
 
 ## The manifest
 
@@ -94,6 +94,36 @@ falls back to the cached public shell, then to `offline.html`.
 
 Never let the worker replay a Server Action or a `POST`. Next.js retries those
 itself under `useOffline`, with the cookies of the moment it retries.
+
+## Build files under `/_next/static`
+
+Serve them cache first from their own bounded cache. Every file under
+`/_next/static` is immutable per URL: chunks, CSS and media carry a content
+hash, and other build files carry a build ID or a deployment token. A cached
+copy can never be stale, because a new build names new URLs. Revalidating one,
+with stale-while-revalidate or network first, only costs requests.
+
+The cache matters because any shell the app renders offline needs the chunks it
+names. That holds for the cached public shell and for a prefetched App Shell
+that `useOffline` renders on a soft navigation. The HTTP cache usually has those
+chunks, but browsers evict it under storage pressure, and an installed PWA on
+iOS keeps a small one. Without the chunks, the page loads its HTML and then
+fails with a `ChunkLoadError`.
+
+The worker in the example follows four rules:
+
+- It skips `/_next/static/service-worker/`. Next.js keeps a worker compiled
+  there at a stable URL with `must-revalidate`, so it is the one path under
+  `/_next/static` that is not immutable.
+- It stores a response only when it is a same-origin `200` whose
+  `Cache-Control` includes `immutable`. A `404` during a deploy never lands in
+  the cache.
+- It keeps the build files in `acme-next-static-v1`, apart from the shell, and
+  trims that cache to 512 entries, oldest first. When the origin runs out of
+  quota, it drops the cache instead of failing the request.
+- Activation deletes only cache names it no longer knows. It never clears the
+  build cache on a deploy, because a tab still on the previous build loads that
+  build's chunks. Bump the suffix only when the matching rule changes.
 
 ## Pending state while offline
 

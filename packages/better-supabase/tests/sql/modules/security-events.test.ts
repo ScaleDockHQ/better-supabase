@@ -8,7 +8,7 @@ const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("security-events", { modules })!;
 
 const withWebhooks = (modules: AnyBlocksConfig = {}): string =>
-  renderBlocks(["webhooks-out", "security-events"], { modules })
+  renderBlocks(["webhooks", "security-events"], { modules })
     .filter((file) => file.module === "security-events")
     .map((file) => file.contents)
     .join("\n");
@@ -42,23 +42,23 @@ describe("security-events module", () => {
       );
     }
 
-    expect(sql.match(/hint = 'SSF_FORBIDDEN'/g)).toHaveLength(
+    expect(sql.match(/hint = 'SECURITY_EVENT_FORBIDDEN'/g)).toHaveLength(
       SIGNATURES.length,
     );
   });
 
-  it("refuses push streams without webhooks-out", () => {
+  it("refuses push streams without webhooks", () => {
     const sql = body();
-    expect(sql).toContain("hint = 'SSF_PUSH_UNAVAILABLE'");
+    expect(sql).toContain("hint = 'SECURITY_EVENT_PUSH_UNAVAILABLE'");
     expect(sql).not.toContain("dispatch_webhook");
   });
 
-  it("creates a set-format endpoint and dispatches through webhooks-out", () => {
+  it("creates a set-format endpoint and dispatches through webhooks", () => {
     const sql = withWebhooks();
     expect(sql).toContain("'set'");
     expect(sql).toContain('"dispatch_webhook"(');
     expect(sql).toContain("on delete set null");
-    expect(sql).not.toContain("hint = 'SSF_PUSH_UNAVAILABLE'");
+    expect(sql).not.toContain("hint = 'SECURITY_EVENT_PUSH_UNAVAILABLE'");
   });
 
   it("quotes the retention option as an interval literal", () => {

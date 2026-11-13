@@ -12,6 +12,7 @@ import type { CalendarEvents } from "better-supabase/blocks/calendar";
 import type { CustomFieldsEvents } from "better-supabase/blocks/custom-fields";
 import type { EnrollmentsEvents } from "better-supabase/blocks/enrollments";
 import type { GuestsEvents } from "better-supabase/blocks/guests";
+import type { FieldEncryptionEvents } from "better-supabase/blocks/field-encryption";
 import type { FormsEvents } from "better-supabase/blocks/forms";
 import type { SignaturesEvents } from "better-supabase/blocks/signatures";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
@@ -33,6 +34,7 @@ import { customFieldsBlock as customFieldsBlockInstance } from "better-supabase/
 import { enrollmentsBlock as enrollmentsBlockInstance } from "better-supabase/blocks/enrollments";
 import { guestsBlock as guestsBlockInstance } from "better-supabase/blocks/guests";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { fieldEncryptionBlock as fieldEncryptionBlockInstance } from "better-supabase/blocks/field-encryption";
 import { formsBlock as formsBlockInstance } from "better-supabase/blocks/forms";
 import { signaturesBlock as signaturesBlockInstance } from "better-supabase/blocks/signatures";
 import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
@@ -71,6 +73,7 @@ export const blocks = {
   enrollments: enrollmentsBlockInstance,
   guests: guestsBlockInstance,
   entitlements: entitlementsBlockInstance,
+  "field-encryption": fieldEncryptionBlockInstance,
   forms: formsBlockInstance,
   signatures: signaturesBlockInstance,
   queue: queueBlockInstance,
@@ -90,7 +93,7 @@ export const blocks = {
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & BookingsEvents & CalendarEvents & CustomFieldsEvents & EnrollmentsEvents & GuestsEvents & FormsEvents & SignaturesEvents & NotificationsEvents & OrganizationsEvents & RemindersEvents & SettingsEvents & TeamsEvents & TemplatesEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & BookingsEvents & CalendarEvents & CustomFieldsEvents & EnrollmentsEvents & GuestsEvents & FieldEncryptionEvents & FormsEvents & SignaturesEvents & NotificationsEvents & OrganizationsEvents & RemindersEvents & SettingsEvents & TeamsEvents & TemplatesEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -132,6 +135,7 @@ export const blockEvents: Events<BlockEvents> = {
     "field_definition.created",
     "field_definition.deleted",
     "field_definition.updated",
+    "field_key.dropped",
     "field_value.deleted",
     "field_value.set",
     "field_value.viewed",
@@ -235,6 +239,7 @@ export const blockEventSchemas = {
   "field_definition.created": true,
   "field_definition.deleted": true,
   "field_definition.updated": true,
+  "field_key.dropped": true,
   "field_value.deleted": true,
   "field_value.set": true,
   "field_value.viewed": true,

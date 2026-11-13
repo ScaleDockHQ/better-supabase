@@ -1,6 +1,6 @@
 # 0197: Shared engines for recurrence, periods, money and digests are planned, not shipped
 
-- Status: proposed
+- Status: superseded by 0719
 - Date: 2026-11-01
 
 ## Context

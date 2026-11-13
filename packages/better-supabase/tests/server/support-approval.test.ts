@@ -51,7 +51,7 @@ function approvingStore() {
   let next = 0;
 
   const selfApproval = () =>
-    pgError("42501", "self", { hint: "SUPPORT_SELF_APPROVAL" });
+    pgError("42501", "self", { hint: "IMPERSONATION_SELF_APPROVAL" });
 
   const store: SupportSessionStore = {
     ...base,
@@ -162,7 +162,7 @@ describe("support sessions refuse by default", () => {
     const result = await support.start(admin, start);
     expect(result.error).toMatchObject({
       kind: "forbidden",
-      code: "SUPPORT_FORBIDDEN",
+      code: "IMPERSONATION_FORBIDDEN",
     });
     expect(events.at(-1)?.data).toMatchObject({ denial: "authorize" });
   });
@@ -182,7 +182,7 @@ describe("support sessions refuse by default", () => {
 
     const viaHooks = setup({ policy: { approval: "none" } }, fromHooks);
     expect((await viaHooks.support.start(admin, start)).error?.code).toBe(
-      "SUPPORT_FORBIDDEN",
+      "IMPERSONATION_FORBIDDEN",
     );
 
     const direct = setup(
@@ -216,7 +216,7 @@ describe("support sessions refuse by default", () => {
       expect(
         (await support.start(admin, { targetUserId: TARGET, reason })).error
           ?.code,
-      ).toBe("SUPPORT_REASON_REQUIRED");
+      ).toBe("IMPERSONATION_REASON_REQUIRED");
     }
 
     expect(asked).toBe(false);
@@ -225,7 +225,7 @@ describe("support sessions refuse by default", () => {
   it("lets the store decide with authorize 'store', still behind a second admin", async () => {
     const { support } = setup({ authorize: "store" });
     expect((await support.start(admin, start)).error?.code).toBe(
-      "SUPPORT_APPROVAL_REQUIRED",
+      "IMPERSONATION_APPROVAL_REQUIRED",
     );
     const open = setup({ authorize: "store", policy: { approval: "none" } });
     expect((await open.support.start(admin, start)).ok).toBe(true);
@@ -241,7 +241,7 @@ describe("support sessions need a second admin", () => {
     const refused = await support.start(admin, start);
     expect(refused.error).toMatchObject({
       kind: "forbidden",
-      code: "SUPPORT_APPROVAL_REQUIRED",
+      code: "IMPERSONATION_APPROVAL_REQUIRED",
     });
     expect(events.at(-1)?.data).toMatchObject({ denial: "policy" });
 
@@ -249,10 +249,10 @@ describe("support sessions need a second admin", () => {
     expect(asked).toMatchObject({ adminId: ADMIN, reason: "ticket 7" });
     expect((await support.approve(admin, asked.id)).error).toMatchObject({
       kind: "forbidden",
-      code: "SUPPORT_SELF_APPROVAL",
+      code: "IMPERSONATION_SELF_APPROVAL",
     });
     expect((await support.start(admin, start)).error?.code).toBe(
-      "SUPPORT_APPROVAL_REQUIRED",
+      "IMPERSONATION_APPROVAL_REQUIRED",
     );
 
     const approved = await support.approve(second, asked.id).orThrow();
@@ -262,14 +262,14 @@ describe("support sessions need a second admin", () => {
     const started = await support.start(admin, start).orThrow();
     expect(requests.get(asked.id)?.sessionId).toBe(started.session.id);
     expect((await support.start(admin, start)).error?.code).toBe(
-      "SUPPORT_APPROVAL_REQUIRED",
+      "IMPERSONATION_APPROVAL_REQUIRED",
     );
   });
 
   it("takes an approvedBy decision for someone else, never the admin", async () => {
     const self = setup({ authorize: () => ({ approvedBy: ADMIN }) });
     const refused = await self.support.start(admin, start);
-    expect(refused.error?.code).toBe("SUPPORT_SELF_APPROVAL");
+    expect(refused.error?.code).toBe("IMPERSONATION_SELF_APPROVAL");
     expect(self.events.at(-1)?.data).toMatchObject({ denial: "authorize" });
 
     const other = setup({ authorize: () => ({ approvedBy: SECOND }) });
@@ -304,18 +304,18 @@ describe("support sessions need a second admin", () => {
       .orThrow();
 
     expect((await support.approve(admin, asked.id)).error?.code).toBe(
-      "SUPPORT_SELF_APPROVAL",
+      "IMPERSONATION_SELF_APPROVAL",
     );
     expect(refs).toEqual([]);
     expect((await support.approve(second, asked.id)).error?.code).toBe(
-      "SUPPORT_FORBIDDEN",
+      "IMPERSONATION_FORBIDDEN",
     );
     answer = () => {
       throw new Error("down");
     };
 
     expect((await support.approve(second, asked.id)).error?.code).toBe(
-      "SUPPORT_FORBIDDEN",
+      "IMPERSONATION_FORBIDDEN",
     );
     answer = () => true;
     await support.approve(second, asked.id).orThrow();
@@ -342,7 +342,7 @@ describe("support sessions need a second admin", () => {
     ).toBe("SUPPORT_NESTED");
     expect((await support.approve(second, "missing")).error).toMatchObject({
       kind: "not_found",
-      code: "SUPPORT_REQUEST_MISSING",
+      code: "IMPERSONATION_REQUEST_MISSING",
     });
   });
 
@@ -354,7 +354,7 @@ describe("support sessions need a second admin", () => {
     expect(
       (await support.request(admin, { targetUserId: TARGET, reason: " " }))
         .error?.code,
-    ).toBe("SUPPORT_REASON_REQUIRED");
+    ).toBe("IMPERSONATION_REASON_REQUIRED");
     expect(
       (await support.request(admin, { ...start, readOnly: false })).data,
     ).toMatchObject({ readOnly: false });
@@ -362,7 +362,9 @@ describe("support sessions need a second admin", () => {
     const broken: SupportSessionStore = {
       ...approvingStore().store,
       request: () =>
-        Promise.reject(pgError("42501", "no", { hint: "SUPPORT_FORBIDDEN" })),
+        Promise.reject(
+          pgError("42501", "no", { hint: "IMPERSONATION_FORBIDDEN" }),
+        ),
       getRequest: () => Promise.reject(pgError("57014", "timeout")),
       approvedRequest: () => Promise.reject(pgError("42501", "no")),
     };
@@ -397,7 +399,7 @@ describe("support sessions need a second admin", () => {
     }).create(betterSupabase.events, undefined);
 
     expect((await support.start(admin, start)).error?.code).toBe(
-      "SUPPORT_APPROVAL_REQUIRED",
+      "IMPERSONATION_APPROVAL_REQUIRED",
     );
 
     const lookup = supportSessions({
@@ -406,7 +408,7 @@ describe("support sessions need a second admin", () => {
     }).create(betterSupabase.events, undefined);
 
     expect((await lookup.start(admin, start)).error?.code).toBe(
-      "SUPPORT_APPROVAL_REQUIRED",
+      "IMPERSONATION_APPROVAL_REQUIRED",
     );
     expect((await lookup.request(admin, start)).error).toMatchObject({
       kind: "unsupported",

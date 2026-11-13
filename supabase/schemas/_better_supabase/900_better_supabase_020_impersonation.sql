@@ -1,6 +1,6 @@
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:063200742f82917aeee2501f9a11417c4378886e26693ce9f9083471d17670e5
+-- @bsb-hash sha256:d18d245ceb691a6a170dd12163c0c0c5b01d1594bcd8d1b70b522475eaf2e3e5
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,8 +72,8 @@ grant select on "better_supabase"."support_requests" to authenticated;
 -- approve_support_request before start_support_session accepts it. The
 -- service role passes admin_id, and approved_by for an approval the server's
 -- authorization hook already decided. Errors carry a code in the hint:
--- SUPPORT_FORBIDDEN, SUPPORT_SELF, SUPPORT_SELF_APPROVAL,
--- SUPPORT_TARGET_MISSING, SUPPORT_REASON_REQUIRED or SUPPORT_WRITES_DISABLED.
+-- IMPERSONATION_FORBIDDEN, IMPERSONATION_SELF, IMPERSONATION_SELF_APPROVAL,
+-- IMPERSONATION_TARGET_MISSING, IMPERSONATION_REASON_REQUIRED or IMPERSONATION_WRITES_DISABLED.
 create or replace function "better_supabase"."request_support_session"(
   target uuid,
   reason text default null,
@@ -101,29 +101,29 @@ begin
   if service then
     admin := admin_id;
     if admin is null then
-      raise exception 'admin_id is required for the service role' using errcode = '22023', hint = 'SUPPORT_FORBIDDEN';
+      raise exception 'admin_id is required for the service role' using errcode = '22023', hint = 'IMPERSONATION_FORBIDDEN';
     end if;
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin) or approved_by is not null
       or not "better_supabase"."is_platform"('impersonation.start') then
-      raise exception 'Not allowed to ask for a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+      raise exception 'Not allowed to ask for a support session' using errcode = '42501', hint = 'IMPERSONATION_FORBIDDEN';
     end if;
   end if;
   if target = admin then
-    raise exception 'An admin cannot start a support session as themselves' using errcode = '22023', hint = 'SUPPORT_SELF';
+    raise exception 'An admin cannot start a support session as themselves' using errcode = '22023', hint = 'IMPERSONATION_SELF';
   end if;
   if approved_by = admin then
-    raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
+    raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'IMPERSONATION_SELF_APPROVAL';
   end if;
   if not exists (select 1 from auth.users u where u.id = target) then
-    raise exception 'No user %', target using errcode = 'P0002', hint = 'SUPPORT_TARGET_MISSING';
+    raise exception 'No user %', target using errcode = 'P0002', hint = 'IMPERSONATION_TARGET_MISSING';
   end if;
   if coalesce(btrim(reason), '') = '' then
-    raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
+    raise exception 'A reason is required' using errcode = '22023', hint = 'IMPERSONATION_REASON_REQUIRED';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (blocks.impersonation.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks.impersonation.options.allowWrites)' using errcode = '42501', hint = 'IMPERSONATION_WRITES_DISABLED';
   end if;
   insert into "better_supabase"."support_requests" ("admin_id", "target_user_id", "reason", "tenant_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
@@ -157,8 +157,8 @@ $$;
 -- their own request; the service role passes approver_id for an approver the
 -- server's approverOf hook already allowed. Approving again as the same
 -- approver returns the row. Errors carry a code in the hint:
--- SUPPORT_FORBIDDEN, SUPPORT_SELF_APPROVAL, SUPPORT_REQUEST_MISSING,
--- SUPPORT_REQUEST_CLOSED or SUPPORT_REQUEST_DECIDED.
+-- IMPERSONATION_FORBIDDEN, IMPERSONATION_SELF_APPROVAL, IMPERSONATION_REQUEST_MISSING,
+-- IMPERSONATION_REQUEST_CLOSED or IMPERSONATION_REQUEST_DECIDED.
 create or replace function "better_supabase"."approve_support_request"(
   request_id uuid,
   approver_id uuid default null
@@ -178,23 +178,23 @@ begin
   if service then
     approver := approver_id;
     if approver is null then
-      raise exception 'approver_id is required for the service role' using errcode = '22023', hint = 'SUPPORT_FORBIDDEN';
+      raise exception 'approver_id is required for the service role' using errcode = '22023', hint = 'IMPERSONATION_FORBIDDEN';
     end if;
   else
     approver := auth.uid();
     if approver is null or (approver_id is not null and approver_id <> approver) then
-      raise exception 'Not allowed to approve a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+      raise exception 'Not allowed to approve a support session' using errcode = '42501', hint = 'IMPERSONATION_FORBIDDEN';
     end if;
   end if;
   select * into v_row from "better_supabase"."support_requests" x where x."id" = request_id for update;
   if not found then
-    raise exception 'No support request %', request_id using errcode = 'P0002', hint = 'SUPPORT_REQUEST_MISSING';
+    raise exception 'No support request %', request_id using errcode = 'P0002', hint = 'IMPERSONATION_REQUEST_MISSING';
   end if;
   if v_row."admin_id" = approver then
-    raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
+    raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'IMPERSONATION_SELF_APPROVAL';
   end if;
   if not service and not "better_supabase"."is_platform"('impersonation.start') then
-    raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+    raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'IMPERSONATION_FORBIDDEN';
   end if;
   return "better_supabase"."apply_support_approval"(request_id, approver);
 end;
@@ -213,13 +213,13 @@ declare
 begin
   select * into v_row from "better_supabase"."support_requests" x where x."id" = request_id for update;
   if not found then
-    raise exception 'No support request %', request_id using errcode = 'P0002', hint = 'SUPPORT_REQUEST_MISSING';
+    raise exception 'No support request %', request_id using errcode = 'P0002', hint = 'IMPERSONATION_REQUEST_MISSING';
   end if;
   if approver is null then
-    raise exception 'Not allowed to approve a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+    raise exception 'Not allowed to approve a support session' using errcode = '42501', hint = 'IMPERSONATION_FORBIDDEN';
   end if;
   if v_row."admin_id" = approver then
-    raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
+    raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'IMPERSONATION_SELF_APPROVAL';
   end if;
   if v_row."approved_by" is not null then
     if v_row."approved_by" = approver then
@@ -238,10 +238,10 @@ begin
     'session_id', v_row."session_id"
   );
     end if;
-    raise exception 'Support request % is already approved', request_id using errcode = 'P0001', hint = 'SUPPORT_REQUEST_DECIDED';
+    raise exception 'Support request % is already approved', request_id using errcode = 'P0001', hint = 'IMPERSONATION_REQUEST_DECIDED';
   end if;
   if v_row."session_id" is not null or v_row."expires_at" <= now() then
-    raise exception 'Support request % has expired or was used', request_id using errcode = 'P0001', hint = 'SUPPORT_REQUEST_CLOSED';
+    raise exception 'Support request % has expired or was used', request_id using errcode = 'P0001', hint = 'IMPERSONATION_REQUEST_CLOSED';
   end if;
   update "better_supabase"."support_requests" x set "approved_by" = approver, "approved_at" = now()
   where x."id" = request_id
@@ -371,8 +371,8 @@ $$;
 -- or ends. An admin has one active session; starting another ends the first.
 -- It needs a request another admin approved (request_support_session, then
 -- approve_support_request) for the same target, tenant and read-only flag.
--- Errors carry a code in the hint: SUPPORT_FORBIDDEN, SUPPORT_SELF,
--- SUPPORT_TARGET_MISSING, SUPPORT_TTL, SUPPORT_REASON_REQUIRED, SUPPORT_APPROVAL_REQUIRED.
+-- Errors carry a code in the hint: IMPERSONATION_FORBIDDEN, IMPERSONATION_SELF,
+-- IMPERSONATION_TARGET_MISSING, IMPERSONATION_TTL, IMPERSONATION_REASON_REQUIRED, IMPERSONATION_APPROVAL_REQUIRED.
 create or replace function "better_supabase"."start_support_session"(
   target uuid,
   reason text default null,
@@ -399,23 +399,23 @@ begin
   if service then
     admin := admin_id;
     if admin is null then
-      raise exception 'admin_id is required for the service role' using errcode = '22023', hint = 'SUPPORT_FORBIDDEN';
+      raise exception 'admin_id is required for the service role' using errcode = '22023', hint = 'IMPERSONATION_FORBIDDEN';
     end if;
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
       or not "better_supabase"."is_platform"('impersonation.start') then
-      raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+      raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'IMPERSONATION_FORBIDDEN';
     end if;
   end if;
   if target = admin then
-    raise exception 'An admin cannot start a support session as themselves' using errcode = '22023', hint = 'SUPPORT_SELF';
+    raise exception 'An admin cannot start a support session as themselves' using errcode = '22023', hint = 'IMPERSONATION_SELF';
   end if;
   if not exists (select 1 from auth.users u where u.id = target) then
-    raise exception 'No user %', target using errcode = 'P0002', hint = 'SUPPORT_TARGET_MISSING';
+    raise exception 'No user %', target using errcode = 'P0002', hint = 'IMPERSONATION_TARGET_MISSING';
   end if;
   if ttl <= interval '0' or ttl > '4 hours'::interval then
-    raise exception 'ttl must be between 0 and %', '4 hours' using errcode = '22023', hint = 'SUPPORT_TTL';
+    raise exception 'ttl must be between 0 and %', '4 hours' using errcode = '22023', hint = 'IMPERSONATION_TTL';
   end if;
   -- Viewing the app as platform staff would hand the admin that staff's reach.
   if (exists (
@@ -426,13 +426,13 @@ begin
     select 1 from "better_supabase"."platform_roles" a
     where a."user_id" = target
   )) then
-    raise exception 'A support session cannot target platform staff' using errcode = '42501', hint = 'SUPPORT_TARGET_PLATFORM';
+    raise exception 'A support session cannot target platform staff' using errcode = '42501', hint = 'IMPERSONATION_TARGET_PLATFORM';
   end if;
   if not coalesce(read_only, true) then
-    raise exception 'Support sessions are read-only (blocks.impersonation.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
+    raise exception 'Support sessions are read-only (blocks.impersonation.options.allowWrites)' using errcode = '42501', hint = 'IMPERSONATION_WRITES_DISABLED';
   end if;
   if coalesce(btrim(reason), '') = '' then
-    raise exception 'A reason is required' using errcode = '22023', hint = 'SUPPORT_REASON_REQUIRED';
+    raise exception 'A reason is required' using errcode = '22023', hint = 'IMPERSONATION_REASON_REQUIRED';
   end if;
   -- A second admin approved this start: the approval is consumed below.
   select x."id", x."approved_by" into approval_id, approver
@@ -449,7 +449,7 @@ begin
   limit 1
   for update;
   if approval_id is null then
-    raise exception 'A second admin must approve this support session (approve_support_request)' using errcode = '42501', hint = 'SUPPORT_APPROVAL_REQUIRED';
+    raise exception 'A second admin must approve this support session (approve_support_request)' using errcode = '42501', hint = 'IMPERSONATION_APPROVAL_REQUIRED';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_support_start"(uuid, uuid, text, jsonb)');
@@ -589,7 +589,7 @@ declare
   expired_id uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'Only the service role expires support sessions' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
+    raise exception 'Only the service role expires support sessions' using errcode = '42501', hint = 'IMPERSONATION_FORBIDDEN';
   end if;
   for expired_id in
     select s."id" from "better_supabase"."support_sessions" s
@@ -718,7 +718,7 @@ begin
   ) into base
   from auth.users u where u.id = target;
   if base is null then
-    raise exception 'No user %', target using errcode = 'P0002', hint = 'SUPPORT_TARGET_MISSING';
+    raise exception 'No user %', target using errcode = 'P0002', hint = 'IMPERSONATION_TARGET_MISSING';
   end if;
   return base -> 'claims';
 end;

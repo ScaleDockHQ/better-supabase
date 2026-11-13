@@ -244,7 +244,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
           dbError(
             "unexpected",
             "The transmitter metadata names another issuer",
-            { hint: "SSF_ISSUER_MISMATCH" },
+            { hint: "SECURITY_EVENT_ISSUER_MISMATCH" },
           ),
         );
       }
@@ -569,7 +569,7 @@ export function createSsfReceiver(options: SsfReceiverOptions): SsfReceiver {
                   dbError(
                     "unexpected",
                     "The created stream's aud does not name this receiver",
-                    { hint: "SSF_AUDIENCE_MISMATCH" },
+                    { hint: "SECURITY_EVENT_AUDIENCE_MISMATCH" },
                   ),
                 ),
           );

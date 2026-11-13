@@ -347,7 +347,7 @@ ${
     where x.${e("tenant")} = submit_timesheet.tenant and x.${owner.entries} = ${by ? "v_owner" : "v_me"} and ${running("x")}
       and ${week(`x.${e("startedAt")}`, `x.${owner.entries}`)} = v_week
   ) then
-    ${fail("TIMESHEET_TIMER_RUNNING", "stop the running timer before submitting this week", "55000")}
+    ${fail("TIME_ENTRIES_TIMESHEET_TIMER_RUNNING", "stop the running timer before submitting this week", "55000")}
   end if;
   insert into ${timesheets} (${t("tenant")}, ${by ? `${owner.sheetUser ? `${t("user")}, ` : ""}${owner.timesheets}` : t("user")}, ${t("week")}, ${t("status")})
   values (submit_timesheet.tenant, ${by ? `${owner.sheetUser ? `${owner.userOf("v_owner")}, ` : ""}v_owner` : "v_me"}, v_week, ${value("open")})
@@ -356,10 +356,10 @@ ${
     where s.${t("tenant")} = submit_timesheet.tenant and s.${owner.timesheets} = ${by ? "v_owner" : "v_me"} and s.${t("week")} = v_week
     for update;
   if ${is("v_sheet", ["approved"])} then
-    ${fail("TIMESHEET_APPROVED", "this week is already approved", "55000")}
+    ${fail("TIME_ENTRIES_TIMESHEET_APPROVED", "this week is already approved", "55000")}
   end if;
   if ${is("v_sheet", ["submitted"])}${linked === undefined ? "" : ` and ${pendingApproval("v_sheet")}`} then
-    ${fail("TIMESHEET_SUBMITTED", "this week is already waiting for a decision", "55000")}
+    ${fail("TIME_ENTRIES_TIMESHEET_SUBMITTED", "this week is already waiting for a decision", "55000")}
   end if;
   ${ctx.hook("before_timesheet_submit", [
     ["uuid", `v_sheet.${t("id")}`],
@@ -450,7 +450,7 @@ begin
     ${forbidden("not allowed to reopen timesheets")}
   end if;
   if not ${is("v_sheet", ["approved", "rejected"])} then
-    ${fail("TIMESHEET_NOT_APPROVED", "only an approved or rejected week can be reopened", "55000")}
+    ${fail("TIME_ENTRIES_TIMESHEET_NOT_APPROVED", "only an approved or rejected week can be reopened", "55000")}
   end if;
   update ${timesheets} s set ${t("status")} = ${value("open")}, ${t("approvedAt")} = null, ${t("submittedAt")} = null${clearDecision}
     where s.${t("id")} = v_sheet.${t("id")}

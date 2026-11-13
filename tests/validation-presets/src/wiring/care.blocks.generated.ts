@@ -28,6 +28,7 @@ import type { ObservationsEvents } from "better-supabase/blocks/observations";
 import type { MedicationsEvents } from "better-supabase/blocks/medications";
 import type { DriveEvents } from "better-supabase/blocks/drive";
 import type { ActivitiesEvents } from "better-supabase/blocks/activities";
+import type { FieldEncryptionEvents } from "better-supabase/blocks/field-encryption";
 import type { FormsEvents } from "better-supabase/blocks/forms";
 import type { SignaturesEvents } from "better-supabase/blocks/signatures";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
@@ -72,6 +73,7 @@ import { medicationsBlock as medicationsBlockInstance } from "better-supabase/bl
 import { driveBlock as driveBlockInstance } from "better-supabase/blocks/drive";
 import { activitiesBlock as activitiesBlockInstance } from "better-supabase/blocks/activities";
 import { entitlementsBlock as entitlementsBlockInstance } from "better-supabase/blocks/entitlements";
+import { fieldEncryptionBlock as fieldEncryptionBlockInstance } from "better-supabase/blocks/field-encryption";
 import { formsBlock as formsBlockInstance } from "better-supabase/blocks/forms";
 import { signaturesBlock as signaturesBlockInstance } from "better-supabase/blocks/signatures";
 import { queueBlock as queueBlockInstance } from "better-supabase/blocks/queue";
@@ -133,6 +135,7 @@ export const blocks = {
   drive: driveBlockInstance,
   activities: activitiesBlockInstance,
   entitlements: entitlementsBlockInstance,
+  "field-encryption": fieldEncryptionBlockInstance,
   forms: formsBlockInstance,
   signatures: signaturesBlockInstance,
   queue: queueBlockInstance,
@@ -157,7 +160,7 @@ export const blocks = {
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & CalendarEvents & CarePlansEvents & DataLifecycleEvents & EnrollmentsEvents & GuestsEvents & AcknowledgementsEvents & CoursesEvents & QualificationsEvents & CasesEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & FundingEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & ActivitiesEvents & FormsEvents & SignaturesEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RemindersEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & TimeEntriesEvents & VersionsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & CalendarEvents & CarePlansEvents & DataLifecycleEvents & EnrollmentsEvents & GuestsEvents & AcknowledgementsEvents & CoursesEvents & QualificationsEvents & CasesEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & FundingEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & ActivitiesEvents & FieldEncryptionEvents & FormsEvents & SignaturesEvents & NotificationsEvents & NumberingEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RemindersEvents & SettingsEvents & StateMachineEvents & SubjectsEvents & TeamsEvents & TimeEntriesEvents & VersionsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -288,7 +291,7 @@ export const blockEvents: Events<BlockEvents> = {
     "drive.shared",
     "drive.unshared",
     "drive_node.created",
-    "drive_node.document_saved",
+    "drive_node.document_updated",
     "drive_node.download_blocked_changed",
     "drive_node.hold_placed",
     "drive_node.hold_released",
@@ -314,6 +317,7 @@ export const blockEvents: Events<BlockEvents> = {
     "enrollment_program.created",
     "enrollment_program.deleted",
     "enrollment_program.updated",
+    "field_key.dropped",
     "form.created",
     "form_submission.deleted",
     "form_submission.reviewed",
@@ -576,7 +580,7 @@ export const blockEventSchemas = {
   "drive.shared": true,
   "drive.unshared": true,
   "drive_node.created": true,
-  "drive_node.document_saved": true,
+  "drive_node.document_updated": true,
   "drive_node.download_blocked_changed": true,
   "drive_node.hold_placed": true,
   "drive_node.hold_released": true,
@@ -602,6 +606,7 @@ export const blockEventSchemas = {
   "enrollment_program.created": true,
   "enrollment_program.deleted": true,
   "enrollment_program.updated": true,
+  "field_key.dropped": true,
   "form.created": true,
   "form_submission.deleted": true,
   "form_submission.reviewed": true,

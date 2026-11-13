@@ -129,10 +129,15 @@ export function manufacturingSql(ctx: BlockSqlContext): ManufacturingSql {
     allowed: (tenant, permission) =>
       `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.can("tenant", tenant, permission)}))`,
     forbidden: (message) => fail("MANUFACTURING_FORBIDDEN", message),
-    bomInvalid: (message) => fail("BOM_INVALID", message, "22023"),
+    bomInvalid: (message) =>
+      fail("MANUFACTURING_BOM_INVALID", message, "22023"),
     orderInvalid: (message) =>
       fail("PRODUCTION_ORDER_INVALID", message, "22023"),
-    bomMissing: fail("BOM_NOT_FOUND", "no such bill of materials", "P0002"),
+    bomMissing: fail(
+      "MANUFACTURING_BOM_NOT_FOUND",
+      "no such bill of materials",
+      "P0002",
+    ),
     orderMissing: fail(
       "PRODUCTION_ORDER_NOT_FOUND",
       "no such production order",
