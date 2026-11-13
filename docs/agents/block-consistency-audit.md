@@ -833,11 +833,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane E
 
 - Scope: Example follow-up block fixes
-- Status: PR open #902
+- Status: merged (E1; E2 not started)
 - Branch: `feat/audit-e`
 - PR: [#902](https://github.com/ScaleDockHQ/better-supabase/pull/902)
 - Findings: EX-1602, EX-1604, EX-1605, EX-1606, EX-1607, EX-1610, EX-1612, EX-1613, EX-1614
-- Log: 2026-11-12, E1 PR opened (fixes 1604 in part, 1605 in part, 1606, 1607, 1610, 1612, 1614). EX-1602 and EX-1613 remain for E2.
+- Log: 2026-11-12, E1 PR opened (fixes 1604 in part, 1605 in part, 1606, 1607, 1610, 1612, 1614). EX-1602 and EX-1613 remain for E2. 2026-11-13, E1 merged as [#902](https://github.com/ScaleDockHQ/better-supabase/pull/902). E2 (EX-1602 extractor warning, EX-1613 column renames, EX-1604 and EX-1605 remainder) is a follow-up, not started.
 
 ### Lane F
 
