@@ -109,6 +109,7 @@ describe("the permissions the manifests declare", () => {
       "advisories",
       "commissions",
       "deadlines",
+      "field-encryption",
       "leave",
       "periods",
       "referrals",

@@ -3997,14 +3997,15 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "field-encryption",
       "title": "Field encryption",
       "category": "Database primitives",
-      "description": "Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found. Members read which of their owners have keys through field_key_status().",
+      "description": "Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found. Members read which of their owners have keys, with the key dates and what they encrypt, through field_key_status(), and rotate_field_key replaces a data key and encrypts its values again.",
       "requires": [],
       "integrates": [],
       "modes": [
         "managed"
       ],
       "events": [
-        "field_key.dropped"
+        "field_key.dropped",
+        "field_key.rotated"
       ],
       "subpath": "better-supabase/blocks/field-encryption",
       "react": null,

@@ -580,7 +580,7 @@ const proration = await subscriptions
 // proration.credit, proration.charge, proration.net (text, minor units)
 ```
 
-`prorateChange` (SQL `prorate_change`) takes the part of the period that is left at the instant of the change (now by default). The credit is that part of the old price times the old quantity, the charge is that part of the new price times the new quantity, and `net` is charge minus credit, negative for a downgrade. With the `ledger` block installed, a non-zero net posts as one `billing.proration` transaction between a receivable and a proration revenue account per currency. A second call for the same subscription and instant returns the first transaction. Renewing a period is not part of this block yet: update `period_start` and `period_end` from your own job.
+`prorateChange` (SQL `prorate_change`) takes the part of the period that is left at the instant of the change (now by default). The credit is that part of the old price times the old quantity, the charge is that part of the new price times the new quantity, and `net` is charge minus credit, negative for a downgrade. With the `ledger` block installed, a non-zero net posts as one `billing.proration` transaction between a receivable and a proration revenue account per currency. A second call for the same subscription and instant returns the first transaction. Renewing a period is not part of this block yet: update `period_starts_at` and `period_ends_at` from your own job.
 
 ## Subscriptions without the Sync Engine
 

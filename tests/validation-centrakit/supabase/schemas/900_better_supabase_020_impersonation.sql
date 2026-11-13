@@ -1,6 +1,6 @@
 -- better-supabase module: impersonation
--- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:5fe51d646915c65d5e5bbd3b2fd8771a54f952ff2dc50406ef4a48f76d430d0a
+-- @bsb-block impersonation@3 managed
+-- @bsb-hash sha256:d610f6d81f970f0e9af2ed0f1be69fd3448077d1de5504eb86a2898c4040f875
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,7 +9,7 @@ create table "better_supabase"."support_sessions" (
   "id" uuid primary key default gen_random_uuid(),
   -- Sessions outlive a deleted user, so the record of who viewed whom stays.
   "admin_id" uuid references auth.users (id) on delete set null,
-  "target_user_id" uuid references auth.users (id) on delete set null,
+  "target_id" uuid references auth.users (id) on delete set null,
   "reason" text not null,
   "tenant_id" uuid,
   "read_only" boolean not null default true,
@@ -19,11 +19,11 @@ create table "better_supabase"."support_sessions" (
   "ended_by" text constraint bsb_support_sessions_ended_by_check check ("ended_by" in ('admin', 'expired', 'revoked')),
   -- App data, such as a ticket id.
   "metadata" jsonb not null default '{}',
-  constraint bsb_support_sessions_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_sessions_check check ("admin_id" <> "target_id"),
   constraint bsb_support_sessions_check1 check ("expires_at" > "started_at")
 );
 create index support_sessions_admin_idx on "better_supabase"."support_sessions" ("admin_id", "started_at" desc);
-create index support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
+create index support_sessions_target_idx on "better_supabase"."support_sessions" ("target_id", "started_at" desc);
 create unique index support_sessions_one_active_idx on "better_supabase"."support_sessions" ("admin_id") where "ended_at" is null;
 alter table "better_supabase"."support_sessions" enable row level security;
 revoke all on "better_supabase"."support_sessions" from public, anon, authenticated;
@@ -39,7 +39,7 @@ grant select on "better_supabase"."support_sessions" to authenticated;
 create table "better_supabase"."support_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "admin_id" uuid not null references auth.users (id) on delete cascade,
-  "target_user_id" uuid not null references auth.users (id) on delete cascade,
+  "target_id" uuid not null references auth.users (id) on delete cascade,
   "reason" text not null,
   "tenant_id" uuid,
   "read_only" boolean not null default true,
@@ -50,12 +50,12 @@ create table "better_supabase"."support_requests" (
   "approved_at" timestamptz,
   -- The session the approval started; an approval starts one session.
   "session_id" uuid,
-  constraint bsb_support_requests_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_requests_check check ("admin_id" <> "target_id"),
   constraint bsb_support_requests_distinct_approver check ("approved_by" <> "admin_id"),
   constraint bsb_support_requests_check1 check (("approved_by" is null) = ("approved_at" is null))
 );
-create index support_requests_admin_idx on "better_supabase"."support_requests" ("admin_id", "target_user_id", "requested_at" desc);
-create index support_requests_target_idx on "better_supabase"."support_requests" ("target_user_id");
+create index support_requests_admin_idx on "better_supabase"."support_requests" ("admin_id", "target_id", "requested_at" desc);
+create index support_requests_target_idx on "better_supabase"."support_requests" ("target_id");
 create index support_requests_approved_by_idx on "better_supabase"."support_requests" ("approved_by");
 alter table "better_supabase"."support_requests" enable row level security;
 revoke all on "better_supabase"."support_requests" from public, anon, authenticated;
@@ -125,14 +125,14 @@ begin
   if not coalesce(read_only, true) then
     raise exception 'Support sessions are read-only (blocks.impersonation.options.allowWrites)' using errcode = '42501', hint = 'IMPERSONATION_WRITES_DISABLED';
   end if;
-  insert into "better_supabase"."support_requests" ("admin_id", "target_user_id", "reason", "tenant_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
+  insert into "better_supabase"."support_requests" ("admin_id", "target_id", "reason", "tenant_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
     now() + '1 hour'::interval, approved_by, case when approved_by is null then null else now() end)
   returning "id" into new_id;
   select jsonb_build_object(
     'id', x."id",
     'admin_id', x."admin_id",
-    'target_user_id', x."target_user_id",
+    'target_user_id', x."target_id",
     'reason', x."reason",
     'tenant', x."tenant_id",
     'read_only', x."read_only",
@@ -220,7 +220,7 @@ begin
       return jsonb_build_object(
     'id', v_row."id",
     'admin_id', v_row."admin_id",
-    'target_user_id', v_row."target_user_id",
+    'target_user_id', v_row."target_id",
     'reason', v_row."reason",
     'tenant', v_row."tenant_id",
     'read_only', v_row."read_only",
@@ -243,7 +243,7 @@ begin
   return jsonb_build_object(
     'id', v_row."id",
     'admin_id', v_row."admin_id",
-    'target_user_id', v_row."target_user_id",
+    'target_user_id', v_row."target_id",
     'reason', v_row."reason",
     'tenant', v_row."tenant_id",
     'read_only', v_row."read_only",
@@ -271,7 +271,7 @@ as $$
   select jsonb_build_object(
     'id', x."id",
     'admin_id', x."admin_id",
-    'target_user_id', x."target_user_id",
+    'target_user_id', x."target_id",
     'reason', x."reason",
     'tenant', x."tenant_id",
     'read_only', x."read_only",
@@ -304,7 +304,7 @@ as $$
   select jsonb_build_object(
     'id', x."id",
     'admin_id', x."admin_id",
-    'target_user_id', x."target_user_id",
+    'target_user_id', x."target_id",
     'reason', x."reason",
     'tenant', x."tenant_id",
     'read_only', x."read_only",
@@ -317,7 +317,7 @@ as $$
   )
   from "better_supabase"."support_requests" x
   where x."admin_id" = case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then $4 else auth.uid() end
-    and x."target_user_id" = $1
+    and x."target_id" = $1
     and x."tenant_id" is not distinct from $2
     and (not x."read_only" or coalesce($3, true))
     and x."approved_by" is not null
@@ -402,13 +402,13 @@ begin
   end;
   update "better_supabase"."support_sessions" s set "ended_at" = now(), "ended_by" = 'admin'
   where s."admin_id" = admin and s."ended_at" is null;
-  insert into "better_supabase"."support_sessions" ("admin_id", "target_user_id", "reason", "tenant_id", "read_only", "expires_at", "metadata")
+  insert into "better_supabase"."support_sessions" ("admin_id", "target_id", "reason", "tenant_id", "read_only", "expires_at", "metadata")
   values (admin, target, coalesce(reason, ''), tenant, read_only, now() + ttl, coalesce(metadata, '{}'))
   returning "id" into session_id;
   select jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",
-    'target_user_id', s."target_user_id",
+    'target_user_id', s."target_id",
     'reason', s."reason",
     'tenant', s."tenant_id",
     'read_only', s."read_only",
@@ -475,7 +475,7 @@ begin
   returning jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",
-    'target_user_id', s."target_user_id",
+    'target_user_id', s."target_id",
     'reason', s."reason",
     'tenant', s."tenant_id",
     'read_only', s."read_only",
@@ -541,7 +541,7 @@ begin
       return next (select jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",
-    'target_user_id', s."target_user_id",
+    'target_user_id', s."target_id",
     'reason', s."reason",
     'tenant', s."tenant_id",
     'read_only', s."read_only",
@@ -574,7 +574,7 @@ as $$
   select jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",
-    'target_user_id', s."target_user_id",
+    'target_user_id', s."target_id",
     'reason', s."reason",
     'tenant', s."tenant_id",
     'read_only', s."read_only",
@@ -609,7 +609,7 @@ as $$
   select jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",
-    'target_user_id', s."target_user_id",
+    'target_user_id', s."target_id",
     'reason', s."reason",
     'tenant', s."tenant_id",
     'read_only', s."read_only",
@@ -623,7 +623,7 @@ as $$
   where (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or "better_supabase"."is_platform"('platform.users.manage'))
     and ($1 is null or s."admin_id" = $1)
-    and ($2 is null or s."target_user_id" = $2)
+    and ($2 is null or s."target_id" = $2)
     and ($3 is null
       or $3 = (s."ended_at" is null and s."expires_at" > now()))
   order by s."started_at" desc

@@ -47,6 +47,22 @@ const EVENTS: BlockSqlEvents<BillingEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  // Timestamp columns end in _at.
+  migrations: [
+    {
+      from: 4,
+      description:
+        "Native subscription periods are period_starts_at and period_ends_at.",
+      table: "native",
+      columns: { periodStart: "period_start", periodEnd: "period_end" },
+    },
+    {
+      from: 4,
+      description: "The Stripe subscription's period end is period_ends_at.",
+      table: "subscriptions",
+      columns: { periodEnd: "period_end" },
+    },
+  ],
   events: EVENTS,
   reads: BILLING_READS,
   options: ["seatRoles", "plans", "tenantKey", "subscriptions"],
@@ -76,7 +92,7 @@ const NAMES: BlockSqlNames = {
         status: "status",
         price: "price_id",
         plan: "plan",
-        periodEnd: "period_end",
+        periodEnd: "period_ends_at",
         cancelAt: "cancel_at",
         eventAt: "event_at",
         updatedAt: "updated_at",
@@ -850,7 +866,7 @@ export const BILLING: BlockSqlDefinition = {
   integrates: ["ledger", "organizations", "usage"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,

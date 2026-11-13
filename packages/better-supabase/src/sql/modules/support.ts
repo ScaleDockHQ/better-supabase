@@ -60,6 +60,15 @@ const EVENTS: BlockSqlEvents<ImpersonationEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  migrations: [
+    ["sessions", "The member a support session acts as"],
+    ["requests", "The member a support request is for"],
+  ].map(([table = "", who = ""]) => ({
+    from: 2,
+    description: `${who} is target_id: user references name their role.`,
+    table,
+    columns: { target: "target_user_id" },
+  })),
   events: EVENTS,
   options: [
     "allowPlatformTargets",
@@ -79,7 +88,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         admin: "admin_id",
-        target: "target_user_id",
+        target: "target_id",
         reason: "reason",
         tenant: "tenant_id",
         readOnly: "read_only",
@@ -98,7 +107,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         admin: "admin_id",
-        target: "target_user_id",
+        target: "target_id",
         reason: "reason",
         tenant: "tenant_id",
         readOnly: "read_only",
@@ -1049,7 +1058,7 @@ export const SUPPORT_SESSIONS: BlockSqlDefinition = {
   integrates: ["invitations", "approvals"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   names: NAMES,
   contract: (ctx) => [
     {
