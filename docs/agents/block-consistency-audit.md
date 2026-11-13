@@ -904,11 +904,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane J
 
 - Scope: expectedVersion, idempotencyKey and optimistic controllers
-- Status: in progress
+- Status: PR open #905
 - Branch: `feat/audit-j`
 - PR: none yet
 - Findings: EX-1212, EX-1213, EX-1214
 - Log: 2026-11-13, lane J started from main (6f9b3af232) in `../bsb-audit-j`.
+- PR: https://github.com/ScaleDockHQ/better-supabase/pull/905
 
 ### Lane K
 
