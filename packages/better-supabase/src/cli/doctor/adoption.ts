@@ -288,9 +288,9 @@ export const ADOPTION_RULES: readonly Rule[] = [
     severity: "warning",
     title: "App webhook endpoints without a format",
     description:
-      "A `webhooks-out` endpoints table of the app's that maps no `format` column sends every endpoint in `blocks.webhooks-out.options.defaultFormat`. Its default changed from the 0.8 body (`standard`) to `cloudevents` in 0.9, so receivers built for the old body break without any change to the config. `upgrade` refuses this config; doctor reports it for configs it loads without that check. Set `defaultFormat` explicitly, or add a format column and map it in `columns.endpoints.format`.",
+      "A `webhooks` endpoints table of the app's that maps no `format` column sends every endpoint in `blocks.webhooks.options.defaultFormat`. Its default changed from the 0.8 body (`standard`) to `cloudevents` in 0.9, so receivers built for the old body break without any change to the config. `upgrade` refuses this config; doctor reports it for configs it loads without that check. Set `defaultFormat` explicitly, or add a format column and map it in `columns.endpoints.format`.",
     check: (context) => {
-      const block = context.config.blocks["webhooks-out"];
+      const block = context.config.blocks["webhooks"];
 
       if (
         block === undefined ||
@@ -305,8 +305,7 @@ export const ADOPTION_RULES: readonly Rule[] = [
         appTablesOf(context),
         adoptionContext(context),
       ).find(
-        (entry) =>
-          entry.module === "webhooks-out" && entry.logical === "endpoints",
+        (entry) => entry.module === "webhooks" && entry.logical === "endpoints",
       );
 
       if (adopted === undefined) {
@@ -330,8 +329,8 @@ export const ADOPTION_RULES: readonly Rule[] = [
 
       return [
         {
-          message: `${name} ${has}, so every endpoint gets blocks.webhooks-out.options.defaultFormat, which defaults to "cloudevents" since 0.9 ("standard" before). Set defaultFormat to the body your receivers expect, or map columns.endpoints.format.`,
-          target: "blocks.webhooks-out.options.defaultFormat",
+          message: `${name} ${has}, so every endpoint gets blocks.webhooks.options.defaultFormat, which defaults to "cloudevents" since 0.9 ("standard" before). Set defaultFormat to the body your receivers expect, or map columns.endpoints.format.`,
+          target: "blocks.webhooks.options.defaultFormat",
         },
       ];
     },

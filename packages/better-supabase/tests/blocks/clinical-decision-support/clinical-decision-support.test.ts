@@ -129,7 +129,7 @@ describe("createClinicalDecisionSupport", () => {
     expect(recorded[0]).toMatchObject({ source: "drug-db" });
   });
 
-  it("returns CARE_ENGINE_FAILED when an engine throws", async () => {
+  it("returns DECISION_SUPPORT_ENGINE_FAILED when an engine throws", async () => {
     const t = fieldsTransport({
       evaluate_care_rules: () => [],
       care_decision_context: () => CONTEXT,
@@ -153,7 +153,9 @@ describe("createClinicalDecisionSupport", () => {
     const result = await cds.evaluate({ subject: SUBJECT });
 
     expect(result.ok).toBe(false);
-    expect(result.error).toMatchObject({ hint: "CARE_ENGINE_FAILED" });
+    expect(result.error).toMatchObject({
+      hint: "DECISION_SUPPORT_ENGINE_FAILED",
+    });
   });
 
   it("refuses an engine with the reserved key or another API version", () => {

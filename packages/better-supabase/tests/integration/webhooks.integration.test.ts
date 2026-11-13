@@ -51,7 +51,7 @@ const USERS = {
 type Who = keyof typeof USERS;
 
 const LAYOUT: BlockSqlLayout = {
-  modules: { "webhooks-out": { options: { disableAfter: "2 days" } } },
+  modules: { webhooks: { options: { disableAfter: "2 days" } } },
 };
 
 class Session {
@@ -123,7 +123,7 @@ function fakeHttp(script: Record<string, number[]>) {
   return { http, sent };
 }
 
-describe.skipIf(!live)("webhooks-out", () => {
+describe.skipIf(!live)("webhooks", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
 
   afterAll(() => pool.end());
@@ -152,10 +152,10 @@ describe.skipIf(!live)("webhooks-out", () => {
         );
       }
 
-      for (const file of renderBlocks(
-        ["organizations", "outbox", "webhooks-out"],
-        { ...LAYOUT, rerunnable: true },
-      )) {
+      for (const file of renderBlocks(["organizations", "outbox", "webhooks"], {
+        ...LAYOUT,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -523,10 +523,10 @@ describe.skipIf(!live)("webhooks-out", () => {
         [USERS.owner, `hec-${USERS.owner}@example.test`],
       );
 
-      for (const file of renderBlocks(
-        ["organizations", "outbox", "webhooks-out"],
-        { ...LAYOUT, rerunnable: true },
-      )) {
+      for (const file of renderBlocks(["organizations", "outbox", "webhooks"], {
+        ...LAYOUT,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -628,10 +628,10 @@ describe.skipIf(!live)("webhooks-out", () => {
         );
       }
 
-      for (const file of renderBlocks(
-        ["organizations", "outbox", "webhooks-out"],
-        { ...LAYOUT, rerunnable: true },
-      )) {
+      for (const file of renderBlocks(["organizations", "outbox", "webhooks"], {
+        ...LAYOUT,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -731,10 +731,10 @@ describe.skipIf(!live)("webhooks-out", () => {
     const s = new Session(client);
 
     const install = async () => {
-      for (const file of renderBlocks(
-        ["organizations", "outbox", "webhooks-out"],
-        { ...LAYOUT, rerunnable: true },
-      )) {
+      for (const file of renderBlocks(["organizations", "outbox", "webhooks"], {
+        ...LAYOUT,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
     };
@@ -764,10 +764,7 @@ describe.skipIf(!live)("webhooks-out", () => {
         [organization],
       );
 
-      const [plan] = upgradePlan(
-        [{ module: "webhooks-out", version: 2 }],
-        LAYOUT,
-      );
+      const [plan] = upgradePlan([{ module: "webhooks", version: 2 }], LAYOUT);
 
       await flushDeferred(client);
 

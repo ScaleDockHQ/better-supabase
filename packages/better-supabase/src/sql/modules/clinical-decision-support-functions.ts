@@ -190,7 +190,7 @@ begin
     ${sql.invalid("decision is acknowledged or overridden")}
   end if;
   if v_row.${a("status")} = 'resolved' or (v_row.${a("status")} = 'overridden') or (v_row.${a("status")} = 'acknowledged' and decide_care_alert.decision = 'acknowledged') then
-    ${fail("CARE_ALERT_STATUS", "this alert has already been decided or resolved", "55000")}
+    ${fail("DECISION_SUPPORT_ALERT_STATUS", "this alert has already been decided or resolved", "55000")}
   end if;
   if v_reason is null and (decide_care_alert.decision = 'overridden' or v_row.${a("severity")} = 'critical') then
     ${sql.invalid("overriding an alert, or deciding on a critical one, needs a reason")}

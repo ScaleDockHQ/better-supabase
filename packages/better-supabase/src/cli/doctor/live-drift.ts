@@ -42,7 +42,7 @@ export const LIVE_DRIFT_RULES: readonly Rule[] = [
     severity: "warning",
     title: "A partial index differs from the module's definition",
     description:
-      "`create index if not exists` never changes an index that already exists, so a module that now writes another `where` predicate (for example the mapped status values of `blocks.webhooks-out`) leaves the old index in a database that was set up earlier. Doctor compares the string literals of each partial index the module files create with the live index of the same name and table, and lists the ones that differ. Drop the index and run `sql upgrade`, then apply the migration. Needs a database; saved snapshots skip it.",
+      "`create index if not exists` never changes an index that already exists, so a module that now writes another `where` predicate (for example the mapped status values of `blocks.webhooks`) leaves the old index in a database that was set up earlier. Doctor compares the string literals of each partial index the module files create with the live index of the same name and table, and lists the ones that differ. Drop the index and run `sql upgrade`, then apply the migration. Needs a database; saved snapshots skip it.",
     async check(context) {
       const db = context.database;
 

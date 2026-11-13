@@ -1,13 +1,13 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:b05a69f4ff9906565c4f2457297808754108254d968827f59aeb640563d06592
--- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
+-- @bsb-hash sha256:984510418b715fd107a005f2ee2f2235bf504b176614d62a21fba36c8cd57d72
+-- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
--- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
+-- receiver stream, pushed through a webhooks endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
 create table "better_supabase"."ssf_streams" (
@@ -60,7 +60,7 @@ alter table "better_supabase"."ssf_received" enable row level security;
 revoke all on "better_supabase"."ssf_received" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_received" to service_role;
 
--- Creates a stream; a push stream gets a webhooks-out endpoint with format 'set'.
+-- Creates a stream; a push stream gets a webhooks endpoint with format 'set'.
 create or replace function "better_supabase"."create_ssf_stream"(id uuid, receiver text, tenant text, audience text[], delivery_method text, events_requested text[], events_delivered text[], description text default null, endpoint_url text default null, credential_ref jsonb default null)
 returns jsonb
 language plpgsql
@@ -72,7 +72,7 @@ declare
   v_endpoint uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ssf_streams" ("id", "tenant", "receiver", "audience", "delivery_method", "events_requested", "events_delivered", "description")
   values (create_ssf_stream.id, create_ssf_stream.tenant, create_ssf_stream.receiver, create_ssf_stream.audience,
@@ -80,7 +80,7 @@ begin
     coalesce(create_ssf_stream.events_delivered, '{}'), create_ssf_stream.description)
   returning * into v_row;
   if v_row."delivery_method" = 'urn:ietf:rfc:8935' then
-    raise exception 'push delivery needs the webhooks-out module' using errcode = '0A000', hint = 'SSF_PUSH_UNAVAILABLE';
+    raise exception 'push delivery needs the webhooks module' using errcode = '0A000', hint = 'SECURITY_EVENT_PUSH_UNAVAILABLE';
   end if;
   null;
   return jsonb_build_object(
@@ -113,7 +113,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return (select jsonb_build_object(
     'id', s."id",
@@ -145,7 +145,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -182,7 +182,7 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   update "better_supabase"."ssf_streams" s set
     "description" = case when update_ssf_stream.patch ? 'description' then update_ssf_stream.patch ->> 'description' else s."description" end,
@@ -226,7 +226,7 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_streams" s where s."id" = delete_ssf_stream.id returning s.* into v_row;
   if not found then
@@ -252,11 +252,11 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."ssf_streams" s where s."id" = queue_ssf_set.stream_id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."status" = 'disabled' then
     return 'dropped';
@@ -288,14 +288,14 @@ declare
   v_held record;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if set_ssf_stream_status.status not in ('enabled', 'paused', 'disabled') then
-    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SSF_STATUS_INVALID';
+    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SECURITY_EVENT_STATUS_INVALID';
   end if;
   select s."status" into v_previous from "better_supabase"."ssf_streams" s where s."id" = set_ssf_stream_status.id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "better_supabase"."ssf_streams" s set "status" = set_ssf_stream_status.status, "reason" = set_ssf_stream_status.reason
   where s."id" = set_ssf_stream_status.id
@@ -331,7 +331,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object('id', s."id", 'audience', to_jsonb(s."audience")) order by s."created_at")
@@ -360,14 +360,14 @@ declare
   v_more boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."ssf_streams" s where s."id" = poll_ssf_events.stream_id;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."delivery_method" <> 'urn:ietf:rfc:8936' then
-    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SSF_STREAM_NOT_POLL';
+    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SECURITY_EVENT_STREAM_NOT_POLL';
   end if;
   delete from "better_supabase"."ssf_events" q
   where q."stream_id" = v_row."id"
@@ -403,10 +403,10 @@ declare
   v_noted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if not exists (select 1 from "better_supabase"."ssf_streams" s where s."id" = note_ssf_verification.stream_id) then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "better_supabase"."ssf_streams" s set "verified_at" = now()
   where s."id" = note_ssf_verification.stream_id
@@ -429,7 +429,7 @@ declare
   v_new boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ssf_received" ("issuer", "jti")
   values (record_ssf_received.issuer, record_ssf_received.jti)
@@ -450,7 +450,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_received" x where x."issuer" = forget_ssf_received.issuer and x."jti" = forget_ssf_received.jti;
   return found;
@@ -472,7 +472,7 @@ declare
   v_events integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_received" x where x."received_at" < v_cutoff;
   get diagnostics v_received = row_count;
@@ -501,13 +501,13 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:ca3e0bb2b630c19b3728824d1d0c68e146172e8e9c2fe0093c10a1a7273d057a
--- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
+-- @bsb-hash sha256:b11a8a2ddc3758979ecbb1f627a0c435833f7480e8ac00a32145ab94adbe1769
+-- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
--- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
+-- receiver stream, pushed through a webhooks endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
 create table "better_supabase"."ssf_streams" (
@@ -560,7 +560,7 @@ alter table "better_supabase"."ssf_received" enable row level security;
 revoke all on "better_supabase"."ssf_received" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_received" to service_role;
 
--- Creates a stream; a push stream gets a webhooks-out endpoint with format 'set'.
+-- Creates a stream; a push stream gets a webhooks endpoint with format 'set'.
 create or replace function "better_supabase"."create_ssf_stream"(id uuid, receiver text, tenant text, audience text[], delivery_method text, events_requested text[], events_delivered text[], description text default null, endpoint_url text default null, credential_ref jsonb default null)
 returns jsonb
 language plpgsql
@@ -572,7 +572,7 @@ declare
   v_endpoint uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ssf_streams" ("id", "tenant", "receiver", "audience", "delivery_method", "events_requested", "events_delivered", "description")
   values (create_ssf_stream.id, create_ssf_stream.tenant, create_ssf_stream.receiver, create_ssf_stream.audience,
@@ -630,7 +630,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return (select jsonb_build_object(
     'id', s."id",
@@ -662,7 +662,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -699,7 +699,7 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   update "better_supabase"."ssf_streams" s set
     "description" = case when update_ssf_stream.patch ? 'description' then update_ssf_stream.patch ->> 'description' else s."description" end,
@@ -747,7 +747,7 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_streams" s where s."id" = delete_ssf_stream.id returning s.* into v_row;
   if not found then
@@ -783,11 +783,11 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."ssf_streams" s where s."id" = queue_ssf_set.stream_id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."status" = 'disabled' then
     return 'dropped';
@@ -819,14 +819,14 @@ declare
   v_held record;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if set_ssf_stream_status.status not in ('enabled', 'paused', 'disabled') then
-    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SSF_STATUS_INVALID';
+    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SECURITY_EVENT_STATUS_INVALID';
   end if;
   select s."status" into v_previous from "better_supabase"."ssf_streams" s where s."id" = set_ssf_stream_status.id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "better_supabase"."ssf_streams" s set "status" = set_ssf_stream_status.status, "reason" = set_ssf_stream_status.reason
   where s."id" = set_ssf_stream_status.id
@@ -869,7 +869,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object('id', s."id", 'audience', to_jsonb(s."audience")) order by s."created_at")
@@ -898,14 +898,14 @@ declare
   v_more boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."ssf_streams" s where s."id" = poll_ssf_events.stream_id;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."delivery_method" <> 'urn:ietf:rfc:8936' then
-    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SSF_STREAM_NOT_POLL';
+    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SECURITY_EVENT_STREAM_NOT_POLL';
   end if;
   delete from "better_supabase"."ssf_events" q
   where q."stream_id" = v_row."id"
@@ -941,10 +941,10 @@ declare
   v_noted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if not exists (select 1 from "better_supabase"."ssf_streams" s where s."id" = note_ssf_verification.stream_id) then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "better_supabase"."ssf_streams" s set "verified_at" = now()
   where s."id" = note_ssf_verification.stream_id
@@ -967,7 +967,7 @@ declare
   v_new boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ssf_received" ("issuer", "jti")
   values (record_ssf_received.issuer, record_ssf_received.jti)
@@ -988,7 +988,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_received" x where x."issuer" = forget_ssf_received.issuer and x."jti" = forget_ssf_received.jti;
   return found;
@@ -1010,7 +1010,7 @@ declare
   v_events integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_received" x where x."received_at" < v_cutoff;
   get diagnostics v_received = row_count;
@@ -1039,8 +1039,8 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:d0c03c80524bc0d8b8112ffa4f0a201fca3341300783412c601a1988ba550b9a
--- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
+-- @bsb-hash sha256:8cc2ed4f4ffc9486ad1a6af1136db98d359b19fb011694073288d79bb67f7d91
+-- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1050,7 +1050,7 @@ alter default privileges in schema "app_private" revoke all on tables from publi
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
--- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
+-- receiver stream, pushed through a webhooks endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
 create table "app_private"."ssf_streams" (
@@ -1103,7 +1103,7 @@ alter table "app_private"."ssf_received" enable row level security;
 revoke all on "app_private"."ssf_received" from public, anon, authenticated;
 grant all on "app_private"."ssf_received" to service_role;
 
--- Creates a stream; a push stream gets a webhooks-out endpoint with format 'set'.
+-- Creates a stream; a push stream gets a webhooks endpoint with format 'set'.
 create or replace function "app_private"."create_ssf_stream"(id uuid, receiver text, tenant text, audience text[], delivery_method text, events_requested text[], events_delivered text[], description text default null, endpoint_url text default null, credential_ref jsonb default null)
 returns jsonb
 language plpgsql
@@ -1115,7 +1115,7 @@ declare
   v_endpoint uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "app_private"."ssf_streams" ("id", "tenant", "receiver", "audience", "delivery_method", "events_requested", "events_delivered", "description")
   values (create_ssf_stream.id, create_ssf_stream.tenant, create_ssf_stream.receiver, create_ssf_stream.audience,
@@ -1123,7 +1123,7 @@ begin
     coalesce(create_ssf_stream.events_delivered, '{}'), create_ssf_stream.description)
   returning * into v_row;
   if v_row."delivery_method" = 'urn:ietf:rfc:8935' then
-    raise exception 'push delivery needs the webhooks-out module' using errcode = '0A000', hint = 'SSF_PUSH_UNAVAILABLE';
+    raise exception 'push delivery needs the webhooks module' using errcode = '0A000', hint = 'SECURITY_EVENT_PUSH_UNAVAILABLE';
   end if;
   null;
   return jsonb_build_object(
@@ -1156,7 +1156,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return (select jsonb_build_object(
     'id', s."id",
@@ -1188,7 +1188,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -1225,7 +1225,7 @@ declare
   v_row "app_private"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   update "app_private"."ssf_streams" s set
     "description" = case when update_ssf_stream.patch ? 'description' then update_ssf_stream.patch ->> 'description' else s."description" end,
@@ -1269,7 +1269,7 @@ declare
   v_row "app_private"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "app_private"."ssf_streams" s where s."id" = delete_ssf_stream.id returning s.* into v_row;
   if not found then
@@ -1295,11 +1295,11 @@ declare
   v_row "app_private"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "app_private"."ssf_streams" s where s."id" = queue_ssf_set.stream_id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."status" = 'disabled' then
     return 'dropped';
@@ -1331,14 +1331,14 @@ declare
   v_held record;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if set_ssf_stream_status.status not in ('enabled', 'paused', 'disabled') then
-    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SSF_STATUS_INVALID';
+    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SECURITY_EVENT_STATUS_INVALID';
   end if;
   select s."status" into v_previous from "app_private"."ssf_streams" s where s."id" = set_ssf_stream_status.id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "app_private"."ssf_streams" s set "status" = set_ssf_stream_status.status, "reason" = set_ssf_stream_status.reason
   where s."id" = set_ssf_stream_status.id
@@ -1374,7 +1374,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object('id', s."id", 'audience', to_jsonb(s."audience")) order by s."created_at")
@@ -1403,14 +1403,14 @@ declare
   v_more boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "app_private"."ssf_streams" s where s."id" = poll_ssf_events.stream_id;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."delivery_method" <> 'urn:ietf:rfc:8936' then
-    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SSF_STREAM_NOT_POLL';
+    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SECURITY_EVENT_STREAM_NOT_POLL';
   end if;
   delete from "app_private"."ssf_events" q
   where q."stream_id" = v_row."id"
@@ -1446,10 +1446,10 @@ declare
   v_noted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if not exists (select 1 from "app_private"."ssf_streams" s where s."id" = note_ssf_verification.stream_id) then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "app_private"."ssf_streams" s set "verified_at" = now()
   where s."id" = note_ssf_verification.stream_id
@@ -1472,7 +1472,7 @@ declare
   v_new boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "app_private"."ssf_received" ("issuer", "jti")
   values (record_ssf_received.issuer, record_ssf_received.jti)
@@ -1493,7 +1493,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "app_private"."ssf_received" x where x."issuer" = forget_ssf_received.issuer and x."jti" = forget_ssf_received.jti;
   return found;
@@ -1515,7 +1515,7 @@ declare
   v_events integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "app_private"."ssf_received" x where x."received_at" < v_cutoff;
   get diagnostics v_received = row_count;
@@ -1544,13 +1544,13 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:28302bf4d9137d2d41a30722191e267df382d51f2aedd2f453dfc73b460a09d5
--- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
+-- @bsb-hash sha256:7cb8c4279b320b438289b0318799ae3d96ea281183a56a34024716cb053688f1
+-- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
--- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
+-- receiver stream, pushed through a webhooks endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
 create table "better_supabase"."ssf_streams" (
@@ -1603,7 +1603,7 @@ alter table "better_supabase"."ssf_received" enable row level security;
 revoke all on "better_supabase"."ssf_received" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_received" to service_role;
 
--- Creates a stream; a push stream gets a webhooks-out endpoint with format 'set'.
+-- Creates a stream; a push stream gets a webhooks endpoint with format 'set'.
 create or replace function "better_supabase"."create_ssf_stream"(id uuid, receiver text, tenant text, audience text[], delivery_method text, events_requested text[], events_delivered text[], description text default null, endpoint_url text default null, credential_ref jsonb default null)
 returns jsonb
 language plpgsql
@@ -1615,7 +1615,7 @@ declare
   v_endpoint uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ssf_streams" ("id", "tenant", "receiver", "audience", "delivery_method", "events_requested", "events_delivered", "description")
   values (create_ssf_stream.id, create_ssf_stream.tenant, create_ssf_stream.receiver, create_ssf_stream.audience,
@@ -1623,7 +1623,7 @@ begin
     coalesce(create_ssf_stream.events_delivered, '{}'), create_ssf_stream.description)
   returning * into v_row;
   if v_row."delivery_method" = 'urn:ietf:rfc:8935' then
-    raise exception 'push delivery needs the webhooks-out module' using errcode = '0A000', hint = 'SSF_PUSH_UNAVAILABLE';
+    raise exception 'push delivery needs the webhooks module' using errcode = '0A000', hint = 'SECURITY_EVENT_PUSH_UNAVAILABLE';
   end if;
   null;
   return jsonb_build_object(
@@ -1656,7 +1656,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return (select jsonb_build_object(
     'id', s."id",
@@ -1688,7 +1688,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -1725,7 +1725,7 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   update "better_supabase"."ssf_streams" s set
     "description" = case when update_ssf_stream.patch ? 'description' then update_ssf_stream.patch ->> 'description' else s."description" end,
@@ -1769,7 +1769,7 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_streams" s where s."id" = delete_ssf_stream.id returning s.* into v_row;
   if not found then
@@ -1795,11 +1795,11 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."ssf_streams" s where s."id" = queue_ssf_set.stream_id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."status" = 'disabled' then
     return 'dropped';
@@ -1831,14 +1831,14 @@ declare
   v_held record;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if set_ssf_stream_status.status not in ('enabled', 'paused', 'disabled') then
-    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SSF_STATUS_INVALID';
+    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SECURITY_EVENT_STATUS_INVALID';
   end if;
   select s."status" into v_previous from "better_supabase"."ssf_streams" s where s."id" = set_ssf_stream_status.id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "better_supabase"."ssf_streams" s set "status" = set_ssf_stream_status.status, "reason" = set_ssf_stream_status.reason
   where s."id" = set_ssf_stream_status.id
@@ -1874,7 +1874,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object('id', s."id", 'audience', to_jsonb(s."audience")) order by s."created_at")
@@ -1903,14 +1903,14 @@ declare
   v_more boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."ssf_streams" s where s."id" = poll_ssf_events.stream_id;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."delivery_method" <> 'urn:ietf:rfc:8936' then
-    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SSF_STREAM_NOT_POLL';
+    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SECURITY_EVENT_STREAM_NOT_POLL';
   end if;
   delete from "better_supabase"."ssf_events" q
   where q."stream_id" = v_row."id"
@@ -1946,10 +1946,10 @@ declare
   v_noted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if not exists (select 1 from "better_supabase"."ssf_streams" s where s."id" = note_ssf_verification.stream_id) then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "better_supabase"."ssf_streams" s set "verified_at" = now()
   where s."id" = note_ssf_verification.stream_id
@@ -1972,7 +1972,7 @@ declare
   v_new boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ssf_received" ("issuer", "jti")
   values (record_ssf_received.issuer, record_ssf_received.jti)
@@ -1993,7 +1993,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_received" x where x."issuer" = forget_ssf_received.issuer and x."jti" = forget_ssf_received.jti;
   return found;
@@ -2015,7 +2015,7 @@ declare
   v_events integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_received" x where x."received_at" < v_cutoff;
   get diagnostics v_received = row_count;
@@ -2168,13 +2168,13 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:f97c7715d613274a8f8f1151b6228f35f4691519f9d8ae3bc944f9b9f5ba6bbc
--- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
+-- @bsb-hash sha256:ea8a8f192f63c5458a6b37b757cca765c2063b098a20eb027327225608e9af40
+-- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
--- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
+-- receiver stream, pushed through a webhooks endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
 -- better_supabase.ssf_streams is the app's table: this block adds only the columns it needs.
@@ -2222,7 +2222,7 @@ create unique index if not exists "bsb_ssf_received_key" on "better_supabase"."s
 alter table "better_supabase"."ssf_received" enable row level security;
 grant all on "better_supabase"."ssf_received" to service_role;
 
--- Creates a stream; a push stream gets a webhooks-out endpoint with format 'set'.
+-- Creates a stream; a push stream gets a webhooks endpoint with format 'set'.
 create or replace function "better_supabase"."create_ssf_stream"(id uuid, receiver text, tenant text, audience text[], delivery_method text, events_requested text[], events_delivered text[], description text default null, endpoint_url text default null, credential_ref jsonb default null)
 returns jsonb
 language plpgsql
@@ -2234,7 +2234,7 @@ declare
   v_endpoint uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ssf_streams" ("id", "tenant", "receiver", "audience", "delivery_method", "events_requested", "events_delivered", "description")
   values (create_ssf_stream.id, create_ssf_stream.tenant, create_ssf_stream.receiver, create_ssf_stream.audience,
@@ -2242,7 +2242,7 @@ begin
     coalesce(create_ssf_stream.events_delivered, '{}'), create_ssf_stream.description)
   returning * into v_row;
   if v_row."delivery_method" = 'urn:ietf:rfc:8935' then
-    raise exception 'push delivery needs the webhooks-out module' using errcode = '0A000', hint = 'SSF_PUSH_UNAVAILABLE';
+    raise exception 'push delivery needs the webhooks module' using errcode = '0A000', hint = 'SECURITY_EVENT_PUSH_UNAVAILABLE';
   end if;
   null;
   return jsonb_build_object(
@@ -2275,7 +2275,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return (select jsonb_build_object(
     'id', s."id",
@@ -2307,7 +2307,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -2344,7 +2344,7 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   update "better_supabase"."ssf_streams" s set
     "description" = case when update_ssf_stream.patch ? 'description' then update_ssf_stream.patch ->> 'description' else s."description" end,
@@ -2388,7 +2388,7 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_streams" s where s."id" = delete_ssf_stream.id returning s.* into v_row;
   if not found then
@@ -2414,11 +2414,11 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."ssf_streams" s where s."id" = queue_ssf_set.stream_id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."status" = 'disabled' then
     return 'dropped';
@@ -2450,14 +2450,14 @@ declare
   v_held record;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if set_ssf_stream_status.status not in ('enabled', 'paused', 'disabled') then
-    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SSF_STATUS_INVALID';
+    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SECURITY_EVENT_STATUS_INVALID';
   end if;
   select s."status"::text into v_previous from "better_supabase"."ssf_streams" s where s."id" = set_ssf_stream_status.id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "better_supabase"."ssf_streams" s set "status" = better_supabase.as_column_type(set_ssf_stream_status.status, (null::"better_supabase"."ssf_streams")."status"), "reason" = set_ssf_stream_status.reason
   where s."id" = set_ssf_stream_status.id
@@ -2493,7 +2493,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object('id', s."id", 'audience', to_jsonb(s."audience")) order by s."created_at")
@@ -2522,14 +2522,14 @@ declare
   v_more boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."ssf_streams" s where s."id" = poll_ssf_events.stream_id;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."delivery_method" <> 'urn:ietf:rfc:8936' then
-    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SSF_STREAM_NOT_POLL';
+    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SECURITY_EVENT_STREAM_NOT_POLL';
   end if;
   delete from "better_supabase"."ssf_events" q
   where q."stream_id" = v_row."id"
@@ -2565,10 +2565,10 @@ declare
   v_noted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if not exists (select 1 from "better_supabase"."ssf_streams" s where s."id" = note_ssf_verification.stream_id) then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "better_supabase"."ssf_streams" s set "verified_at" = now()
   where s."id" = note_ssf_verification.stream_id
@@ -2591,7 +2591,7 @@ declare
   v_new boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ssf_received" ("issuer", "jti")
   values (record_ssf_received.issuer, record_ssf_received.jti)
@@ -2612,7 +2612,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_received" x where x."issuer" = forget_ssf_received.issuer and x."jti" = forget_ssf_received.jti;
   return found;
@@ -2634,7 +2634,7 @@ declare
   v_events integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_received" x where x."received_at" < v_cutoff;
   get diagnostics v_received = row_count;
@@ -2663,13 +2663,13 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:120319540924c49ac6d88464acee01d301c247aba8f725e36e4f47f926571f1b
--- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
+-- @bsb-hash sha256:31cb46c26fb6a4b4df4584cea386377a9accf4aff184db47f5fc0c9b3617a00c
+-- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
--- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
+-- receiver stream, pushed through a webhooks endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
 create table "better_supabase"."ssf_streams" (
@@ -2722,7 +2722,7 @@ alter table "better_supabase"."ssf_received" enable row level security;
 revoke all on "better_supabase"."ssf_received" from public, anon, authenticated;
 grant all on "better_supabase"."ssf_received" to service_role;
 
--- Creates a stream; a push stream gets a webhooks-out endpoint with format 'set'.
+-- Creates a stream; a push stream gets a webhooks endpoint with format 'set'.
 create or replace function "better_supabase"."create_ssf_stream"(id uuid, receiver text, tenant text, audience text[], delivery_method text, events_requested text[], events_delivered text[], description text default null, endpoint_url text default null, credential_ref jsonb default null)
 returns jsonb
 language plpgsql
@@ -2734,7 +2734,7 @@ declare
   v_endpoint uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ssf_streams" ("id", "org_id", "receiver", "audience", "delivery_method", "events_requested", "events_delivered", "description")
   values (create_ssf_stream.id, create_ssf_stream.tenant, create_ssf_stream.receiver, create_ssf_stream.audience,
@@ -2742,7 +2742,7 @@ begin
     coalesce(create_ssf_stream.events_delivered, '{}'), create_ssf_stream.description)
   returning * into v_row;
   if v_row."delivery_method" = 'urn:ietf:rfc:8935' then
-    raise exception 'push delivery needs the webhooks-out module' using errcode = '0A000', hint = 'SSF_PUSH_UNAVAILABLE';
+    raise exception 'push delivery needs the webhooks module' using errcode = '0A000', hint = 'SECURITY_EVENT_PUSH_UNAVAILABLE';
   end if;
   null;
   return jsonb_build_object(
@@ -2775,7 +2775,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return (select jsonb_build_object(
     'id', s."id",
@@ -2807,7 +2807,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -2844,7 +2844,7 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   update "better_supabase"."ssf_streams" s set
     "description" = case when update_ssf_stream.patch ? 'description' then update_ssf_stream.patch ->> 'description' else s."description" end,
@@ -2888,7 +2888,7 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_streams" s where s."id" = delete_ssf_stream.id returning s.* into v_row;
   if not found then
@@ -2914,11 +2914,11 @@ declare
   v_row "better_supabase"."ssf_streams";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."ssf_streams" s where s."id" = queue_ssf_set.stream_id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."status" = 'disabled' then
     return 'dropped';
@@ -2950,14 +2950,14 @@ declare
   v_held record;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if set_ssf_stream_status.status not in ('enabled', 'paused', 'disabled') then
-    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SSF_STATUS_INVALID';
+    raise exception 'status is enabled, paused or disabled' using errcode = '22023', hint = 'SECURITY_EVENT_STATUS_INVALID';
   end if;
   select s."status" into v_previous from "better_supabase"."ssf_streams" s where s."id" = set_ssf_stream_status.id for update;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "better_supabase"."ssf_streams" s set "status" = set_ssf_stream_status.status, "reason" = set_ssf_stream_status.reason
   where s."id" = set_ssf_stream_status.id
@@ -2993,7 +2993,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object('id', s."id", 'audience', to_jsonb(s."audience")) order by s."created_at")
@@ -3022,14 +3022,14 @@ declare
   v_more boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."ssf_streams" s where s."id" = poll_ssf_events.stream_id;
   if not found then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   if v_row."delivery_method" <> 'urn:ietf:rfc:8936' then
-    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SSF_STREAM_NOT_POLL';
+    raise exception 'the stream is not delivered by polling' using errcode = '22023', hint = 'SECURITY_EVENT_STREAM_NOT_POLL';
   end if;
   delete from "better_supabase"."ssf_events" q
   where q."stream_id" = v_row."id"
@@ -3065,10 +3065,10 @@ declare
   v_noted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   if not exists (select 1 from "better_supabase"."ssf_streams" s where s."id" = note_ssf_verification.stream_id) then
-    raise exception 'stream not found' using errcode = 'P0002', hint = 'SSF_STREAM_NOT_FOUND';
+    raise exception 'stream not found' using errcode = 'P0002', hint = 'SECURITY_EVENT_STREAM_NOT_FOUND';
   end if;
   update "better_supabase"."ssf_streams" s set "verified_at" = now()
   where s."id" = note_ssf_verification.stream_id
@@ -3091,7 +3091,7 @@ declare
   v_new boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ssf_received" ("issuer", "jti")
   values (record_ssf_received.issuer, record_ssf_received.jti)
@@ -3112,7 +3112,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_received" x where x."issuer" = forget_ssf_received.issuer and x."jti" = forget_ssf_received.jti;
   return found;
@@ -3134,7 +3134,7 @@ declare
   v_events integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SSF_FORBIDDEN';
+    raise exception 'only the service role manages shared signals streams' using errcode = '42501', hint = 'SECURITY_EVENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."ssf_received" x where x."received_at" < v_cutoff;
   get diagnostics v_received = row_count;

@@ -22976,7 +22976,7 @@ function statusVariant(
 
 ## Webhook endpoints
 
-The organization's webhook endpoints with their recent deliveries and a retry button. It loads its data on the server through the block's client; the [webhooks-out block](https://bettersupabase.com/blocks/webhooks-out) must be installed (`npx better-supabase add webhooks-out`). Page: https://bettersupabase.com/recipes/webhook-endpoints.
+The organization's webhook endpoints with their recent deliveries and a retry button. It loads its data on the server through the block's client; the [webhooks block](https://bettersupabase.com/blocks/webhooks) must be installed (`npx better-supabase add webhooks`). Page: https://bettersupabase.com/recipes/webhook-endpoints.
 
 Web, with shadcn components:
 

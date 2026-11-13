@@ -195,7 +195,7 @@ describe.skipIf(!live)("retention policies and legal holds", () => {
     try {
       await s.install([
         "outbox",
-        "webhooks-out",
+        "webhooks",
         "webhook-inbox",
         "queue",
         "usage",

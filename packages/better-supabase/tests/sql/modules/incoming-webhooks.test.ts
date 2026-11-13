@@ -6,11 +6,11 @@ import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { entryOf } from "../../fixtures/block-entry.ts";
 import { unnamedChecks } from "../unnamed-checks.ts";
 
-describe("webhooks-in module", () => {
+describe("incoming-webhooks module", () => {
   it("stores hashed tokens, hides secrets and checks the access contract", () => {
-    const sql = moduleBody("webhooks-in", {
+    const sql = moduleBody("incoming-webhooks", {
       modules: {
-        "webhooks-in": {
+        "incoming-webhooks": {
           permissions: { manage: "integrations.manage" },
           options: { maxBodyBytes: 65_536 },
         },
@@ -31,7 +31,7 @@ describe("webhooks-in module", () => {
   });
 
   it("keeps signing secrets in Vault unless secretStorage is column", () => {
-    const vault = moduleBody("webhooks-in")!;
+    const vault = moduleBody("incoming-webhooks")!;
     expect(vault).toContain("vault.create_secret(secret,");
     expect(vault).toContain(
       'left join vault.decrypted_secrets ds on ds.id = e."secret_id"',
@@ -40,40 +40,42 @@ describe("webhooks-in module", () => {
       'delete from vault.secrets vs where vs.id in (old."secret_id", old."previous_secret_id");',
     );
 
-    const column = moduleBody("webhooks-in", {
-      modules: { "webhooks-in": { options: { secretStorage: "column" } } },
+    const column = moduleBody("incoming-webhooks", {
+      modules: {
+        "incoming-webhooks": { options: { secretStorage: "column" } },
+      },
     })!;
 
     expect(column).not.toContain("vault.");
     expect(() =>
-      moduleBody("webhooks-in", {
-        modules: { "webhooks-in": { options: { secretStorage: "kms" } } },
+      moduleBody("incoming-webhooks", {
+        modules: { "incoming-webhooks": { options: { secretStorage: "kms" } } },
       }),
     ).toThrow(/secretStorage/);
   });
 
   it("installs after access and the webhook inbox and lists its keys", () => {
-    expect(resolveBlocks(["webhooks-in"]).map((m) => m.name)).toEqual([
+    expect(resolveBlocks(["incoming-webhooks"]).map((m) => m.name)).toEqual([
       "updated-at",
       "memberships",
       "webhook-inbox",
       "permissions",
-      "webhooks-in",
+      "incoming-webhooks",
       "housekeeping",
     ]);
     expect(
-      modulePermissionKeys({}, ["webhooks-in"]).filter(
-        (entry) => entry.module === "webhooks-in",
+      modulePermissionKeys({}, ["incoming-webhooks"]).filter(
+        (entry) => entry.module === "incoming-webhooks",
       ),
     ).toEqual([
       ...["create", "update", "delete"].map((action) => ({
-        module: "webhooks-in",
+        module: "incoming-webhooks",
         action,
         key: "webhooks.manage",
         scope: "tenant",
       })),
       {
-        module: "webhooks-in",
+        module: "incoming-webhooks",
         action: "read",
         key: "webhooks.read",
         scope: "tenant",
@@ -83,8 +85,10 @@ describe("webhooks-in module", () => {
 
   it("checks create, update and delete keys, with manage as their shorthand", () => {
     const keys = (permissions: Record<string, string>) =>
-      modulePermissionKeys({ "webhooks-in": { permissions } }, ["webhooks-in"])
-        .filter((entry) => entry.module === "webhooks-in")
+      modulePermissionKeys({ "incoming-webhooks": { permissions } }, [
+        "incoming-webhooks",
+      ])
+        .filter((entry) => entry.module === "incoming-webhooks")
         .map((entry) => [entry.action, entry.key]);
 
     expect(keys({ manage: "hooks.admin", delete: "hooks.delete" })).toEqual([
@@ -94,9 +98,9 @@ describe("webhooks-in module", () => {
       ["read", "webhooks.read"],
     ]);
 
-    const sql = moduleBody("webhooks-in", {
+    const sql = moduleBody("incoming-webhooks", {
       modules: {
-        "webhooks-in": {
+        "incoming-webhooks": {
           permissions: {
             create: "hooks.create",
             update: "hooks.update",
@@ -119,8 +123,10 @@ describe("webhooks-in module", () => {
   });
 
   it("updates name, metadata and verification with the update key", () => {
-    const sql = moduleBody("webhooks-in", {
-      modules: { "webhooks-in": { permissions: { update: "hooks.update" } } },
+    const sql = moduleBody("incoming-webhooks", {
+      modules: {
+        "incoming-webhooks": { permissions: { update: "hooks.update" } },
+      },
     })!;
 
     const update = sql.slice(
@@ -128,8 +134,8 @@ describe("webhooks-in module", () => {
     );
 
     expect(update).toContain("'hooks.update'");
-    expect(update).toContain("hint = 'WEBHOOK_IN_NOT_FOUND'");
-    expect(update).toContain("hint = 'WEBHOOK_IN_VERIFY_UNKNOWN'");
+    expect(update).toContain("hint = 'INCOMING_WEBHOOK_NOT_FOUND'");
+    expect(update).toContain("hint = 'INCOMING_WEBHOOK_VERIFY_UNKNOWN'");
     expect(update).toContain(
       'delete from vault.secrets vs where vs.id in (previous."secret_id", previous."previous_secret_id");',
     );
@@ -139,7 +145,7 @@ describe("webhooks-in module", () => {
   });
 
   it("rotates the secret with a grace window and keeps tokens apart", () => {
-    const sql = moduleBody("webhooks-in")!;
+    const sql = moduleBody("incoming-webhooks")!;
 
     const rotate = sql.slice(
       sql.indexOf(
@@ -150,7 +156,7 @@ describe("webhooks-in module", () => {
     expect(rotate).toContain(
       '"previous_secret_expires_at" = case when v_keep then now() + grace end',
     );
-    expect(rotate).toContain("hint = 'WEBHOOK_IN_NO_SECRET'");
+    expect(rotate).toContain("hint = 'INCOMING_WEBHOOK_NO_SECRET'");
     expect(rotate.slice(0, rotate.indexOf("$$;"))).not.toContain("token_hash");
     expect(sql).toContain(
       'case when e."previous_secret_expires_at" > now() then coalesce(dp.decrypted_secret, e."previous_secret") end',
@@ -159,8 +165,10 @@ describe("webhooks-in module", () => {
       'delete from vault.secrets vs where vs.id in (old."secret_id", old."previous_secret_id");',
     );
 
-    const column = moduleBody("webhooks-in", {
-      modules: { "webhooks-in": { options: { secretStorage: "column" } } },
+    const column = moduleBody("incoming-webhooks", {
+      modules: {
+        "incoming-webhooks": { options: { secretStorage: "column" } },
+      },
     })!;
 
     expect(column).toContain(
@@ -169,7 +177,7 @@ describe("webhooks-in module", () => {
   });
 
   it("accepts a shared secret header mode with its own default header", () => {
-    const sql = moduleBody("webhooks-in")!;
+    const sql = moduleBody("incoming-webhooks")!;
     expect(sql).toContain(
       "check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret'))",
     );
@@ -186,10 +194,10 @@ describe("webhooks-in module", () => {
     columns: Record<string, string | null> = {},
     options: Record<string, unknown> = {},
   ) =>
-    renderBlocks(["webhooks-in"], {
+    renderBlocks(["incoming-webhooks"], {
       ownTables: { "public.hooks": "app.sql" },
       modules: {
-        "webhooks-in": {
+        "incoming-webhooks": {
           tables: { endpoints: "public.hooks" },
           columns: {
             endpoints: {
@@ -211,7 +219,7 @@ describe("webhooks-in module", () => {
         },
       },
     })
-      .filter((file) => file.module === "webhooks-in")
+      .filter((file) => file.module === "incoming-webhooks")
       .map((file) => file.contents)
       .join("\n");
 
@@ -229,7 +237,7 @@ describe("webhooks-in module", () => {
     expect(sql).toContain('e."organization_id"::text');
     expect(sql).toContain('null::text, e."metadata"');
     expect(sql).toContain("hint = 'WEBHOOK_IN_NO_GRACE'");
-    expect(sql).toContain("hint = 'WEBHOOK_IN_SUBJECT_INVALID'");
+    expect(sql).toContain("hint = 'INCOMING_WEBHOOK_SUBJECT_INVALID'");
     expect(sql).not.toContain('"receive_count"');
     expect(sql).toContain("'receive_count', 0");
     expect(sql).toContain(
@@ -239,9 +247,9 @@ describe("webhooks-in module", () => {
 
   it("refuses renames of its own table and subjects without subject columns", () => {
     expect(() =>
-      moduleBody("webhooks-in", {
+      moduleBody("incoming-webhooks", {
         modules: {
-          "webhooks-in": { columns: { endpoints: { tenant: "org_id" } } },
+          "incoming-webhooks": { columns: { endpoints: { tenant: "org_id" } } },
         },
       }),
     ).toThrow(/declare your own table/);

@@ -201,7 +201,9 @@ describe("transmitter methods", () => {
       eventsRequested: [],
     });
 
-    expect(!result.ok && result.error.hint).toBe("SSF_REQUEST_INVALID");
+    expect(!result.ok && result.error.hint).toBe(
+      "SECURITY_EVENT_REQUEST_INVALID",
+    );
   });
 
   it("sends stream-updated before pausing and after enabling, and reports failures", async () => {

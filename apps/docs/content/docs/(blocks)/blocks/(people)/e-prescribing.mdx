@@ -103,7 +103,7 @@ Test a gateway with `testPrescriptionGateway` from `better-supabase/testing`.
 `MedicationRequest`, built with `toFhirPrescription` from
 `better-supabase/fhir`: the prescription's identifier, its status (`active`
 once signed or sent, `completed` once dispensed), `authoredOn` and the
-requester. A draft has no request and is a `PRESCRIPTION_STATUS` error.
+requester. A draft has no request and is a `E_PRESCRIBING_STATUS` error.
 
 ## Events
 
@@ -120,10 +120,10 @@ signature. A `before` hook can refuse it.
 
 | Hint                           | Cause                                                    |
 | ------------------------------ | -------------------------------------------------------- |
-| `PRESCRIPTION_FORBIDDEN`       | the caller lacks the permission, or isn't the prescriber |
-| `PRESCRIPTION_INVALID`         | a bad input, an inactive order or a missing reason       |
-| `PRESCRIPTION_NOT_FOUND`       | no prescription or order with that id                    |
-| `PRESCRIPTION_STATUS`          | the step isn't allowed from the current status           |
+| `E_PRESCRIBING_FORBIDDEN`      | the caller lacks the permission, or isn't the prescriber |
+| `E_PRESCRIBING_INVALID`        | a bad input, an inactive order or a missing reason       |
+| `E_PRESCRIBING_NOT_FOUND`      | no prescription or order with that id                    |
+| `E_PRESCRIBING_STATUS`         | the step isn't allowed from the current status           |
 | `PRESCRIPTION_GATEWAY_MISSING` | `send` without a configured gateway                      |
 | `PRESCRIPTION_DELIVERY_FAILED` | the gateway threw; the prescription stays signed         |
 | `PRESCRIPTION_CANCEL_FAILED`   | the gateway couldn't withdraw a sent prescription        |

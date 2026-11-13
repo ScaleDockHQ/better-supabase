@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:3244ff8aea23e258bd4374f13f09ad694011c09e9108aab1ee98033176387eb3
+-- @bsb-hash sha256:f6c7983a6cce4bfee78bc296d47f30b1d30610a9e8669f9164d65f6a71504b9b
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -103,7 +103,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_field_definition.tenant, 'custom_fields.manage'), false)) then
-    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   select max(d."rank" collate "C") into v_last from "better_supabase"."field_definitions" d
     where d."tenant_id" = save_field_definition.tenant and d."entity" = save_field_definition.entity;
@@ -166,10 +166,10 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_field_value.tenant, 'custom_fields.manage'), false)) then
-    raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+    raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = set_field_value.definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(set_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(set_field_value.value) when 'phone_e164' then set_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
-    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'CUSTOM_FIELD_VALUE_INVALID';
   end if;
   insert into "better_supabase"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
@@ -203,13 +203,13 @@ begin
   into v_tenant, v_type, v_subject, v_definition
   from "better_supabase"."field_values" v where v."id" = update_field_value.value_id;
   if not found then
-    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'CUSTOM_FIELD_VALUE_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
-    raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+    raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = v_definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(update_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(update_field_value.value) when 'phone_e164' then update_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
-    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'CUSTOM_FIELD_VALUE_INVALID';
   end if;
   update "better_supabase"."field_values" set "value_text" = update_field_value.value
   where "id" = update_field_value.value_id;
@@ -239,10 +239,10 @@ begin
   into v_tenant, v_type, v_subject
   from "better_supabase"."field_values" v where v."id" = delete_field_value.value_id;
   if not found then
-    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'CUSTOM_FIELD_VALUE_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
-    raise exception 'not allowed to delete this field value' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+    raise exception 'not allowed to delete this field value' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   delete from "better_supabase"."field_values" where "id" = delete_field_value.value_id;
   null;
@@ -266,10 +266,10 @@ begin
   end if;
   select "tenant_id" into v_tenant from "better_supabase"."field_definitions" where "id" = delete_field_definition.definition;
   if not found then
-    raise exception 'field not found' using errcode = 'P0002', hint = 'FIELD_NOT_FOUND';
+    raise exception 'field not found' using errcode = 'P0002', hint = 'CUSTOM_FIELD_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
-    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   delete from "better_supabase"."field_definitions" where "id" = delete_field_definition.definition;
   null;
@@ -322,14 +322,14 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if rank_field_definition.rank is null or rank_field_definition.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
-    raise exception 'not a rank key' using errcode = '22023', hint = 'FIELD_RANK_INVALID';
+    raise exception 'not a rank key' using errcode = '22023', hint = 'CUSTOM_FIELD_RANK_INVALID';
   end if;
   select "tenant_id" into v_tenant from "better_supabase"."field_definitions" where "id" = rank_field_definition.definition;
   if not found then
-    raise exception 'field not found' using errcode = 'P0002', hint = 'FIELD_NOT_FOUND';
+    raise exception 'field not found' using errcode = 'P0002', hint = 'CUSTOM_FIELD_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
-    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   update "better_supabase"."field_definitions" set "rank" = rank_field_definition.rank where "id" = rank_field_definition.definition;
   return true;
@@ -372,13 +372,13 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', install_field_pack.tenant, 'custom_fields.manage'), false)) then
-    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
   if jsonb_typeof(install_field_pack.pack) is distinct from 'object' or install_field_pack.pack ->> 'apiVersion' is distinct from '1' then
-    raise exception 'a field pack is an object with apiVersion 1' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+    raise exception 'a field pack is an object with apiVersion 1' using errcode = '22023', hint = 'CUSTOM_FIELD_PACK_INVALID';
   end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9_.-]{0,62}$' then
-    raise exception 'a field pack needs a key in lower case' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+    raise exception 'a field pack needs a key in lower case' using errcode = '22023', hint = 'CUSTOM_FIELD_PACK_INVALID';
   end if;
   begin
     v_version := (install_field_pack.pack ->> 'version')::integer;
@@ -386,33 +386,33 @@ begin
     v_version := null;
   end;
   if v_version is null or v_version < 1 then
-    raise exception 'a field pack needs a version of 1 or more' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+    raise exception 'a field pack needs a version of 1 or more' using errcode = '22023', hint = 'CUSTOM_FIELD_PACK_INVALID';
   end if;
   if jsonb_typeof(install_field_pack.pack -> 'subjects') is distinct from 'object' then
-    raise exception 'a field pack needs subjects: { <type>: fields }' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+    raise exception 'a field pack needs subjects: { <type>: fields }' using errcode = '22023', hint = 'CUSTOM_FIELD_PACK_INVALID';
   end if;
 
   for v_entity, v_fields in select s.key, s.value from jsonb_each(install_field_pack.pack -> 'subjects') s order by s.key loop
     
     if jsonb_typeof(v_fields) is distinct from 'array' then
-      raise exception 'the fields of a subject type are a list' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+      raise exception 'the fields of a subject type are a list' using errcode = '22023', hint = 'CUSTOM_FIELD_PACK_INVALID';
     end if;
     for v_field in select f.value from jsonb_array_elements(v_fields) f loop
       if jsonb_typeof(v_field) is distinct from 'object' then
-        raise exception 'a field is an object of key, label and type' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+        raise exception 'a field is an object of key, label and type' using errcode = '22023', hint = 'CUSTOM_FIELD_PACK_INVALID';
       end if;
       v_field_key := v_field ->> 'key';
       v_label := v_field ->> 'label';
       v_type := v_field ->> 'type';
       v_permission := nullif(v_field ->> 'permission', '');
       if v_field_key is null or v_field_key !~ '^[a-z][a-z0-9_.-]{0,62}$' or v_label is null or btrim(v_label) = '' then
-        raise exception 'a field needs a key in lower case and a label' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+        raise exception 'a field needs a key in lower case and a label' using errcode = '22023', hint = 'CUSTOM_FIELD_PACK_INVALID';
       end if;
       if v_type is null or v_type not in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164') then
-        raise exception 'a field needs one of the custom field types' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+        raise exception 'a field needs one of the custom field types' using errcode = '22023', hint = 'CUSTOM_FIELD_PACK_INVALID';
       end if;
       if (v_field ? 'required' and jsonb_typeof(v_field -> 'required') <> 'boolean') or (v_field ? 'sensitive' and jsonb_typeof(v_field -> 'sensitive') <> 'boolean') then
-        raise exception 'required and sensitive are booleans' using errcode = '22023', hint = 'FIELD_PACK_INVALID';
+        raise exception 'required and sensitive are booleans' using errcode = '22023', hint = 'CUSTOM_FIELD_PACK_INVALID';
       end if;
       v_required := coalesce((v_field ->> 'required')::boolean, false);
       v_sensitive := coalesce((v_field ->> 'sensitive')::boolean, false);
@@ -437,7 +437,7 @@ begin
         v_created := v_created + 1;
         null;
       elsif v_row.pack is distinct from v_key then
-        raise exception 'the field already exists and doesn''t belong to this pack' using errcode = '23505', hint = 'FIELD_PACK_CONFLICT';
+        raise exception 'the field already exists and doesn''t belong to this pack' using errcode = '23505', hint = 'CUSTOM_FIELD_PACK_CONFLICT';
       elsif v_row.label = v_label and v_row.type = v_type and v_row.required = v_required and v_row.sensitive = v_sensitive
         and v_row.permission is not distinct from v_permission and v_row.version is not distinct from v_version then
         v_unchanged := v_unchanged + 1;

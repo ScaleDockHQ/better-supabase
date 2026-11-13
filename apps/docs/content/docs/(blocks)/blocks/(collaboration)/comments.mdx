@@ -419,7 +419,7 @@ already has, it must accept every record type you comment on.
 ## Events
 
 The comments block writes no events of its own. A comment is a message, so
-the outbox gets the messaging events: `message.sent`, `message.edited`,
+the outbox gets the messaging events: `message.sent`, `message.updated`,
 `message.deleted`, `message.pinned` and `message.resolved`. On a comment
 their data carries `conversationKind: "subject"` and the record as
 `recordType` and `recordId`, next to `messageId`, `conversationId` and

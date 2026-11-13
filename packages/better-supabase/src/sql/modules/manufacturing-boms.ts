@@ -159,7 +159,7 @@ begin
     ${q.bomInvalid("each component names a variant, a quantity above zero and scrapBps from 0 to 10000")}
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where (e ->> 'variantId')::uuid = save_bom.variant) then
-    ${fail("BOM_CYCLE", "a variant can't be a component of itself", "22023")}
+    ${fail("MANUFACTURING_BOM_CYCLE", "a variant can't be a component of itself", "22023")}
   end if;
   if exists (select 1 from jsonb_array_elements(v_components) e where not ${variantOf(q, "save_bom.tenant", "(e ->> 'variantId')::uuid")}) then
     ${q.bomInvalid("a component isn't a variant of this organization")}
@@ -222,7 +222,7 @@ $$;
 ${userGrant(`${fn("save_bom")}(${idType}, uuid, jsonb, uuid)`)}
 
 -- Makes a version its variant's active bill of materials; the version that was
--- active is archived. Refuses with BOM_CYCLE when the variant would end up in
+-- active is archived. Refuses with MANUFACTURING_BOM_CYCLE when the variant would end up in
 -- its own components.
 create or replace function ${fn("activate_bom")}(bom_id uuid)
 returns jsonb
@@ -246,7 +246,7 @@ begin
   end if;
   if exists (select 1 from ${q.components} y where y.${c("bom")} = v_row.${b("id")}
     and ${fn("bom_reaches")}(y.${c("variant")}, v_row.${b("variant")})) then
-    ${fail("BOM_CYCLE", "a component is made from the variant itself", "22023")}
+    ${fail("MANUFACTURING_BOM_CYCLE", "a component is made from the variant itself", "22023")}
   end if;
   update ${q.boms} x set ${b("status")} = 'archived', ${b("updatedAt")} = now()
   where x.${b("variant")} = v_row.${b("variant")} and x.${b("status")} = 'active';
@@ -303,7 +303,7 @@ ${userGrant(`${fn("list_boms")}(${idType}, uuid)`)}
 -- materials at every level: { variantId, quantity, lines: [{ level,
 -- variantId, parentVariantId, bomId, quantity, made }], materials: [{
 -- variantId, quantity }] }. Planned scrap counts; materials are the lines no
--- active bill of materials makes. Refuses with BOM_NOT_ACTIVE when the
+-- active bill of materials makes. Refuses with MANUFACTURING_BOM_NOT_ACTIVE when the
 -- variant has no active bill of materials.
 create or replace function ${fn("explode_bom")}(variant_id uuid, quantity numeric)
 returns jsonb
@@ -323,7 +323,7 @@ begin
     ${q.bomInvalid("the quantity must be more than zero")}
   end if;
   if not exists (select 1 from ${q.boms} x where x.${b("variant")} = explode_bom.variant_id and x.${b("status")} = 'active') then
-    ${fail("BOM_NOT_ACTIVE", "the variant has no active bill of materials", "55000")}
+    ${fail("MANUFACTURING_BOM_NOT_ACTIVE", "the variant has no active bill of materials", "55000")}
   end if;
   with recursive tree(variant, parent, bom, quantity, level, path) as (
     select y.${c("variant")}, x.${b("variant")}, x.${b("id")},

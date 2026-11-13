@@ -200,7 +200,7 @@ begin
   where x.${b("variant")} = v_variant and x.${b("status")} = 'active'
     and (nullif(create_production_order.input ->> 'bomId', '') is null or x.${b("id")} = (create_production_order.input ->> 'bomId')::uuid);
   if v_bom is null then
-    ${fail("BOM_NOT_ACTIVE", "the variant has no active bill of materials", "55000")}
+    ${fail("MANUFACTURING_BOM_NOT_ACTIVE", "the variant has no active bill of materials", "55000")}
   end if;
   ${numberAssign}
   insert into ${q.orders} (${po("tenant")}, ${po("number")}, ${po("sequence")}, ${po("variant")}, ${po("bom")}, ${po("quantity")}, ${po("location")}, ${po("dueOn")}, ${po("note")}, ${po("createdBy")})

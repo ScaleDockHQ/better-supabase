@@ -1,5 +1,5 @@
--- better-supabase module: webhooks-out
--- @bsb-block webhooks-out@7 managed
+-- better-supabase module: webhooks
+-- @bsb-block webhooks@7 managed
 -- @bsb-hash sha256:c87e25b748bb5306979c48c19d9ceb39412c8bf760a73dfcb5ebe21b19869384
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.

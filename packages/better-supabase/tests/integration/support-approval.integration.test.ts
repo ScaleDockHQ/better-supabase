@@ -94,15 +94,15 @@ describe.skipIf(!live)("support session approvals as real users", () => {
       const third = await s.user("third");
       await s.asRole(requester, staff);
       expect(await s.hint(START, [target.id, "ticket 1"])).toBe(
-        "SUPPORT_APPROVAL_REQUIRED",
+        "IMPERSONATION_APPROVAL_REQUIRED",
       );
 
       for (const reason of [null, "", "   "]) {
         expect(await s.hint(START, [target.id, reason])).toBe(
-          "SUPPORT_REASON_REQUIRED",
+          "IMPERSONATION_REASON_REQUIRED",
         );
         expect(await s.hint(REQUEST, [target.id, reason])).toBe(
-          "SUPPORT_REASON_REQUIRED",
+          "IMPERSONATION_REASON_REQUIRED",
         );
       }
 
@@ -111,13 +111,17 @@ describe.skipIf(!live)("support session approvals as real users", () => {
         admin_id: requester.id,
         approved_by: null,
       });
-      expect(await s.hint(APPROVE, [request.id])).toBe("SUPPORT_SELF_APPROVAL");
+      expect(await s.hint(APPROVE, [request.id])).toBe(
+        "IMPERSONATION_SELF_APPROVAL",
+      );
       expect(await s.hint(START, [target.id, "ticket 1"])).toBe(
-        "SUPPORT_APPROVAL_REQUIRED",
+        "IMPERSONATION_APPROVAL_REQUIRED",
       );
 
       await s.asRole(outsider);
-      expect(await s.hint(APPROVE, [request.id])).toBe("SUPPORT_FORBIDDEN");
+      expect(await s.hint(APPROVE, [request.id])).toBe(
+        "IMPERSONATION_FORBIDDEN",
+      );
 
       await s.asRole(approver, staff);
       expect(await s.value<Request>(APPROVE, [request.id])).toMatchObject({
@@ -141,11 +145,11 @@ describe.skipIf(!live)("support session approvals as real users", () => {
 
       expect(used?.session_id).toBe(session.id);
       expect(await s.hint(START, [target.id, "ticket 1"])).toBe(
-        "SUPPORT_APPROVAL_REQUIRED",
+        "IMPERSONATION_APPROVAL_REQUIRED",
       );
       await s.asRole(third, staff);
       expect(await s.hint(APPROVE, [request.id])).toBe(
-        "SUPPORT_REQUEST_DECIDED",
+        "IMPERSONATION_REQUEST_DECIDED",
       );
     } finally {
       await s.close();
@@ -163,17 +167,17 @@ describe.skipIf(!live)("support session approvals as real users", () => {
         "better_supabase.request_support_session($1, $2, true, '{}', null, null, $3)";
 
       expect(await s.hint(forged, [target.id, "ticket", approver.id])).toBe(
-        "SUPPORT_FORBIDDEN",
+        "IMPERSONATION_FORBIDDEN",
       );
       expect(await s.hint(forged, [target.id, "ticket", requester.id])).toBe(
-        "SUPPORT_FORBIDDEN",
+        "IMPERSONATION_FORBIDDEN",
       );
       expect(
         await s.hint("better_supabase.approve_support_request($1, $2)", [
           crypto.randomUUID(),
           approver.id,
         ]),
-      ).toBe("SUPPORT_FORBIDDEN");
+      ).toBe("IMPERSONATION_FORBIDDEN");
 
       const request = await s.value<Request>(REQUEST, [target.id, "ticket"]);
       expect(
@@ -203,7 +207,7 @@ describe.skipIf(!live)("support session approvals as real users", () => {
           "better_supabase.request_support_session($1, $2, true, '{}', null, $3, $3)",
           [target.id, "ticket", requester.id],
         ),
-      ).toBe("SUPPORT_SELF_APPROVAL");
+      ).toBe("IMPERSONATION_SELF_APPROVAL");
       expect(
         await s.hint(
           "update better_supabase.support_requests set approved_by = admin_id, approved_at = now() where id = $1",
@@ -234,7 +238,9 @@ describe.skipIf(!live)("support session approvals as real users", () => {
       await reinstall(s, ["impersonation"], "impersonation", layout);
       await s.asRole(requester, staff);
       const request = await s.value<Request>(REQUEST, [target.id, "ticket"]);
-      expect(await s.hint(APPROVE, [request.id])).toBe("SUPPORT_SELF_APPROVAL");
+      expect(await s.hint(APPROVE, [request.id])).toBe(
+        "IMPERSONATION_SELF_APPROVAL",
+      );
       // The outsider holds no platform permission; isApprover alone decides.
       await s.asRole(outsider);
       expect(await s.value<Request>(APPROVE, [request.id])).toMatchObject({

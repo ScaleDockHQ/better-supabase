@@ -575,11 +575,11 @@
     "security-definer-functions": 24,
     "row-triggers": 6
   },
-  "webhooks-in": {
+  "incoming-webhooks": {
     "security-definer-functions": 50,
     "row-triggers": 9
   },
-  "webhooks-out": {
+  "webhooks": {
     "security-definer-functions": 84,
     "row-triggers": 18
   },

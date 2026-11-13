@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
-import type { HookNames } from "./webhooks-out-sql.ts";
+import type { HookNames } from "./webhooks-sql.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
@@ -19,13 +19,13 @@ import {
   schemaPreamble,
   updatedAt,
 } from "../shared.ts";
-import { endpointFunctions } from "./webhooks-out-endpoints.ts";
+import { endpointFunctions } from "./webhooks-endpoints.ts";
 import {
   ADDED_COLUMNS,
   functions,
   hookNames,
   WEBHOOK_STATUSES,
-} from "./webhooks-out-sql.ts";
+} from "./webhooks-sql.ts";
 
 const EVENTS: BlockSqlEvents<WebhooksEvents> = {
   "webhook_endpoint.disabled": {
@@ -163,13 +163,13 @@ const NAMES: BlockSqlNames = {
 
 const FORMAT = /^[a-z][a-z0-9-]{0,39}$/;
 
-/** `blocks.webhooks-out.options.defaultFormat`, checked before it reaches SQL. */
+/** `blocks.webhooks.options.defaultFormat`, checked before it reaches SQL. */
 function defaultFormat(ctx: BlockSqlContext): string {
   const format = ctx.text("defaultFormat", "cloudevents");
 
   if (!FORMAT.test(format)) {
     throw new TypeError(
-      `blocks.webhooks-out.options.defaultFormat "${format}" must match ${String(FORMAT)}`,
+      `blocks.webhooks.options.defaultFormat "${format}" must match ${String(FORMAT)}`,
     );
   }
 
@@ -190,7 +190,7 @@ function formatDefault(ctx: BlockSqlContext, n: HookNames): string {
 }
 
 export const ADOPTED_FORMAT_ERROR =
-  'blocks.webhooks-out: your endpoints table maps no format column, so every endpoint gets options.defaultFormat. Set it explicitly: "standard" keeps the 0.8 body, "cloudevents" sends CloudEvents. Or map columns.endpoints.format.';
+  'blocks.webhooks: your endpoints table maps no format column, so every endpoint gets options.defaultFormat. Set it explicitly: "standard" keeps the 0.8 body, "cloudevents" sends CloudEvents. Or map columns.endpoints.format.';
 
 /**
  * Without a format column every endpoint uses `defaultFormat`, whose default
@@ -540,9 +540,9 @@ const CONTRIBUTES: BlockContributes = {
   ],
 };
 
-export const WEBHOOKS_OUT: BlockSqlDefinition = {
+export const WEBHOOKS: BlockSqlDefinition = {
   contributes: CONTRIBUTES,
-  name: "webhooks-out",
+  name: "webhooks",
   title: "Outgoing webhooks",
   description:
     "Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.",

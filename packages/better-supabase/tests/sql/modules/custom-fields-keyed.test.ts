@@ -281,7 +281,7 @@ begin
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
   end;
-  if v_hint <> 'FIELD_VALUE_INVALID' then
+  if v_hint <> 'CUSTOM_FIELD_VALUE_INVALID' then
     raise exception 'rank text %', v_hint;
   end if;
 end;
@@ -415,7 +415,7 @@ begin
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
   end;
-  if v_hint <> 'FIELD_FORBIDDEN' then
+  if v_hint <> 'CUSTOM_FIELD_FORBIDDEN' then
     raise exception 'product write %', v_hint;
   end if;
   begin
@@ -424,7 +424,7 @@ begin
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
   end;
-  if v_hint <> 'FIELD_FORBIDDEN' then
+  if v_hint <> 'CUSTOM_FIELD_FORBIDDEN' then
     raise exception 'product delete %', v_hint;
   end if;
   if jsonb_array_length(better_supabase.read_field_values('${TENANT}', 'product', '${PRODUCT}')) <> 0 then

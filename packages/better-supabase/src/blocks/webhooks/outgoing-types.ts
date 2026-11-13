@@ -124,8 +124,8 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   /**
    * The format of an endpoint whose row has none, such as an adopted table that
    * doesn't map `format` or holds `null`.
-   * `blocks.webhooks-out.options.defaultFormat`, which `defineBlocks` passes,
-   * and the column default. Defaults to `cloudevents`.
+   * `blocks.webhooks.options.defaultFormat`, which `defineBlocks` passes, and
+   * the column default. Defaults to `cloudevents`.
    */
   readonly defaultFormat?: string;
   /**

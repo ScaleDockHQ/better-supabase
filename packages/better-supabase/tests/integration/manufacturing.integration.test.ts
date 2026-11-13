@@ -137,20 +137,20 @@ describe.skipIf(!live)("manufacturing module in Postgres", () => {
         table,
         JSON.stringify({ components: [{ variantId: table, quantity: 1 }] }),
       ]),
-    ).toBe("BOM_CYCLE");
+    ).toBe("MANUFACTURING_BOM_CYCLE");
     expect(
       await session.hint("better_supabase.save_bom($1, $2, $3::jsonb, null)", [
         tenant,
         table,
         JSON.stringify({ components: [] }),
       ]),
-    ).toBe("BOM_INVALID");
+    ).toBe("MANUFACTURING_BOM_INVALID");
     expect(
       await session.hint(
         "better_supabase.create_production_order($1, $2::jsonb)",
         [tenant, JSON.stringify({ variantId: table, quantity: 1 })],
       ),
-    ).toBe("BOM_NOT_ACTIVE");
+    ).toBe("MANUFACTURING_BOM_NOT_ACTIVE");
 
     const active = await call<{ status: string }>(
       "better_supabase.activate_bom($1)",

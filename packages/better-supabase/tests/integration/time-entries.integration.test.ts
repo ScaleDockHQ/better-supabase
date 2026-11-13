@@ -173,7 +173,7 @@ describe.skipIf(!live)("time-entries", () => {
 
       expect(submitted).toMatchObject({ status: "submitted", note: "Week 41" });
       expect(await time.submit({ week: WEEK }).then(hint)).toBe(
-        "TIMESHEET_SUBMITTED",
+        "TIME_ENTRIES_TIMESHEET_SUBMITTED",
       );
       expect(await time.remove(logged.id).then(hint)).toBe(
         "TIME_PERIOD_LOCKED",
@@ -241,7 +241,7 @@ describe.skipIf(!live)("time-entries", () => {
           .orThrow(),
       ).toMatchObject({ note: "late", billable: false });
       expect(await time.submit({ week: WEEK }).then(hint)).toBe(
-        "TIMESHEET_APPROVED",
+        "TIME_ENTRIES_TIMESHEET_APPROVED",
       );
       expect(await time.reopen(again.id!).then(hint)).toBe("TIME_FORBIDDEN");
       expect(await time.timesheets({ userId: owner.id }).then(hint)).toBe(
@@ -252,7 +252,7 @@ describe.skipIf(!live)("time-entries", () => {
       const reopened = await time.reopen(again.id!).orThrow();
       expect(reopened.status).toBe("open");
       expect(await time.reopen(again.id!).then(hint)).toBe(
-        "TIMESHEET_NOT_APPROVED",
+        "TIME_ENTRIES_TIMESHEET_NOT_APPROVED",
       );
       await s.as(ada);
       await time.remove(logged.id).orThrow();
@@ -260,7 +260,7 @@ describe.skipIf(!live)("time-entries", () => {
       await time.start().orThrow();
       const today = Temporal.Now.plainDateISO("UTC");
       expect(await time.submit({ week: today }).then(hint)).toBe(
-        "TIMESHEET_TIMER_RUNNING",
+        "TIME_ENTRIES_TIMESHEET_TIMER_RUNNING",
       );
 
       await s.service();

@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:09ad408acf6c57228f2da9052661c9df223767df7777c63a499469bb0e38ed8b
+-- @bsb-hash sha256:956248adefdaa7980ef450a5768ad37e59653d41987945fbb968e959355cb663
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -185,6 +185,10 @@ as $$
     when 'impersonation.revoke' then 'impersonation.revoke'
     when 'impersonation.start' then 'platform.users.manage'
     when 'imports.manage' then 'imports.manage'
+    when 'incoming-webhooks.create' then 'webhook.manage'
+    when 'incoming-webhooks.delete' then 'webhook.manage'
+    when 'incoming-webhooks.read' then 'webhook.view'
+    when 'incoming-webhooks.update' then 'webhook.manage'
     when 'invitations.invite' then 'members.invite'
     when 'invitations.invitePlatform' then 'platform.invite'
     when 'invitations.read' then 'members.invite'
@@ -217,12 +221,8 @@ as $$
     when 'tags.read' then 'tags.read'
     when 'teams.manage' then 'teams.manage'
     when 'teams.read' then 'teams.read'
-    when 'webhooks-in.create' then 'webhook.manage'
-    when 'webhooks-in.delete' then 'webhook.manage'
-    when 'webhooks-in.read' then 'webhook.view'
-    when 'webhooks-in.update' then 'webhook.manage'
-    when 'webhooks-out.manage' then 'webhook.manage'
-    when 'webhooks-out.read' then 'webhook.view'
+    when 'webhooks.manage' then 'webhook.manage'
+    when 'webhooks.read' then 'webhook.view'
   end
 $$;
 

@@ -68,7 +68,7 @@ describe("service-accounts module", () => {
   });
 
   it("checks a service webhook endpoint against the default principal", () => {
-    const sql = sqlOf("webhooks-out", [...BASE, "webhooks-out"]);
+    const sql = sqlOf("webhooks", [...BASE, "webhooks"]);
     expect(sql).toContain(
       'better_supabase.can_user("better_supabase"."default_service_principal"(d."tenant_id")',
     );

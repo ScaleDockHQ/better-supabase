@@ -1478,7 +1478,7 @@
     "teams",
     "updated-at",
     "usage",
-    "webhooks-out"
+    "webhooks"
   ],
   "automation": [
     "api-keys",
@@ -1502,7 +1502,7 @@
     "settings",
     "teams",
     "updated-at",
-    "webhooks-out",
+    "webhooks",
     "workflow-editor",
     "workflows"
   ],

@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:fe50cf183a92ef7307cb49be528a2404674fb717f4613074949772eee9be3a13
+-- @bsb-hash sha256:4302e18405003af6e0c78ae06a4b3382a7242dde0a7145c5591a72108e0c8692
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1163,9 +1163,9 @@ begin
     perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'draft', null);
     select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_node."id";
   end if;
-  perform "better_supabase".emit_event('drive_node.document_saved', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'documentType', v_node."document_type", 'ownerId', v_node."document_owner_id"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform "better_supabase".emit_event('drive_node.document_updated', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'documentType', v_node."document_type", 'ownerId', v_node."document_owner_id"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
   perform better_supabase.audit_event(
-    event_type => 'drive_node.document_saved',
+    event_type => 'drive_node.document_updated',
     category => 'data',
     target_type => 'drive_node',
     record_id => v_node."id"::text,

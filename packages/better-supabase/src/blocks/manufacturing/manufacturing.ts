@@ -407,8 +407,8 @@ export interface Manufacturing<F extends object = Record<never, never>> {
   }): AsyncResult<BomDetail>;
   /**
    * Makes a version the active one and archives the previous; fails with
-   * `BOM_CYCLE` when the variant would end up in its own components. Needs
-   * `manufacturing.manage`.
+   * `MANUFACTURING_BOM_CYCLE` when the variant would end up in its own
+   * components. Needs `manufacturing.manage`.
    */
   activateBom(bomId: string): AsyncResult<BomDetail>;
   getBom(bomId: string): AsyncResult<BomDetail>;

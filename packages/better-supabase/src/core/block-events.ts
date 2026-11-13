@@ -291,8 +291,8 @@ export interface AiToolEventData {
 }
 
 /**
- * `incoming_webhook.*`, from the webhooks-in module. Secrets are never part of
- * the event.
+ * `incoming_webhook.*`, from the incoming-webhooks module. Secrets are never
+ * part of the event.
  */
 export interface IncomingWebhookEventData {
   readonly organizationId: string;
@@ -690,9 +690,9 @@ export interface DriveEventData extends SubjectEventData {
   }[];
   /** For the controlled document events: the document's number. */
   readonly documentNumber?: string;
-  /** For `drive_node.document_saved`. */
+  /** For `drive_node.document_updated`. */
   readonly documentType?: string;
-  /** For `drive_node.document_saved` and `drive_node.review_requested`. */
+  /** For `drive_node.document_updated` and `drive_node.review_requested`. */
   readonly ownerId?: string | null;
   /**
    * For `drive_node.submitted` and `drive_node.released`: the attachment sent

@@ -130,8 +130,8 @@ import type { VercelMarketplaceSqlOptions } from "./vercel-marketplace/options.t
 import type { VersionsSqlOptions } from "./versions/options.ts";
 import type { WaitlistSqlOptions } from "./waitlist/options.ts";
 import type {
-  WebhooksOutSqlOptions,
-  WebhooksInSqlOptions,
+  WebhooksSqlOptions,
+  IncomingWebhooksSqlOptions,
 } from "./webhooks/options.ts";
 import type { WorkflowSdkSqlOptions } from "./workflow-sdk/options.ts";
 
@@ -267,8 +267,8 @@ import { vercelMarketplaceSqlOptions } from "./vercel-marketplace/options.ts";
 import { versionsSqlOptions } from "./versions/options.ts";
 import { waitlistSqlOptions } from "./waitlist/options.ts";
 import {
-  webhooksOutSqlOptions,
-  webhooksInSqlOptions,
+  webhooksSqlOptions,
+  incomingWebhooksSqlOptions,
 } from "./webhooks/options.ts";
 import { workflowSdkSqlOptions } from "./workflow-sdk/options.ts";
 
@@ -460,8 +460,8 @@ export interface BlockOptionsRegistry {
   readonly versions: VersionsSqlOptions;
   readonly waitlist: WaitlistSqlOptions;
   readonly "webhook-inbox": None;
-  readonly "webhooks-in": WebhooksInSqlOptions;
-  readonly "webhooks-out": WebhooksOutSqlOptions;
+  readonly "incoming-webhooks": IncomingWebhooksSqlOptions;
+  readonly webhooks: WebhooksSqlOptions;
   readonly "workflow-editor": None;
   readonly "workflow-sdk": WorkflowSdkSqlOptions;
   readonly workflows: None;
@@ -653,8 +653,8 @@ export const BLOCK_OPTION_SCHEMAS: {
   versions: versionsSqlOptions,
   waitlist: waitlistSqlOptions,
   "webhook-inbox": NO_OPTIONS,
-  "webhooks-in": webhooksInSqlOptions,
-  "webhooks-out": webhooksOutSqlOptions,
+  "incoming-webhooks": incomingWebhooksSqlOptions,
+  webhooks: webhooksSqlOptions,
   "workflow-editor": NO_OPTIONS,
   "workflow-sdk": workflowSdkSqlOptions,
   workflows: NO_OPTIONS,

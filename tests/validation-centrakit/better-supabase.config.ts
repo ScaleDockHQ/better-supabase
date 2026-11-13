@@ -276,7 +276,7 @@ export default defineConfig({
         channels: ["in_app", "email"],
       },
     },
-    "webhooks-out": {
+    webhooks: {
       tables: {
         endpoints: "centrakit.webhook_destinations",
         secrets: "centrakit.webhook_destination_secrets",
@@ -330,7 +330,7 @@ export default defineConfig({
         },
       },
     },
-    "webhooks-in": {
+    "incoming-webhooks": {
       tables: { endpoints: "centrakit.inbound_webhooks" },
       columns: {
         endpoints: {

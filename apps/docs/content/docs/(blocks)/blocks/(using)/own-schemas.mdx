@@ -458,6 +458,8 @@ may be your own enum or domain.
   - `better_supabase.incident_regulatory_profiles`: `incident_id`, `tenant_id`, `regimes`, `aware_at`, `classification`, `classified_at`, `significant`, `actively_exploited`, `measure_available_at`, `created_at`, `updated_at`
   - `better_supabase.incident_regulatory_filings`: `id`, `tenant_id`, `incident_id`, `regime`, `stage`, `due_at`, `reminder_id`, `submitted_at`, `submitted_by`, `reference`, `notes`, `created_at`
   - `better_supabase.incident_status_pages`: `id`, `tenant_id`, `slug`, `title`, `published`
+- `incoming-webhooks`
+  - `better_supabase.incoming_webhooks`: `id`, `tenant`, `name`, `token_hash`, `verify`, `enabled`
 - `inspections`
   - `better_supabase.inspection_programs`: `id`, `tenant_id`, `name`, `period_start`, `period_end`, `owner_id`, `status`, `archived_at`, `created_at`, `updated_at`
   - `better_supabase.inspections`: `id`, `tenant_id`, `program_id`, `number`, `sequence`, `kind`, `title`, `auditee_type`, `auditee_id`, `lead_id`, `planned_start`, `planned_end`, `started_at`, `completed_at`, `closed_at`, `status`, `checklist_form_id`, `checklist_submission_id`, `created_at`, `updated_at`
@@ -850,9 +852,7 @@ may be your own enum or domain.
   - `better_supabase.warranty_claims`: `id`, `tenant_id`, `title`, `supplier_id`, `manufacturer`, `asset_id`, `amount`, `currency`, `status`, `decision`, `decided_at`, `decided_by`, `created_by`, `created_at`, `updated_at`
 - `webhook-inbox`
   - `better_supabase.webhook_inbox`: `id`, `source`, `message_id`, `payload`, `status`, `attempts`, `available_at`, `locked_by`, `lock_expires_at`, `received_at`
-- `webhooks-in`
-  - `better_supabase.incoming_webhooks`: `id`, `tenant`, `name`, `token_hash`, `verify`, `enabled`
-- `webhooks-out`
+- `webhooks`
   - `better_supabase.webhook_endpoints`: `id`, `url`, `enabled`, `event_types`, `created_at`
   - `better_supabase.webhook_endpoint_secrets`: `id`, `endpoint_id`, `created_at`
   - `better_supabase.webhook_deliveries`: `id`, `endpoint_id`, `event_type`, `payload`, `status`, `attempt`, `available_at`, `lease_expires_at`, `created_at`

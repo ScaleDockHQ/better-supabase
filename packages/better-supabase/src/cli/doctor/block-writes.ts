@@ -102,7 +102,7 @@ function writtenTable(
   );
 }
 
-/** The keys block clients sit at on `db`: `webhooks-out` is `db.webhooksOut`. */
+/** The keys block clients sit at on `db`: `webhooks` is `db.webhooks`. */
 function blockClientKeys(context: DoctorContext): ReadonlySet<string> {
   return new Set(
     context.config.blockNames.flatMap((name) => [

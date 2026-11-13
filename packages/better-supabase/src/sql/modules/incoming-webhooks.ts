@@ -42,7 +42,7 @@ function secretStorage(ctx: BlockSqlContext): boolean {
 
   if (storage !== "vault" && storage !== "column") {
     throw new TypeError(
-      `blocks.webhooks-in.options.secretStorage must be "vault" or "column", not "${storage}"`,
+      `blocks.incoming-webhooks.options.secretStorage must be "vault" or "column", not "${storage}"`,
     );
   }
 
@@ -92,12 +92,12 @@ const graceColumns = (vault: boolean): readonly EndpointColumn[] => [
   "previousSecretExpiresAt",
 ];
 
-function webhooksInSql(ctx: BlockSqlContext): string {
+function incomingWebhooksSql(ctx: BlockSqlContext): string {
   const renamed = Object.keys(ctx.config.columns["endpoints"] ?? {});
 
   if (ctx.owns("endpoints") && renamed.length > 0) {
     throw new TypeError(
-      `blocks.webhooks-in.columns.endpoints: the block creates this table, so ${renamed.join(", ")} can't be renamed; declare your own table in your schema, or map blocks.webhooks-in.tables.endpoints`,
+      `blocks.incoming-webhooks.columns.endpoints: the block creates this table, so ${renamed.join(", ")} can't be renamed; declare your own table in your schema, or map blocks.incoming-webhooks.tables.endpoints`,
     );
   }
 
@@ -122,7 +122,7 @@ function webhooksInSql(ctx: BlockSqlContext): string {
       .filter(([logical]) => has(logical))
       .map(([logical, value]) => `${c(logical)} = ${value}`);
 
-  const p = moduleOperations("webhooks-in");
+  const p = moduleOperations("incoming-webhooks");
 
   const key = (action: "create" | "update" | "delete") =>
     sqlString(modulePermissionKey(ctx, action, p[action]));
@@ -203,7 +203,7 @@ drop trigger if exists ${cleanupTrigger} on ${t};`;
 
   if (subjects.length > 0 && !subjectColumns) {
     throw new TypeError(
-      "blocks.webhooks-in.on needs the subjectType and subjectId columns of the endpoints table",
+      "blocks.incoming-webhooks.on needs the subjectType and subjectId columns of the endpoints table",
     );
   }
 
@@ -359,14 +359,14 @@ ${renderPolicy(
     ? ""
     : `
   if subject_type is not null or subject_id is not null then
-    ${fail("WEBHOOK_IN_SUBJECT_INVALID", "This endpoints table has no subject columns", "22023")}
+    ${fail("INCOMING_WEBHOOK_SUBJECT_INVALID", "This endpoints table has no subject columns", "22023")}
   end if;`;
 
   const noMetadata = has("metadata")
     ? ""
     : `
   if metadata is not null and metadata <> '{}'::jsonb then
-    ${fail("WEBHOOK_IN_METADATA_INVALID", "This endpoints table has no metadata column", "22023")}
+    ${fail("INCOMING_WEBHOOK_METADATA_INVALID", "This endpoints table has no metadata column", "22023")}
   end if;`;
 
   const clearGrace = (when: string, keep: string) =>
@@ -591,16 +591,16 @@ declare
   created ${t};
 begin
   if not ${can("tenant", "create")} then
-    ${fail("WEBHOOK_IN_FORBIDDEN", "Not allowed to manage incoming webhooks")}
+    ${fail("INCOMING_WEBHOOK_FORBIDDEN", "Not allowed to manage incoming webhooks")}
   end if;
   if verify not in (${verify}) then
-    ${fail("WEBHOOK_IN_VERIFY_UNKNOWN", "Unknown verification mode", "22023")}
+    ${fail("INCOMING_WEBHOOK_VERIFY_UNKNOWN", "Unknown verification mode", "22023")}
   end if;${noSubjects}${noMetadata}
   if (subject_type is null) <> (subject_id is null) then
-    ${fail("WEBHOOK_IN_SUBJECT_INVALID", "Pass subject_type and subject_id together", "22023")}
+    ${fail("INCOMING_WEBHOOK_SUBJECT_INVALID", "Pass subject_type and subject_id together", "22023")}
   end if;
   if subject_type is not null and not (${subjectExists}) then
-    ${fail("WEBHOOK_IN_SUBJECT_INVALID", "No such subject in this tenant", "22023")}
+    ${fail("INCOMING_WEBHOOK_SUBJECT_INVALID", "No such subject in this tenant", "22023")}
   end if;
   insert into ${t} (${insertColumns.map(([logical]) => c(logical)).join(", ")})
   values (${insertColumns.map(([, value]) => value).join(",\n    ")})
@@ -628,7 +628,7 @@ declare
 begin
   select * into previous from ${t} e where ${e("id")} = endpoint for update;
   if previous.${c("id")} is null or not ${can(`previous.${c("tenant")}`, "update")} then
-    ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
+    ${raise("No incoming webhook %", "P0002", "INCOMING_WEBHOOK_NOT_FOUND", "endpoint")}
   end if;
   if rotate_secret then
     v_secret := ${newSecret(`previous.${c("verify")}`)};
@@ -663,11 +663,11 @@ declare
 begin
   select * into previous from ${t} e where ${e("id")} = endpoint for update;
   if previous.${c("id")} is null or not ${can(`previous.${c("tenant")}`, "update")} then
-    ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
+    ${raise("No incoming webhook %", "P0002", "INCOMING_WEBHOOK_NOT_FOUND", "endpoint")}
   end if;
   v_secret := ${newSecret(`previous.${c("verify")}`)};
   if v_secret is null then
-    ${fail("WEBHOOK_IN_NO_SECRET", "This endpoint verifies no secret", "22023")}
+    ${fail("INCOMING_WEBHOOK_NO_SECRET", "This endpoint verifies no secret", "22023")}
   end if;${
     grace
       ? ""
@@ -715,17 +715,17 @@ declare
 begin
   select * into previous from ${t} e where ${e("id")} = endpoint for update;
   if previous.${c("id")} is null or not ${can(`previous.${c("tenant")}`, "update")} then
-    ${raise("No incoming webhook %", "P0002", "WEBHOOK_IN_NOT_FOUND", "endpoint")}
+    ${raise("No incoming webhook %", "P0002", "INCOMING_WEBHOOK_NOT_FOUND", "endpoint")}
   end if;
   if name is not null and btrim(name) = '' then
-    ${fail("WEBHOOK_IN_NAME_REQUIRED", "An endpoint needs a name", "22023")}
+    ${fail("INCOMING_WEBHOOK_NAME_REQUIRED", "An endpoint needs a name", "22023")}
   end if;
   if metadata is not null and ${has("metadata") ? "jsonb_typeof(metadata) <> 'object'" : "true"} then
-    ${fail("WEBHOOK_IN_METADATA_INVALID", "metadata must be a JSON object", "22023")}
+    ${fail("INCOMING_WEBHOOK_METADATA_INVALID", "metadata must be a JSON object", "22023")}
   end if;
   v_verify := coalesce(verify, previous.${c("verify")});
   if v_verify not in (${verify}) then
-    ${fail("WEBHOOK_IN_VERIFY_UNKNOWN", "Unknown verification mode", "22023")}
+    ${fail("INCOMING_WEBHOOK_VERIFY_UNKNOWN", "Unknown verification mode", "22023")}
   end if;
   if v_verify <> previous.${c("verify")} then
     v_secret := ${newSecret("v_verify")};
@@ -854,12 +854,12 @@ const EVENTS: BlockSqlEvents<IncomingWebhooksEvents> = {
   },
 };
 
-export const WEBHOOKS_IN: BlockSqlDefinition = {
+export const INCOMING_WEBHOOKS: BlockSqlDefinition = {
   internal: [
     "incoming_webhook_tenant_ids",
     "incoming_webhook_subject_readable",
   ],
-  name: "webhooks-in",
+  name: "incoming-webhooks",
   scopes: ["tenant"],
   title: "Incoming webhook endpoints",
   description:
@@ -976,5 +976,5 @@ where e.secret is not null and e.secret_id is null;`;
       returns: "void",
     },
   ],
-  build: webhooksInSql,
+  build: incomingWebhooksSql,
 };

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { ADOPTED_FORMAT_ERROR } from "../../../src/sql/modules/webhooks-out.ts";
+import { ADOPTED_FORMAT_ERROR } from "../../../src/sql/modules/webhooks.ts";
 import {
   customContracts,
   moduleBody,
@@ -14,13 +14,13 @@ import { ownTablesOf } from "../../fixtures/own-tables.ts";
 import { unnamedChecks } from "../unnamed-checks.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
-  moduleBody("webhooks-out", { modules })!;
+  moduleBody("webhooks", { modules })!;
 
 const overApp = (modules: AnyBlocksConfig) =>
-  moduleBody("webhooks-out", { modules, ownTables: ownTablesOf(modules) })!;
+  moduleBody("webhooks", { modules, ownTables: ownTablesOf(modules) })!;
 
 const CENTRAKIT: AnyBlocksConfig = {
-  "webhooks-out": {
+  webhooks: {
     schema: "public",
     idType: "uuid",
     columns: {
@@ -37,7 +37,7 @@ const CENTRAKIT: AnyBlocksConfig = {
   },
 };
 
-describe("webhooks-out module", () => {
+describe("webhooks module", () => {
   it("owns its tables, keeps secrets in Vault and the secrets table closed to clients", () => {
     const sql = body();
     expect(sql).toContain(
@@ -64,10 +64,10 @@ describe("webhooks-out module", () => {
   });
 
   it("runs over CentraKit's tables with plain secrets and uuid ids", () => {
-    const sql = renderBlocks(["webhooks-out"], {
+    const sql = renderBlocks(["webhooks"], {
       modules: CENTRAKIT,
       ownTables: ownTablesOf(CENTRAKIT),
-    }).find((file) => file.module === "webhooks-out")!.contents;
+    }).find((file) => file.module === "webhooks")!.contents;
 
     expect(sql).not.toContain('create table if not exists "public"');
     expect(sql).not.toContain("vault.");
@@ -80,8 +80,8 @@ describe("webhooks-out module", () => {
   });
 
   it("manages endpoints through guarded definers that check the URL and fields", () => {
-    const sql = renderBlocks(["permissions", "outbox", "webhooks-out"]).find(
-      (file) => file.path.includes("webhooks_out"),
+    const sql = renderBlocks(["permissions", "outbox", "webhooks"]).find(
+      (file) => file.path.endsWith("_webhooks.sql"),
     )!.contents;
 
     for (const fn of [
@@ -100,12 +100,12 @@ describe("webhooks-out module", () => {
     expect(sql).toContain("WEBHOOK_ENDPOINT_NOT_FOUND");
     expect(sql).toContain("!~* '^https://'");
 
-    expect(
-      body({ "webhooks-out": { options: { allowHttp: true } } }),
-    ).toContain("!~* '^https?://'");
+    expect(body({ webhooks: { options: { allowHttp: true } } })).toContain(
+      "!~* '^https?://'",
+    );
 
     const untenanted = overApp({
-      "webhooks-out": {
+      webhooks: {
         columns: {
           endpoints: { tenant: null, permissions: null, batch: null },
           deliveries: { tenant: null, subject: null },
@@ -126,15 +126,15 @@ describe("webhooks-out module", () => {
   });
 
   it("allows http when asked and grants clients access through the access model", () => {
-    expect(
-      body({ "webhooks-out": { options: { allowHttp: true } } }),
-    ).not.toContain(`"url" ~* '^https://'`);
-    const plain = renderBlocks(["webhooks-out"]).at(-1)!.contents;
+    expect(body({ webhooks: { options: { allowHttp: true } } })).not.toContain(
+      `"url" ~* '^https://'`,
+    );
+    const plain = renderBlocks(["webhooks"]).at(-1)!.contents;
     expect(plain).not.toContain("better_supabase.can(");
     expect(plain).not.toContain("tenant_ids_with(");
 
-    const sql = renderBlocks(["permissions", "outbox", "webhooks-out"]).find(
-      (file) => file.path.includes("webhooks_out"),
+    const sql = renderBlocks(["permissions", "outbox", "webhooks"]).find(
+      (file) => file.path.endsWith("_webhooks.sql"),
     )!.contents;
 
     expect(sql).toContain("better_supabase.can('tenant', ");
@@ -149,34 +149,30 @@ describe("webhooks-out module", () => {
 
   it("rejects options it would splice into SQL or can't honor", () => {
     expect(() =>
-      body({ "webhooks-out": { options: { secretStorage: "kms" } } }),
+      body({ webhooks: { options: { secretStorage: "kms" } } }),
     ).toThrow(/secretStorage/);
     expect(() =>
-      body({
-        "webhooks-out": { options: { eventIdType: "uuid; drop table x" } },
-      }),
+      body({ webhooks: { options: { eventIdType: "uuid; drop table x" } } }),
     ).toThrow(/eventIdType/);
     expect(() =>
-      body({ "webhooks-out": { options: { disableAfter: 1.5 } } }),
+      body({ webhooks: { options: { disableAfter: 1.5 } } }),
     ).toThrow(/disableAfter/);
     expect(() =>
-      body({ "webhooks-out": { columns: { secrets: { vaultId: null } } } }),
+      body({ webhooks: { columns: { secrets: { vaultId: null } } } }),
     ).toThrow(/vaultId/);
   });
 
   it("disables an endpoint that keeps failing for disableAfter", () => {
-    const sql = body({
-      "webhooks-out": { options: { disableAfter: "3 days" } },
-    });
+    const sql = body({ webhooks: { options: { disableAfter: "3 days" } } });
 
     expect(sql).toContain('"first_failed_at" timestamptz');
     expect(sql).toContain("v_since <= now() - '3 days'::interval");
     expect(() =>
-      body({ "webhooks-out": { options: { disableAfter: "soon" } } }),
+      body({ webhooks: { options: { disableAfter: "soon" } } }),
     ).toThrow(/disableAfter/);
 
     const never = body({
-      "webhooks-out": { columns: { endpoints: { failingSince: null } } },
+      webhooks: { columns: { endpoints: { failingSince: null } } },
     });
 
     expect(never).not.toContain("v_result := 'disabled'");
@@ -193,9 +189,9 @@ describe("webhooks-out module", () => {
   });
 
   it("renders nothing in custom mode and lists the contract the app must provide", () => {
-    const custom: AnyBlocksConfig = { "webhooks-out": { mode: "custom" } };
-    expect(moduleBody("webhooks-out", { modules: custom })).toBeUndefined();
-    const [contract] = customContracts(["webhooks-out"], { modules: custom });
+    const custom: AnyBlocksConfig = { webhooks: { mode: "custom" } };
+    expect(moduleBody("webhooks", { modules: custom })).toBeUndefined();
+    const [contract] = customContracts(["webhooks"], { modules: custom });
     expect(contract!.functions.map((fn) => fn.name)).toEqual([
       "publish_webhook_event",
       "publish_webhook_events",
@@ -221,7 +217,7 @@ describe("webhooks-out module", () => {
       );
 
     it("checks the endpoint owner with can_user and service endpoints with their declared permissions", () => {
-      const sql = renderBlocks(["permissions", "outbox", "webhooks-out"]).find(
+      const sql = renderBlocks(["permissions", "outbox", "webhooks"]).find(
         (file) => file.contents.includes("publish_webhook_event"),
       )!.contents;
 
@@ -246,7 +242,7 @@ describe("webhooks-out module", () => {
 
     it("asks the authorization provider's idsWithFor when it has one", () => {
       const fn = publish(
-        moduleBody("webhooks-out", {
+        moduleBody("webhooks", {
           accessProvider: moduleProvider,
           modules: { permissions: { model: "provider" } },
         })!,
@@ -261,7 +257,7 @@ describe("webhooks-out module", () => {
     it("builds the held grants by the wildcards the provider honours", () => {
       const held = (wildcards?: "all" | "prefix" | "none") =>
         publish(
-          moduleBody("webhooks-out", {
+          moduleBody("webhooks", {
             accessProvider: {
               ...moduleProvider,
               ...(wildcards ? { wildcards } : {}),
@@ -284,7 +280,7 @@ describe("webhooks-out module", () => {
 
       const untenanted = publish(
         overApp({
-          "webhooks-out": {
+          webhooks: {
             columns: {
               endpoints: { tenant: null, permissions: null, batch: null },
               deliveries: { tenant: null, subject: null },
@@ -301,7 +297,7 @@ describe("webhooks-out module", () => {
 
       const ownerless = publish(
         overApp({
-          "webhooks-out": {
+          webhooks: {
             columns: {
               endpoints: { createdBy: null, permissions: "held_permissions" },
             },
@@ -315,9 +311,7 @@ describe("webhooks-out module", () => {
       );
       expect(
         publish(
-          overApp({
-            "webhooks-out": { options: { defaultFormat: "cloudevents" } },
-          }),
+          overApp({ webhooks: { options: { defaultFormat: "cloudevents" } } }),
         ),
       ).toContain("else publish_webhook_event.read_permission is null end");
     });
@@ -334,7 +328,7 @@ describe("webhooks-out module", () => {
 
   describe("format", () => {
     const upgrade = (modules: AnyBlocksConfig = {}) =>
-      upgradePlan([{ module: "webhooks-out", version: 2 }], {
+      upgradePlan([{ module: "webhooks", version: 2 }], {
         modules,
         ownTables: ownTablesOf(modules),
       })[0]!
@@ -350,7 +344,7 @@ describe("webhooks-out module", () => {
       );
 
       const standard = body({
-        "webhooks-out": { options: { defaultFormat: "standard" } },
+        webhooks: { options: { defaultFormat: "standard" } },
       });
 
       expect(standard).toContain(
@@ -367,12 +361,12 @@ describe("webhooks-out module", () => {
       expect(upgrade(CENTRAKIT)).not.toContain("format");
 
       const mapped = overApp({
-        "webhooks-out": {
-          ...CENTRAKIT["webhooks-out"],
+        webhooks: {
+          ...CENTRAKIT["webhooks"],
           columns: {
-            ...CENTRAKIT["webhooks-out"]!.columns,
+            ...CENTRAKIT["webhooks"]!.columns,
             endpoints: {
-              ...CENTRAKIT["webhooks-out"]!.columns!["endpoints"],
+              ...CENTRAKIT["webhooks"]!.columns!["endpoints"],
               format: "body_format",
             },
           },
@@ -384,21 +378,20 @@ describe("webhooks-out module", () => {
       );
 
       expect(() =>
-        body({ "webhooks-out": { options: { defaultFormat: "x'; drop" } } }),
+        body({ webhooks: { options: { defaultFormat: "x'; drop" } } }),
       ).toThrow(/defaultFormat "x'; drop" must match/);
     });
 
     it("requires defaultFormat for the app's table when it maps no format column", () => {
-      const { defaultFormat: _, ...options } =
-        CENTRAKIT["webhooks-out"]!.options!;
+      const { defaultFormat: _, ...options } = CENTRAKIT["webhooks"]!.options!;
 
       expect(() =>
-        overApp({ "webhooks-out": { ...CENTRAKIT["webhooks-out"], options } }),
+        overApp({ webhooks: { ...CENTRAKIT["webhooks"], options } }),
       ).toThrow(ADOPTED_FORMAT_ERROR);
       expect(() =>
         overApp({
-          "webhooks-out": {
-            ...CENTRAKIT["webhooks-out"],
+          webhooks: {
+            ...CENTRAKIT["webhooks"],
             options,
             columns: { endpoints: { format: "body_format" } },
           },
@@ -409,7 +402,7 @@ describe("webhooks-out module", () => {
   });
 });
 
-describe("webhooks-out batches and partitions", () => {
+describe("webhooks batches and partitions", () => {
   it("publishes a batch of events for the service role", () => {
     const sql = body();
     expect(sql).toContain(
@@ -423,7 +416,7 @@ describe("webhooks-out batches and partitions", () => {
   });
 
   it("partitions deliveries by month with an advisory lock per event", () => {
-    const sql = body({ "webhooks-out": { options: { partitioned: true } } });
+    const sql = body({ webhooks: { options: { partitioned: true } } });
     expect(sql).toContain('primary key ("id", "created_at")');
     expect(sql).toContain(') partition by range ("created_at");');
     expect(sql).toContain(
