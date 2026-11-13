@@ -700,9 +700,9 @@
     "brotli": 353393
   },
   "/[locale]/(app)/people/encryption/page": {
-    "raw": 1264755,
-    "gzip": 402354,
-    "brotli": 351505
+    "raw": 1300046,
+    "gzip": 415042,
+    "brotli": 362700
   },
   "/[locale]/(app)/people/hiring/page": {
     "raw": 1429186,
