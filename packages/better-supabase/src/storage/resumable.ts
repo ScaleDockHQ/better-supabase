@@ -23,7 +23,8 @@ export interface ResumableEndpointOptions {
  * The TUS endpoint for a signed resumable upload,
  * `<storage>/upload/resumable/sign`. `url` is the project URL (`SUPABASE_URL`),
  * the Storage URL (`.../storage/v1`) or a signed upload URL from
- * `createSignedUploadUrl`.
+ * `createSignedUploadUrl`. A TUS client such as `tus-js-client` posts to it:
+ * the storage-js client uploads in one request and has no resumable upload.
  */
 export function resumableEndpoint(
   url: string,

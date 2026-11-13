@@ -285,7 +285,7 @@ describe("createNext", () => {
 
     it("signs out and redirects when Auth no longer knows the session", async () => {
       const { token, cookie } = await session();
-      fresh.mockResolvedValue(ended());
+      fresh.mockImplementation(async () => ended());
       const protect = vi.fn(() => undefined);
 
       const response = await bsb.proxy(page({ cookie }), {
@@ -340,7 +340,7 @@ describe("createNext", () => {
       expect(named.headers.get("location")).toBe(
         "https://app.test/login?reason=suspended",
       );
-      fresh.mockResolvedValue(ended());
+      fresh.mockImplementation(async () => ended());
 
       const gone = await bsb.proxy(page({ cookie }), {
         verifySession: { redirect: "/login", reasons: { banned: "suspended" } },
@@ -353,7 +353,7 @@ describe("createNext", () => {
 
     it("hands an ended session to protect without a redirect", async () => {
       const { cookie } = await session();
-      fresh.mockResolvedValue(ended());
+      fresh.mockImplementation(async () => ended());
       const protect = vi.fn((_auth: unknown) => undefined);
 
       const response = await bsb.proxy(page({ cookie }), {
@@ -409,7 +409,7 @@ describe("createNext", () => {
 
     it("asks Auth only on the requests it checks", async () => {
       const { cookie } = await session();
-      fresh.mockResolvedValue(ended());
+      fresh.mockImplementation(async () => ended());
       await bsb.proxy(page({ cookie }));
 
       const navigation = page({

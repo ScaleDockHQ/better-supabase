@@ -200,9 +200,11 @@ export interface NotificationActor {
   readonly avatarUrl?: string | null;
 }
 
-export type AvatarUrls =
-  | { readonly url: string; readonly bucket: string }
-  | ((path: string) => string | null);
+/**
+ * The avatar URL of a Storage object path, such as `(path) =>
+ * supabase.storage.from("users").getPublicUrl(path).data.publicUrl`.
+ */
+export type AvatarUrls = (path: string) => string | null;
 
 export interface SentNotification {
   /**
