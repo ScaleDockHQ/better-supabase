@@ -178,7 +178,12 @@ export const planSteps = (files: string[]): Step[] => {
         {
           name: "lint (root)",
           command: bin("oxlint"),
-          args: ["-c", "oxlint.config.ts", ...workspaceFiles],
+          args: [
+            "-c",
+            "oxlint.config.ts",
+            "--no-error-on-unmatched-pattern",
+            ...workspaceFiles,
+          ],
           cwd: repoRoot,
         },
         {
@@ -195,7 +200,7 @@ export const planSteps = (files: string[]): Step[] => {
     steps.push({
       name: `lint ${workspace}`,
       command: bin("oxlint"),
-      args: inside,
+      args: ["--no-error-on-unmatched-pattern", ...inside],
       cwd: join(repoRoot, workspace),
     });
 
