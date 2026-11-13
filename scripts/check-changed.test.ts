@@ -37,4 +37,17 @@ describe("planSteps", () => {
     expect(names).toContain("lint packages/better-supabase");
     expect(names).toContain("typecheck packages/better-supabase");
   });
+
+  it("passes lint when every changed file is lint-ignored", () => {
+    const lint = planSteps([
+      "apps/examples/nextjs/public/sw.js",
+      "tests/init-fixture/nextjs/public/sw.js",
+    ]).filter((step) => step.name.startsWith("lint"));
+
+    expect(lint.length).toBeGreaterThan(0);
+
+    for (const step of lint) {
+      expect(step.args).toContain("--no-error-on-unmatched-pattern");
+    }
+  });
 });
