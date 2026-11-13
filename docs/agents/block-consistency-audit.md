@@ -650,7 +650,7 @@ What exists today: `gen` renders the typed client, the model types, the block se
 | List route                        | no                                      | `/api/<entity>/list` per page                            |
 | Columns and detail page           | no                                      | `features/<area>/*-columns.tsx`, detail pages per phase  |
 | Forms                             | no                                      | action forms; schemas drift (EX-806)                     |
-| Permission keys and role defaults | no (EX-807)                             | catalog migrations per phase                             |
+| Permission keys and role defaults | yes (`gen.permissionCatalog`, #903)     | generated catalog migration                              |
 | Seed data                         | declared defaults only (ADR 0205, 0440) | `seed.sql` rows per phase                                |
 | pgTAP scale files                 | no                                      | 23 files, none per list                                  |
 | API routes                        | spec yes, routes no                     | per-page handlers                                        |
@@ -692,7 +692,7 @@ Status per concern across the catalog. "Covered" means a block or core feature h
 | Concern                          | Status  | Where it exists                                                   | Where it is missing                                      | Rows                      |
 | -------------------------------- | ------- | ----------------------------------------------------------------- | -------------------------------------------------------- | ------------------------- |
 | Multi-tenant isolation           | covered | tenant policies on block tables (ADR 0099, 0426), tested in pgTAP | none found                                               | none                      |
-| Roles and per-record access      | partial | permissions block, record teams (ADR 0134), grants                | no per-entity declaration, keys not generated            | EX-1231, EX-1232, EX-1322 |
+| Roles and per-record access      | partial | permissions block, record teams (ADR 0134), grants                | keys declared per entity and generated (#903)            | EX-1231, EX-1232, EX-1322 |
 | Soft delete and restore          | partial | tasks, deals, cases, drive, teams, trash                          | 47 blocks hard delete, 28 archive without restore        | EX-1206, EX-1207          |
 | Audit trail                      | covered | audit block and row triggers (ADR 0196, 0252)                     | impersonation actor outside audit                        | EX-1321                   |
 | Versioning                       | partial | versions, field-history, 77 mentions                              | no declaration per entity                                | EX-1323                   |
@@ -714,7 +714,7 @@ Status per concern across the catalog. "Covered" means a block or core feature h
 | Import and export                | partial | imports, 8 and 6 blocks                                           | no `export` or `importTarget` contract                   | EX-1210, EX-1211          |
 | Offline sync                     | partial | PowerSync streams from views                                      | per-block declaration                                    | EX-1318                   |
 | Realtime                         | partial | realtime-tables, controllers                                      | no per-entity flag, hooks do not subscribe               | EX-1319                   |
-| API keys and OAuth apps          | covered | api-keys, oauth-server, pages                                     | scopes not generated                                     | EX-1330                   |
+| API keys and OAuth apps          | covered | api-keys, oauth-server, pages                                     | scopes generated in `permission-scopes.ts` (#903)        | EX-1330                   |
 | Impersonation                    | partial | impersonation block                                               | actor not recorded on writes                             | EX-1321                   |
 | Feature flags                    | partial | flags block                                                       | no entity flag declaration                               | EX-1328                   |
 | Concurrency (optimistic locking) | missing | fewer than ten blocks                                             | the rest                                                 | EX-1213                   |
@@ -895,11 +895,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane H
 
 - Scope: Generated permission keys, role defaults and scopes
-- Status: in progress
+- Status: PR open #903
 - Branch: `feat/audit-h`
-- PR: none yet
+- PR: [#903](https://github.com/ScaleDockHQ/better-supabase/pull/903)
 - Findings: EX-1231, EX-1232, EX-1322, EX-1330, EX-1603, EX-807
 - Log: 2026-11-13, lane H started from main in `../bsb-audit-h`.
+  2026-11-13, PR #903 opened with validated `entities.<key>.permissions`, `gen.permissionCatalog` and the scope lists (ADR 0799).
 
 ### Lane J
 
