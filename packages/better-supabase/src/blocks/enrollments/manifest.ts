@@ -4,6 +4,7 @@ import type { EnrollmentsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createEnrollments } from "./enrollments.ts";
 import { enrollmentsEvents } from "./events.ts";
+import { enrollmentListSurface } from "./lists.ts";
 import { enrollmentsSqlOptions } from "./options.ts";
 import { enrollmentsBinding } from "./record-binding.ts";
 
@@ -28,7 +29,11 @@ export const enrollmentsBlock: BlockOf<
       mutability: "editable",
       emits: { create: true, update: true, delete: true },
     },
-    enrollment: { mutability: "state-machine", emits: { create: true } },
+    enrollment: {
+      ...enrollmentListSurface,
+      mutability: "state-machine",
+      emits: { create: true },
+    },
   },
   concerns: ["lifecycle"],
   description:

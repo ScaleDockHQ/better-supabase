@@ -3,10 +3,15 @@ import { describe, expect, it } from "vitest";
 import { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
 import { appraisalsBlock } from "../../src/blocks/appraisals/manifest.ts";
 import { damBlock } from "../../src/blocks/dam/manifest.ts";
+import { ePrescribingBlock } from "../../src/blocks/e-prescribing/manifest.ts";
+import { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts";
 import { limsBlock } from "../../src/blocks/lims/manifest.ts";
 import { maintenanceBlock } from "../../src/blocks/maintenance/manifest.ts";
+import { passesBlock } from "../../src/blocks/passes/manifest.ts";
+import { payrollExportBlock } from "../../src/blocks/payroll-export/manifest.ts";
 import { rfqsBlock } from "../../src/blocks/rfqs/manifest.ts";
 import { risksBlock } from "../../src/blocks/risks/manifest.ts";
+import { sequencesBlock } from "../../src/blocks/sequences/manifest.ts";
 import { tillsBlock } from "../../src/blocks/tills/manifest.ts";
 import { warehouseBlock } from "../../src/blocks/warehouse/manifest.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
@@ -16,10 +21,15 @@ const BLOCKS = [
   agentCheckoutBlock,
   appraisalsBlock,
   damBlock,
+  ePrescribingBlock,
+  enrollmentsBlock,
   limsBlock,
   maintenanceBlock,
+  passesBlock,
+  payrollExportBlock,
   rfqsBlock,
   risksBlock,
+  sequencesBlock,
   tillsBlock,
   warehouseBlock,
 ];
@@ -79,6 +89,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(11);
+    expect(CASES).toHaveLength(16);
   });
 });

@@ -1,4 +1,11 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { BlockOptions } from "../shared.ts";
 import type { PayrollExportFile, PayrollExportFormat } from "./format.ts";
@@ -6,6 +13,7 @@ import type { PayrollExportFile, PayrollExportFormat } from "./format.ts";
 import { plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { sha256Hex } from "../../core/sha256.ts";
 import {
@@ -25,6 +33,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { payrollFormatOf } from "./format.ts";
+import { payrollRunListSurface } from "./lists.ts";
 
 /** Where a payroll run stands: `exported` locks its lines. */
 export type PayrollRunStatus = (typeof PAYROLL_RUN_STATUSES)[number];
@@ -107,6 +116,18 @@ export interface PayrollExport {
   list(options?: {
     readonly limit?: number;
   }): AsyncResult<readonly PayrollRunSummary[]>;
+  /**
+   * One keyset page of runs, newest period first (or in the order of `sort`),
+   * without their lines, with `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  runPage(options?: PageOptions): AsyncResult<ListPage<PayrollRunSummary>>;
+  /**
+   * The values of each facet of runs and their counts, under the page's
+   * filters.
+   */
+  runFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many runs match the page's filters. */
+  runCount(options?: CountOptions): AsyncResult<Count>;
   /**
    * Renders the run with `format`, keeps the SHA-256 of the file on the run and
    * locks it. Exporting a locked run with the same file returns it again; a
@@ -200,7 +221,19 @@ export function createPayrollExport(
       value === null ? undefined : runOf(value, "get_payroll_run"),
     );
 
+  const runs = entityList({
+    entity: "payroll_run",
+    surface: payrollRunListSurface,
+    call,
+    tenant,
+    fn: "page_payroll_runs",
+    rowOf: summaryOf,
+  });
+
   const client: PayrollExport = {
+    runPage: runs.page,
+    runFacets: runs.facets,
+    runCount: runs.count,
     create: (input) =>
       tenant().andThen((organizationId) =>
         call(

@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { createdOrUpdated } from "../event-verbs.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import {
   fail,
   NOTHING,
@@ -117,6 +118,36 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
 
   const self = (row: string): string =>
     `(${row}.${e("user")} is not null and coalesce(${row}.${e("user")} = auth.uid(), false))`;
+
+  const updatedKeys = [
+    { expr: `x.${e("updatedAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${e("id")}`, dir: "asc", type: "uuid" },
+  ] as const;
+
+  const pageList = {
+    name: "page_enrollments",
+    from: enrollments,
+    alias: "x",
+    where: [
+      `x.${e("tenant")} = page_enrollments.tenant`,
+      `(v_read or x.${e("user")} = auth.uid())`,
+      filterAny("program", `x.${e("program")}`),
+      filterAny("subjectType", `x.${e("subjectType")}`),
+      filterAny("subjectId", `x.${e("subjectId")}`),
+      filterAny("status", `x.${e("status")}::text`),
+    ],
+    keys: updatedKeys,
+    sorts: {
+      updatedAt: updatedKeys,
+      enrolledAt: [
+        { expr: `x.${e("enrolledAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${e("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${e("status")}::text`, program: `x.${e("program")}` },
+    rowJson: `${fn("enrollment_json")}(x.${e("id")})`,
+    invalid,
+  } as const;
 
   const programJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'key', ${row}.${p("key")}, 'name', ${row}.${p("name")}, 'description', ${field("programs", row, "description")}, 'subjectTypes', to_jsonb(${row}.${p("subjectTypes")}), 'steps', ${row}.${p("steps")}, 'enabled', ${row}.${p("enabled")}, 'version', ${row}.${p("version")}, 'createdBy', ${field("programs", row, "createdBy")}, 'createdAt', ${field("programs", row, "createdAt")}, 'updatedAt', ${field("programs", row, "updatedAt")})`;
@@ -749,6 +780,53 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_enrollments")}(${idType}, text, text, text, text, integer, timestamptz)`)}
+
+-- One enrollment as listed: enrollments.read, or the enrolled user for their own.
+create or replace function ${fn("get_enrollment")}(enrollment_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${enrollments};
+begin
+  select * into v_row from ${enrollments} x where x.${e("id")} = get_enrollment.enrollment_id;
+  if v_row.${e("id")} is null or not (${allowed(`v_row.${e("tenant")}`, read)} or ${self("v_row")}) then
+    ${enrollmentMissing}
+  end if;
+  return ${fn("enrollment_json")}(v_row.${e("id")});
+end;
+$$;
+${userGrant(`${fn("get_enrollment")}(uuid)`)}
+
+-- The organization's enrollments as a keyset page, most recently changed first
+-- (ADR 0749, 0779). Without enrollments.read a member sees only their own.
+-- filters is { program, status, subjectType, subjectId (each a value or a list of
+-- them), sort, direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function ${fn("page_enrollments")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_enrollments.filters, '{}'::jsonb);
+  v_read boolean := ${allowed("page_enrollments.tenant", read)};
+  ${listDeclare(pageList)}
+begin
+  if not v_read and auth.uid() is null then
+    ${forbidden("not allowed to read enrollments")}
+  end if;
+  ${listBody(pageList)}
+end;
+$$;
+${userGrant(`${fn("page_enrollments")}(${idType}, jsonb)`)}
 
 -- Marks a step of an enrollment done or not done: enrollments.enroll, the
 -- enrolled user for their own, or the user a step is assigned to.

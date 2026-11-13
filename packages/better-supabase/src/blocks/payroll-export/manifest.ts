@@ -3,6 +3,7 @@ import type { PayrollExportEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { payrollExportEvents } from "./events.ts";
+import { payrollRunListSurface } from "./lists.ts";
 import { payrollExportSqlOptions } from "./options.ts";
 import { createPayrollExport } from "./payroll-export.ts";
 import { payrollRunInputSchema } from "./schemas.ts";
@@ -23,6 +24,7 @@ export const payrollExportBlock: BlockOf<
   category: "people",
   entities: {
     payroll_run: {
+      ...payrollRunListSurface,
       mutability: "state-machine",
       emits: { create: true, delete: false },
     },

@@ -2,6 +2,12 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
+import {
+  filterAny,
+  filterSet,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { fail, pageSize, userGrant } from "../shared.ts";
 import { sequenceSql } from "./sequences-sql.ts";
 
@@ -260,6 +266,33 @@ function authoring(ctx: BlockSqlContext): string {
       'replied', count(*) filter (where m.${e("status")} = 'cancelled' and m.${e("cancelReason")} = 'replied'))
     from ${q.enrollments} m where m.${r("sequence")} = ${id})`;
 
+  const nameKeys = [
+    { expr: `x.${s("name")}`, dir: "asc", type: "text" },
+    { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+  ] as const;
+
+  const pageList = {
+    name: "page_sequences",
+    from: q.sequences,
+    alias: "x",
+    where: [
+      `x.${s("tenant")} = page_sequences.tenant`,
+      `(${filterSet("status")} or x.${s("status")}::text <> 'archived')`,
+      filterAny("status", `x.${s("status")}::text`),
+    ],
+    keys: nameKeys,
+    sorts: {
+      name: nameKeys,
+      updatedAt: [
+        { expr: `x.${s("updatedAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${s("status")}::text` },
+    rowJson: `${q.sequenceJson("x")} || jsonb_build_object('counts', ${counts(`x.${s("id")}`)})`,
+    invalid: q.invalid,
+  } as const;
+
   const mailboxCheck =
     mail === undefined
       ? `if v_account is not null then
@@ -426,6 +459,29 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_sequences")}(${ctx.idType}, text)`)}
+
+-- Sequences by name as a keyset page (ADR 0749, 0779). filters is { status (a
+-- value or a list of them; archived sequences stay out without it), sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_sequences")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_sequences.filters, '{}'::jsonb);
+  ${listDeclare(pageList)}
+begin
+  if not ${q.allowed("page_sequences.tenant", q.read)} then
+    ${q.forbidden("not allowed to read sequences")}
+  end if;
+  ${listBody(pageList)}
+end;
+$$;
+${userGrant(`${fn("page_sequences")}(${ctx.idType}, jsonb)`)}
 
 -- One sequence with its recipient counts.
 create or replace function ${fn("get_sequence")}(sequence_id uuid)

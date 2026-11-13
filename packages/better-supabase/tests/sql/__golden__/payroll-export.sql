@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:fe9a23943df45bdead43f8927a7317114195d6f108450f42c0a73388f1246e64
+-- @bsb-hash sha256:023900335f72494a0d64c8f2f794608e653fcf8993abdd00d41fb49cda36e59d
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -215,6 +215,208 @@ $$;
 revoke execute on function "better_supabase"."list_payroll_runs"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_payroll_runs"(uuid) to authenticated, service_role;
 
+-- The organization's runs as a keyset page, newest period first (ADR 0749,
+-- 0779). filters is { status (a value or a list of them), sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_payroll_runs"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_payroll_runs.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_payroll_runs.tenant is not null and coalesce(better_supabase.can('tenant', page_payroll_runs.tenant, 'payroll_export.read'), false))) then
+    raise exception 'not allowed to do this with payroll runs' using errcode = '42501', hint = 'PAYROLL_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text end) as v
+      from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('periodFrom', 'createdAt') then
+    raise exception 'sort is one of periodFrom, createdAt' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_payroll_runs"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_payroll_runs"(uuid, jsonb) to authenticated, service_role;
+
 -- Locks a draft run after its file was rendered: keeps the format and the
 -- SHA-256 of the file. Exporting the same file again returns the run.
 create or replace function "better_supabase"."mark_payroll_run_exported"(run_id uuid, format text, checksum text)
@@ -356,7 +558,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:a7b0de619e167bb1b2a493669db580f293a4355c1feebba60c3641ee97942ab7
+-- @bsb-hash sha256:c60d870d758b467fe852a65f6762d2423b550d4de1bae91375f736fa1c86158d
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -610,6 +812,208 @@ $$;
 revoke execute on function "better_supabase"."list_payroll_runs"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_payroll_runs"(uuid) to authenticated, service_role;
 
+-- The organization's runs as a keyset page, newest period first (ADR 0749,
+-- 0779). filters is { status (a value or a list of them), sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_payroll_runs"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_payroll_runs.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_payroll_runs.tenant is not null and coalesce(better_supabase.can('tenant', page_payroll_runs.tenant, 'payroll_export.read'), false))) then
+    raise exception 'not allowed to do this with payroll runs' using errcode = '42501', hint = 'PAYROLL_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text end) as v
+      from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('periodFrom', 'createdAt') then
+    raise exception 'sort is one of periodFrom, createdAt' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_payroll_runs"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_payroll_runs"(uuid, jsonb) to authenticated, service_role;
+
 -- Locks a draft run after its file was rendered: keeps the format and the
 -- SHA-256 of the file. Exporting the same file again returns the run.
 create or replace function "better_supabase"."mark_payroll_run_exported"(run_id uuid, format text, checksum text)
@@ -765,7 +1169,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:47f45b96c8e0ebf3c810beca64947d84414dd2e656d6c30b47b36b48f20cb326
+-- @bsb-hash sha256:72a64576c6fcca67ff6fa7530dee5f54eb746e9e18620341b0ed5e9156716de7
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -984,6 +1388,208 @@ $$;
 revoke execute on function "app_private"."list_payroll_runs"(uuid) from public, anon;
 grant execute on function "app_private"."list_payroll_runs"(uuid) to authenticated, service_role;
 
+-- The organization's runs as a keyset page, newest period first (ADR 0749,
+-- 0779). filters is { status (a value or a list of them), sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_payroll_runs"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_payroll_runs.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_payroll_runs.tenant is not null and coalesce(better_supabase.can('tenant', page_payroll_runs.tenant, 'payroll_export.read'), false))) then
+    raise exception 'not allowed to do this with payroll runs' using errcode = '42501', hint = 'PAYROLL_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text end) as v
+      from "app_private"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('periodFrom', 'createdAt') then
+    raise exception 'sort is one of periodFrom, createdAt' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "app_private"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "app_private"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "app_private"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "app_private"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "app_private"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "app_private"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_payroll_runs"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_payroll_runs"(uuid, jsonb) to authenticated, service_role;
+
 -- Locks a draft run after its file was rendered: keeps the format and the
 -- SHA-256 of the file. Exporting the same file again returns the run.
 create or replace function "app_private"."mark_payroll_run_exported"(run_id uuid, format text, checksum text)
@@ -1125,7 +1731,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:b1956c2a6648504bb1418af2c6857335613d709ed7ea43be87aecf776dcbc77d
+-- @bsb-hash sha256:d49d469f06097c189bfdd2675c7fb182a9d3409bf4f5fb678e92599c1b691e74
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1339,6 +1945,208 @@ $$;
 revoke execute on function "better_supabase"."list_payroll_runs"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_payroll_runs"(uuid) to authenticated, service_role;
 
+-- The organization's runs as a keyset page, newest period first (ADR 0749,
+-- 0779). filters is { status (a value or a list of them), sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_payroll_runs"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_payroll_runs.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_payroll_runs.tenant is not null and coalesce(better_supabase.can('tenant', page_payroll_runs.tenant, 'payroll_export.read'), false))) then
+    raise exception 'not allowed to do this with payroll runs' using errcode = '42501', hint = 'PAYROLL_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text end) as v
+      from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('periodFrom', 'createdAt') then
+    raise exception 'sort is one of periodFrom, createdAt' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_payroll_runs"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_payroll_runs"(uuid, jsonb) to authenticated, service_role;
+
 -- Locks a draft run after its file was rendered: keeps the format and the
 -- SHA-256 of the file. Exporting the same file again returns the run.
 create or replace function "better_supabase"."mark_payroll_run_exported"(run_id uuid, format text, checksum text)
@@ -1505,6 +2313,16 @@ as $$ select "better_supabase"."list_payroll_runs"($1) $$;
 revoke execute on function "api"."list_payroll_runs"(uuid) from public, anon;
 grant execute on function "api"."list_payroll_runs"(uuid) to authenticated, service_role;
 
+create or replace function "api"."page_payroll_runs"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_payroll_runs"($1, $2) $$;
+revoke execute on function "api"."page_payroll_runs"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_payroll_runs"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "api"."mark_payroll_run_exported"(run_id uuid, format text, checksum text)
 returns jsonb
 language sql
@@ -1540,7 +2358,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:c60cca8c2436cedef7300db602d9bb239fa007e8272a3693aabcd514906dcaf8
+-- @bsb-hash sha256:374d4ae452afaf5b00c66c142e794efc198bcd864887d6dffbcc1cecf3d4028b
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1740,6 +2558,208 @@ $$;
 revoke execute on function "better_supabase"."list_payroll_runs"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_payroll_runs"(uuid) to authenticated, service_role;
 
+-- The organization's runs as a keyset page, newest period first (ADR 0749,
+-- 0779). filters is { status (a value or a list of them), sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_payroll_runs"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_payroll_runs.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_payroll_runs.tenant is not null and coalesce(better_supabase.can('tenant', page_payroll_runs.tenant, 'payroll_export.read'), false))) then
+    raise exception 'not allowed to do this with payroll runs' using errcode = '42501', hint = 'PAYROLL_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text end) as v
+      from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('periodFrom', 'createdAt') then
+    raise exception 'sort is one of periodFrom, createdAt' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."payroll_runs" x
+      where x."tenant_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_payroll_runs"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_payroll_runs"(uuid, jsonb) to authenticated, service_role;
+
 -- Locks a draft run after its file was rendered: keeps the format and the
 -- SHA-256 of the file. Exporting the same file again returns the run.
 create or replace function "better_supabase"."mark_payroll_run_exported"(run_id uuid, format text, checksum text)
@@ -1881,7 +2901,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:6c13a8fb54d85788063acb5436cc8aba4fde95929b00ce2492194ce5b58c45e8
+-- @bsb-hash sha256:af920155e5515decc346de5c969fa1a3d9b09d6a06fd9f54ba3efbec12504d8a
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2094,6 +3114,208 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_payroll_runs"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_payroll_runs"(uuid) to authenticated, service_role;
+
+-- The organization's runs as a keyset page, newest period first (ADR 0749,
+-- 0779). filters is { status (a value or a list of them), sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_payroll_runs"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_payroll_runs.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_payroll_runs.tenant is not null and coalesce(better_supabase.can('tenant', page_payroll_runs.tenant, 'payroll_export.read'), false))) then
+    raise exception 'not allowed to do this with payroll runs' using errcode = '42501', hint = 'PAYROLL_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text end) as v
+      from "better_supabase"."payroll_runs" x
+      where x."org_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."payroll_runs" x
+      where x."org_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('periodFrom', 'createdAt') then
+    raise exception 'sort is one of periodFrom, createdAt' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."org_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."org_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."org_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" >= (v_after ->> 0)::date and ((x."period_from" > (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" asc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'periodFrom' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."period_from")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."org_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."period_from" <= (v_after ->> 0)::date and ((x."period_from" < (v_after ->> 0)::date) or (x."period_from" = (v_after ->> 0)::date and x."created_at" < (v_after ->> 1)::timestamptz) or (x."period_from" = (v_after ->> 0)::date and x."created_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."period_from" desc, x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."org_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PAYROLL_RUN_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'periodFrom', x."period_from", 'periodTo', x."period_to", 'label', x."label", 'status', x."status", 'format', x."format", 'checksum', x."checksum", 'exportedAt', x."exported_at", 'exportedBy', x."exported_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lineCount', (select count(*) from "better_supabase"."payroll_lines" y where y."run_id" = x."id")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."payroll_runs" x
+      where x."org_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."payroll_runs" x
+      where x."org_id" = page_payroll_runs.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_payroll_runs"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_payroll_runs"(uuid, jsonb) to authenticated, service_role;
 
 -- Locks a draft run after its file was rendered: keeps the format and the
 -- SHA-256 of the file. Exporting the same file again returns the run.
