@@ -147,30 +147,68 @@ to the outbox, and every change is audited.
 
 ## Paging a list
 
-`listSessions` still takes `offset`. `sessionPage` pages the same list by keyset and
-returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
-`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+`listSessions` is the capped convenience list. `sessionPage` is the full contract for checkout sessions (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `expiresAt`, and the default order is createdAt (newest first); filters are `status`, `protocol`, `cartId`; facets are `status`, `protocol`.
 
 ```ts
-const first = await checkout.sessionPage({ limit: 50, total: true }).orThrow();
+const first = await checkout
+  .sessionPage({
+    filters: { status: ["open", "ready"] },
+    sort: { by: "createdAt" },
+    limit: 50,
+  })
+  .orThrow();
 
 if (first.hasMore) {
   const next = await checkout
-    .sessionPage({ limit: 50, after: first.nextCursor })
+    .sessionPage({
+      filters: { status: ["open", "ready"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
     .orThrow();
 }
+
+// How many rows each facet value holds under the same filters.
+const facets = await checkout
+  .sessionFacets({ filters: { status: ["open", "ready"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await checkout
+  .sessionCount({ filters: { status: ["open", "ready"] } })
+  .orThrow();
 ```
 
-`listMandates` still takes `offset`. `mandatePage` pages the same list by keyset and
-returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
-`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+`listMandates` is the capped convenience list. `mandatePage` is the full contract for agent mandates (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `expiresAt`, and the default order is createdAt (newest first); filters are `sessionId`, `status`, `vct`; facets are `status`, `vct`.
 
 ```ts
-const first = await checkout.mandatePage({ limit: 50, total: true }).orThrow();
+const first = await checkout
+  .mandatePage({
+    filters: { status: ["active"] },
+    sort: { by: "createdAt" },
+    limit: 50,
+  })
+  .orThrow();
 
 if (first.hasMore) {
   const next = await checkout
-    .mandatePage({ limit: 50, after: first.nextCursor })
+    .mandatePage({
+      filters: { status: ["active"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
     .orThrow();
 }
+
+// How many rows each facet value holds under the same filters.
+const facets = await checkout
+  .mandateFacets({ filters: { status: ["active"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await checkout
+  .mandateCount({ filters: { status: ["active"] } })
+  .orThrow();
 ```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.

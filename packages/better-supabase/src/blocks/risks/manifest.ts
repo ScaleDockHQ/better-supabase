@@ -3,6 +3,7 @@ import type { RisksEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { risksEvents } from "./events.ts";
+import { riskListSurface } from "./lists.ts";
 import { risksSqlOptions } from "./options.ts";
 import { createRisks } from "./risks.ts";
 import {
@@ -27,7 +28,11 @@ export const risksBlock: BlockOf<"risks", typeof createRisks, RisksEvents> =
     recipes: ["risk-register", "risk-heatmap"],
     category: "work",
     entities: {
-      risk: { mutability: "editable", emits: { create: true, update: true } },
+      risk: {
+        mutability: "editable",
+        ...riskListSurface,
+        emits: { create: true, update: true },
+      },
       risk_matrix: {
         mutability: "editable",
         emits: { create: true, update: true },

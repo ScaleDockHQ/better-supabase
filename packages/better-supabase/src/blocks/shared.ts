@@ -56,3 +56,10 @@ export type {
   PageOptions,
   TransitionActor,
 } from "../core/block-helpers.ts";
+
+export type {
+  CountOptions,
+  EntityList,
+  EntityListSurface,
+  FacetOptions,
+} from "../core/entity-list.ts";

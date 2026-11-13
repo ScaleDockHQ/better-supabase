@@ -3,6 +3,10 @@ import type { MaintenanceEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { maintenanceEvents } from "./events.ts";
+import {
+  maintenanceCalibrationListSurface,
+  maintenancePlanListSurface,
+} from "./lists.ts";
 import { createMaintenance } from "./maintenance.ts";
 import {
   maintenanceCalibrationInputSchema,
@@ -27,6 +31,7 @@ export const maintenanceBlock: BlockOf<
   category: "work",
   entities: {
     maintenance_plan: {
+      ...maintenancePlanListSurface,
       mutability: "editable",
       emits: { create: true, update: true, delete: true },
     },
@@ -37,6 +42,7 @@ export const maintenanceBlock: BlockOf<
       emits: { create: true },
     },
     maintenance_calibration: {
+      ...maintenanceCalibrationListSurface,
       mutability: "append-only",
       emits: { create: true },
     },

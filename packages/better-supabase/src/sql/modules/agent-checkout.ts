@@ -8,7 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { listBody, listDeclare } from "../list-template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -234,14 +234,29 @@ function build(ctx: BlockSqlContext): string {
     alias: "x",
     where: [
       `x.${s("tenant")} = list_checkout_sessions.tenant`,
-      `(v_status is null or x.${s("status")} = v_status)`,
-      `(v_protocol is null or x.${s("protocol")} = v_protocol)`,
-      `(v_cart is null or x.${s("cart")}::text = v_cart)`,
+      filterAny("status", `x.${s("status")}`),
+      filterAny("protocol", `x.${s("protocol")}`),
+      filterAny("cartId", `x.${s("cart")}::text`),
     ],
     keys: [
       { expr: `x.${s("createdAt")}`, dir: "desc", type: "timestamptz" },
       { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${s("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+      ],
+      expiresAt: [
+        {
+          expr: `coalesce(x.${s("expiresAt")}, 'infinity'::timestamptz)`,
+          dir: "asc",
+          type: "timestamptz",
+        },
+        { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${s("status")}`, protocol: `x.${s("protocol")}` },
     rowJson: sessionJson("x"),
     invalid,
   } as const;
@@ -252,14 +267,25 @@ function build(ctx: BlockSqlContext): string {
     alias: "x",
     where: [
       `x.${m("tenant")} = list_agent_mandates.tenant`,
-      `(v_session is null or x.${m("session")}::text = v_session)`,
-      `(v_status is null or x.${m("status")} = v_status)`,
-      `(v_vct is null or x.${m("vct")} = v_vct)`,
+      filterAny("sessionId", `x.${m("session")}::text`),
+      filterAny("status", `x.${m("status")}`),
+      filterAny("vct", `x.${m("vct")}`),
     ],
     keys: [
       { expr: `x.${m("createdAt")}`, dir: "desc", type: "timestamptz" },
       { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${m("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
+      ],
+      expiresAt: [
+        { expr: `x.${m("expiresAt")}`, dir: "asc", type: "timestamptz" },
+        { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${m("status")}`, vct: `x.${m("vct")}` },
     rowJson: mandateJson("x"),
     invalid: (message: string): string =>
       fail("AGENT_MANDATE_INVALID", message, "22023"),
@@ -433,8 +459,9 @@ end;
 $$;
 ${userGrant(`${fn("get_checkout_session")}(uuid)`)}
 
--- Sessions, newest first. filters is { status, protocol, cartId, limit, after, offset, paged,
--- total, totalCap }.
+-- Sessions, newest first. filters is { status, protocol, cartId (each a value or
+-- a list of them), sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749).
 create or replace function ${fn("list_checkout_sessions")}(tenant ${id}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -446,9 +473,6 @@ as $$
 declare
   v_filters jsonb := coalesce(list_checkout_sessions.filters, '{}'::jsonb);
   ${listDeclare(list_list_checkout_sessions)}
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_protocol text := nullif(v_filters ->> 'protocol', '');
-  v_cart text := nullif(v_filters ->> 'cartId', '');
 begin
   if not ${allowed("list_checkout_sessions.tenant", read)} then
     ${fail("CHECKOUT_FORBIDDEN", "not allowed to read checkout sessions")}
@@ -640,8 +664,9 @@ end;
 $$;
 ${userGrant(`${fn("get_agent_mandate")}(uuid)`)}
 
--- Mandates, newest first. filters is { sessionId, status, vct, limit, after, offset, paged,
--- total, totalCap }.
+-- Mandates, newest first. filters is { sessionId, status, vct (each a value or a
+-- list of them), sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749).
 create or replace function ${fn("list_agent_mandates")}(tenant ${id}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -653,9 +678,6 @@ as $$
 declare
   v_filters jsonb := coalesce(list_agent_mandates.filters, '{}'::jsonb);
   ${listDeclare(list_list_agent_mandates)}
-  v_session text := nullif(v_filters ->> 'sessionId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_vct text := nullif(v_filters ->> 'vct', '');
 begin
   if not ${allowed("list_agent_mandates.tenant", read)} then
     ${fail("AGENT_MANDATE_FORBIDDEN", "not allowed to read mandates")}

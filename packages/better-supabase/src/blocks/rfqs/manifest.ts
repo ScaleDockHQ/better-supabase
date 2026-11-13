@@ -3,6 +3,7 @@ import type { RfqsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { rfqsEvents } from "./events.ts";
+import { rfqListSurface } from "./lists.ts";
 import { createRfqs } from "./rfqs.ts";
 import { rfqInputSchema } from "./schemas.ts";
 
@@ -17,7 +18,11 @@ export const rfqsBlock: BlockOf<"rfqs", typeof createRfqs, RfqsEvents> =
     recipes: [],
     category: "commerce",
     entities: {
-      rfq: { mutability: "editable", emits: { create: true, update: true } },
+      rfq: {
+        ...rfqListSurface,
+        mutability: "editable",
+        emits: { create: true, update: true },
+      },
       rfq_line: { mutability: "read-only" },
       rfq_supplier: { mutability: "read-only" },
       rfq_quote: { mutability: "state-machine", emits: { create: false } },

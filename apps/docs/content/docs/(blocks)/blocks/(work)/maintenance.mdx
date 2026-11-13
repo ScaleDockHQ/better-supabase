@@ -183,32 +183,68 @@ A meter's `assetId` ties its readings to an [asset](/docs/blocks/assets), so
 
 ## Paging a list
 
-`listCalibrations` still takes `offset`. For a deep list, `calibrationPage` pages by keyset and
-returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
-`after`, and set `total: true` to count up to `totalCap` rows (ADR 0642).
+`listPlans` is the capped convenience list. `planPage` is the full contract for maintenance plans (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `nextDueAt`, `title`, and the default order is nextDueAt (soonest due first); filters are `status`, `kind`, `assetId`, `due`; facets are `status`, `kind`. `due` is `["true"]` and keeps the plans that are due now.
 
 ```ts
 const first = await maintenance
-  .calibrationPage({ limit: 50, total: true })
+  .planPage({
+    filters: { kind: ["time", "meter"] },
+    sort: { by: "nextDueAt" },
+    limit: 50,
+  })
   .orThrow();
 
 if (first.hasMore) {
   const next = await maintenance
-    .calibrationPage({ limit: 50, after: first.nextCursor })
+    .planPage({
+      filters: { kind: ["time", "meter"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
     .orThrow();
 }
+
+// How many rows each facet value holds under the same filters.
+const facets = await maintenance
+  .planFacets({ filters: { kind: ["time", "meter"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await maintenance
+  .planCount({ filters: { kind: ["time", "meter"] } })
+  .orThrow();
 ```
 
-`listPlans` still takes `offset`. `planPage` pages the same list by keyset and
-returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
-`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+`listCalibrations` is the capped convenience list. `calibrationPage` is the full contract for calibrations (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `performedAt`, `dueAt`, and the default order is performedAt (newest first); filters are `assetId`, `dueBefore`; facets are `result`. `dueBefore` is one instant, such as `["2026-12-01T00:00:00Z"]`.
 
 ```ts
-const first = await maintenance.planPage({ limit: 50, total: true }).orThrow();
+const first = await maintenance
+  .calibrationPage({
+    filters: { assetId: ["a1", "a2"] },
+    sort: { by: "performedAt" },
+    limit: 50,
+  })
+  .orThrow();
 
 if (first.hasMore) {
   const next = await maintenance
-    .planPage({ limit: 50, after: first.nextCursor })
+    .calibrationPage({
+      filters: { assetId: ["a1", "a2"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
     .orThrow();
 }
+
+// How many rows each facet value holds under the same filters.
+const facets = await maintenance
+  .calibrationFacets({ filters: { assetId: ["a1", "a2"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await maintenance
+  .calibrationCount({ filters: { assetId: ["a1", "a2"] } })
+  .orThrow();
 ```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.

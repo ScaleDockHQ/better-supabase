@@ -3,6 +3,7 @@ import type { TillsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { tillsEvents } from "./events.ts";
+import { tillSessionListSurface } from "./lists.ts";
 import { tillInputSchema } from "./schemas.ts";
 import { createTills } from "./tills.ts";
 
@@ -18,7 +19,11 @@ export const tillsBlock: BlockOf<"tills", typeof createTills, TillsEvents> =
     category: "commerce",
     entities: {
       till: { mutability: "editable", emits: { create: true, update: true } },
-      till_session: { mutability: "state-machine", emits: { create: false } },
+      till_session: {
+        ...tillSessionListSurface,
+        mutability: "state-machine",
+        emits: { create: false },
+      },
       till_movement: { mutability: "append-only", emits: { create: true } },
       till_count: { mutability: "read-only" },
       till_deposit: { mutability: "state-machine", emits: { create: true } },

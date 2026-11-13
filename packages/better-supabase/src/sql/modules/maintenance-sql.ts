@@ -31,6 +31,7 @@ export interface MaintenanceSql {
   readonly forbidden: (message: string) => string;
   readonly planMissing: string;
   readonly meterMissing: string;
+  readonly calibrationMissing: string;
   readonly planJson: (row: string) => string;
   readonly meterJson: (row: string) => string;
   readonly calibrationJson: (row: string) => string;
@@ -108,6 +109,11 @@ export function maintenanceSql(ctx: BlockSqlContext): MaintenanceSql {
       "P0002",
     ),
     meterMissing: fail("MAINTENANCE_METER_NOT_FOUND", "no such meter", "P0002"),
+    calibrationMissing: fail(
+      "MAINTENANCE_CALIBRATION_NOT_FOUND",
+      "no such calibration",
+      "P0002",
+    ),
     unqualified: fail(
       "MAINTENANCE_UNQUALIFIED",
       "the person doesn't hold a qualification the work requires",

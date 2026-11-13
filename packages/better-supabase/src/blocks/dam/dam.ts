@@ -1,14 +1,20 @@
-import type { ListPage } from "../../core/block-helpers.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { AttachmentStorage } from "../attachments/attachments.ts";
 import type { PreviewRenderer } from "../drive/preview.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { blockPage } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -28,6 +34,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { damUsageRightListSurface } from "./lists.ts";
 
 /** A rendition name such as `thumbnail` or `web`. */
 export type DamRenditionKind = string;
@@ -109,22 +116,6 @@ export interface DamUsageRightListOptions {
   readonly offset?: number;
 }
 
-/**
- * What `rightPage` reads: the filters of `listRights`, paged by keyset (ADR
- * 0642).
- */
-export interface DamUsageRightPageOptions extends Omit<
-  DamUsageRightListOptions,
-  "offset"
-> {
-  /** The `nextCursor` of the previous page. */
-  readonly after?: readonly string[];
-  /** Also count the matching rows, up to `totalCap`. */
-  readonly total?: boolean;
-  /** The most rows the total counts. Default 10,000. */
-  readonly totalCap?: number;
-}
-
 /** The answer of {@link Dam.checkUsage}. */
 export interface DamUsageCheck {
   readonly allowed: boolean;
@@ -169,13 +160,23 @@ export interface Dam {
   grantRight(input: DamUsageRightInput): AsyncResultType<DamUsageRight>;
   /** Revokes a right. It stays in the history; needs `dam.write`. */
   revokeRight(rightId: string): AsyncResultType<DamUsageRight>;
+  /** One usage right; needs `dam.read`. */
+  getRight(rightId: string): AsyncResultType<DamUsageRight>;
   listRights(
     options?: DamUsageRightListOptions,
   ): AsyncResultType<readonly DamUsageRight[]>;
-  /** One keyset page of `listRights`, with `hasMore` and a `nextCursor`. */
-  rightPage(
-    options?: DamUsageRightPageOptions,
-  ): AsyncResultType<ListPage<DamUsageRight>>;
+  /**
+   * One keyset page of usage rights, in the order of `sort` (the default order
+   * without it), with `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  rightPage(options?: PageOptions): AsyncResultType<ListPage<DamUsageRight>>;
+  /**
+   * The values of each facet of usage rights and their counts, under the page's
+   * filters.
+   */
+  rightFacets(options?: FacetOptions): AsyncResultType<readonly FacetResult[]>;
+  /** How many of usage rights match the page's filters. */
+  rightCount(options?: CountOptions): AsyncResultType<Count>;
   /**
    * Whether the file may be used on a day (default today) in a territory and
    * channel. A file without any right is not allowed.
@@ -338,6 +339,15 @@ export function createDam(options: DamOptions): Dam {
       (value) => renditionOf(value, "record_rendition"),
     );
 
+  const rights = entityList({
+    entity: "dam_usage_right",
+    surface: damUsageRightListSurface,
+    call,
+    tenant,
+    fn: "list_usage_rights",
+    rowOf: rightOf,
+  });
+
   const client: Dam = {
     recordRendition: ({ nodeId, kind, input = {} }) =>
       tenant().andThen((organizationId) =>
@@ -463,6 +473,10 @@ export function createDam(options: DamOptions): Dam {
       call("revoke_usage_right", { right_id: rightId }, (value) =>
         rightOf(value, "revoke_usage_right"),
       ),
+    getRight: (rightId) =>
+      call("get_usage_right", { right_id: rightId }, (value) =>
+        rightOf(value, "get_usage_right"),
+      ),
     listRights: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -474,8 +488,9 @@ export function createDam(options: DamOptions): Dam {
             ),
         ),
       ),
-    rightPage: (page = {}) =>
-      blockPage(call, tenant, "list_usage_rights", rightOf, definedOf(page)),
+    rightPage: rights.page,
+    rightFacets: rights.facets,
+    rightCount: rights.count,
     checkUsage: ({ nodeId, ...check }) =>
       tenant().andThen((organizationId) =>
         call(

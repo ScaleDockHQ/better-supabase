@@ -1,12 +1,19 @@
-import type { ListPage } from "../../core/block-helpers.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { blockPage, plainDateOf } from "../../core/block-helpers.ts";
+import { plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import {
   LIMS_RESULT_OUTCOMES,
   LIMS_SAMPLE_STATUSES,
@@ -22,6 +29,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { limsSampleListSurface } from "./lists.ts";
 
 /** Where a sample is in the laboratory. */
 export type LimsSampleStatus = (typeof LIMS_SAMPLE_STATUSES)[number];
@@ -129,19 +137,6 @@ export interface LimsSampleListOptions {
   readonly offset?: number;
 }
 
-/** What `samplePage` reads: the filters of the list, paged by keyset (ADR 0642). */
-export interface LimsSamplePageOptions extends Omit<
-  LimsSampleListOptions,
-  "offset"
-> {
-  /** The `nextCursor` of the previous page. */
-  readonly after?: readonly string[];
-  /** Also count the matching rows, up to `totalCap`. */
-  readonly total?: boolean;
-  /** The most rows the total counts. Default 10,000. */
-  readonly totalCap?: number;
-}
-
 /** The answer of {@link Lims.instrumentStatus}. */
 export interface LimsInstrumentStatus {
   readonly instrumentId: string;
@@ -171,10 +166,18 @@ export interface Lims {
   listSamples(
     options?: LimsSampleListOptions,
   ): AsyncResultType<readonly LimsSample[]>;
-  /** One keyset page of `listSamples`, with `hasMore` and a `nextCursor`. */
-  samplePage(
-    options?: LimsSamplePageOptions,
-  ): AsyncResultType<ListPage<LimsSample>>;
+  /**
+   * One keyset page of samples, in the order of `sort` (the default order
+   * without it), with `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  samplePage(options?: PageOptions): AsyncResultType<ListPage<LimsSample>>;
+  /**
+   * The values of each facet of samples and their counts, under the page's
+   * filters.
+   */
+  sampleFacets(options?: FacetOptions): AsyncResultType<readonly FacetResult[]>;
+  /** How many of samples match the page's filters. */
+  sampleCount(options?: CountOptions): AsyncResultType<Count>;
   /**
    * Records a result and checks it against the method's limits. An out of
    * specification result opens a nonconformity case when the cases block is
@@ -310,6 +313,15 @@ export function createLims(options: LimsOptions): Lims {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResultType<string> => requireTenant(options.tenant);
 
+  const samples = entityList({
+    entity: "lims_sample",
+    surface: limsSampleListSurface,
+    call,
+    tenant,
+    fn: "list_samples",
+    rowOf: sampleOf,
+  });
+
   const client: Lims = {
     saveMethod: ({ input, methodId }) =>
       tenant().andThen((organizationId) =>
@@ -377,8 +389,9 @@ export function createLims(options: LimsOptions): Lims {
             ),
         ),
       ),
-    samplePage: (page = {}) =>
-      blockPage(call, tenant, "list_samples", sampleOf, definedOf(page)),
+    samplePage: samples.page,
+    sampleFacets: samples.facets,
+    sampleCount: samples.count,
     recordResult: ({ sampleId, methodId, input }) =>
       call(
         "record_lims_result",

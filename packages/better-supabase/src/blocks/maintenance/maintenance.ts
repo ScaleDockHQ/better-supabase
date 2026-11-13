@@ -1,12 +1,18 @@
-import type { ListPage } from "../../core/block-helpers.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { blockPage } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import {
   MAINTENANCE_CALIBRATION_RESULTS,
   MAINTENANCE_PLAN_KINDS,
@@ -24,6 +30,10 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import {
+  maintenanceCalibrationListSurface,
+  maintenancePlanListSurface,
+} from "./lists.ts";
 
 /** What triggers a plan: elapsed days, a meter or an RRULE. */
 export type MaintenancePlanKind = (typeof MAINTENANCE_PLAN_KINDS)[number];
@@ -178,22 +188,6 @@ export interface MaintenancePlanListOptions {
   readonly offset?: number;
 }
 
-/**
- * What `planPage` reads: the filters of `listPlans`, paged by keyset (ADR
- * 0642).
- */
-export interface MaintenancePlanPageOptions extends Omit<
-  MaintenancePlanListOptions,
-  "offset"
-> {
-  /** The `nextCursor` of the previous page. */
-  readonly after?: readonly string[];
-  /** Also count the matching rows, up to `totalCap`. */
-  readonly total?: boolean;
-  /** The most rows the total counts. Default 10,000. */
-  readonly totalCap?: number;
-}
-
 export interface MaintenanceCalibrationListOptions {
   readonly assetId?: string;
   /** Due on or before. */
@@ -201,22 +195,6 @@ export interface MaintenanceCalibrationListOptions {
   /** 1 to 200. Default 50. */
   readonly limit?: number;
   readonly offset?: number;
-}
-
-/**
- * What `calibrationPage` reads: the filters of the list, paged by keyset (ADR
- * 0642).
- */
-export interface MaintenanceCalibrationPageOptions extends Omit<
-  MaintenanceCalibrationListOptions,
-  "offset"
-> {
-  /** The `nextCursor` of the previous page. */
-  readonly after?: readonly string[];
-  /** Also count the matching rows, up to `totalCap`. */
-  readonly total?: boolean;
-  /** The most rows the total counts. Default 10,000. */
-  readonly totalCap?: number;
 }
 
 export interface Maintenance {
@@ -227,13 +205,23 @@ export interface Maintenance {
     change: MaintenancePlanChange;
   }): AsyncResult<MaintenancePlan>;
   deletePlan(planId: string): AsyncResult<MaintenancePlan>;
+  /** One plan with its parts and whether it is due; needs `maintenance.read`. */
+  getPlan(planId: string): AsyncResult<MaintenancePlan>;
   listPlans(
     options?: MaintenancePlanListOptions,
   ): AsyncResult<readonly MaintenancePlan[]>;
-  /** One keyset page of `listPlans`, with `hasMore` and a `nextCursor`. */
-  planPage(
-    options?: MaintenancePlanPageOptions,
-  ): AsyncResult<ListPage<MaintenancePlan>>;
+  /**
+   * One keyset page of maintenance plans, in the order of `sort` (the default
+   * order without it), with `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  planPage(options?: PageOptions): AsyncResult<ListPage<MaintenancePlan>>;
+  /**
+   * The values of each facet of maintenance plans and their counts, under the
+   * page's filters.
+   */
+  planFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many of maintenance plans match the page's filters. */
+  planCount(options?: CountOptions): AsyncResult<Count>;
   /**
    * Opens a dispatch work order, with the plan's parts, for every due plan that
    * has none open. A done work order moves the plan's next due date.
@@ -258,13 +246,27 @@ export interface Maintenance {
   recordCalibration(
     input: MaintenanceCalibrationInput,
   ): AsyncResult<MaintenanceCalibration>;
+  /** One calibration; needs `maintenance.read`. */
+  getCalibration(calibrationId: string): AsyncResult<MaintenanceCalibration>;
   listCalibrations(
     options?: MaintenanceCalibrationListOptions,
   ): AsyncResult<readonly MaintenanceCalibration[]>;
-  /** One keyset page of `listCalibrations`, with `hasMore` and a `nextCursor`. */
+  /**
+   * One keyset page of calibrations, in the order of `sort` (the default order
+   * without it), with `hasMore` and a `nextCursor` to pass as `after`.
+   */
   calibrationPage(
-    options?: MaintenanceCalibrationPageOptions,
+    options?: PageOptions,
   ): AsyncResult<ListPage<MaintenanceCalibration>>;
+  /**
+   * The values of each facet of calibrations and their counts, under the page's
+   * filters.
+   */
+  calibrationFacets(
+    options?: FacetOptions,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many of calibrations match the page's filters. */
+  calibrationCount(options?: CountOptions): AsyncResult<Count>;
 }
 
 /** Options for {@link createMaintenance}. */
@@ -413,6 +415,24 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
   const plan = (fn: string) => (value: unknown) => planOf(value, fn);
   const meter = (fn: string) => (value: unknown) => meterOf(value, fn);
 
+  const plans = entityList({
+    entity: "maintenance_plan",
+    surface: maintenancePlanListSurface,
+    call,
+    tenant,
+    fn: "list_maintenance_plans",
+    rowOf: planOf,
+  });
+
+  const calibrations = entityList({
+    entity: "maintenance_calibration",
+    surface: maintenanceCalibrationListSurface,
+    call,
+    tenant,
+    fn: "list_calibrations",
+    rowOf: calibrationOf,
+  });
+
   const client: Maintenance = {
     createPlan: (input) =>
       tenant().andThen((organizationId) =>
@@ -433,6 +453,12 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
         "delete_maintenance_plan",
         { plan_id: planId },
         plan("delete_maintenance_plan"),
+      ),
+    getPlan: (planId) =>
+      call(
+        "get_maintenance_plan",
+        { plan_id: planId },
+        plan("get_maintenance_plan"),
       ),
     listPlans: (list = {}) =>
       tenant().andThen((organizationId) =>
@@ -455,23 +481,9 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
             ),
         ),
       ),
-    planPage: (page = {}) =>
-      blockPage(
-        call,
-        tenant,
-        "list_maintenance_plans",
-        planOf,
-        definedOf({
-          status: page.status,
-          kind: page.kind,
-          assetId: page.assetId,
-          due: page.due,
-          limit: page.limit,
-          after: page.after,
-          total: page.total,
-          totalCap: page.totalCap,
-        }),
-      ),
+    planPage: plans.page,
+    planFacets: plans.facets,
+    planCount: plans.count,
     generateWorkOrders: () =>
       tenant().andThen((organizationId) =>
         call(
@@ -530,6 +542,10 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
           (value) => calibrationOf(value, "record_calibration"),
         ),
       ),
+    getCalibration: (calibrationId) =>
+      call("get_calibration", { calibration_id: calibrationId }, (value) =>
+        calibrationOf(value, "get_calibration"),
+      ),
     listCalibrations: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -549,21 +565,9 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
             ),
         ),
       ),
-    calibrationPage: (page = {}) =>
-      blockPage(
-        call,
-        tenant,
-        "list_calibrations",
-        calibrationOf,
-        definedOf({
-          assetId: page.assetId,
-          dueBefore: page.dueBefore?.toString(),
-          limit: page.limit,
-          after: page.after,
-          total: page.total,
-          totalCap: page.totalCap,
-        }),
-      ),
+    calibrationPage: calibrations.page,
+    calibrationFacets: calibrations.facets,
+    calibrationCount: calibrations.count,
   };
 
   return withBlockHooks(client, options.hooks, {

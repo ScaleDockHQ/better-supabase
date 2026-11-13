@@ -163,13 +163,13 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   tills:
     "close_till_session create_till deposit_till_cash get_till_session list_till_sessions list_tills open_till_session reconcile_till_deposit record_till_movement update_till",
   lims: "archive_lims_method complete_sample get_sample instrument_status list_lims_methods list_samples record_lims_result register_sample reject_sample release_sample save_lims_method",
-  dam: "check_usage grant_usage_right list_renditions list_usage_rights notify_expiring_usage_rights record_rendition revoke_usage_right",
+  dam: "check_usage get_usage_right grant_usage_right list_renditions list_usage_rights notify_expiring_usage_rights record_rendition revoke_usage_right",
   appraisals:
     "calibrate_appraisal calibrate_appraisal_competencies close_appraisal_cycle create_appraisal_cycle get_appraisal list_appraisal_cycles list_appraisals open_appraisal_cycle set_appraisal_competencies set_appraisal_goals sign_off_appraisal submit_appraisal_review",
   warehouse:
     "cancel_pick_wave complete_pick_list create_count_plan create_pick_list create_pick_wave delete_putaway_rule get_cycle_count_variance get_pick_list list_bin_slots list_count_plans list_pick_lists list_pick_waves list_putaway_rules post_cycle_count record_pick release_pick_wave run_count_plan run_due_count_plans save_bin_slot save_putaway_rule save_variant_size set_pick_route suggest_putaway suggest_receipt_putaway suggest_slotting",
   maintenance:
-    "create_maintenance_meter create_maintenance_plan delete_maintenance_plan list_calibrations list_maintenance_meters list_maintenance_plans record_calibration record_meter_reading update_maintenance_plan",
+    "create_maintenance_meter create_maintenance_plan delete_maintenance_plan get_calibration get_maintenance_plan list_calibrations list_maintenance_meters list_maintenance_plans record_calibration record_meter_reading update_maintenance_plan",
   meetings:
     "add_meeting_action_item cancel_meeting create_meeting decide_meeting_decision delete_meeting delete_meeting_agenda_item get_meeting hold_meeting list_meetings record_meeting_decision remove_meeting_attendee save_meeting_agenda_item set_meeting_attendee start_meeting update_meeting",
   inventory:

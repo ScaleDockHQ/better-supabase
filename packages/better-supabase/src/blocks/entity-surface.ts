@@ -49,6 +49,8 @@ export interface EntitySurface {
   readonly sorts?: readonly string[];
   /** The columns a list counts distinct values of. */
   readonly facets?: readonly string[];
+  /** The columns `page` filters by, each with a list of values (ADR 0749). */
+  readonly filters?: readonly string[];
   /** `true` when the entity registers for search, or the searched columns. */
   readonly search?: boolean | readonly string[];
   /** The permission key each verb checks, by verb (`{ read: "risks.read" }`). */

@@ -3,7 +3,12 @@ import type { WarehouseSql } from "./warehouse-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { createdFromLink } from "../links.ts";
-import { listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { userGrant } from "../shared.ts";
 import { warehouseSql } from "./warehouse-sql.ts";
 
@@ -488,16 +493,34 @@ function readFunctions(ctx: BlockSqlContext, q: WarehouseSql): string {
     alias: "x",
     where: [
       `x.${p("tenant")} = list_pick_lists.tenant`,
-      `(v_wave is null or x.${p("wave")} = v_wave::uuid)`,
-      `(v_status is null or x.${p("status")} = v_status)`,
-      `(v_doc_type is null or x.${p("documentType")} = v_doc_type)`,
-      `(v_doc_id is null or x.${p("documentId")} = v_doc_id)`,
-      `((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x.${p("assignee")} = auth.uid(), false))`,
+      filterAny("waveId", `x.${p("wave")}`, "uuid"),
+      filterAny("status", `x.${p("status")}`),
+      filterAny("documentType", `x.${p("documentType")}`),
+      filterAny("documentId", `x.${p("documentId")}`),
+      `((v_all and not ${filterFlag("mine")}) or coalesce(x.${p("assignee")} = auth.uid(), false))`,
     ],
     keys: [
       { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
       { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+      ],
+      pickedAt: [
+        {
+          expr: `coalesce(x.${p("pickedAt")}, '-infinity'::timestamptz)`,
+          dir: "desc",
+          type: "timestamptz",
+        },
+        { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: {
+      status: `x.${p("status")}`,
+      documentType: `x.${p("documentType")}`,
+    },
     rowJson: `${fn("pick_list_json")}(x.${p("id")})`,
     invalid: q.invalid,
   } as const;
@@ -526,8 +549,9 @@ $$;
 ${userGrant(`${fn("get_pick_list")}(uuid)`)}
 
 -- Pick lists of an organization, newest first. filters is { waveId, status,
--- documentType, documentId, mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of
--- them; everyone else sees the lists assigned to them.
+-- documentType, documentId (each a value or a list of them), mine: true, sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap } (ADR
+-- 0749). Readers see all of them; everyone else sees the lists assigned to them.
 create or replace function ${fn("list_pick_lists")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -539,10 +563,6 @@ as $$
 declare
   v_filters jsonb := coalesce(list_pick_lists.filters, '{}'::jsonb);
   ${listDeclare(list_list_pick_lists)}
-  v_wave text := nullif(v_filters ->> 'waveId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_doc_type text := nullif(v_filters ->> 'documentType', '');
-  v_doc_id text := nullif(v_filters ->> 'documentId', '');
   v_all boolean := ${q.allowed("list_pick_lists.tenant", q.read)};
 begin
   ${listBody(list_list_pick_lists)}

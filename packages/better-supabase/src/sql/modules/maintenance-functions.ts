@@ -1,7 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { MaintenanceSql } from "./maintenance-sql.ts";
 
-import { listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  filterFirst,
+  filterFlag,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { triggerGrant, userGrant } from "../shared.ts";
 import { maintenanceSql } from "./maintenance-sql.ts";
 import {
@@ -406,13 +412,28 @@ function calibrationFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
     alias: "x",
     where: [
       `x.${c("tenant")} = list_calibrations.tenant`,
-      `(v_asset is null or x.${c("asset")} = v_asset)`,
-      `(v_due is null or x.${c("dueAt")} <= v_due)`,
+      filterAny("assetId", `x.${c("asset")}`, "uuid"),
+      `(${filterFirst("dueBefore")} is null or x.${c("dueAt")} <= (${filterFirst("dueBefore")})::timestamptz)`,
     ],
     keys: [
       { expr: `x.${c("performedAt")}`, dir: "desc", type: "timestamptz" },
       { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      performedAt: [
+        { expr: `x.${c("performedAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+      dueAt: [
+        {
+          expr: `coalesce(x.${c("dueAt")}, 'infinity'::timestamptz)`,
+          dir: "asc",
+          type: "timestamptz",
+        },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { result: `x.${c("result")}` },
     rowJson: q.calibrationJson("x"),
     invalid: q.invalid,
   } as const;
@@ -478,8 +499,30 @@ end;
 $$;
 ${userGrant(`${fn("record_calibration")}(${idType}, jsonb)`)}
 
--- Calibrations, newest first. filters is { assetId, dueBefore, limit, after, offset, paged,
--- total, totalCap }.
+-- One calibration, as listed. Needs maintenance.read.
+create or replace function ${fn("get_calibration")}(calibration_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${calibrations};
+begin
+  select * into v_row from ${calibrations} x where x.${c("id")} = get_calibration.calibration_id;
+  if not found or not ${q.allowed(`v_row.${c("tenant")}`, q.read)} then
+    ${q.calibrationMissing}
+  end if;
+  return ${q.calibrationJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("get_calibration")}(uuid)`)}
+
+-- Calibrations, newest first. filters is { assetId (a value or a list of them),
+-- dueBefore, sort, direction, facet, count, limit, after, offset, paged, total,
+-- totalCap } (ADR 0749).
 create or replace function ${fn("list_calibrations")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -491,8 +534,6 @@ as $$
 declare
   v_filters jsonb := coalesce(list_calibrations.filters, '{}'::jsonb);
   ${listDeclare(list)}
-  v_asset uuid := (v_filters ->> 'assetId')::uuid;
-  v_due timestamptz := (v_filters ->> 'dueBefore')::timestamptz;
 begin
   if not ${q.allowed("list_calibrations.tenant", q.read)} then
     ${q.forbidden("not allowed to read maintenance")}
@@ -514,10 +555,10 @@ function dispatchFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
     alias: "x",
     where: [
       `x.${p("tenant")} = list_maintenance_plans.tenant`,
-      `(v_status is null or x.${p("status")} = v_status)`,
-      `(v_kind is null or x.${p("kind")} = v_kind)`,
-      `(v_asset is null or x.${p("asset")} = v_asset)`,
-      `(v_due is not true or (${planView(q, "x")} ->> 'due')::boolean)`,
+      filterAny("status", `x.${p("status")}`),
+      filterAny("kind", `x.${p("kind")}`),
+      filterAny("assetId", `x.${p("asset")}`, "uuid"),
+      `(not ${filterFlag("due")} or (${planView(q, "x")} ->> 'due')::boolean)`,
     ],
     keys: [
       {
@@ -527,14 +568,51 @@ function dispatchFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
       },
       { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      nextDueAt: [
+        {
+          expr: `coalesce(x.${p("nextDueAt")}, 'infinity'::timestamptz)`,
+          dir: "asc",
+          type: "timestamptz",
+        },
+        { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+      ],
+      title: [
+        { expr: `x.${p("title")}`, dir: "asc", type: "text" },
+        { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${p("status")}`, kind: `x.${p("kind")}` },
     rowJson: planView(q, "x"),
     invalid: q.invalid,
   } as const;
 
   const plansSql = `
+-- One plan with its parts and whether it is due now. Needs maintenance.read.
+create or replace function ${fn("get_maintenance_plan")}(plan_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${plans};
+begin
+  select * into v_row from ${plans} x where x.${p("id")} = get_maintenance_plan.plan_id;
+  if not found or not ${q.allowed(`v_row.${p("tenant")}`, q.read)} then
+    ${q.planMissing}
+  end if;
+  return ${planView(q, "v_row")};
+end;
+$$;
+${userGrant(`${fn("get_maintenance_plan")}(uuid)`)}
+
 -- Plans of an organization, soonest due first. filters is { status, kind,
--- assetId, due: true, limit, after, offset, paged, total, totalCap }. Each plan carries its parts and whether
--- it is due now.
+-- assetId (each a value or a list of them), due: true, sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap } (ADR 0749). Each plan
+-- carries its parts and whether it is due now.
 create or replace function ${fn("list_maintenance_plans")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -546,10 +624,6 @@ as $$
 declare
   v_filters jsonb := coalesce(list_maintenance_plans.filters, '{}'::jsonb);
   ${listDeclare(list_list_maintenance_plans)}
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_kind text := nullif(v_filters ->> 'kind', '');
-  v_asset uuid := (v_filters ->> 'assetId')::uuid;
-  v_due boolean := (v_filters ->> 'due')::boolean;
 begin
   if not ${q.allowed("list_maintenance_plans.tenant", q.read)} then
     ${q.forbidden("not allowed to read maintenance")}

@@ -153,7 +153,11 @@ export type {
 export type {
   BlockOptions,
   Count,
+  CountOptions,
   CursorPageOptions,
+  EntityList,
+  EntityListSurface,
+  FacetOptions,
   FacetResult,
   FacetValue,
   ListPage,

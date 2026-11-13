@@ -4,6 +4,7 @@ import type { DamEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDam } from "./dam.ts";
 import { damEvents } from "./events.ts";
+import { damUsageRightListSurface } from "./lists.ts";
 import { damUsageRightInputSchema } from "./schemas.ts";
 
 /** The `dam` block's manifest (ADR 0029). */
@@ -17,7 +18,10 @@ export const damBlock: BlockOf<"dam", typeof createDam, DamEvents> =
     recipes: [],
     category: "content",
     entities: {
-      dam_usage_right: { mutability: "state-machine" },
+      dam_usage_right: {
+        ...damUsageRightListSurface,
+        mutability: "state-machine",
+      },
       dam_rendition: { mutability: "append-only", emits: { create: true } },
     },
     description:
