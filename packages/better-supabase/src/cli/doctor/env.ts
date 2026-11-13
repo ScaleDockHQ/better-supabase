@@ -1,6 +1,7 @@
 import type { CliEnv } from "../env.ts";
 import type { Rule, TextFile } from "./rules.ts";
 
+import { ENV_VARIABLES, parseEnv } from "../../env/index.ts";
 import { errorText } from "../core/errors.ts";
 import { PROCESS_ENV } from "../env.ts";
 import {
@@ -69,7 +70,7 @@ const PREFIXES = [
  * CLI's own `SUPABASE_BIN` or `SUPABASE_ACCESS_TOKEN`.
  */
 const STACK_VARIABLE =
-  /(?:^|_)SUPABASE_(?:URL|PUBLISHABLE_KEY|SECRET_KEY|JWKS_URL|DB_URL|JWT_SECRET)$/;
+  /(?:^|_)SUPABASE_(?:URL|PUBLISHABLE_KEY|SECRET_KEY|JWKS(?:_URL)?|DB_URL|JWT_SECRET)$/;
 
 const exportsStackVariable = (
   shell: Readonly<Record<string, string | undefined>>,
@@ -123,8 +124,8 @@ export async function loadStackEnvCheck(
 }
 
 /**
- * Checks on env files and the variables the shell exports (BS501 to BS503 and
- * BS506).
+ * Checks on env files and the variables the shell exports (BS501 to BS503,
+ * BS506 and BS509).
  */
 export const ENV_RULES: readonly Rule[] = [
   {
@@ -188,13 +189,66 @@ export const ENV_RULES: readonly Rule[] = [
     title: "Exported Supabase variable differs from the running stack",
     description:
       "A SUPABASE_* variable exported in the shell has another value than the local stack, so the app talks to a stale stack (often another worktree's port). Values are redacted: host and port for URLs, a SHA-256 fingerprint for keys. Unset the variable, or start the app with `better-supabase dev run -- <cmd>`, which overrides it.",
-    check: ({ stackEnv }) =>
-      stackEnv === undefined || "skipped" in stackEnv
-        ? []
-        : staleVariables(stackEnv.shell, stackEnv.values).map((stale) => ({
-            target: stale.variable,
-            message: `${stale.message} Unset it or start the app with better-supabase dev run -- <cmd>.`,
-          })),
+    check: ({ stackEnv }) => {
+      if (stackEnv === undefined || "skipped" in stackEnv) {
+        return [];
+      }
+
+      const stale = staleVariables(stackEnv.shell, stackEnv.values).map(
+        (entry) => ({
+          target: entry.variable,
+          message: `${entry.message} Unset it or start the app with better-supabase dev run -- <cmd>.`,
+        }),
+      );
+
+      // SUPABASE_JWKS wins over SUPABASE_JWKS_URL, so inline keys from a
+      // hosted project reject every token the local stack signs.
+      const inlineKeys = stackEnv.shell["SUPABASE_JWKS"];
+
+      return inlineKeys === undefined || inlineKeys === ""
+        ? stale
+        : [
+            ...stale,
+            {
+              target: "SUPABASE_JWKS",
+              message:
+                "SUPABASE_JWKS is exported, so tokens verify against those keys instead of the running stack's SUPABASE_JWKS_URL. Unset it while you work against the local stack.",
+            },
+          ];
+    },
+  },
+  {
+    code: "BS509",
+    severity: "error",
+    title: "SUPABASE_JWKS does not parse",
+    description:
+      "SUPABASE_JWKS holds the project's signing keys inline, so the server verifies tokens without fetching the JWKS URL. loadEnv rejects a value that is not JSON or holds no key with a kty, and the server then fails to start. Fill it with the output of `curl <url>/auth/v1/.well-known/jwks.json`.",
+    check: (context) =>
+      context.envFiles.flatMap((file) =>
+        envEntries(file)
+          .filter(
+            (entry) => entry.key === "SUPABASE_JWKS" && entry.value !== "",
+          )
+          .flatMap((entry) => {
+            const result = parseEnv({ SUPABASE_JWKS: entry.value });
+
+            const issue = result.ok
+              ? undefined
+              : result.issues.find(
+                  (found) => found.variables === ENV_VARIABLES.jwks,
+                );
+
+            return issue === undefined
+              ? []
+              : [
+                  {
+                    message: `SUPABASE_JWKS in ${file.path} ${issue.message}. Fill it with the output of curl <url>/auth/v1/.well-known/jwks.json, or leave it empty to fetch SUPABASE_JWKS_URL.`,
+                    target: `${file.path}:${entry.key}`,
+                    location: { file: file.path, line: entry.line },
+                  },
+                ];
+          }),
+      ),
   },
   {
     code: "BS506",
