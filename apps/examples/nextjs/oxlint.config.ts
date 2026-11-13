@@ -27,6 +27,16 @@ export default defineConfig({
     // DOM-typed tsconfig can't type.
     "public/**",
   ],
+  jsPlugins: [
+    {
+      name: "i18n-extract",
+      specifier: "../../../scripts/oxlint/i18n-extract.ts",
+    },
+  ],
+  rules: {
+    // The message extractor skips a t(...) whose t is a parameter (EX-1602).
+    "i18n-extract/no-translator-parameter": "error",
+  },
   overrides: [
     {
       // The AI slices pass optional fields to block APIs under
