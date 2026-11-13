@@ -47,7 +47,7 @@ describe("BS399", () => {
   it("skips without a database and without the audit block", async () => {
     expect(await run(context(undefined))).toEqual([]);
     expect(
-      await run(context(database(PARTITION_HINT_ROWS * 5), ["webhooks-out"])),
+      await run(context(database(PARTITION_HINT_ROWS * 5), ["webhooks"])),
     ).toEqual([]);
   });
 

@@ -1,6 +1,6 @@
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:e9f120bd6a8dc1ed3c2d0e9d2a4931ff7677790f92c1c674a7c385ee0b2605c0
+-- @bsb-hash sha256:937c3626e7891a263db3cad7123ecd2dd444c6e9e15eefa827adc023134e09a1
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1758,6 +1758,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."payment_batch_items"
 create policy bsb_tenant_scope_delete on "better_supabase"."payment_batch_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_bank_account_index"
+  after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."bank_accounts"
+  for each row execute function "better_supabase"."search_index_row"('bank_account', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_transactions deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_transaction","event_prefix":"bank_transaction"}');

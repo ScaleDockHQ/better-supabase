@@ -31,6 +31,7 @@ export const referralsBlock: BlockOf<
       permissions: { read: "referrals.read", manage: "referrals.manage" },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.",
 });

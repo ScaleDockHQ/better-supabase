@@ -1,6 +1,6 @@
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:9cf467b98ed6b381f298d9d8bfe0c96571f3478d8835f16940f372895a63ec1a
+-- @bsb-hash sha256:0042c566ac805797dfc99fcdc48a51c34fc9aa827f87f4ac7fb6dec39109fcbc
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1253,6 +1253,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."advisory_vulnerabili
 create trigger "bsb_search_advisory_index"
   after insert or delete or update of "id", "tenant_id", "title", "tracking_id", "summary" on "better_supabase"."advisories"
   for each row execute function "better_supabase"."search_index_row"('advisory', 'id');
+create trigger "bsb_search_advisory_product_index"
+  after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."advisory_products"
+  for each row execute function "better_supabase"."search_index_row"('advisory_product', 'id');
 create trigger "bsb_search_vulnerability_index"
   after insert or delete or update of "id", "tenant_id", "vuln_id", "summary" on "better_supabase"."vulnerabilities"
   for each row execute function "better_supabase"."search_index_row"('vulnerability', 'id');

@@ -568,7 +568,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:f2a1989d8889e1eaad8fd78396217f0f2ce842fc9197fae0f158a527e54176a5
+-- @bsb-hash sha256:8845d8ff53d6ac09c47f7d9c210a8ae3663a9b1a874ab41fbbdae21c874b964f
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -937,6 +937,10 @@ as $$
     when 'incidents.manage' then 'incidents.manage'
     when 'incidents.read' then 'incidents.read'
     when 'incidents.write' then 'incidents.write'
+    when 'incoming-webhooks.create' then 'webhooks.manage'
+    when 'incoming-webhooks.delete' then 'webhooks.manage'
+    when 'incoming-webhooks.read' then 'webhooks.read'
+    when 'incoming-webhooks.update' then 'webhooks.manage'
     when 'inspections.manage' then 'inspections.manage'
     when 'inspections.read' then 'inspections.read'
     when 'inspections.write' then 'inspections.write'
@@ -1136,12 +1140,8 @@ as $$
     when 'warranty.decide' then 'warranty.decide'
     when 'warranty.read' then 'warranty.read'
     when 'warranty.write' then 'warranty.write'
-    when 'webhooks-in.create' then 'webhooks.manage'
-    when 'webhooks-in.delete' then 'webhooks.manage'
-    when 'webhooks-in.read' then 'webhooks.read'
-    when 'webhooks-in.update' then 'webhooks.manage'
-    when 'webhooks-out.manage' then 'webhooks.manage'
-    when 'webhooks-out.read' then 'webhooks.read'
+    when 'webhooks.manage' then 'webhooks.manage'
+    when 'webhooks.read' then 'webhooks.read'
     when 'workflow-editor.manage' then 'workflow_editor.manage'
     when 'workflow-editor.publish' then 'workflow_editor.publish'
     when 'workflow-editor.read' then 'workflow_editor.read'

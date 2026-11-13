@@ -19,6 +19,7 @@ export const enrichmentBlock: BlockOf<
   entities: {
     enrichment: { mutability: "append-only", emits: { create: false } },
   },
+  concerns: ["lifecycle"],
   description:
     "Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.",
   providers: [

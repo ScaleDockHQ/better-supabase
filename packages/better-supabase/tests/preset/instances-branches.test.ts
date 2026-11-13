@@ -39,7 +39,7 @@ describe("blockRequires", () => {
 
 describe("blockEntities", () => {
   it("lists renamable entities and skips global or unknown ones", () => {
-    expect(blockEntities("webhooks-out")).toEqual([
+    expect(blockEntities("webhooks")).toEqual([
       {
         key: "webhook_endpoint",
         table: "endpoints",
@@ -96,28 +96,23 @@ describe("withEntityName", () => {
   const base = presetOf("saas");
 
   it("sets, keeps siblings and resets to the default", () => {
-    const named = withEntityName(
-      base,
-      "webhooks-out",
-      "webhook_endpoint",
-      "hook",
-    );
+    const named = withEntityName(base, "webhooks", "webhook_endpoint", "hook");
 
-    expect(entityName(named, "webhooks-out", "webhook_endpoint")).toBe("hook");
+    expect(entityName(named, "webhooks", "webhook_endpoint")).toBe("hook");
 
-    const both = withEntityName(named, "webhooks-out", "other", "thing");
+    const both = withEntityName(named, "webhooks", "other", "thing");
 
-    expect(entityName(both, "webhooks-out", "webhook_endpoint")).toBe("hook");
-    expect(entityName(both, "webhooks-out", "other")).toBe("thing");
+    expect(entityName(both, "webhooks", "webhook_endpoint")).toBe("hook");
+    expect(entityName(both, "webhooks", "other")).toBe("thing");
 
-    const reset = withEntityName(both, "webhooks-out", "other", undefined);
+    const reset = withEntityName(both, "webhooks", "other", undefined);
 
-    expect(entityName(reset, "webhooks-out", "other")).toBeUndefined();
-    expect(entityName(reset, "webhooks-out", "webhook_endpoint")).toBe("hook");
+    expect(entityName(reset, "webhooks", "other")).toBeUndefined();
+    expect(entityName(reset, "webhooks", "webhook_endpoint")).toBe("hook");
 
     const fallback = withEntityName(
       named,
-      "webhooks-out",
+      "webhooks",
       "webhook_endpoint",
       "webhook_endpoint",
     );

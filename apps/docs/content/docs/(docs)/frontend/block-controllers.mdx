@@ -184,6 +184,23 @@ const { state } = useBlockController(createAnnouncementsController, {
 </template>
 ```
 
+## The trio every block has
+
+A block's frontend is three parts. The client is the block's `create<Name>`,
+which wraps the SQL functions as typed calls and takes `hooks`. The controller is
+the generic `createBlockQuery` and `createBlockMutation`, which call any method of
+any client and keep its state. The hooks are `useBlockQuery`, `useBlockMutation`
+and `useBlockEvent` (and the Vue, Svelte and Solid versions) over that controller.
+A block with its own UI state, such as bookings' slot picker, adds a bespoke
+controller in `client.ts` next to it.
+
+So a block only has to supply its client. `tests/blocks/client-trio.test.ts` fails
+for a block that declares an entity that changes after it is created but has no
+`create`. Three blocks are listed with the reason they have none: `credentials`
+(read through `vaultCredentials()`), `field-encryption` (used by the SQL read
+paths of the blocks that encrypt) and `impersonation` (started through the
+support session). The list can only shrink.
+
 ## Any block method
 
 Blocks without a controller of their own, and renamed blocks, use three
@@ -226,6 +243,27 @@ export function TaskList({ tasks, workspaceId }: Props) {
 `refetchOn` takes the client's `betterSupabase` (or anything with `events`)
 and the event types that make the read stale. `useBlockEvent` types each
 event's data from `blockEvents` in `blocks.generated.ts`.
+
+### One status for a list
+
+`blockListStatus(list)` turns the state of a read that returns rows into one
+union the list reads: `loading`, `empty`, `error` (with the `DbError`) or `ready`
+(with `rows`). Rows that are already loaded stay `ready` while the read runs
+again, and a failed read is `error` even when older rows exist. It uses no
+framework, so it works with the Vue, Svelte and Solid hooks too.
+
+```tsx
+const list = useBlockQuery(leave, "list", [{ organizationId }], {
+  refetchOn: blockRealtimeRefetch(leaveBlock, "leave_request", bsb),
+});
+const status = blockListStatus(list);
+```
+
+`blockRealtimeRefetch(block, entity, source)` returns the `refetchOn` for an
+entity whose manifest declares `realtime: true`, and `undefined` for one that
+does not, so the list subscribes only when the manifest says its changes reach
+clients. It listens to the block events that start with `<entity>.`, or to every
+event of the block when none does.
 
 ### Sharing reads through an engine
 

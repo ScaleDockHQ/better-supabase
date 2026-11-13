@@ -26,6 +26,7 @@ export const shareLinksBlock: BlockOf<
   entities: {
     share_link: { mutability: "state-machine", emits: { create: true } },
   },
+  concerns: ["lifecycle"],
   description:
     "Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.",
   recipes: ["share-link-dialog", "file-request-upload"],

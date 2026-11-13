@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 import type { ExpensesEvents } from "./events.ts";
 
+import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { expensesEvents } from "./events.ts";
 import { createExpenses } from "./expenses.ts";
@@ -36,6 +37,10 @@ export const expensesBlock: BlockOf<
     },
     expense_category: { mutability: "editable", emits: { update: false } },
   },
+  links: [
+    blockLink("project", "reference", "expense_line", "tasks", "project"),
+  ],
+  concerns: ["lifecycle", "search"],
   description:
     "Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.",
 });

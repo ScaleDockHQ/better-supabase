@@ -1,6 +1,6 @@
 import * as v from "valibot";
 
-/** `WEBHOOK_STATUSES` of the webhooks-out SQL module. */
+/** `WEBHOOK_STATUSES` of the webhooks SQL module. */
 export const WebhookStatus = v.picklist([
   "pending",
   "delivering",

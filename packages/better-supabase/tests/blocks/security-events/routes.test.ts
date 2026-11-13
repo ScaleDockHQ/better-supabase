@@ -292,7 +292,7 @@ describe("security-events transmitter methods", () => {
       }),
     );
 
-    expect(hints).toEqual(["SSF_REQUEST_INVALID", "ok"]);
+    expect(hints).toEqual(["SECURITY_EVENT_REQUEST_INVALID", "ok"]);
     const { transmitter } = await setup();
 
     const header = await transmitter.createStream({
@@ -317,9 +317,13 @@ describe("security-events transmitter methods", () => {
     ).toBeNull();
     expect(await transmitter.deleteStream(id).orThrow()).toBe(false);
     const status = await transmitter.setStatus({ id, status: "paused" });
-    expect(!status.ok && status.error.hint).toBe("SSF_STREAM_NOT_FOUND");
+    expect(!status.ok && status.error.hint).toBe(
+      "SECURITY_EVENT_STREAM_NOT_FOUND",
+    );
     const verify = await transmitter.verify({ id });
-    expect(!verify.ok && verify.error.hint).toBe("SSF_STREAM_NOT_FOUND");
+    expect(!verify.ok && verify.error.hint).toBe(
+      "SECURITY_EVENT_STREAM_NOT_FOUND",
+    );
   });
 
   it("purges with a retention in seconds", async () => {

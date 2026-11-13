@@ -25,6 +25,7 @@ export const consentsBlock: BlockOf<
       emits: { create: true, update: true },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.",
   recipes: ["consent-register"],

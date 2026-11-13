@@ -17,6 +17,18 @@ export const vercelMarketplaceBlock: BlockOf<
   options: { "vercel-marketplace": vercelMarketplaceSqlOptions },
   events: vercelMarketplaceEvents,
   create: createVercelMarketplace,
+  env: [
+    {
+      key: "VERCEL_MARKETPLACE_CLIENT_ID",
+      description:
+        "The integration's client id from the Vercel dashboard; createVercelMarketplace() checks it as the audience of SSO and webhook tokens.",
+    },
+    {
+      key: "VERCEL_MARKETPLACE_CLIENT_SECRET",
+      description:
+        "Server-only: the integration's client secret; it signs the webhook check and exchanges SSO codes.",
+    },
+  ],
   category: "developer",
   entities: {
     marketplace_installation: {

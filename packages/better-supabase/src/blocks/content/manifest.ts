@@ -26,6 +26,7 @@ export const contentBlock: BlockOf<
       emits: { create: true, update: true },
     },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.",
   schedules: [

@@ -37,6 +37,7 @@ export const bankingBlock: BlockOf<
       emits: { update: false, delete: false },
     },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.",
 });

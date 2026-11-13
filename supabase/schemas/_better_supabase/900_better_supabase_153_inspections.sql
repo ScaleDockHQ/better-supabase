@@ -1,6 +1,6 @@
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:53675bc1cc99b7c64466dd03209660ede2b64a4c9b4e35ed771dcd207689a342
+-- @bsb-hash sha256:04b64414e15fcab364197e2c46b7e70ad3559e4e21ed0bf63ab204602c470cae
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1616,6 +1616,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."inspection_findings"
 create trigger "bsb_search_inspection_index"
   after insert or delete or update of "id", "tenant_id", "title", "number", "scope", "summary" on "better_supabase"."inspections"
   for each row execute function "better_supabase"."search_index_row"('inspection', 'id');
+create trigger "bsb_search_inspection_program_index"
+  after insert or delete or update of "id", "tenant_id", "name", "archived_at" on "better_supabase"."inspection_programs"
+  for each row execute function "better_supabase"."search_index_row"('inspection_program', 'id');
+create trigger "bsb_search_inspection_finding_index"
+  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."inspection_findings"
+  for each row execute function "better_supabase"."search_index_row"('inspection_finding', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.inspections deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inspection","event_prefix":"inspection"}');

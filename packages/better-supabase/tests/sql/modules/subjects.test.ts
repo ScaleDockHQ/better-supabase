@@ -332,8 +332,8 @@ describe("subjectsOption with the registry", () => {
     ).toThrow(/"deal" is not a subject type in config\.recordTypes/);
   });
 
-  it("leaves webhooks-in without subjects unless it lists them", () => {
-    const sql = sqlOf(["webhooks-in"]);
+  it("leaves incoming-webhooks without subjects unless it lists them", () => {
+    const sql = sqlOf(["incoming-webhooks"]);
     expect(sql).not.toContain(`"public"."tasks"`);
   });
 

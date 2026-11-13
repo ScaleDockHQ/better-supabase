@@ -79,7 +79,7 @@ const NAMES: BlockSqlNames = {
 
 const guard = `
   if not (${SERVICE_CALLER}) then
-    ${fail("SSF_FORBIDDEN", "only the service role manages shared signals streams")}
+    ${fail("SECURITY_EVENT_FORBIDDEN", "only the service role manages shared signals streams")}
   end if;`;
 
 type StreamEvent =
@@ -114,7 +114,7 @@ function streamEvent(
   });
 }
 
-/** The webhooks-out names a push stream writes, when that module is installed. */
+/** The webhooks names a push stream writes, when that module is installed. */
 interface PushNames {
   readonly table: string;
   readonly col: (logical: string) => string;
@@ -124,15 +124,15 @@ interface PushNames {
 }
 
 function pushNames(ctx: BlockSqlContext): PushNames | undefined {
-  if (!ctx.installed("webhooks-out")) {
+  if (!ctx.installed("webhooks")) {
     return undefined;
   }
 
-  const w = ctx.of("webhooks-out");
+  const w = ctx.of("webhooks");
 
   if (!w.has("endpoints", "format")) {
     throw new TypeError(
-      "blocks.security-events: push streams need the webhooks-out endpoints format column",
+      "blocks.security-events: push streams need the webhooks endpoints format column",
     );
   }
 
@@ -254,7 +254,7 @@ function build(ctx: BlockSqlContext): string {
     update ${t} s set ${c("endpoint")} = v_endpoint where s.${c("id")} = v_row.${c("id")}
     returning s.* into v_row;`
     : `
-    ${fail("SSF_PUSH_UNAVAILABLE", "push delivery needs the webhooks-out module", "0A000")}`;
+    ${fail("SECURITY_EVENT_PUSH_UNAVAILABLE", "push delivery needs the webhooks module", "0A000")}`;
 
   const updatePush = push
     ? `
@@ -284,7 +284,7 @@ function build(ctx: BlockSqlContext): string {
 
   return `${schemaPreamble(ctx)}
 -- Shared Signals streams this app transmits on (OpenID SSF 1.0): one row per
--- receiver stream, pushed through a webhooks-out endpoint (RFC 8935) or
+-- receiver stream, pushed through a webhooks endpoint (RFC 8935) or
 -- polled (RFC 8936). ssf_events holds SETs to poll or held while paused;
 -- ssf_received is the receiver's replay table of (issuer, jti).
 create table if not exists ${t} (
@@ -324,7 +324,7 @@ create table if not exists ${r} (
 create index if not exists ssf_received_at_idx on ${r} (${rc("receivedAt")});${uniqueOverApp("received", ["issuer", "jti"])}
 ${lockTable(r)}
 
--- Creates a stream; a push stream gets a webhooks-out endpoint with format 'set'.
+-- Creates a stream; a push stream gets a webhooks endpoint with format 'set'.
 create or replace function ${fn("create_ssf_stream")}(id uuid, receiver text, tenant text, audience text[], delivery_method text, events_requested text[], events_delivered text[], description text default null, endpoint_url text default null, credential_ref jsonb default null)
 returns jsonb
 language plpgsql
@@ -445,7 +445,7 @@ declare
 begin${guard}
   select * into v_row from ${t} s where s.${c("id")} = queue_ssf_set.stream_id for update;
   if not found then
-    ${fail("SSF_STREAM_NOT_FOUND", "stream not found", "P0002")}
+    ${fail("SECURITY_EVENT_STREAM_NOT_FOUND", "stream not found", "P0002")}
   end if;
   if v_row.${c("status")} = 'disabled' then
     return 'dropped';
@@ -476,11 +476,11 @@ declare
   v_held record;
 begin${guard}
   if set_ssf_stream_status.status not in ('enabled', 'paused', 'disabled') then
-    ${fail("SSF_STATUS_INVALID", "status is enabled, paused or disabled", "22023")}
+    ${fail("SECURITY_EVENT_STATUS_INVALID", "status is enabled, paused or disabled", "22023")}
   end if;
   select ${statusText("s")} into v_previous from ${t} s where s.${c("id")} = set_ssf_stream_status.id for update;
   if not found then
-    ${fail("SSF_STREAM_NOT_FOUND", "stream not found", "P0002")}
+    ${fail("SECURITY_EVENT_STREAM_NOT_FOUND", "stream not found", "P0002")}
   end if;
   update ${t} s set ${c("status")} = ${ctx.cast("streams", "status", "set_ssf_stream_status.status")}${has("reason") ? `, ${c("reason")} = set_ssf_stream_status.reason` : ""}
   where s.${c("id")} = set_ssf_stream_status.id
@@ -541,10 +541,10 @@ declare
 begin${guard}
   select * into v_row from ${t} s where s.${c("id")} = poll_ssf_events.stream_id;
   if not found then
-    ${fail("SSF_STREAM_NOT_FOUND", "stream not found", "P0002")}
+    ${fail("SECURITY_EVENT_STREAM_NOT_FOUND", "stream not found", "P0002")}
   end if;
   if v_row.${c("method")} <> '${SSF_POLL}' then
-    ${fail("SSF_STREAM_NOT_POLL", "the stream is not delivered by polling", "22023")}
+    ${fail("SECURITY_EVENT_STREAM_NOT_POLL", "the stream is not delivered by polling", "22023")}
   end if;
   delete from ${e} q
   where q.${ev("stream")} = v_row.${c("id")}
@@ -579,7 +579,7 @@ declare
   v_noted boolean;
 begin${guard}
   if not exists (select 1 from ${t} s where s.${c("id")} = note_ssf_verification.stream_id) then
-    ${fail("SSF_STREAM_NOT_FOUND", "stream not found", "P0002")}
+    ${fail("SECURITY_EVENT_STREAM_NOT_FOUND", "stream not found", "P0002")}
   end if;
   update ${t} s set ${c("verifiedAt")} = now()
   where s.${c("id")} = note_ssf_verification.stream_id
@@ -694,9 +694,9 @@ export const SHARED_SIGNALS: BlockSqlDefinition = {
   name: "security-events",
   title: "Shared signals",
   description:
-    "OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.",
+    "OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.",
   requires: [],
-  integrates: ["webhooks-out", "outbox", "audit"],
+  integrates: ["webhooks", "outbox", "audit"],
   target: "schema",
   version: 1,
   names: NAMES,

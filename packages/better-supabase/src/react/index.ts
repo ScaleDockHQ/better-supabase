@@ -107,6 +107,16 @@ export type {
   BlockRefetchOn,
 } from "../blocks/block-controller.ts";
 
+export type {
+  BlockListStatus,
+  BlockRealtimeManifest,
+} from "../blocks/block-list-status.ts";
+
+export {
+  blockListStatus,
+  blockRealtimeRefetch,
+} from "../blocks/block-list-status.ts";
+
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
 
 export { tenantOf } from "../auth/tenant.ts";

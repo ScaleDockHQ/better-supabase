@@ -442,7 +442,7 @@ const TOPIC_PAGES: ReadonlyMap<string, string> = new Map([
 /**
  * Every block page sits in the folder for its manifest category, and every
  * block has a page. A page may be named after the block or one of its SQL
- * modules (`webhooks-out`), or be one of its `TOPIC_PAGES`.
+ * modules (`webhooks`), or be one of its `TOPIC_PAGES`.
  */
 function blockGroups(): string[] {
   const blocksDir = join(docs, "(blocks)/blocks");

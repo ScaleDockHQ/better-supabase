@@ -26,6 +26,7 @@ export const segmentsBlock: BlockOf<
       emits: { create: true, update: true, delete: true },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.",
 });

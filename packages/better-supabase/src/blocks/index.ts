@@ -170,6 +170,10 @@ export type {
   EntitySurface,
 } from "./entity-surface.ts";
 
+export { BLOCK_CONCERNS, blockLink } from "./composition.ts";
+
+export type { BlockConcern, BlockLink, BlockLinkKind } from "./composition.ts";
+
 export {
   dbTransport,
   rpcTransport,

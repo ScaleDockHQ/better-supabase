@@ -533,13 +533,13 @@ declare
   v_type text := ${s("type")};
 begin
   if not (auth.role() = 'service_role' or ${allowed("manage", s("subject_type"), s("tenant"))}) then
-    ${fail("FIELD_FORBIDDEN", "not allowed to set custom fields")}
+    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to set custom fields")}
   end if;
   if coalesce(trim(${s("key")}), '') = '' or coalesce(trim(${s("label")}), '') = '' or v_type is null or v_type not in (${CUSTOM_FIELD_TYPES.map((type) => sqlString(type)).join(", ")}) then
     ${fail("FIELD_INVALID", "a field needs a key, a label and a known type", "22023")}
   end if;
   if not (${customFieldValueCheck("v_type", `${s("value")} #>> '{}'`, ctx.schemaName)}) then
-    ${fail("FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
+    ${fail("CUSTOM_FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
   end if;
   if not (${check(s("subject_type"), s("subject_id"), s("tenant"))}) then
     ${fail("FIELD_SUBJECT_FORBIDDEN", "not allowed to set fields on this record")}
@@ -562,7 +562,7 @@ begin
       where v.${c("id")} = v_id;
     end if;
   exception when invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
-    ${fail("FIELD_VALUE_INVALID", "the value doesn't fit the field's type", "22023")}
+    ${fail("CUSTOM_FIELD_VALUE_INVALID", "the value doesn't fit the field's type", "22023")}
   end;
   ${ctx.record({
     type: "field_value.set",
@@ -619,10 +619,10 @@ begin
   select v.${c("tenant")}, ${removed.type}, ${removed.id} into v_tenant, v_type, v_subject
   from ${values} v where v.${c("id")} = delete_field_value.value_id;
   if not found then
-    ${fail("FIELD_VALUE_NOT_FOUND", "field value not found", "P0002")}
+    ${fail("CUSTOM_FIELD_VALUE_NOT_FOUND", "field value not found", "P0002")}
   end if;
   if not (auth.role() = 'service_role' or (${allowed("manage", "v_type", "v_tenant")} and ${check("v_type", "v_subject", "v_tenant")})) then
-    ${fail("FIELD_FORBIDDEN", "not allowed to delete this field value")}
+    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to delete this field value")}
   end if;
   delete from ${values} where ${c("id")} = delete_field_value.value_id;
   ${ctx.record({

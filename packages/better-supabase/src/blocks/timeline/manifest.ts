@@ -11,6 +11,7 @@ export const timelineBlock: BlockOf<"timeline", typeof createTimeline> =
     create: createTimeline,
     category: "collaboration",
     entities: { timeline_entry: { mutability: "read-only" } },
+    concerns: ["lifecycle"],
     description:
       "A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.",
     recipes: [],

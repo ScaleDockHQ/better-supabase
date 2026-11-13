@@ -137,6 +137,16 @@ export type {
   BlockRefetchOn,
 } from "../blocks/block-controller.ts";
 
+export type {
+  BlockListStatus,
+  BlockRealtimeManifest,
+} from "../blocks/block-list-status.ts";
+
+export {
+  blockListStatus,
+  blockRealtimeRefetch,
+} from "../blocks/block-list-status.ts";
+
 const SESSION: InjectionKey<MaybeRefOrGetter<AuthSession>> = Symbol(
   "better-supabase-session",
 );

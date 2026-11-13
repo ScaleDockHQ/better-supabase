@@ -7,6 +7,7 @@ import type { ResolvedSubject, Subjects } from "./subjects.ts";
 import { subjectKey } from "../../core/block-subjects.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { defineController, whileSignedIn } from "../controller.ts";
+import { labelsOf } from "./subjects.ts";
 
 type Resolved = Readonly<Record<string, ResolvedSubject>>;
 
@@ -35,7 +36,8 @@ export function batchSubjects(source: Subjects): Subjects {
     });
   };
 
-  return {
+  const batched: Subjects = {
+    label: (refs) => labelsOf((each) => batched.resolve(each), refs),
     summary: ({ subject, sections, ...options }) =>
       source.summary({ subject, sections, ...options }),
     can: (input) => source.can(input),
@@ -84,6 +86,8 @@ export function batchSubjects(source: Subjects): Subjects {
           }),
       ),
   };
+
+  return batched;
 }
 
 export interface SubjectsControllerOptions {

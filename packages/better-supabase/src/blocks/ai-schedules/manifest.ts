@@ -27,6 +27,7 @@ export const aiSchedulesBlock: BlockOf<
   create: createAiSchedules,
   category: "ai",
   entities: { ai_scheduled_task: { mutability: "read-only" } },
+  concerns: ["lifecycle"],
   description:
     "Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.",
   recipes: ["ai-task-queue"],

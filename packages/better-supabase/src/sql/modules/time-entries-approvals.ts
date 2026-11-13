@@ -134,7 +134,7 @@ begin
     where x.${e("tenant")} = submit_timesheet.tenant and x.${e("user")} = v_me and ${running("x")}
       and ${weekOf(`x.${e("startedAt")}`, `x.${e("user")}`)} = v_week
   ) then
-    ${fail("TIMESHEET_TIMER_RUNNING", "stop the running timer before submitting this week", "55000")}
+    ${fail("TIME_ENTRIES_TIMESHEET_TIMER_RUNNING", "stop the running timer before submitting this week", "55000")}
   end if;
   insert into ${timesheets} (${t("tenant")}, ${t("user")}, ${t("week")})
   values (submit_timesheet.tenant, v_me, v_week)
@@ -143,11 +143,11 @@ begin
     where s.${t("tenant")} = submit_timesheet.tenant and s.${t("user")} = v_me and s.${t("week")} = v_week
     for update;
   if v_sheet.${t("approvedAt")} is not null then
-    ${fail("TIMESHEET_APPROVED", "this week is already approved", "55000")}
+    ${fail("TIME_ENTRIES_TIMESHEET_APPROVED", "this week is already approved", "55000")}
   end if;
   select * into v_approval from ${ar} x where x.${a("id")} = v_sheet.${t("approval")};
   if v_approval.${a("status")} = 'pending' then
-    ${fail("TIMESHEET_SUBMITTED", "this week is already waiting for approval", "55000")}
+    ${fail("TIME_ENTRIES_TIMESHEET_SUBMITTED", "this week is already waiting for approval", "55000")}
   end if;
   ${ctx.hook("before_timesheet_submit", [
     ["uuid", `v_sheet.${t("id")}`],
@@ -217,7 +217,7 @@ begin
     ${forbidden("not allowed to reopen timesheets")}
   end if;
   if v_sheet.${t("approvedAt")} is null then
-    ${fail("TIMESHEET_NOT_APPROVED", "only an approved week can be reopened", "55000")}
+    ${fail("TIME_ENTRIES_TIMESHEET_NOT_APPROVED", "only an approved week can be reopened", "55000")}
   end if;
   update ${timesheets} s set ${t("approvedAt")} = null, ${t("approval")} = null, ${t("submittedAt")} = null
     where s.${t("id")} = v_sheet.${t("id")}

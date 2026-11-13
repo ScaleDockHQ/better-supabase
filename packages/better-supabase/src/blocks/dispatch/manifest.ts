@@ -39,6 +39,7 @@ export const dispatchBlock: BlockOf<
       emits: { create: false, delete: false },
     },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.",
   recipes: ["dispatch-board", "technician-day"],

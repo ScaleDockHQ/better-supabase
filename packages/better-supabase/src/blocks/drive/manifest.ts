@@ -27,6 +27,7 @@ export const driveBlock: BlockOf<
   entities: {
     drive_node: { mutability: "state-machine", emits: { create: true } },
   },
+  concerns: ["lifecycle"],
   description:
     "Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.",
   recipes: [

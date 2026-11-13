@@ -225,7 +225,7 @@ export function createDomainsAdmin(options: DomainsAdminOptions): DomainsAdmin {
         if (found === undefined) {
           return err(
             dbError("not_found", "No hostname has this id", {
-              hint: "HOSTNAME_NOT_FOUND",
+              hint: "DOMAIN_NOT_FOUND",
             }),
           );
         }
@@ -244,7 +244,7 @@ export function createDomainsAdmin(options: DomainsAdminOptions): DomainsAdmin {
               dbError(
                 "invalid_request",
                 `No TXT record ${found.record.name} with the verification value yet`,
-                { hint: "HOSTNAME_RECORD_MISSING" },
+                { hint: "DOMAIN_RECORD_MISSING" },
               ),
             );
           }

@@ -961,6 +961,8 @@
   "./react": {
     "values": [
       "BetterSupabaseProvider",
+      "blockListStatus",
+      "blockRealtimeRefetch",
       "can",
       "createHooks",
       "createRecordProvider",
@@ -1022,6 +1024,7 @@
       "BetterSupabaseProviderProps",
       "BlockEngineOptions",
       "BlockEventSource",
+      "BlockListStatus",
       "BlockMutationActions",
       "BlockMutationOptions",
       "BlockMutationState",
@@ -1029,6 +1032,7 @@
       "BlockQueryActions",
       "BlockQueryOptions",
       "BlockQueryState",
+      "BlockRealtimeManifest",
       "BlockRefetchOn",
       "BroadcastOptions",
       "ClaimsOf",
@@ -2290,6 +2294,8 @@
   "./vue": {
     "values": [
       "betterSupabase",
+      "blockListStatus",
+      "blockRealtimeRefetch",
       "createBindings",
       "defineDataHooks",
       "defineListHook",
@@ -2325,6 +2331,7 @@
       "BetterSupabaseVueOptions",
       "BlockEngineOptions",
       "BlockEventSource",
+      "BlockListStatus",
       "BlockMutationActions",
       "BlockMutationOptions",
       "BlockMutationState",
@@ -2333,6 +2340,7 @@
       "BlockQueryActions",
       "BlockQueryOptions",
       "BlockQueryState",
+      "BlockRealtimeManifest",
       "BlockRefetchOn",
       "BroadcastOptions",
       "ClaimsOf",
@@ -2359,6 +2367,8 @@
   "./solid": {
     "values": [
       "BetterSupabaseProvider",
+      "blockListStatus",
+      "blockRealtimeRefetch",
       "createBindings",
       "defineDataHooks",
       "defineListHook",
@@ -2392,6 +2402,7 @@
       "BetterSupabaseProviderProps",
       "BlockEngineOptions",
       "BlockEventSource",
+      "BlockListStatus",
       "BlockMutationActions",
       "BlockMutationOptions",
       "BlockMutationState",
@@ -2400,6 +2411,7 @@
       "BlockQueryActions",
       "BlockQueryOptions",
       "BlockQueryState",
+      "BlockRealtimeManifest",
       "BlockRefetchOn",
       "BroadcastOptions",
       "ClaimsOf",
@@ -2427,6 +2439,8 @@
   "./svelte": {
     "values": [
       "betterSupabase",
+      "blockListStatus",
+      "blockRealtimeRefetch",
       "createBetterSvelte",
       "defineDataHooks",
       "defineListHook",
@@ -2460,6 +2474,7 @@
       "BetterSvelteOptions",
       "BlockEngineOptions",
       "BlockEventSource",
+      "BlockListStatus",
       "BlockMutationActions",
       "BlockMutationOptions",
       "BlockMutationState",
@@ -2468,6 +2483,7 @@
       "BlockQueryActions",
       "BlockQueryOptions",
       "BlockQueryState",
+      "BlockRealtimeManifest",
       "BlockRefetchOn",
       "BroadcastOptions",
       "ClaimsOf",
@@ -2801,9 +2817,11 @@
   "./blocks": {
     "values": [
       "BLOCK_CATEGORIES",
+      "BLOCK_CONCERNS",
       "BLOCK_EVENT_SOURCE",
       "blockFields",
       "blockHint",
+      "blockLink",
       "blockNames",
       "blockOptions",
       "blockRead",
@@ -2848,6 +2866,7 @@
       "BlockCategory",
       "BlockClientOptions",
       "BlockClientSource",
+      "BlockConcern",
       "BlockConsumes",
       "BlockContext",
       "BlockDefinition",
@@ -2861,6 +2880,8 @@
       "BlockHookInfo",
       "BlockHooks",
       "BlockInvalidates",
+      "BlockLink",
+      "BlockLinkKind",
       "BlockMap",
       "BlockMessages",
       "BlockMethodHooks",
@@ -3319,7 +3340,7 @@
     "types": [
       "BucketUnit",
       "DateBucket",
-      "DateBucketArgs",
+      "DateBucketOptions",
       "ListDateBucketsOptions"
     ]
   },
@@ -3584,12 +3605,15 @@
   "./recurrence": {
     "values": [
       "expandRule",
+      "formatRrule",
+      "parseRrule",
       "rruleOccurrences",
       "weekdayName"
     ],
     "types": [
       "ExpandInput",
-      "OccurrencesInput"
+      "OccurrencesInput",
+      "RecurrenceRule"
     ]
   },
   "./generators/zod": {
@@ -3980,9 +4004,12 @@
   "./blocks/subjects": {
     "values": [
       "batchSubjects",
+      "createPartyResolver",
       "createSubjects",
       "createSubjectsController",
       "dbTransport",
+      "initialsOf",
+      "labelsOf",
       "MY_SUBJECTS_LIMIT",
       "MY_WORK_KINDS",
       "MY_WORK_LIMIT",
@@ -4003,10 +4030,18 @@
       "MyTask",
       "MyWorkKind",
       "MyWorkOptions",
+      "Party",
+      "PartyLabel",
+      "PartyLabeler",
+      "PartyProfile",
+      "PartyReader",
+      "PartyResolver",
+      "PartyResolverOptions",
       "RecordRef",
       "ResolvedSubject",
       "SubjectAccessedEventData",
       "SubjectAccessLogOptions",
+      "SubjectLabel",
       "SubjectMember",
       "SubjectMemberEventData",
       "SubjectMemberInput",
@@ -7027,6 +7062,39 @@
       "RuleVersion",
       "RuleWebhooks",
       "RuleWorkflows"
+    ]
+  },
+  "./blocks/field-encryption": {
+    "values": [
+      "createFieldEncryption",
+      "fieldEncryptionBlock",
+      "fieldEncryptionEvents",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "FieldEncryption",
+      "FieldEncryptionEvents",
+      "FieldEncryptionOptions",
+      "FieldKeyStatus"
+    ]
+  },
+  "./blocks/impersonation": {
+    "values": [
+      "createImpersonation",
+      "impersonationBlock",
+      "impersonationEvents",
+      "sqlTransport"
+    ],
+    "types": [
+      "BlockTransport",
+      "Impersonation",
+      "ImpersonationEvents",
+      "ImpersonationOptions",
+      "ImpersonationRequest",
+      "ImpersonationSession",
+      "ImpersonationTarget",
+      "SupportSessionEndedBy"
     ]
   },
   "./blocks/vercel-marketplace": {

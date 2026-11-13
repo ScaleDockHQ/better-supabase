@@ -29,6 +29,7 @@ export const catalogBlock: BlockOf<
       emits: { create: true, update: true, delete: true },
     },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.",
   recipes: ["product-catalog-grid"],

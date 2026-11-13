@@ -419,7 +419,7 @@ await jobs
 | Probe                                           | Module          | True when                                                      |
 | ----------------------------------------------- | --------------- | -------------------------------------------------------------- |
 | `better_supabase.outbox_has_work()`             | `outbox`        | A consumer that is not backing off has events after its cursor |
-| `better_supabase.webhook_deliveries_has_work()` | `webhooks-out`  | A delivery is due and not leased                               |
+| `better_supabase.webhook_deliveries_has_work()` | `webhooks`      | A delivery is due and not leased                               |
 | `better_supabase.webhook_inbox_has_work()`      | `webhook-inbox` | An inbox message is ready to claim                             |
 
 `schedule_job` rejects a probe that is not a function without arguments

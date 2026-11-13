@@ -31,6 +31,7 @@ import { formatReport, jsonReport } from "../doctor/format.ts";
 import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
 import {
   ENV_FILES,
+  readGitignores,
   readText,
   dataFiles,
   functionFiles,
@@ -448,7 +449,7 @@ export async function runDoctor(
           await sqlFiles(config.root, toml, sqlWorkflow(config, toml)),
         ] as const,
     ),
-    readText(config.root, ".gitignore"),
+    readGitignores(config.root),
     sourceFiles(config),
     compiledReadSets(config).catch((cause: unknown) => ({
       skipped: errorText(cause),
@@ -497,7 +498,7 @@ export async function runDoctor(
     functionFiles: await functionFiles(config.root, configToml),
     configToml,
     envFiles,
-    gitignore: gitignore?.text ?? "",
+    gitignore,
     sources,
     readSets,
     peers,

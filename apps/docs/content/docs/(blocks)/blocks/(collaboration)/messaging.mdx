@@ -273,7 +273,7 @@ which writes `hooks/use-messaging.ts` into the app.
 
 The block writes `conversation.created`, `conversation.archived`,
 `conversation.member_added`, `conversation.member_removed`, `message.sent`,
-`message.edited`, `message.deleted`, `message.pinned` and `message.resolved`
+`message.updated`, `message.deleted`, `message.pinned` and `message.resolved`
 to the [outbox](/docs/blocks/outbox). Their payloads name the subject with
 `subjectType` and `subjectId`; see [Events](/docs/extending/events).
 

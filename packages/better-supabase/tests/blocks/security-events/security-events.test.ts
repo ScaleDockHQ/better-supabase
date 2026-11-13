@@ -458,7 +458,9 @@ describe("security-events receiver", () => {
     });
 
     const result = await receiver.discover();
-    expect(!result.ok && result.error.hint).toBe("SSF_ISSUER_MISMATCH");
+    expect(!result.ok && result.error.hint).toBe(
+      "SECURITY_EVENT_ISSUER_MISMATCH",
+    );
   });
 
   it("creates a stream through the management API and checks its aud", async () => {
@@ -486,6 +488,8 @@ describe("security-events receiver", () => {
       .streams("Bearer rx")
       .create({ method: "poll", eventsRequested: [] });
 
-    expect(!wrong.ok && wrong.error.hint).toBe("SSF_AUDIENCE_MISMATCH");
+    expect(!wrong.ok && wrong.error.hint).toBe(
+      "SECURITY_EVENT_AUDIENCE_MISMATCH",
+    );
   });
 });

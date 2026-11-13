@@ -93,6 +93,7 @@ import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { activitiesBlock } from "better-supabase/blocks/activities";
 import { entitlementsBlock } from "better-supabase/blocks/entitlements";
+import { fieldEncryptionBlock } from "better-supabase/blocks/field-encryption";
 import { flagsBlock } from "better-supabase/blocks/flags";
 import { formsBlock } from "better-supabase/blocks/forms";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
@@ -151,6 +152,7 @@ import { slaBlock } from "better-supabase/blocks/sla";
 import { ssoBlock } from "better-supabase/blocks/sso";
 import { stateMachineBlock } from "better-supabase/blocks/state-machine";
 import { subjectsBlock } from "better-supabase/blocks/subjects";
+import { impersonationBlock } from "better-supabase/blocks/impersonation";
 import { tagsBlock } from "better-supabase/blocks/tags";
 import { goalsBlock } from "better-supabase/blocks/goals";
 import { teamsBlock } from "better-supabase/blocks/teams";
@@ -260,6 +262,7 @@ export const blockSet = defineBlocks(blockConfig, {
   employees: employeesBlock,
   activities: activitiesBlock,
   entitlements: entitlementsBlock,
+  fieldEncryption: fieldEncryptionBlock,
   flags: flagsBlock,
   forms: formsBlock,
   signatures: signaturesBlock,
@@ -318,6 +321,7 @@ export const blockSet = defineBlocks(blockConfig, {
   sso: ssoBlock,
   stateMachine: stateMachineBlock,
   subjects: subjectsBlock,
+  impersonation: impersonationBlock,
   tags: tagsBlock,
   goals: goalsBlock,
   teams: teamsBlock,

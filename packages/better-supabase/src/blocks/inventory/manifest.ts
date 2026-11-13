@@ -27,6 +27,7 @@ export const inventoryBlock: BlockOf<
     },
     inventory_receipt: { mutability: "append-only", emits: { create: true } },
   },
+  concerns: ["lifecycle"],
   description:
     "Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.",
   recipes: ["inventory-table"],

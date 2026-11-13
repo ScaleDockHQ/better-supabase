@@ -53,6 +53,7 @@ export const carePlansBlock: BlockOf<
       emits: { create: true },
     },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.",
   schedules: [

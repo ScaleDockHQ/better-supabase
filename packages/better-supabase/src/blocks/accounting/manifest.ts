@@ -43,6 +43,7 @@ export const accountingBlock: BlockOf<
       emits: { create: true, update: true },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.",
 });

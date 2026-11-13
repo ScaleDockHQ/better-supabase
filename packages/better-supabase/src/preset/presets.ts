@@ -851,13 +851,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     description:
       "SaaS plus outgoing webhooks, usage metering, service principals and signing keys.",
     group: "platforms",
-    blocks: [
-      ...SAAS,
-      "webhooks-out",
-      "usage",
-      "service-accounts",
-      "signing-keys",
-    ],
+    blocks: [...SAAS, "webhooks", "usage", "service-accounts", "signing-keys"],
   },
   automation: {
     name: "automation",
@@ -870,7 +864,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "workflow-editor",
       "workflows",
       "queue",
-      "webhooks-out",
+      "webhooks",
       "connectors",
       "credentials",
       "automations",

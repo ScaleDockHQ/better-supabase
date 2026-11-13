@@ -369,7 +369,7 @@ function build(ctx: BlockSqlContext): string {
   );
 
   const timesheetNotFound = fail(
-    "TIMESHEET_NOT_FOUND",
+    "TIME_ENTRIES_TIMESHEET_NOT_FOUND",
     "timesheet not found",
     "P0002",
   );

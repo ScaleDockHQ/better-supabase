@@ -107,7 +107,7 @@ const VARIANTS: readonly Variant[] = [
 const KEEPS_TENANT: ReadonlySet<string> = new Set([
   "credentials",
   "webhook-inbox",
-  "webhooks-in",
+  "incoming-webhooks",
 ]);
 
 /**
@@ -124,7 +124,7 @@ function tenantColumns(module: string): Record<string, { tenant: string }> {
 
 /** Options a module refuses to render over the app's tables without. */
 const OVER_APP_OPTIONS: Record<string, { options: Record<string, unknown> }> = {
-  "webhooks-out": { options: { defaultFormat: "standard" } },
+  webhooks: { options: { defaultFormat: "standard" } },
 };
 
 type Rendered = ReturnType<typeof renderBlocks> | { readonly error: unknown };

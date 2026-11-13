@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 import type { DealsEvents } from "./events.ts";
 
+import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDeals } from "./deals.ts";
 import { dealsEvents } from "./events.ts";
@@ -24,6 +25,11 @@ export const dealsBlock: BlockOf<"deals", typeof createDeals, DealsEvents> =
         emits: { create: true, update: true, delete: true },
       },
     },
+    links: [
+      blockLink("contact", "reference", "deal", "contacts", "person"),
+      blockLink("company", "reference", "deal", "contacts", "company"),
+    ],
+    concerns: ["lifecycle", "search"],
     description:
       "Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.",
     recipes: ["deal-board"],

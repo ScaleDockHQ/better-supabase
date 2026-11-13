@@ -6,6 +6,7 @@ import type {
 } from "../core/automation.ts";
 import type { EventMap, Events } from "../core/block-events.ts";
 import type { PresetSubjectOptions } from "../preset/fields.ts";
+import type { BlockConcern, BlockLink } from "./composition.ts";
 import type { BlockContext } from "./create-blocks.ts";
 import type { BlockSchemas } from "./entity-schema.ts";
 import type { BlockEntities } from "./entity-surface.ts";
@@ -151,6 +152,16 @@ export interface BlockDefinition<
    */
   readonly entities?: BlockEntities;
   /**
+   * The links from this block's entities to other blocks' entities (ADR 0196,
+   * 0830). `NAMES.links` of the SQL module holds the same list.
+   */
+  readonly links?: readonly BlockLink[];
+  /**
+   * The row-level concerns the block's tables take part in beyond audit and
+   * events: `history`, `lifecycle`, `realtime`, `search`.
+   */
+  readonly concerns?: readonly BlockConcern[];
+  /**
    * The read methods each event pattern (`"task.*"`) makes stale, for
    * `invalidateOnBlockEvents`. An event no pattern matches makes every read
    * method of the block stale.
@@ -240,6 +251,10 @@ export interface Block<
   readonly schemas: BlockSchemas;
   /** What each entity declares about itself, by entity key. */
   readonly entities: BlockEntities;
+  /** The links to other blocks' entities. */
+  readonly links: readonly BlockLink[];
+  /** The row-level concerns beyond audit and events. */
+  readonly concerns: readonly BlockConcern[];
   /**
    * The read methods each event pattern (`"task.*"`) makes stale, for
    * `invalidateOnBlockEvents`. An event no pattern matches makes every read
@@ -310,6 +325,8 @@ export interface AnyBlock {
   readonly recipes: readonly string[];
   readonly schemas?: BlockSchemas;
   readonly entities?: BlockEntities;
+  readonly links?: readonly BlockLink[];
+  readonly concerns?: readonly BlockConcern[];
   readonly invalidates?: BlockInvalidates;
   readonly record?: AnyRecordBinding | undefined;
   readonly extension?: string | undefined;
@@ -425,6 +442,8 @@ function blockOf<
     recipes: parts.recipes ?? [],
     schemas: parts.schemas ?? {},
     entities: parts.entities ?? {},
+    links: parts.links ?? [],
+    concerns: parts.concerns ?? [],
     invalidates: parts.invalidates ?? {},
     record: parts.record,
     extension: parts.extension,

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { glob, readdir, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import type { ResolvedConfig, SqlWorkflow } from "../../config/index.ts";
 import type { TextFile } from "../doctor/rules.ts";
@@ -30,6 +30,34 @@ export async function readText(
   return existsSync(absolute)
     ? { path, text: await readFile(absolute, "utf-8") }
     : undefined;
+}
+
+/**
+ * The `.gitignore` rules that apply to `root`: its own file, then each parent
+ * folder's up to the repository root (the folder with `.git`). An app in a
+ * monorepo is covered by the root file's `.env*`.
+ */
+export async function readGitignores(root: string): Promise<string> {
+  const texts: string[] = [];
+  let folder = resolve(root);
+
+  for (;;) {
+    const file = await readText(folder, ".gitignore");
+
+    if (file) {
+      texts.push(file.text);
+    }
+
+    const parent = dirname(folder);
+
+    if (existsSync(resolve(folder, ".git")) || parent === folder) {
+      break;
+    }
+
+    folder = parent;
+  }
+
+  return texts.join("\n");
 }
 
 /**

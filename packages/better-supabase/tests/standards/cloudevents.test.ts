@@ -147,7 +147,7 @@ describe("CloudEvents 1.0", () => {
   });
 });
 
-describe("CloudEvents 1.0 from webhooks-out", () => {
+describe("CloudEvents 1.0 from webhooks", () => {
   const TRACE = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
   const claimed = (batch: boolean) =>

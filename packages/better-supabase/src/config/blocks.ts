@@ -78,6 +78,15 @@ export interface EntityConfig<Columns extends string = string> {
   /** `false` keeps the entity out of `config.recordTypes`. */
   readonly subject?: false;
   /**
+   * What the entity's subject registers for search (ADR 0831). The block's
+   * default is the subject's title column and the body columns its manifest
+   * entity names; `title` and `body` replace them with logical columns of the
+   * entity's table, and `false` keeps the subject out of search.
+   */
+  readonly search?:
+    | false
+    | { readonly title?: Columns; readonly body?: readonly Columns[] };
+  /**
    * The record team of the subject the entity registers, as
    * `subjects.<type>.team` sets it for a type of your own: the users and teams
    * on a record's team get `actions` on it.
