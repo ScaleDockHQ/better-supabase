@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:890f620dd772bb3e039e99edcd7ae27439c4701c8ca587fe79f33f143ce00f92
+-- @bsb-hash sha256:a8091de4a34889c34c84f74132f6fa3714ab4ef5ac456cbaab0198500fdb7362
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -329,21 +329,214 @@ $$;
 revoke execute on function "better_supabase"."get_legal_entity"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_legal_entity"(uuid) to authenticated, service_role;
 
--- The default entity first, then by code.
-create or replace function "better_supabase"."list_legal_entities"(tenant uuid, include_archived boolean default false)
+-- The default entity first, then by code. filters is { includeArchived, isDefault,
+-- sort, direction, facet, count, limit, after, offset, paged, total, totalCap }
+-- (ADR 0749); includeArchived takes true, and archived entities stay out
+-- without it.
+create or replace function "better_supabase"."list_legal_entities"(tenant uuid, filters jsonb default '{}')
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'address', x."address", 'vatNumber', x."vat_number", 'cocNumber', x."coc_number", 'iban', x."iban", 'bic', x."bic", 'logoAttachmentId', x."logo_attachment_id", 'defaultCurrency', x."default_currency", 'fiscal', x."fiscal", 'isDefault', x."is_default", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."is_default" desc, x."code"), '[]'::jsonb)
-  from "better_supabase"."legal_entities" x
-  where x."tenant_id" = list_legal_entities.tenant
-    and (coalesce(list_legal_entities.include_archived, false) or x."archived_at" is null)
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_legal_entities.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 200), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'LEGAL_ENTITY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('isDefault') then
+      raise exception 'facet is one of isDefault' using errcode = '22023', hint = 'LEGAL_ENTITY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'isDefault' then (x."is_default")::text end) as v
+      from "better_supabase"."legal_entities" x
+      where x."tenant_id" = list_legal_entities.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."legal_entities" x
+      where x."tenant_id" = list_legal_entities.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('code', 'name') then
+    raise exception 'sort is one of code, name' using errcode = '22023', hint = 'LEGAL_ENTITY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'LEGAL_ENTITY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LEGAL_ENTITY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'address', x."address", 'vatNumber', x."vat_number", 'cocNumber', x."coc_number", 'iban', x."iban", 'bic', x."bic", 'logoAttachmentId', x."logo_attachment_id", 'defaultCurrency', x."default_currency", 'fiscal', x."fiscal", 'isDefault', x."is_default", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."is_default")::text, (x."code")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."legal_entities" x
+      where x."tenant_id" = list_legal_entities.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (v_after is null or (x."is_default", x."code", x."id") > ((v_after ->> 0)::boolean, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."is_default" asc, x."code" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LEGAL_ENTITY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'address', x."address", 'vatNumber', x."vat_number", 'cocNumber', x."coc_number", 'iban', x."iban", 'bic', x."bic", 'logoAttachmentId', x."logo_attachment_id", 'defaultCurrency', x."default_currency", 'fiscal', x."fiscal", 'isDefault', x."is_default", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."is_default")::text, (x."code")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."legal_entities" x
+      where x."tenant_id" = list_legal_entities.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (v_after is null or (x."is_default" <= (v_after ->> 0)::boolean and ((x."is_default" < (v_after ->> 0)::boolean) or (x."is_default" = (v_after ->> 0)::boolean and x."code" > (v_after ->> 1)::text) or (x."is_default" = (v_after ->> 0)::boolean and x."code" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."is_default" desc, x."code" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'code' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LEGAL_ENTITY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'address', x."address", 'vatNumber', x."vat_number", 'cocNumber', x."coc_number", 'iban', x."iban", 'bic', x."bic", 'logoAttachmentId', x."logo_attachment_id", 'defaultCurrency', x."default_currency", 'fiscal', x."fiscal", 'isDefault', x."is_default", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."code")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."legal_entities" x
+      where x."tenant_id" = list_legal_entities.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (v_after is null or (x."code", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."code" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'code' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LEGAL_ENTITY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'address', x."address", 'vatNumber', x."vat_number", 'cocNumber', x."coc_number", 'iban', x."iban", 'bic', x."bic", 'logoAttachmentId', x."logo_attachment_id", 'defaultCurrency', x."default_currency", 'fiscal', x."fiscal", 'isDefault', x."is_default", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."code")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."legal_entities" x
+      where x."tenant_id" = list_legal_entities.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (v_after is null or (x."code" <= (v_after ->> 0)::text and ((x."code" < (v_after ->> 0)::text) or (x."code" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."code" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LEGAL_ENTITY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'address', x."address", 'vatNumber', x."vat_number", 'cocNumber', x."coc_number", 'iban', x."iban", 'bic', x."bic", 'logoAttachmentId', x."logo_attachment_id", 'defaultCurrency', x."default_currency", 'fiscal', x."fiscal", 'isDefault', x."is_default", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."legal_entities" x
+      where x."tenant_id" = list_legal_entities.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'LEGAL_ENTITY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'address', x."address", 'vatNumber', x."vat_number", 'cocNumber', x."coc_number", 'iban', x."iban", 'bic', x."bic", 'logoAttachmentId', x."logo_attachment_id", 'defaultCurrency', x."default_currency", 'fiscal', x."fiscal", 'isDefault', x."is_default", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."legal_entities" x
+      where x."tenant_id" = list_legal_entities.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."legal_entities" x
+      where x."tenant_id" = list_legal_entities.tenant
+        and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'isDefault' is not null and jsonb_typeof(v_filters -> 'isDefault') <> 'null' and not (jsonb_typeof(v_filters -> 'isDefault') = 'array' and jsonb_array_length(v_filters -> 'isDefault') = 0)) or x."is_default"::text = any((case when jsonb_typeof(v_filters -> 'isDefault') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'isDefault')) else array[v_filters ->> 'isDefault'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
 $$;
-revoke execute on function "better_supabase"."list_legal_entities"(uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."list_legal_entities"(uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_legal_entities"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_legal_entities"(uuid, jsonb) to authenticated, service_role;
 
 -- The legal entity a row belongs to: the given one when it is the
 -- organization's, otherwise the organization's default. Null means the

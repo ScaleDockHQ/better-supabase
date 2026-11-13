@@ -85,7 +85,29 @@ attachments block. `contentEntryInputSchema` validates the input.
 translations, or null when the caller can't read it. `list({ type, locale,
 status, translationGroupId, query, limit, offset })` returns the
 organization's entries, latest change first; `query` matches the title or
-slug, and `limit` runs from 1 to 200 (default 50).
+slug, and `limit` runs from 1 to 200 (default 50). `page`, `facets` and `count`
+take the same filters as lists of values ([paging a list](#paging-a-list)).
+
+## Paging a list
+
+`list` is the capped convenience list. `page` is the full contract for entries (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `updatedAt`, `title`, `createdAt` and `publishedAt`. The default order is `updatedAt`, latest first; filters are `type`, `locale`, `status` and `translationGroupId`; facets are `type`, `locale` and `status`. `q` matches the title and slug. A cursor belongs to the sort it came from, so start again from the first page when `sort` or `direction` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error.
+
+```ts
+const first = await content
+  .page({
+    filters: { type: ["post"], status: ["draft", "scheduled"] },
+    sort: { by: "title", direction: "asc" },
+    q: "launch",
+    limit: 25,
+  })
+  .orThrow();
+
+// How many entries each type, locale and status holds under the same filters.
+const facets = await content.facets({ filters: { type: ["post"] } }).orThrow();
+
+// How many entries match; `exact` is false when the count stopped at its cap.
+const total = await content.count({ filters: { type: ["post"] } }).orThrow();
+```
 
 ## Publish and schedule
 

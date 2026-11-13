@@ -115,8 +115,29 @@ makes a lesson optional, so it doesn't count toward completion.
 
 `outline(courseId)` returns the course with its modules and lessons in rank
 order, without lesson content, and the caller's progress when they are
-enrolled. `list()` returns the organization's courses by title; readers get
-the published ones.
+enrolled. `list()` returns the organization's courses by title, up to 500;
+readers get the published ones. Past that, or to sort, facet or count, use
+[`page`](#paging-a-list).
+
+## Paging a list
+
+`list` is the capped convenience list. `page` is the full contract for courses (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. The sort is `title`. The default order is `title`; the filter is `status`; the facet is `status`. Readers get the published courses whatever `filters.status` asks for. A cursor belongs to the sort it came from, so start again from the first page when `sort` or `direction` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error.
+
+```ts
+const first = await courses
+  .page({
+    filters: { status: ["draft", "published"] },
+    sort: { by: "title", direction: "desc" },
+    limit: 20,
+  })
+  .orThrow();
+
+// How many courses each status holds, and how many match.
+const facets = await courses.facets().orThrow();
+const total = await courses
+  .count({ filters: { status: ["published"] } })
+  .orThrow();
+```
 
 ## Learning
 
