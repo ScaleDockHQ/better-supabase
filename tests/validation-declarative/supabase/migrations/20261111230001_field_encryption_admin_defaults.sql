@@ -15,4 +15,4 @@ as $$
   end
 $$;
 revoke execute on function better_supabase.role_permissions(text) from public, anon, authenticated;
-grant execute on function better_supabase.role_permissions(text) to service_role, supa
+grant execute on function better_supabase.role_permissions(text) to service_role, supabase_auth_admin;
