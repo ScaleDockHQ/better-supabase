@@ -325,13 +325,16 @@ describe.skipIf(!live)("field encryption", () => {
     );
 
     await s.asRole(ann);
-    expect(
-      await s.value<{ readonly values: number }>(
-        "better_supabase.rotate_field_key($1)",
-        [owner],
-      ),
-    ).toMatchObject({ values: 3 });
-    expect((await statusOf())?.key_rotated_at).not.toBeNull();
+
+    // The session is one transaction, so the key's Vault row keeps one
+    // timestamp; the rotation reports its own time instead.
+    const rotated = await s.value<{
+      readonly values: number;
+      readonly rotated_at: string | null;
+    }>("better_supabase.rotate_field_key($1)", [owner]);
+
+    expect(rotated.values).toBe(3);
+    expect(rotated.rotated_at).not.toBeNull();
     expect(
       await s.rows<{ diagnosis: string; dose: string }>(
         "select diagnosis, dose::text from public.it_charts_reveal($1::uuid[]) order by diagnosis",

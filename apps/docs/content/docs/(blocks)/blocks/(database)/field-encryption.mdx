@@ -82,7 +82,9 @@ again, in one transaction: the encrypted columns of the app tables in
 writes until it commits, so no write seals a value with the old key
 meanwhile; reads go on. The lookup key stays, so lookup hashes don't change.
 It records a `field_key.rotated` event and a `security` audit entry with the
-owner and the number of rows.
+owner and the number of rows. `keyRotatedAt` comes from the Vault row's
+update time, so a key created and rotated in one transaction reports no
+rotation.
 
 ```ts
 const rotated = await fieldEncryption
