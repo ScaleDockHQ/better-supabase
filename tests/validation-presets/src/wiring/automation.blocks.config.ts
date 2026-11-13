@@ -176,7 +176,7 @@ export const permissions = {
     manage: "teams.manage",
     read: "teams.read",
   },
-  "webhooks": {
+  webhooks: {
     manage: "webhooks.manage",
     read: "webhooks.read",
   },

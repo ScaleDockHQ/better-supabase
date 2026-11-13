@@ -165,7 +165,7 @@ export const permissions = {
     read: "usage.read",
     record: "usage.record",
   },
-  "webhooks": {
+  webhooks: {
     manage: "webhooks.manage",
     read: "webhooks.read",
   },
