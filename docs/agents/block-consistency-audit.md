@@ -1121,11 +1121,12 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X7
 
 - Scope: AI ops, EX-301 first (a maintainer sets `AI_GATEWAY_API_KEY`)
-- Status: planned
+- Status: in progress
 - Branch: `feat/findings-x7`
 - PR: none yet
 - Findings: EX-301, EX-302, EX-305, EX-306, EX-307, EX-317
 - Log: 2026-11-14, planned.
+- Log: 2026-11-14, in progress.
 
 ### Lane X8
 
