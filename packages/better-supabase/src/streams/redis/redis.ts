@@ -7,8 +7,8 @@ import { AsyncResult, err, ok } from "../../core/result.ts";
 import { pollingRead } from "../store.ts";
 
 /**
- * The commands the store sends, as node-redis 5 and 6 (`createClient()`) name
- * them. Any client with these methods works.
+ * The commands the store sends, as node-redis 6 (`createClient()`) names them.
+ * Any client with these methods works.
  */
 export interface RedisStreamClient {
   hSetNX(key: string, field: string, value: string): Promise<unknown>;
