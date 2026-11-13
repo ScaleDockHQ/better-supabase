@@ -428,7 +428,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
-      "name": "webhooks-out",
+      "name": "webhooks",
       "title": "Outgoing webhooks",
       "category": "developer",
       "requires": [
@@ -519,7 +519,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ]
     },
     {
-      "name": "webhooks-in",
+      "name": "incoming-webhooks",
       "title": "Incoming webhook endpoints",
       "category": "developer",
       "requires": [
@@ -2455,7 +2455,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "scheduling",
       "requires": [
         "memberships",
-        "permissions"
+        "permissions",
+        "recurrence"
       ],
       "integrates": [
         "queue",
@@ -5164,7 +5165,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "developer",
       "requires": [],
       "integrates": [
-        "webhooks-out",
+        "webhooks",
         "outbox",
         "audit"
       ],
@@ -5634,6 +5635,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           }
@@ -6186,6 +6191,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "read": "read",
                 "write": "manage",
                 "upload": "submit"
+              },
+              "search": {
+                "title": "description",
+                "body": []
               }
             }
           },
@@ -6303,6 +6312,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -6788,6 +6801,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -6808,6 +6825,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           }
@@ -7183,6 +7204,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "read": "read",
                 "write": "send",
                 "upload": "send"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           }
@@ -7979,6 +8004,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -9272,6 +9301,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -9283,6 +9316,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -9444,6 +9481,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -9708,6 +9749,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -9881,6 +9926,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": []
               }
             }
           },
@@ -10522,6 +10571,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "licensee",
+                "body": []
               }
             }
           },
@@ -10613,6 +10666,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "manage"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -12123,6 +12180,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "permissions": {
                 "read": "read",
                 "write": "write"
+              },
+              "search": {
+                "title": "name",
+                "body": []
               }
             }
           },
@@ -16337,6 +16398,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "dealId": {
                 "kind": "uuid"
               },
+              "expectedVersion": {
+                "kind": "instant",
+                "optional": true,
+                "description": "The deal's `updatedAt` as you read it; a newer deal is a `STALE_WRITE` conflict."
+              },
               "field": {
                 "kind": "string",
                 "minLength": 1
@@ -16354,6 +16420,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "dealId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "expectedVersion": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "The deal's `updatedAt` as you read it; a newer deal is a `STALE_WRITE` conflict."
                 },
                 "field": {
                   "type": "string",
@@ -28617,7 +28688,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "drive_node.shared",
           "drive_node.unshared",
           "drive_node.purged",
-          "drive_node.document_saved",
+          "drive_node.document_updated",
           "drive_node.submitted",
           "drive_node.released",
           "drive_node.obsoleted",
@@ -29390,12 +29461,21 @@ export const PRESET_CATALOG: PresetCatalog = {
         "field-encryption"
       ],
       "category": "database",
-      "client": null,
+      "client": {
+        "export": "fieldEncryptionBlock",
+        "subpath": "better-supabase/blocks/field-encryption"
+      },
       "consumes": {},
       "provides": [],
       "composedBy": [
         "care"
-      ]
+      ],
+      "events": {
+        "type": "FieldEncryptionEvents",
+        "types": [
+          "field_key.dropped"
+        ]
+      }
     },
     {
       "name": "flags",
@@ -30600,7 +30680,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "conversation.member_added",
           "conversation.member_removed",
           "message.sent",
-          "message.edited",
+          "message.updated",
           "message.deleted",
           "message.pinned",
           "message.resolved"
@@ -33032,7 +33112,17 @@ export const PRESET_CATALOG: PresetCatalog = {
           "marketplace_installation.deleted",
           "marketplace_invoice.status_changed"
         ]
-      }
+      },
+      "env": [
+        {
+          "key": "VERCEL_MARKETPLACE_CLIENT_ID",
+          "description": "The integration's client id from the Vercel dashboard; createVercelMarketplace() checks it as the audience of SSO and webhook tokens."
+        },
+        {
+          "key": "VERCEL_MARKETPLACE_CLIENT_SECRET",
+          "description": "Server-only: the integration's client secret; it signs the webhook check and exchanges SSO codes."
+        }
+      ]
     },
     {
       "name": "saved-views",
@@ -33446,9 +33536,20 @@ export const PRESET_CATALOG: PresetCatalog = {
         "impersonation"
       ],
       "category": "admin",
-      "client": null,
+      "client": {
+        "export": "impersonationBlock",
+        "subpath": "better-supabase/blocks/impersonation"
+      },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "ImpersonationEvents",
+        "types": [
+          "support_session.started",
+          "support_session.ended",
+          "support_session.denied"
+        ]
+      }
     },
     {
       "name": "tags",
@@ -33989,7 +34090,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "incoming-webhooks",
       "sql": [
-        "webhooks-in"
+        "incoming-webhooks"
       ],
       "category": "developer",
       "client": {
@@ -34013,7 +34114,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "webhooks",
       "sql": [
-        "webhooks-out"
+        "webhooks"
       ],
       "category": "developer",
       "client": {
@@ -34314,6 +34415,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "taskId": {
                 "kind": "uuid"
               },
+              "expectedVersion": {
+                "kind": "instant",
+                "optional": true,
+                "description": "The item's `updatedAt` as you read it; a newer item is a `STALE_WRITE` conflict."
+              },
               "field": {
                 "kind": "string",
                 "minLength": 1
@@ -34331,6 +34437,11 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "taskId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "expectedVersion": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "The item's `updatedAt` as you read it; a newer item is a `STALE_WRITE` conflict."
                 },
                 "field": {
                   "type": "string",

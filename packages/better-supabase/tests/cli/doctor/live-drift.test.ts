@@ -12,7 +12,7 @@ import { moduleSnapshotFixture as fixture } from "../fixtures/library.ts";
 const snapshot = await parseSnapshot(fixture);
 
 const context = (database: LiveDatabase | undefined): DoctorContext => ({
-  config: resolveConfig({ blocks: ["webhooks-out"] }, "/project"),
+  config: resolveConfig({ blocks: ["webhooks"] }, "/project"),
   snapshot,
   configToml: undefined,
   envFiles: [],

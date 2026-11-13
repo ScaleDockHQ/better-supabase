@@ -45,6 +45,7 @@ export const meetingsBlock: BlockOf<
     meeting_decision: { mutability: "state-machine", emits: { create: true } },
     meeting_action_item: { mutability: "append-only", emits: { create: true } },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.",
 });

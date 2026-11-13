@@ -84,7 +84,7 @@ A week starts on Monday in the module's `timeZone`. `timesheet(week)` returns th
 | `approved`  | the final approval step approved it                                     |
 | `rejected`  | the approval request was rejected; the member can edit and submit again |
 
-`submit(week, note)` opens an approval request for the week, with the timesheet as its subject (`timesheet`). It fails with `TIMESHEET_TIMER_RUNNING` while a timer in the week still runs, `TIMESHEET_SUBMITTED` while a request is pending and `TIMESHEET_APPROVED` once approved. Approvers decide with the approvals client, and the final approval marks the timesheet approved:
+`submit(week, note)` opens an approval request for the week, with the timesheet as its subject (`timesheet`). It fails with `TIME_ENTRIES_TIMESHEET_TIMER_RUNNING` while a timer in the week still runs, `TIME_ENTRIES_TIMESHEET_SUBMITTED` while a request is pending and `TIME_ENTRIES_TIMESHEET_APPROVED` once approved. Approvers decide with the approvals client, and the final approval marks the timesheet approved:
 
 ```ts
 import { createApprovals } from "better-supabase/blocks/approvals";
@@ -93,7 +93,7 @@ const approvals = createApprovals({ transport });
 await approvals.approve(sheet.approvalId!).orThrow();
 ```
 
-A week is locked while its request is pending and once it is approved: adding or deleting an entry that starts in it, or changing the columns that make up its logged time, fails with `TIME_PERIOD_LOCKED`, also for direct table writes. Those columns are the start, the end or duration, the subject, the owner and the rate, so the billable flag, the note and columns of your own (a timesheet or invoice line link) stay writable. `options.lockedColumns` lists them instead, as logical names such as `startedAt` or your table's own column names; `[]` locks no column. A rejection unlocks it. `reopen(timesheetId)` unlocks an approved week (`TIMESHEET_NOT_APPROVED` otherwise) and needs `time_entries.manage`. `timesheets()` lists the caller's timesheets, newest week first, filtered by `status` and paged with `before`.
+A week is locked while its request is pending and once it is approved: adding or deleting an entry that starts in it, or changing the columns that make up its logged time, fails with `TIME_PERIOD_LOCKED`, also for direct table writes. Those columns are the start, the end or duration, the subject, the owner and the rate, so the billable flag, the note and columns of your own (a timesheet or invoice line link) stay writable. `options.lockedColumns` lists them instead, as logical names such as `startedAt` or your table's own column names; `[]` locks no column. A rejection unlocks it. `reopen(timesheetId)` unlocks an approved week (`TIME_ENTRIES_TIMESHEET_NOT_APPROVED` otherwise) and needs `time_entries.manage`. `timesheets()` lists the caller's timesheets, newest week first, filtered by `status` and paged with `before`.
 
 `submitAndRequest({ week })` submits the week and reads it again, so one call returns the locked week with its entries, totals and `approvalId`. With approvals on, the submission itself opens the approval request.
 
@@ -248,7 +248,7 @@ without an account. In SQL, `log_time`, `list_time_entries`, `get_timesheet`,
 },
 ```
 
-Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_INVALID`, `TIME_ENTRY_OVERLAP`, `TIME_ENTRY_NOT_FOUND`, `TIME_USER_INVALID`, `TIME_NO_TIMER`, `TIME_PERIOD_LOCKED`, `TIMESHEET_NOT_FOUND`, `TIMESHEET_TIMER_RUNNING`, `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED`, `TIMESHEET_NOT_APPROVED`, without approvals `TIMESHEET_NOT_SUBMITTED`, and per employee `TIME_EMPLOYEE_MISSING`, `TIME_EMPLOYEE_INVALID` and `TIMESHEET_IN_APPROVAL`.
+Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_INVALID`, `TIME_ENTRY_OVERLAP`, `TIME_ENTRY_NOT_FOUND`, `TIME_USER_INVALID`, `TIME_NO_TIMER`, `TIME_PERIOD_LOCKED`, `TIME_ENTRIES_TIMESHEET_NOT_FOUND`, `TIME_ENTRIES_TIMESHEET_TIMER_RUNNING`, `TIME_ENTRIES_TIMESHEET_SUBMITTED`, `TIME_ENTRIES_TIMESHEET_APPROVED`, `TIME_ENTRIES_TIMESHEET_NOT_APPROVED`, without approvals `TIMESHEET_NOT_SUBMITTED`, and per employee `TIME_EMPLOYEE_MISSING`, `TIME_EMPLOYEE_INVALID` and `TIMESHEET_IN_APPROVAL`.
 
 ## Events and hooks
 

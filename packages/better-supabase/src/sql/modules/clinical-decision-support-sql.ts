@@ -80,12 +80,21 @@ export function decisionSupportSql(ctx: BlockSqlContext): DecisionSupportSql {
     allowed,
     subjectCheck: (type, id, tenant, name) =>
       `if not (${SERVICE_CALLER} or ${subjectInTenant(ctx, type, id, tenant)}) then
-    ${fail("CARE_ALERT_SUBJECT_INVALID", `${name} needs a record of the organization`, "22023")}
+    ${fail("DECISION_SUPPORT_ALERT_SUBJECT_INVALID", `${name} needs a record of the organization`, "22023")}
   end if;`,
-    invalid: (message) => fail("CARE_ALERT_INVALID", message, "22023"),
-    forbidden: (message) => fail("CARE_ALERT_FORBIDDEN", message),
-    alertMissing: fail("CARE_ALERT_NOT_FOUND", "no such alert", "P0002"),
-    ruleMissing: fail("CARE_RULE_NOT_FOUND", "no such rule", "P0002"),
+    invalid: (message) =>
+      fail("DECISION_SUPPORT_ALERT_INVALID", message, "22023"),
+    forbidden: (message) => fail("DECISION_SUPPORT_ALERT_FORBIDDEN", message),
+    alertMissing: fail(
+      "DECISION_SUPPORT_ALERT_NOT_FOUND",
+      "no such alert",
+      "P0002",
+    ),
+    ruleMissing: fail(
+      "DECISION_SUPPORT_RULE_NOT_FOUND",
+      "no such rule",
+      "P0002",
+    ),
     medications: ctx.of("medications"),
     observations: linked(ctx, "observations"),
     consents: linked(ctx, "consents"),

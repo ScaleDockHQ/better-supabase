@@ -672,18 +672,6 @@
     "message": "Not allowed to read every tenant"
   },
   {
-    "code": "BOM_CYCLE",
-    "message": "a variant can"
-  },
-  {
-    "code": "BOM_NOT_ACTIVE",
-    "message": "the variant has no active bill of materials"
-  },
-  {
-    "code": "BOM_NOT_FOUND",
-    "message": "no such bill of materials"
-  },
-  {
     "code": "BOOKING_CUSTOMER_INVALID",
     "message": "a guest booking needs a name and an email"
   },
@@ -818,14 +806,6 @@
     "message": "tz must be an IANA time zone"
   },
   {
-    "code": "CARE_ALERT_NOT_FOUND",
-    "message": "no such alert"
-  },
-  {
-    "code": "CARE_ALERT_STATUS",
-    "message": "this alert has already been decided or resolved"
-  },
-  {
     "code": "CARE_PLAN_ARCHIVED",
     "message": "the care plan is archived"
   },
@@ -848,10 +828,6 @@
   {
     "code": "CARE_PLAN_NOT_FOUND",
     "message": "no such action on a care plan"
-  },
-  {
-    "code": "CARE_RULE_NOT_FOUND",
-    "message": "no such rule"
   },
   {
     "code": "CASE_ACTION_NOT_FOUND",
@@ -1435,6 +1411,38 @@
     "code": "CREDENTIALS_FORBIDDEN"
   },
   {
+    "code": "CUSTOM_FIELD_ENTITY_UNKNOWN",
+    "message": "the entity is not a registered subject type"
+  },
+  {
+    "code": "CUSTOM_FIELD_FORBIDDEN",
+    "message": "not allowed to set custom fields"
+  },
+  {
+    "code": "CUSTOM_FIELD_NOT_FOUND",
+    "message": "field not found"
+  },
+  {
+    "code": "CUSTOM_FIELD_PACK_CONFLICT",
+    "message": "the field already exists and doesn"
+  },
+  {
+    "code": "CUSTOM_FIELD_PACK_INVALID",
+    "message": "a field pack is an object with apiVersion 1"
+  },
+  {
+    "code": "CUSTOM_FIELD_RANK_INVALID",
+    "message": "not a rank key"
+  },
+  {
+    "code": "CUSTOM_FIELD_VALUE_INVALID",
+    "message": "the value doesn"
+  },
+  {
+    "code": "CUSTOM_FIELD_VALUE_NOT_FOUND",
+    "message": "field value not found"
+  },
+  {
     "code": "DAM_USAGE_RIGHT_NOT_FOUND",
     "message": "no such usage right"
   },
@@ -1565,6 +1573,18 @@
   {
     "code": "DEAL_STAGE_MISSING",
     "message": "the pipeline has no stage for that outcome"
+  },
+  {
+    "code": "DECISION_SUPPORT_ALERT_NOT_FOUND",
+    "message": "no such alert"
+  },
+  {
+    "code": "DECISION_SUPPORT_ALERT_STATUS",
+    "message": "this alert has already been decided or resolved"
+  },
+  {
+    "code": "DECISION_SUPPORT_RULE_NOT_FOUND",
+    "message": "no such rule"
   },
   {
     "code": "DELIVERY_PREFERENCE_INVALID",
@@ -1704,6 +1724,18 @@
   {
     "code": "DOCUMENT_VERSION_NOT_FOUND",
     "message": "version not found"
+  },
+  {
+    "code": "DOMAIN_FORBIDDEN",
+    "message": "You may not manage this organization"
+  },
+  {
+    "code": "DOMAIN_NOT_FOUND",
+    "message": "No hostname you manage has this id"
+  },
+  {
+    "code": "DOMAIN_NOT_VERIFIED",
+    "message": "Verify the hostname first"
   },
   {
     "code": "DONATION_FUND_NOT_FOUND",
@@ -1923,6 +1955,10 @@
     "message": "party_kind is organization, legal_entity or company, and party_id is a non-empty text of at most 150 characters"
   },
   {
+    "code": "E_PRESCRIBING_NOT_FOUND",
+    "message": "no such prescription"
+  },
+  {
     "code": "EMPLOYEE_APPLICATION_NOT_HIRED",
     "message": "only a hired application becomes an employee"
   },
@@ -2094,16 +2130,8 @@
     "message": "the record is unknown or not readable in this organization"
   },
   {
-    "code": "FIELD_ENTITY_UNKNOWN",
-    "message": "the entity is not a registered subject type"
-  },
-  {
     "code": "FIELD_EXISTS",
     "message": "the record already has this field"
-  },
-  {
-    "code": "FIELD_FORBIDDEN",
-    "message": "not allowed to set custom fields"
   },
   {
     "code": "FIELD_INLINE",
@@ -2122,36 +2150,16 @@
     "message": "a field key needs an owner"
   },
   {
+    "code": "FIELD_KEY_STATUS_FORBIDDEN",
+    "message": "only signed-in users and the service role read field key status"
+  },
+  {
     "code": "FIELD_NOT_ENCRYPTABLE",
     "message": "only text fields can be encrypted"
   },
   {
-    "code": "FIELD_NOT_FOUND",
-    "message": "field not found"
-  },
-  {
-    "code": "FIELD_PACK_CONFLICT",
-    "message": "the field already exists and doesn"
-  },
-  {
-    "code": "FIELD_PACK_INVALID",
-    "message": "a field pack is an object with apiVersion 1"
-  },
-  {
-    "code": "FIELD_RANK_INVALID",
-    "message": "not a rank key"
-  },
-  {
     "code": "FIELD_SUBJECT_FORBIDDEN",
     "message": "not allowed to set fields on this record"
-  },
-  {
-    "code": "FIELD_VALUE_INVALID",
-    "message": "the value doesn"
-  },
-  {
-    "code": "FIELD_VALUE_NOT_FOUND",
-    "message": "field value not found"
   },
   {
     "code": "FLAGS_FORBIDDEN",
@@ -2401,18 +2409,6 @@
     "message": "the job"
   },
   {
-    "code": "HOSTNAME_FORBIDDEN",
-    "message": "You may not manage this organization"
-  },
-  {
-    "code": "HOSTNAME_NOT_FOUND",
-    "message": "No hostname you manage has this id"
-  },
-  {
-    "code": "HOSTNAME_NOT_VERIFIED",
-    "message": "Verify the hostname first"
-  },
-  {
     "code": "HOSTNAME_RESERVED",
     "message": "The platform"
   },
@@ -2431,6 +2427,34 @@
   {
     "code": "IDENTITY_TAKEN",
     "message": "this identity is linked to someone else"
+  },
+  {
+    "code": "IMPERSONATION_APPROVAL_REQUIRED",
+    "message": "A second admin must approve this support session (approve_support_request)"
+  },
+  {
+    "code": "IMPERSONATION_FORBIDDEN",
+    "message": "admin_id is required for the service role"
+  },
+  {
+    "code": "IMPERSONATION_REASON_REQUIRED",
+    "message": "A reason is required"
+  },
+  {
+    "code": "IMPERSONATION_SELF",
+    "message": "An admin cannot start a support session as themselves"
+  },
+  {
+    "code": "IMPERSONATION_SELF_APPROVAL",
+    "message": "An admin cannot approve their own support session"
+  },
+  {
+    "code": "IMPERSONATION_TARGET_PLATFORM",
+    "message": "A support session cannot target platform staff"
+  },
+  {
+    "code": "IMPERSONATION_WRITES_DISABLED",
+    "message": "Support sessions are read-only (blocks.impersonation.options.allowWrites)"
   },
   {
     "code": "IMPORT_CREDIT_WITHOUT_ORIGINAL",
@@ -2581,6 +2605,30 @@
   {
     "code": "INCIDENTS_INVALID",
     "message": "the slug takes 2 to 63 lowercase letters, digits and dashes"
+  },
+  {
+    "code": "INCOMING_WEBHOOK_FORBIDDEN",
+    "message": "Not allowed to manage incoming webhooks"
+  },
+  {
+    "code": "INCOMING_WEBHOOK_METADATA_INVALID",
+    "message": "This endpoints table has no metadata column"
+  },
+  {
+    "code": "INCOMING_WEBHOOK_NAME_REQUIRED",
+    "message": "An endpoint needs a name"
+  },
+  {
+    "code": "INCOMING_WEBHOOK_NO_SECRET",
+    "message": "This endpoint verifies no secret"
+  },
+  {
+    "code": "INCOMING_WEBHOOK_SUBJECT_INVALID",
+    "message": "This endpoints table has no subject columns"
+  },
+  {
+    "code": "INCOMING_WEBHOOK_VERIFY_UNKNOWN",
+    "message": "Unknown verification mode"
   },
   {
     "code": "INSPECTION_CASES_NOT_INSTALLED",
@@ -3411,6 +3459,18 @@
   {
     "code": "MAINTENANCE_UNQUALIFIED",
     "message": "the person doesn"
+  },
+  {
+    "code": "MANUFACTURING_BOM_CYCLE",
+    "message": "a variant can"
+  },
+  {
+    "code": "MANUFACTURING_BOM_NOT_ACTIVE",
+    "message": "the variant has no active bill of materials"
+  },
+  {
+    "code": "MANUFACTURING_BOM_NOT_FOUND",
+    "message": "no such bill of materials"
   },
   {
     "code": "MARKETPLACE_FORBIDDEN",
@@ -4335,10 +4395,6 @@
     "message": "no such post"
   },
   {
-    "code": "PRESCRIPTION_NOT_FOUND",
-    "message": "no such prescription"
-  },
-  {
     "code": "PRODUCTION_OPERATION_NOT_FOUND",
     "message": "no such production order operation"
   },
@@ -4792,6 +4848,26 @@
     "message": "this subject type has no search entry in config.recordTypes"
   },
   {
+    "code": "SECURITY_EVENT_FORBIDDEN",
+    "message": "only the service role manages shared signals streams"
+  },
+  {
+    "code": "SECURITY_EVENT_PUSH_UNAVAILABLE",
+    "message": "push delivery needs the webhooks module"
+  },
+  {
+    "code": "SECURITY_EVENT_STATUS_INVALID",
+    "message": "status is enabled, paused or disabled"
+  },
+  {
+    "code": "SECURITY_EVENT_STREAM_NOT_FOUND",
+    "message": "stream not found"
+  },
+  {
+    "code": "SECURITY_EVENT_STREAM_NOT_POLL",
+    "message": "the stream is not delivered by polling"
+  },
+  {
     "code": "SEGMENT_DESCRIPTION_UNSUPPORTED",
     "message": "this segments table has no description column"
   },
@@ -5143,26 +5219,6 @@
     "message": "a push stream needs an endpoint_url"
   },
   {
-    "code": "SSF_FORBIDDEN",
-    "message": "only the service role manages shared signals streams"
-  },
-  {
-    "code": "SSF_PUSH_UNAVAILABLE",
-    "message": "push delivery needs the webhooks-out module"
-  },
-  {
-    "code": "SSF_STATUS_INVALID",
-    "message": "status is enabled, paused or disabled"
-  },
-  {
-    "code": "SSF_STREAM_NOT_FOUND",
-    "message": "stream not found"
-  },
-  {
-    "code": "SSF_STREAM_NOT_POLL",
-    "message": "the stream is not delivered by polling"
-  },
-  {
     "code": "SSF_TENANT_REQUIRED",
     "message": "a push stream needs a tenant when webhook endpoints have one"
   },
@@ -5283,34 +5339,6 @@
   },
   {
     "code": "SUBJECT_REFS_TOO_MANY"
-  },
-  {
-    "code": "SUPPORT_APPROVAL_REQUIRED",
-    "message": "A second admin must approve this support session (approve_support_request)"
-  },
-  {
-    "code": "SUPPORT_FORBIDDEN",
-    "message": "admin_id is required for the service role"
-  },
-  {
-    "code": "SUPPORT_REASON_REQUIRED",
-    "message": "A reason is required"
-  },
-  {
-    "code": "SUPPORT_SELF",
-    "message": "An admin cannot start a support session as themselves"
-  },
-  {
-    "code": "SUPPORT_SELF_APPROVAL",
-    "message": "An admin cannot approve their own support session"
-  },
-  {
-    "code": "SUPPORT_TARGET_PLATFORM",
-    "message": "A support session cannot target platform staff"
-  },
-  {
-    "code": "SUPPORT_WRITES_DISABLED",
-    "message": "Support sessions are read-only (blocks.impersonation.options.allowWrites)"
   },
   {
     "code": "TABLE_APPEND_ONLY"
@@ -5542,6 +5570,26 @@
     "message": "you have no employee record in this organization"
   },
   {
+    "code": "TIME_ENTRIES_TIMESHEET_APPROVED",
+    "message": "this week is already approved"
+  },
+  {
+    "code": "TIME_ENTRIES_TIMESHEET_NOT_APPROVED",
+    "message": "only an approved week can be reopened"
+  },
+  {
+    "code": "TIME_ENTRIES_TIMESHEET_NOT_FOUND",
+    "message": "timesheet not found"
+  },
+  {
+    "code": "TIME_ENTRIES_TIMESHEET_SUBMITTED",
+    "message": "this week is already waiting for approval"
+  },
+  {
+    "code": "TIME_ENTRIES_TIMESHEET_TIMER_RUNNING",
+    "message": "stop the running timer before submitting this week"
+  },
+  {
     "code": "TIME_ENTRY_INVALID",
     "message": "ended_at must be after started_at"
   },
@@ -5606,32 +5654,12 @@
     "message": "Only the service role records activity"
   },
   {
-    "code": "TIMESHEET_APPROVED",
-    "message": "this week is already approved"
-  },
-  {
     "code": "TIMESHEET_IN_APPROVAL",
     "message": "this week is decided through its approval request"
   },
   {
-    "code": "TIMESHEET_NOT_APPROVED",
-    "message": "only an approved week can be reopened"
-  },
-  {
-    "code": "TIMESHEET_NOT_FOUND",
-    "message": "timesheet not found"
-  },
-  {
     "code": "TIMESHEET_NOT_SUBMITTED",
     "message": "only a submitted week can be decided"
-  },
-  {
-    "code": "TIMESHEET_SUBMITTED",
-    "message": "this week is already waiting for approval"
-  },
-  {
-    "code": "TIMESHEET_TIMER_RUNNING",
-    "message": "stop the running timer before submitting this week"
   },
   {
     "code": "TRASH_FORBIDDEN",
@@ -5801,32 +5829,8 @@
     "message": "Not allowed to manage this webhook endpoint"
   },
   {
-    "code": "WEBHOOK_IN_FORBIDDEN",
-    "message": "Not allowed to manage incoming webhooks"
-  },
-  {
-    "code": "WEBHOOK_IN_METADATA_INVALID",
-    "message": "This endpoints table has no metadata column"
-  },
-  {
-    "code": "WEBHOOK_IN_NAME_REQUIRED",
-    "message": "An endpoint needs a name"
-  },
-  {
     "code": "WEBHOOK_IN_NO_GRACE",
     "message": "This endpoints table has no previous-secret columns, so a rotation can"
-  },
-  {
-    "code": "WEBHOOK_IN_NO_SECRET",
-    "message": "This endpoint verifies no secret"
-  },
-  {
-    "code": "WEBHOOK_IN_SUBJECT_INVALID",
-    "message": "This endpoints table has no subject columns"
-  },
-  {
-    "code": "WEBHOOK_IN_VERIFY_UNKNOWN",
-    "message": "Unknown verification mode"
   },
   {
     "code": "WEBHOOK_SECRET_TOO_SHORT",

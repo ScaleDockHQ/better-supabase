@@ -318,12 +318,12 @@ export const OPERATIONS = {
   "impersonation.revoke": "impersonation.revoke",
   "notifications.send": "notifications.send",
   "notifications.read": "notifications.read",
-  "webhooks-out.manage": "webhooks.manage",
-  "webhooks-out.read": "webhooks.read",
-  "webhooks-in.create": "webhooks.manage",
-  "webhooks-in.update": "webhooks.manage",
-  "webhooks-in.delete": "webhooks.manage",
-  "webhooks-in.read": "webhooks.read",
+  "webhooks.manage": "webhooks.manage",
+  "webhooks.read": "webhooks.read",
+  "incoming-webhooks.create": "webhooks.manage",
+  "incoming-webhooks.update": "webhooks.manage",
+  "incoming-webhooks.delete": "webhooks.manage",
+  "incoming-webhooks.read": "webhooks.read",
   "api-keys.manage": "api_keys.manage",
   "api-keys.own": "api_keys.own",
   "settings.read": "settings.read",
@@ -875,7 +875,7 @@ const MODULE_PERMISSION_SHORTHANDS: Readonly<
   invitations: { revoke: "invite", read: "invite" },
   audit: { readAll: "read" },
   billing: { readAll: "read" },
-  "webhooks-in": { create: "manage", update: "manage", delete: "manage" },
+  "incoming-webhooks": { create: "manage", update: "manage", delete: "manage" },
 };
 
 export function modulePermissionKey(

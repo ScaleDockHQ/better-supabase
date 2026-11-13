@@ -24,6 +24,7 @@ export const damBlock: BlockOf<"dam", typeof createDam, DamEvents> =
       },
       dam_rendition: { mutability: "append-only", emits: { create: true } },
     },
+    concerns: ["lifecycle", "search"],
     description:
       "Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.",
   });

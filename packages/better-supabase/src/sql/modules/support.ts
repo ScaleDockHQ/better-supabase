@@ -344,8 +344,8 @@ function requestFunctions(
 -- approve_support_request before start_support_session accepts it. The
 -- service role passes admin_id, and approved_by for an approval the server's
 -- authorization hook already decided. Errors carry a code in the hint:
--- SUPPORT_FORBIDDEN, SUPPORT_SELF, SUPPORT_SELF_APPROVAL,
--- SUPPORT_TARGET_MISSING, SUPPORT_REASON_REQUIRED or SUPPORT_WRITES_DISABLED.
+-- IMPERSONATION_FORBIDDEN, IMPERSONATION_SELF, IMPERSONATION_SELF_APPROVAL,
+-- IMPERSONATION_TARGET_MISSING, IMPERSONATION_REASON_REQUIRED or IMPERSONATION_WRITES_DISABLED.
 create or replace function ${ctx.fn("request_support_session")}(
   target uuid,
   reason text default null,
@@ -370,28 +370,28 @@ begin
   if service then
     admin := admin_id;
     if admin is null then
-      ${fail("SUPPORT_FORBIDDEN", "admin_id is required for the service role", "22023")}
+      ${fail("IMPERSONATION_FORBIDDEN", "admin_id is required for the service role", "22023")}
     end if;
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin) or approved_by is not null
       or not ${isPlatform}(${startPermission}) then
-      ${fail("SUPPORT_FORBIDDEN", "Not allowed to ask for a support session")}
+      ${fail("IMPERSONATION_FORBIDDEN", "Not allowed to ask for a support session")}
     end if;
   end if;
   if target = admin then
-    ${fail("SUPPORT_SELF", "An admin cannot start a support session as themselves", "22023")}
+    ${fail("IMPERSONATION_SELF", "An admin cannot start a support session as themselves", "22023")}
   end if;
   if approved_by = admin then
-    ${fail("SUPPORT_SELF_APPROVAL", "An admin cannot approve their own support session")}
+    ${fail("IMPERSONATION_SELF_APPROVAL", "An admin cannot approve their own support session")}
   end if;
   if not exists (select 1 from auth.users u where u.id = target) then
-    ${raise("No user %", "P0002", "SUPPORT_TARGET_MISSING", "target")}
+    ${raise("No user %", "P0002", "IMPERSONATION_TARGET_MISSING", "target")}
   end if;${
     requireReason
       ? `
   if coalesce(btrim(reason), '') = '' then
-    ${fail("SUPPORT_REASON_REQUIRED", "A reason is required", "22023")}
+    ${fail("IMPERSONATION_REASON_REQUIRED", "A reason is required", "22023")}
   end if;`
       : ""
   }${
@@ -399,7 +399,7 @@ begin
       ? ""
       : `
   if not coalesce(read_only, true) then
-    ${fail("SUPPORT_WRITES_DISABLED", "Support sessions are read-only (blocks.impersonation.options.allowWrites)")}
+    ${fail("IMPERSONATION_WRITES_DISABLED", "Support sessions are read-only (blocks.impersonation.options.allowWrites)")}
   end if;`
   }
   insert into ${requests} (${c("admin")}, ${c("target")}, ${c("reason")}, ${c("tenant")}, ${c("readOnly")}, ${c("metadata")}, ${c("expiresAt")}, ${c("approvedBy")}, ${c("approvedAt")})
@@ -425,8 +425,8 @@ $$;
 -- their own request; the service role passes approver_id for an approver the
 -- server's approverOf hook already allowed. Approving again as the same
 -- approver returns the row. Errors carry a code in the hint:
--- SUPPORT_FORBIDDEN, SUPPORT_SELF_APPROVAL, SUPPORT_REQUEST_MISSING,
--- SUPPORT_REQUEST_CLOSED or SUPPORT_REQUEST_DECIDED.
+-- IMPERSONATION_FORBIDDEN, IMPERSONATION_SELF_APPROVAL, IMPERSONATION_REQUEST_MISSING,
+-- IMPERSONATION_REQUEST_CLOSED or IMPERSONATION_REQUEST_DECIDED.
 create or replace function ${ctx.fn("approve_support_request")}(
   request_id uuid,
   approver_id uuid default null
@@ -446,23 +446,23 @@ begin
   if service then
     approver := approver_id;
     if approver is null then
-      ${fail("SUPPORT_FORBIDDEN", "approver_id is required for the service role", "22023")}
+      ${fail("IMPERSONATION_FORBIDDEN", "approver_id is required for the service role", "22023")}
     end if;
   else
     approver := auth.uid();
     if approver is null or (approver_id is not null and approver_id <> approver) then
-      ${fail("SUPPORT_FORBIDDEN", "Not allowed to approve a support session")}
+      ${fail("IMPERSONATION_FORBIDDEN", "Not allowed to approve a support session")}
     end if;
   end if;
   select * into v_row from ${requests} x where x.${c("id")} = request_id for update;
   if not found then
-    ${raise("No support request %", "P0002", "SUPPORT_REQUEST_MISSING", "request_id")}
+    ${raise("No support request %", "P0002", "IMPERSONATION_REQUEST_MISSING", "request_id")}
   end if;
   if v_row.${c("admin")} = approver then
-    ${fail("SUPPORT_SELF_APPROVAL", "An admin cannot approve their own support session")}
+    ${fail("IMPERSONATION_SELF_APPROVAL", "An admin cannot approve their own support session")}
   end if;
   if not service and not ${approverOf(ctx, layout, "v_row")} then
-    ${fail("SUPPORT_FORBIDDEN", "Not allowed to approve this support session")}
+    ${fail("IMPERSONATION_FORBIDDEN", "Not allowed to approve this support session")}
   end if;
   return ${ctx.fn("apply_support_approval")}(request_id, approver);
 end;
@@ -481,22 +481,22 @@ declare
 begin
   select * into v_row from ${requests} x where x.${c("id")} = request_id for update;
   if not found then
-    ${raise("No support request %", "P0002", "SUPPORT_REQUEST_MISSING", "request_id")}
+    ${raise("No support request %", "P0002", "IMPERSONATION_REQUEST_MISSING", "request_id")}
   end if;
   if approver is null then
-    ${fail("SUPPORT_FORBIDDEN", "Not allowed to approve a support session")}
+    ${fail("IMPERSONATION_FORBIDDEN", "Not allowed to approve a support session")}
   end if;
   if v_row.${c("admin")} = approver then
-    ${fail("SUPPORT_SELF_APPROVAL", "An admin cannot approve their own support session")}
+    ${fail("IMPERSONATION_SELF_APPROVAL", "An admin cannot approve their own support session")}
   end if;
   if v_row.${c("approvedBy")} is not null then
     if v_row.${c("approvedBy")} = approver then
       return ${requestJson(ctx, "v_row")};
     end if;
-    ${raise("Support request % is already approved", "P0001", "SUPPORT_REQUEST_DECIDED", "request_id")}
+    ${raise("Support request % is already approved", "P0001", "IMPERSONATION_REQUEST_DECIDED", "request_id")}
   end if;
   if v_row.${c("session")} is not null or v_row.${c("expiresAt")} <= now() then
-    ${raise("Support request % has expired or was used", "P0001", "SUPPORT_REQUEST_CLOSED", "request_id")}
+    ${raise("Support request % has expired or was used", "P0001", "IMPERSONATION_REQUEST_CLOSED", "request_id")}
   end if;
   update ${requests} x set ${c("approvedBy")} = approver, ${c("approvedAt")} = now()
   where x.${c("id")} = request_id
@@ -637,7 +637,7 @@ function start(ctx: BlockSqlContext): string {
   ${usableRequest(ctx, { admin: "admin", target: "target", tenant: "tenant", readOnly: "read_only" })}
   for update;
   if approval_id is null then
-    ${fail("SUPPORT_APPROVAL_REQUIRED", "A second admin must approve this support session (approve_support_request)")}
+    ${fail("IMPERSONATION_APPROVAL_REQUIRED", "A second admin must approve this support session (approve_support_request)")}
   end if;`
     : "";
 
@@ -654,8 +654,8 @@ function start(ctx: BlockSqlContext): string {
 -- approve_support_request) for the same target, tenant and read-only flag.`
       : ""
   }
--- Errors carry a code in the hint: SUPPORT_FORBIDDEN, SUPPORT_SELF,
--- SUPPORT_TARGET_MISSING, SUPPORT_TTL, SUPPORT_REASON_REQUIRED${approval ? ", SUPPORT_APPROVAL_REQUIRED" : ""}.
+-- Errors carry a code in the hint: IMPERSONATION_FORBIDDEN, IMPERSONATION_SELF,
+-- IMPERSONATION_TARGET_MISSING, IMPERSONATION_TTL, IMPERSONATION_REASON_REQUIRED${approval ? ", IMPERSONATION_APPROVAL_REQUIRED" : ""}.
 create or replace function ${ctx.fn("start_support_session")}(
   target uuid,
   reason text default null,
@@ -686,43 +686,43 @@ begin
   if service then
     admin := admin_id;
     if admin is null then
-      ${fail("SUPPORT_FORBIDDEN", "admin_id is required for the service role", "22023")}
+      ${fail("IMPERSONATION_FORBIDDEN", "admin_id is required for the service role", "22023")}
     end if;
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
       or not ${isPlatform}(${ctx.permission("start", OPERATIONS["impersonation.start"])}) then
-      ${fail("SUPPORT_FORBIDDEN", "Not allowed to start a support session")}
+      ${fail("IMPERSONATION_FORBIDDEN", "Not allowed to start a support session")}
     end if;
   end if;
   if target = admin then
-    ${fail("SUPPORT_SELF", "An admin cannot start a support session as themselves", "22023")}
+    ${fail("IMPERSONATION_SELF", "An admin cannot start a support session as themselves", "22023")}
   end if;
   if not exists (select 1 from auth.users u where u.id = target) then
-    ${raise("No user %", "P0002", "SUPPORT_TARGET_MISSING", "target")}
+    ${raise("No user %", "P0002", "IMPERSONATION_TARGET_MISSING", "target")}
   end if;
   if ttl <= interval '0' or ttl > ${maxTtl}::interval then
-    ${raise("ttl must be between 0 and %", "22023", "SUPPORT_TTL", maxTtl)}
+    ${raise("ttl must be between 0 and %", "22023", "IMPERSONATION_TTL", maxTtl)}
   end if;${
     ctx.flag("allowPlatformTargets", false)
       ? ""
       : `
   -- Viewing the app as platform staff would hand the admin that staff's reach.
   if ${platformTarget(ctx)} then
-    ${fail("SUPPORT_TARGET_PLATFORM", "A support session cannot target platform staff")}
+    ${fail("IMPERSONATION_TARGET_PLATFORM", "A support session cannot target platform staff")}
   end if;`
   }${
     ctx.flag("allowWrites", false)
       ? ""
       : `
   if not coalesce(read_only, true) then
-    ${fail("SUPPORT_WRITES_DISABLED", "Support sessions are read-only (blocks.impersonation.options.allowWrites)")}
+    ${fail("IMPERSONATION_WRITES_DISABLED", "Support sessions are read-only (blocks.impersonation.options.allowWrites)")}
   end if;`
   }${
     requireReason
       ? `
   if coalesce(btrim(reason), '') = '' then
-    ${fail("SUPPORT_REASON_REQUIRED", "A reason is required", "22023")}
+    ${fail("IMPERSONATION_REASON_REQUIRED", "A reason is required", "22023")}
   end if;`
       : ""
   }${approvalCheck}
@@ -860,7 +860,7 @@ declare
   expired_id uuid;
 begin
   if not (${SERVICE_CALLER}) then
-    ${fail("SUPPORT_FORBIDDEN", "Only the service role expires support sessions")}
+    ${fail("IMPERSONATION_FORBIDDEN", "Only the service role expires support sessions")}
   end if;
   for expired_id in
     select s.${c("id")} from ${sessions} s
@@ -974,7 +974,7 @@ begin
   ) into base
   from auth.users u where u.id = target;
   if base is null then
-    ${raise("No user %", "P0002", "SUPPORT_TARGET_MISSING", "target")}
+    ${raise("No user %", "P0002", "IMPERSONATION_TARGET_MISSING", "target")}
   end if;
 ${apply}
 end;

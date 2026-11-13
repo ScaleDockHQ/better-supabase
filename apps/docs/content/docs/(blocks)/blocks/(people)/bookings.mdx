@@ -204,7 +204,11 @@ A rule has a `freq` (`daily` or `weekly`), an `interval` (1 to 52), the ISO
 (the resource's zone by default), so a 09:00 class stays at 09:00 across a
 daylight saving change. `parseRecurrence` reads the RRULE subset the series
 supports (`FREQ`, `INTERVAL`, `BYDAY`, `COUNT`, `UNTIL`) and throws a
-`RangeError` for anything else; `formatRecurrence` writes a rule back.
+`RangeError` for anything else; `formatRecurrence` writes a rule back. Both read
+and write through the shared [recurrence](/docs/extending/recurrence) parser, and
+`booking_series_starts` expands the rule with `rrule_occurrences`, so a series
+follows the same daylight saving rules as the calendar. The `recurrence` module is
+installed with `bookings`.
 
 ```ts
 import { parseRecurrence } from "better-supabase/blocks/bookings";

@@ -29,6 +29,7 @@ export const signaturesBlock: BlockOf<
       emits: { create: false },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.",
 });

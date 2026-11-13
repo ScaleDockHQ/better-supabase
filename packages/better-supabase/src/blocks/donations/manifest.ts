@@ -37,6 +37,7 @@ export const donationsBlock: BlockOf<
     donation_fund: { mutability: "editable", emits: { update: false } },
     donation_receipt: { mutability: "state-machine" },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.",
   providers: [

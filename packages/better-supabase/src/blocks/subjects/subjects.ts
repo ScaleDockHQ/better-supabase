@@ -39,6 +39,16 @@ export interface ResolvedSubject extends RecordRef {
   readonly url?: string;
 }
 
+/** A subject with the text a list shows for it (`subjects.label`). */
+export interface SubjectLabel extends RecordRef {
+  /** The subject's title, or its id when the caller can't read a title. */
+  readonly label: string;
+  /** The `url` template filled in, when the type has one. */
+  readonly url?: string;
+  /** `false` when no title came back: unknown type, no access or deleted. */
+  readonly found: boolean;
+}
+
 /** A record page's header and tab badges, from `record_summary`. */
 export interface RecordSummary extends ResolvedSubject {
   /** Rows per section the caller can read, for each installed section asked. */
@@ -109,6 +119,16 @@ export interface Subjects {
   resolve(
     refs: readonly RecordRef[],
   ): AsyncResult<Readonly<Record<string, ResolvedSubject>>>;
+  /**
+   * A label for every one of `refs`, keyed by `subjectKey` (`type:id`), for
+   * reviews, segments, inboxes and portals that would show a raw id. It is
+   * `resolve` with a fallback: a subject nothing names gets its id as the label
+   * and `found: false`, so a caller never renders `undefined`. The titles come
+   * in one `subject_titles` call per 500 refs, grouped by type in SQL.
+   */
+  label(
+    refs: readonly RecordRef[],
+  ): AsyncResult<Readonly<Record<string, SubjectLabel>>>;
   /**
    * The subject's title and path with a count and unread state for each of
    * `sections` (`comments`, `attachments`), in one round trip; `undefined` when
@@ -264,6 +284,42 @@ const resolvedList = (value: unknown): ResolvedSubject[] =>
   });
 
 /**
+ * `label` over any `resolve`, so `batchSubjects` labels through its joined
+ * calls.
+ */
+export function labelsOf(
+  resolve: Subjects["resolve"],
+  refs: readonly RecordRef[],
+): AsyncResult<Readonly<Record<string, SubjectLabel>>> {
+  return AsyncResult.from(async () => {
+    const resolved = await resolve(refs);
+
+    if (!resolved.ok) {
+      return resolved;
+    }
+
+    const labels: Record<string, SubjectLabel> = {};
+
+    for (const ref of refs) {
+      const key = subjectKey(ref);
+      const found = resolved.data[key];
+      const title = found?.title;
+      const named = title !== undefined && title !== "";
+
+      labels[key] = {
+        type: ref.type,
+        id: ref.id,
+        label: named ? title : ref.id,
+        ...(found?.url === undefined ? {} : { url: found.url }),
+        found: named,
+      };
+    }
+
+    return ok(labels);
+  });
+}
+
+/**
  * The `subjects` module's `subject_titles` as a typed call, for lists and
  * mentions that show a link to each subject.
  */
@@ -312,6 +368,7 @@ export function createSubjects(options: SubjectsOptions): Subjects {
 
         return ok(found);
       }),
+    label: (refs) => labelsOf((each) => hooked.resolve(each), refs),
     summary: ({ subject, sections, ...summaryOptions }) =>
       call(
         "record_summary",

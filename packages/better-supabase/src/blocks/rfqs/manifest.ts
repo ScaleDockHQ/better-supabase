@@ -28,6 +28,7 @@ export const rfqsBlock: BlockOf<"rfqs", typeof createRfqs, RfqsEvents> =
       rfq_quote: { mutability: "state-machine", emits: { create: false } },
       rfq_quote_line: { mutability: "read-only" },
     },
+    concerns: ["lifecycle", "search"],
     description:
       "Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.",
   });

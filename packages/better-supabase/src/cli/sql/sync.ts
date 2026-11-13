@@ -6,6 +6,7 @@ import type { BlockSqlLayout } from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { Paint } from "../style.ts";
 import type { SqlFlags } from "./args.ts";
+import type { DriftKind } from "./drift.ts";
 import type { Now } from "./migrations.ts";
 import type { SqlWrite } from "./write.ts";
 
@@ -15,6 +16,7 @@ import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
+import { classifyDrift, driftSummary } from "./drift.ts";
 import {
   latestMigration,
   MODULES_SUFFIX,
@@ -148,11 +150,44 @@ export async function syncModules(
     ].map((path) => guardedRemoval(path)),
   });
 
-  return planResult(
+  const result = planResult(
     plan,
     await applyPlan(plan, { check: true, force: args.force === true }, paint),
     { data: { blocks: config.blockNames } },
   );
+
+  if (result.errorCode !== "check_failed") {
+    return result;
+  }
+
+  const kinds: Record<DriftKind, string[]> = {
+    subjects: [],
+    search: [],
+    other: [],
+  };
+
+  for (const file of rendered.filter((entry) => entry.kind !== "test")) {
+    const current = await readFile(
+      resolve(config.root, file.path),
+      "utf-8",
+    ).catch(() => undefined);
+
+    if (!sameBlockFile(current, file.contents)) {
+      kinds[classifyDrift(current, file.contents)].push(
+        display(config.root, file.path),
+      );
+    }
+  }
+
+  const summary = driftSummary(kinds);
+
+  return summary === undefined
+    ? result
+    : {
+        ...result,
+        output: [result.output, summary].filter(Boolean).join("\n\n"),
+        data: { blocks: config.blockNames, drift: kinds },
+      };
 }
 
 /**

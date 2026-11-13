@@ -1,6 +1,6 @@
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:2b77047bc22fbd7349443f6083d7443352faf2764fb571e61d5d30c52e921fb6
+-- @bsb-hash sha256:d6075259bf7556c67b4db43d351b5fe61b71a2b851a5b889bdf27492f13fa68e
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -246,32 +246,9 @@ $$;
 revoke execute on function "better_supabase"."revoke_usage_right"(uuid) from public, anon;
 grant execute on function "better_supabase"."revoke_usage_right"(uuid) to authenticated, service_role;
 
--- One usage right, as listed. Needs dam.read.
-create or replace function "better_supabase"."get_usage_right"(right_id uuid)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_variable
-declare
-  v_row "better_supabase"."dam_usage_rights";
-begin
-  select * into v_row from "better_supabase"."dam_usage_rights" x where x."id" = get_usage_right.right_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dam.read'), false))) then
-    raise exception 'no such usage right' using errcode = 'P0002', hint = 'DAM_USAGE_RIGHT_NOT_FOUND';
-  end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'nodeId', v_row."node_id", 'licensee', v_row."licensee", 'territory', v_row."territory", 'channel', v_row."channel", 'startsOn', v_row."starts_on", 'expiresOn', v_row."expires_on", 'status', case when v_row."revoked_at" is not null then 'revoked' when v_row."starts_on" > current_date then 'upcoming' when v_row."expires_on" is not null and v_row."expires_on" < current_date then 'expired' else 'active' end, 'note', v_row."note", 'revokedAt', v_row."revoked_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
-end;
-$$;
-revoke execute on function "better_supabase"."get_usage_right"(uuid) from public, anon;
-grant execute on function "better_supabase"."get_usage_right"(uuid) to authenticated, service_role;
-
 -- Usage rights, soonest expiry first. filters is { nodeId, status: 'upcoming'
--- | 'active' | 'expired' | 'revoked' (nodeId and status each a value or a list of
--- them), expiringWithinDays, sort, direction, facet, count, limit, after, offset,
--- paged, total, totalCap } (ADR 0749).
+-- | 'active' | 'expired' | 'revoked', expiringWithinDays, limit, after, offset, paged, total,
+-- totalCap }.
 create or replace function "better_supabase"."list_usage_rights"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -291,12 +268,9 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_sort text := nullif(v_filters ->> 'sort', '');
-  v_dir text := nullif(v_filters ->> 'direction', '');
-  v_facet text := nullif(v_filters ->> 'facet', '');
-  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
-  v_result jsonb;
-  v_expiring integer := nullif(coalesce(v_filters #>> '{expiringWithinDays,0}', v_filters ->> 'expiringWithinDays'), '')::integer;
+  v_node text := nullif(v_filters ->> 'nodeId', '');
+  v_status text := nullif(v_filters ->> 'status', '');
+  v_expiring integer := (v_filters ->> 'expiringWithinDays')::integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_usage_rights.tenant is not null and coalesce(better_supabase.can('tenant', list_usage_rights.tenant, 'dam.read'), false))) then
     raise exception 'not allowed to read usage rights' using errcode = '42501', hint = 'DAM_FORBIDDEN';
@@ -304,46 +278,7 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'DAM_INVALID';
   end if;
-  if v_facet is not null then
-    if v_facet not in ('status') then
-      raise exception 'facet is one of status' using errcode = '22023', hint = 'DAM_INVALID';
-    end if;
-    with s as (
-      select (case v_facet when 'status' then (case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end)::text end) as v
-      from "better_supabase"."dam_usage_rights" x
-      where x."tenant_id" = list_usage_rights.tenant
-        and (not (v_filters -> 'nodeId' is not null and jsonb_typeof(v_filters -> 'nodeId') <> 'null' and not (jsonb_typeof(v_filters -> 'nodeId') = 'array' and jsonb_array_length(v_filters -> 'nodeId') = 0)) or x."node_id" = any((case when jsonb_typeof(v_filters -> 'nodeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'nodeId')) else array[v_filters ->> 'nodeId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (v_expiring is null or (x."revoked_at" is null and x."expires_on" is not null and x."expires_on" between current_date and current_date + v_expiring))
-      limit v_total_cap + 1
-    )
-    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
-    into v_result
-    from (
-      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
-      from s where s.v is not null group by s.v order by n desc, s.v limit 100
-    ) g;
-    return v_result;
-  end if;
-  if v_count then
-    select count(*) into v_total from (
-      select 1 from "better_supabase"."dam_usage_rights" x
-      where x."tenant_id" = list_usage_rights.tenant
-        and (not (v_filters -> 'nodeId' is not null and jsonb_typeof(v_filters -> 'nodeId') <> 'null' and not (jsonb_typeof(v_filters -> 'nodeId') = 'array' and jsonb_array_length(v_filters -> 'nodeId') = 0)) or x."node_id" = any((case when jsonb_typeof(v_filters -> 'nodeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'nodeId')) else array[v_filters ->> 'nodeId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (v_expiring is null or (x."revoked_at" is null and x."expires_on" is not null and x."expires_on" between current_date and current_date + v_expiring))
-      limit v_total_cap + 1
-    ) c;
-    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
-  end if;
-  if v_sort is not null and v_sort not in ('expiresOn', 'startsOn') then
-    raise exception 'sort is one of expiresOn, startsOn' using errcode = '22023', hint = 'DAM_INVALID';
-  end if;
-  if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'DAM_INVALID';
-  end if;
-  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
-    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DAM_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -355,120 +290,14 @@ begin
     from (
       select * from "better_supabase"."dam_usage_rights" x
       where x."tenant_id" = list_usage_rights.tenant
-        and (not (v_filters -> 'nodeId' is not null and jsonb_typeof(v_filters -> 'nodeId') <> 'null' and not (jsonb_typeof(v_filters -> 'nodeId') = 'array' and jsonb_array_length(v_filters -> 'nodeId') = 0)) or x."node_id" = any((case when jsonb_typeof(v_filters -> 'nodeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'nodeId')) else array[v_filters ->> 'nodeId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_node is null or x."node_id" = v_node::uuid)
+        and (v_status is null or case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end = v_status)
         and (v_expiring is null or (x."revoked_at" is null and x."expires_on" is not null and x."expires_on" between current_date and current_date + v_expiring))
         and (v_after is null or (coalesce(x."expires_on", 'infinity'::date), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
       order by coalesce(x."expires_on", 'infinity'::date) asc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
-  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
-    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DAM_INVALID';
-  end if;
-  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
-    count(*) > v_limit,
-    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
-  into v_items, v_more, v_next
-  from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'nodeId', x."node_id", 'licensee', x."licensee", 'territory', x."territory", 'channel', x."channel", 'startsOn', x."starts_on", 'expiresOn', x."expires_on", 'status', case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end, 'note', x."note", 'revokedAt', x."revoked_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((coalesce(x."expires_on", 'infinity'::date))::text, (x."id")::text) as k
-    from (
-      select * from "better_supabase"."dam_usage_rights" x
-      where x."tenant_id" = list_usage_rights.tenant
-        and (not (v_filters -> 'nodeId' is not null and jsonb_typeof(v_filters -> 'nodeId') <> 'null' and not (jsonb_typeof(v_filters -> 'nodeId') = 'array' and jsonb_array_length(v_filters -> 'nodeId') = 0)) or x."node_id" = any((case when jsonb_typeof(v_filters -> 'nodeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'nodeId')) else array[v_filters ->> 'nodeId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (v_expiring is null or (x."revoked_at" is null and x."expires_on" is not null and x."expires_on" between current_date and current_date + v_expiring))
-        and (v_after is null or (coalesce(x."expires_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."expires_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."expires_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
-      order by coalesce(x."expires_on", 'infinity'::date) desc, x."id" asc
-      limit v_limit + 1 offset v_offset
-    ) x
-  ) p;
-  elsif v_sort = 'expiresOn' and coalesce(v_dir, 'asc') = 'asc' then
-    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DAM_INVALID';
-  end if;
-  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
-    count(*) > v_limit,
-    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
-  into v_items, v_more, v_next
-  from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'nodeId', x."node_id", 'licensee', x."licensee", 'territory', x."territory", 'channel', x."channel", 'startsOn', x."starts_on", 'expiresOn', x."expires_on", 'status', case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end, 'note', x."note", 'revokedAt', x."revoked_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((coalesce(x."expires_on", 'infinity'::date))::text, (x."id")::text) as k
-    from (
-      select * from "better_supabase"."dam_usage_rights" x
-      where x."tenant_id" = list_usage_rights.tenant
-        and (not (v_filters -> 'nodeId' is not null and jsonb_typeof(v_filters -> 'nodeId') <> 'null' and not (jsonb_typeof(v_filters -> 'nodeId') = 'array' and jsonb_array_length(v_filters -> 'nodeId') = 0)) or x."node_id" = any((case when jsonb_typeof(v_filters -> 'nodeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'nodeId')) else array[v_filters ->> 'nodeId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (v_expiring is null or (x."revoked_at" is null and x."expires_on" is not null and x."expires_on" between current_date and current_date + v_expiring))
-        and (v_after is null or (coalesce(x."expires_on", 'infinity'::date), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
-      order by coalesce(x."expires_on", 'infinity'::date) asc, x."id" asc
-      limit v_limit + 1 offset v_offset
-    ) x
-  ) p;
-  elsif v_sort = 'expiresOn' and coalesce(v_dir, 'asc') = 'desc' then
-    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DAM_INVALID';
-  end if;
-  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
-    count(*) > v_limit,
-    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
-  into v_items, v_more, v_next
-  from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'nodeId', x."node_id", 'licensee', x."licensee", 'territory', x."territory", 'channel', x."channel", 'startsOn', x."starts_on", 'expiresOn', x."expires_on", 'status', case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end, 'note', x."note", 'revokedAt', x."revoked_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((coalesce(x."expires_on", 'infinity'::date))::text, (x."id")::text) as k
-    from (
-      select * from "better_supabase"."dam_usage_rights" x
-      where x."tenant_id" = list_usage_rights.tenant
-        and (not (v_filters -> 'nodeId' is not null and jsonb_typeof(v_filters -> 'nodeId') <> 'null' and not (jsonb_typeof(v_filters -> 'nodeId') = 'array' and jsonb_array_length(v_filters -> 'nodeId') = 0)) or x."node_id" = any((case when jsonb_typeof(v_filters -> 'nodeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'nodeId')) else array[v_filters ->> 'nodeId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (v_expiring is null or (x."revoked_at" is null and x."expires_on" is not null and x."expires_on" between current_date and current_date + v_expiring))
-        and (v_after is null or (coalesce(x."expires_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."expires_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."expires_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
-      order by coalesce(x."expires_on", 'infinity'::date) desc, x."id" asc
-      limit v_limit + 1 offset v_offset
-    ) x
-  ) p;
-  elsif v_sort = 'startsOn' and coalesce(v_dir, 'desc') = 'asc' then
-    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DAM_INVALID';
-  end if;
-  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
-    count(*) > v_limit,
-    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
-  into v_items, v_more, v_next
-  from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'nodeId', x."node_id", 'licensee', x."licensee", 'territory', x."territory", 'channel', x."channel", 'startsOn', x."starts_on", 'expiresOn', x."expires_on", 'status', case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end, 'note', x."note", 'revokedAt', x."revoked_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((coalesce(x."starts_on", '-infinity'::date))::text, (x."id")::text) as k
-    from (
-      select * from "better_supabase"."dam_usage_rights" x
-      where x."tenant_id" = list_usage_rights.tenant
-        and (not (v_filters -> 'nodeId' is not null and jsonb_typeof(v_filters -> 'nodeId') <> 'null' and not (jsonb_typeof(v_filters -> 'nodeId') = 'array' and jsonb_array_length(v_filters -> 'nodeId') = 0)) or x."node_id" = any((case when jsonb_typeof(v_filters -> 'nodeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'nodeId')) else array[v_filters ->> 'nodeId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (v_expiring is null or (x."revoked_at" is null and x."expires_on" is not null and x."expires_on" between current_date and current_date + v_expiring))
-        and (v_after is null or (coalesce(x."starts_on", '-infinity'::date), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
-      order by coalesce(x."starts_on", '-infinity'::date) asc, x."id" asc
-      limit v_limit + 1 offset v_offset
-    ) x
-  ) p;
-  elsif v_sort = 'startsOn' and coalesce(v_dir, 'desc') = 'desc' then
-    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DAM_INVALID';
-  end if;
-  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
-    count(*) > v_limit,
-    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
-  into v_items, v_more, v_next
-  from (
-    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'nodeId', x."node_id", 'licensee', x."licensee", 'territory', x."territory", 'channel', x."channel", 'startsOn', x."starts_on", 'expiresOn', x."expires_on", 'status', case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end, 'note', x."note", 'revokedAt', x."revoked_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((coalesce(x."starts_on", '-infinity'::date))::text, (x."id")::text) as k
-    from (
-      select * from "better_supabase"."dam_usage_rights" x
-      where x."tenant_id" = list_usage_rights.tenant
-        and (not (v_filters -> 'nodeId' is not null and jsonb_typeof(v_filters -> 'nodeId') <> 'null' and not (jsonb_typeof(v_filters -> 'nodeId') = 'array' and jsonb_array_length(v_filters -> 'nodeId') = 0)) or x."node_id" = any((case when jsonb_typeof(v_filters -> 'nodeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'nodeId')) else array[v_filters ->> 'nodeId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
-        and (v_expiring is null or (x."revoked_at" is null and x."expires_on" is not null and x."expires_on" between current_date and current_date + v_expiring))
-        and (v_after is null or (coalesce(x."starts_on", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."starts_on", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."starts_on", '-infinity'::date) = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
-      order by coalesce(x."starts_on", '-infinity'::date) desc, x."id" asc
-      limit v_limit + 1 offset v_offset
-    ) x
-  ) p;
-  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -476,8 +305,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."dam_usage_rights" x
       where x."tenant_id" = list_usage_rights.tenant
-        and (not (v_filters -> 'nodeId' is not null and jsonb_typeof(v_filters -> 'nodeId') <> 'null' and not (jsonb_typeof(v_filters -> 'nodeId') = 'array' and jsonb_array_length(v_filters -> 'nodeId') = 0)) or x."node_id" = any((case when jsonb_typeof(v_filters -> 'nodeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'nodeId')) else array[v_filters ->> 'nodeId'] end)::uuid[]))
-        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end) = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_node is null or x."node_id" = v_node::uuid)
+        and (v_status is null or case when x."revoked_at" is not null then 'revoked' when x."starts_on" > current_date then 'upcoming' when x."expires_on" is not null and x."expires_on" < current_date then 'expired' else 'active' end = v_status)
         and (v_expiring is null or (x."revoked_at" is null and x."expires_on" is not null and x."expires_on" between current_date and current_date + v_expiring))
       limit v_total_cap + 1
     ) c;
@@ -621,6 +450,9 @@ create policy bsb_tenant_scope_update on "better_supabase"."dam_renditions" as r
 create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+create trigger "bsb_search_dam_usage_right_index"
+  after insert or delete or update of "id", "tenant_id", "licensee" on "better_supabase"."dam_usage_rights"
+  for each row execute function "better_supabase"."search_index_row"('dam_usage_right', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_usage_rights deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_usage_right","event_prefix":"dam_usage_right"}');
@@ -666,16 +498,6 @@ set search_path = ''
 as $$ select "better_supabase"."revoke_usage_right"($1) $$;
 revoke execute on function "api"."revoke_usage_right"(uuid) from public, anon;
 grant execute on function "api"."revoke_usage_right"(uuid) to authenticated, service_role;
-
-create or replace function "api"."get_usage_right"(right_id uuid)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."get_usage_right"($1) $$;
-revoke execute on function "api"."get_usage_right"(uuid) from public, anon;
-grant execute on function "api"."get_usage_right"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_usage_rights"(tenant uuid, filters jsonb default '{}')
 returns jsonb

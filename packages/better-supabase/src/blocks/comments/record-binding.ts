@@ -95,7 +95,7 @@ export const commentsBinding: RecordBinding<
     ),
   events: [
     "message.sent",
-    "message.edited",
+    "message.updated",
     "message.deleted",
     "message.pinned",
     "message.resolved",

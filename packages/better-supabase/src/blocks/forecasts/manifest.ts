@@ -19,6 +19,7 @@ export const forecastsBlock: BlockOf<
   entities: {
     forecast_snapshot: { mutability: "append-only", emits: { create: true } },
   },
+  concerns: ["lifecycle"],
   description:
     "Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).",
 });

@@ -27,6 +27,7 @@ export const contactsBlock: BlockOf<
     company: { mutability: "editable", emits: { create: true, update: true } },
     person: { mutability: "editable", emits: { create: true, update: true } },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.",
   recipes: ["contact-detail"],

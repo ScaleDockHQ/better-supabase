@@ -5,7 +5,7 @@ permissions
 impersonation
 organizations
 notifications
-webhooks-in
+incoming-webhooks
 api-keys
 settings
 usage
@@ -73,6 +73,7 @@ employees
 collections
 moderation
 leave
+vercel-marketplace
 ledger
 assets
 scores
@@ -100,6 +101,7 @@ field-history
 sequences
 lead-scoring
 posts
+field-encryption
 content
 qualifications
 risks

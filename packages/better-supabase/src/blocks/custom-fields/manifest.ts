@@ -30,6 +30,7 @@ export const customFieldsBlock: BlockOf<
       emits: { create: true, update: true, delete: true },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.",
   recipes: ["custom-fields-editor", "entity-form"],

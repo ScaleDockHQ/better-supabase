@@ -30,6 +30,7 @@ export const reactionsBlock: BlockOf<
       emits: { create: true, delete: true },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.",
   recipes: ["reactions-bar"],

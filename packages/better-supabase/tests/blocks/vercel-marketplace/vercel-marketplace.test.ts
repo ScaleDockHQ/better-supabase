@@ -394,6 +394,39 @@ describe("createVercelMarketplace", () => {
     ]);
   });
 
+  it("reads the installation and resources of a tenant", async () => {
+    const { calls, transport } = fakeTransport({
+      marketplace_installation_for: {
+        id: "i1",
+        configuration_id: "icfg_1",
+        tenant: "org_1",
+      },
+      marketplace_resources_for: [
+        { id: "r1", installation_id: "i1", external_id: "res", name: "db" },
+      ],
+    });
+
+    const marketplace = createVercelMarketplace({
+      transport,
+      clientId: "oac_1",
+      clientSecret: SECRET,
+    });
+
+    expect((await marketplace.installationFor("org_1")).data).toMatchObject({
+      configurationId: "icfg_1",
+      tenant: "org_1",
+    });
+
+    expect((await marketplace.resourcesFor("org_1")).data).toMatchObject([
+      { externalId: "res", secretRefs: [] },
+    ]);
+
+    expect(calls).toEqual([
+      ["marketplace_installation_for", { tenant: "org_1" }],
+      ["marketplace_resources_for", { tenant: "org_1" }],
+    ]);
+  });
+
   it("keeps quantities stored when Vercel refuses them", async () => {
     const { calls, transport } = fakeTransport({
       record_marketplace_meter_report: {

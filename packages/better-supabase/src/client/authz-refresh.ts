@@ -27,9 +27,19 @@ export interface AuthzRefreshClient {
    * Reads `api.caller_authz_version()` to catch up on a broadcast missed while
    * the channel was down. Without it, only broadcasts refresh.
    */
-  rpc?(
-    fn: "caller_authz_version",
-  ): PromiseLike<{ readonly data: unknown; readonly error: unknown }>;
+  rpc?(fn: "caller_authz_version"): PromiseLike<AuthzRpcResult>;
+  /**
+   * Selects the schema of the version function (supabase-js `schema()`).
+   * Without it, `rpc` reads whatever schema the client is set to.
+   */
+  schema?(name: string): {
+    rpc(fn: "caller_authz_version"): PromiseLike<AuthzRpcResult>;
+  };
+}
+
+interface AuthzRpcResult {
+  readonly data: unknown;
+  readonly error: unknown;
 }
 
 /** Whether the app may refresh now: a visible tab, a foreground app. */
@@ -44,6 +54,11 @@ export interface AuthzTopicOptions {
   readonly topic?: (userId: string) => string;
   /** The broadcast event. Defaults to `changed`. */
   readonly event?: string;
+  /**
+   * The schema of `caller_authz_version()`, read through the client's
+   * `schema()`. Defaults to `api`, where the sessions module creates it.
+   */
+  readonly schema?: string;
 }
 
 /** A version from a broadcast payload or an RPC; `bigint` may arrive as text. */
@@ -83,9 +98,10 @@ export interface LiveVersionSource {
 
 /**
  * The default version source: broadcasts on the user's private topic, and
- * `api.caller_authz_version()` for `current()`. Each time the channel joins
- * (the first time and after a reconnect), it reads the live version and reports
- * it, so a change made while the channel was down still arrives.
+ * `caller_authz_version()` (in the `api` schema unless `schema` says otherwise)
+ * for `current()`. Each time the channel joins (the first time and after a
+ * reconnect), it reads the live version and reports it, so a change made while
+ * the channel was down still arrives.
  */
 export function realtimeVersionSource(
   client: AuthzRefreshClient,
@@ -95,11 +111,14 @@ export function realtimeVersionSource(
   } = {},
 ): LiveVersionSource {
   const current = async (): Promise<number | undefined> => {
-    if (!client.rpc) {
+    const scoped = client.schema?.(options.schema ?? "api");
+    const rpc = scoped ? scoped.rpc.bind(scoped) : client.rpc?.bind(client);
+
+    if (!rpc) {
       return undefined;
     }
 
-    const { data, error } = await client.rpc("caller_authz_version");
+    const { data, error } = await rpc("caller_authz_version");
 
     if (error) {
       throw errorOf(error);

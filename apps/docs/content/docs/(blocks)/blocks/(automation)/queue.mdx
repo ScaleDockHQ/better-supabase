@@ -419,7 +419,7 @@ await jobs
 | Probe                                           | Module          | True when                                                      |
 | ----------------------------------------------- | --------------- | -------------------------------------------------------------- |
 | `better_supabase.outbox_has_work()`             | `outbox`        | A consumer that is not backing off has events after its cursor |
-| `better_supabase.webhook_deliveries_has_work()` | `webhooks-out`  | A delivery is due and not leased                               |
+| `better_supabase.webhook_deliveries_has_work()` | `webhooks`      | A delivery is due and not leased                               |
 | `better_supabase.webhook_inbox_has_work()`      | `webhook-inbox` | An inbox message is ready to claim                             |
 
 `schedule_job` rejects a probe that is not a function without arguments
@@ -954,6 +954,10 @@ as the `rpcTransport` above. `hooks` runs your code around `begin`,
 `extend`, `complete`, `release` and `purge` (see
 [extending blocks](/docs/extending/blocks#hooks)); `handle` calls them
 through the hooks.
+
+### Keys on block creates
+
+A block's `create` takes an `idempotencyKey` when its creator gets the same client as the `idempotency` option: `createTasks({ transport, idempotency })`, and likewise `createDeals` and `createQuotes`. The block claims the key through `begin`, runs the call, then `complete`s it with the response, or `release`s the key when the call fails. The key is scoped to the organization, and its fingerprint covers the call's name and arguments. The `idempotent` list in a manifest's `entities` names the methods that take a key.
 
 The fingerprint is a SHA-256 of the method, path, query string and body.
 The lock (`lock`, one minute by default) is renewed at half its length while

@@ -1120,7 +1120,7 @@ function. Doctor needs a database connection for this check. With
 that only exists to match a schema the app already has: `tokenStorage: "plain"`
 for invitations, `secretStorage: "column"` for credentials,
 `secretStorage: "column"`, `statuses` or an `eventIdType` or `runIdType`
-other than `text` for webhooks-out, a `blockSource` or `defaultSource` for
+other than `text` for webhooks, a `blockSource` or `defaultSource` for
 the outbox, or `values` or `metadataColumns` for the audit log. The config
 only accepts them when the block runs over a table the app already has.
 Move the data to the managed default (hash the tokens, move the secrets into
@@ -1503,9 +1503,9 @@ In pgTAP, `tests.partitions_have_rls('schema')` checks the same thing.
 
 ### BS344
 
-**Warning: app webhook endpoints without a format.** `webhooks-out` runs
+**Warning: app webhook endpoints without a format.** `webhooks` runs
 over an endpoints table of the app's, that table maps no `format` column, and
-`blocks.webhooks-out.options.defaultFormat` isn't set. Every endpoint then
+`blocks.webhooks.options.defaultFormat` isn't set. Every endpoint then
 gets `defaultFormat`, whose default changed from the 0.8 body (`standard`)
 to `cloudevents` in 0.9, so receivers built for the old body break with no
 change to the config. The message says whether the table has no `format`
@@ -1610,7 +1610,7 @@ by `doctor.sources` calls `.from("x").insert()`, `.update()`, `.upsert()` or
 `.delete()` with supabase-js, or `create()`, `insert()`, `update()`, `upsert()`
 or `delete()` on the typed client's repository (`db.webhookEndpoints.create()`),
 on a table a block creates, the tables `blockTables(config).byBlock` lists. The
-block clients themselves (`db.webhooksOut`) are the API to use and are not
+block clients themselves (`db.webhooks`) are the API to use and are not
 reported. The write skips the block's functions,
 so its events, hooks and the checks it runs before a write don't run, and the
 block's other tables can disagree with the row. A `.from()` without
@@ -1697,7 +1697,7 @@ of them.
 **Warning: a partial index differs from the module's definition.** `create index
 if not exists` never changes an index that already exists. When a module now
 writes another `where` predicate for an index, such as the mapped status values
-in the `webhooks-out` delivery indexes, a database set up earlier keeps the old
+in the `webhooks` delivery indexes, a database set up earlier keeps the old
 one. Doctor compares the string literals of each partial index in the module
 files with the live index of the same name and table, and lists the ones that
 differ. Drop the index, run `better-supabase sql upgrade` and apply the
@@ -2443,6 +2443,9 @@ rotate the key.
 **Warning: env file with secrets isn't ignored by git.** An env file holds a
 secret key or database URL but no `.gitignore` pattern matches it. Add the
 file, for example `.env*.local`, to `.gitignore`. `.example` files are skipped.
+The check reads the `.gitignore` files from the app up to the folder that holds
+`.git`, so a pattern in the repository root counts, and a `!` negation line
+never counts as a pattern.
 
 ### BS503
 

@@ -637,6 +637,11 @@ function mapBuiltin(raw: RawDbError): DbError {
       return dbError("conflict", message, { ...base, ...extra });
     }
 
+    case "BS409": {
+      // The SQLSTATE of `STALE_WRITE` (src/core/stale-write.ts).
+      return dbError("conflict", message, base);
+    }
+
     case "23503": {
       const extra: DbErrorKinds["foreign_key"] = {};
       const constraint = constraintOf(raw);

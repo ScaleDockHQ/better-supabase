@@ -4,7 +4,7 @@ import type { IncomingWebhooksEvents, WebhooksEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { incomingWebhooksEvents, webhooksEvents } from "./events.ts";
 import { createIncomingWebhooks } from "./incoming.ts";
-import { webhooksOutSqlOptions, webhooksInSqlOptions } from "./options.ts";
+import { webhooksSqlOptions, incomingWebhooksSqlOptions } from "./options.ts";
 import { createWebhooks } from "./outgoing.ts";
 
 /** The `webhooks` block's manifest (ADR 0029). */
@@ -14,8 +14,8 @@ export const webhooksBlock: BlockOf<
   WebhooksEvents
 > = defineBlock({
   name: "webhooks",
-  sql: ["webhooks-out"],
-  options: { "webhooks-out": webhooksOutSqlOptions },
+  sql: ["webhooks"],
+  options: { webhooks: webhooksSqlOptions },
   events: webhooksEvents,
   create: createWebhooks,
   category: "developer",
@@ -25,6 +25,7 @@ export const webhooksBlock: BlockOf<
       emits: { create: false, update: false, delete: false },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.",
   recipes: ["webhook-endpoints"],
@@ -37,8 +38,8 @@ export const incomingWebhooksBlock: BlockOf<
   IncomingWebhooksEvents
 > = defineBlock({
   name: "incoming-webhooks",
-  sql: ["webhooks-in"],
-  options: { "webhooks-in": webhooksInSqlOptions },
+  sql: ["incoming-webhooks"],
+  options: { "incoming-webhooks": incomingWebhooksSqlOptions },
   events: incomingWebhooksEvents,
   create: createIncomingWebhooks,
   category: "developer",

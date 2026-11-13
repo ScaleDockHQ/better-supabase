@@ -43,6 +43,7 @@ export const advisoriesBlock: BlockOf<
     vex_statement: { mutability: "editable", emits: { update: true } },
     advisory_vulnerability: { mutability: "read-only" },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.",
   providers: [

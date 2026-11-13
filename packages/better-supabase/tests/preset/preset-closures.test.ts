@@ -34,6 +34,9 @@ const ADDED: Readonly<Record<string, readonly string[]>> = {
   isms: ["advisories"],
   "ai-agents": ["ai-evals", "ai-guardrails", "prompts"],
   filings: ["deadlines"],
+  // Bookings expand a series with `rrule_occurrences` (ADR 0719).
+  events: ["recurrence"],
+  pos: ["recurrence"],
 };
 
 const closureOf = (name: keyof typeof PRESETS): string[] =>

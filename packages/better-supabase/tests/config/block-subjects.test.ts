@@ -53,7 +53,7 @@ describe("withBlockSubjects", () => {
         },
       }),
     ).toThrow(
-      'blocks.contacts.names.person: team and auditReads apply to a subject, and "person" sets subject: false',
+      'blocks.contacts.names.person: team, auditReads and search apply to a subject, and "person" sets subject: false',
     );
     expect(() =>
       withBlockSubjects({}, ["tasks"], {
@@ -174,5 +174,34 @@ describe("resolveConfig subjects", () => {
       resolveConfig({ blocks: ["ledger"] }, "/app").subjects["ledger_account"]
         ?.tenant,
     ).toBe("tenant_id");
+  });
+});
+
+describe("withBlockSubjects search", () => {
+  it("replaces the title and body columns an entity's config names", () => {
+    const subjects = withBlockSubjects({}, ["tasks"], {
+      tasks: { entities: { task: { search: { body: ["body"] } } } },
+    });
+
+    expect(subjects["task"]?.search).toEqual({
+      title: "title",
+      body: ["body"],
+    });
+  });
+
+  it("keeps a subject out of search with false", () => {
+    const subjects = withBlockSubjects({}, ["tasks"], {
+      tasks: { entities: { task: { search: false } } },
+    });
+
+    expect(subjects["task"]).not.toHaveProperty("search");
+  });
+
+  it("refuses a column the entity's table does not have", () => {
+    expect(() =>
+      withBlockSubjects({}, ["tasks"], {
+        tasks: { entities: { task: { search: { title: "nope" } } } },
+      }),
+    ).toThrow(/"nope" is not a column/);
   });
 });

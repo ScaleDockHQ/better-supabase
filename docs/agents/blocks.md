@@ -47,11 +47,21 @@ codemod; a new block uses the convention from the start.
    is the one that changed, whichever block wrote it. Lifecycle verbs:
    `created`, `updated`, `deleted`, `archived`, `restored`, `purged`. Never
    `saved` (emit `created` or `updated`), `removed` (emit `deleted`),
-   `upserted`, or `<attribute>_set` (emit `<attribute>_changed`). Payload
-   keys are camelCase and carry `organizationId` when the event has a
-   tenant.
+   `upserted`, `edited` (emit `updated`), `canceled` (write `cancelled`) or
+   `<attribute>_set` (emit `<attribute>_changed`). A child record may use
+   `<child>_added` and `<child>_removed` on its parent. The verbs that end a
+   record mean `cancelled` (stopped before it took effect), `voided` (an
+   issued document made invalid), `closed` (finished, reopenable),
+   `withdrawn` (taken back by the submitter), `revoked` (taken back by the
+   grantor) and `rejected` (refused by a reviewer). Payload keys are
+   camelCase and carry `organizationId` when the event has a tenant.
 8. A hint code is `<ENTITY>_<REASON>` in upper snake case, from the entity
-   singular: `CONTROL_FORBIDDEN`, `TASK_NOT_FOUND`.
+   singular: `CONTROL_FORBIDDEN`, `TASK_NOT_FOUND`. The prefix is a run of the
+   block's name words (`AI_EVAL_` for `ai-evals`) or an entity noun listed in
+   `hints.allowlist` of `api/naming.json`; `ACTOR_`, `CREDENTIAL_`,
+   `IMPORT_ITEM_` and `NUMBER_` come from shared cores. A block has one key:
+   its manifest name is also its SQL module name (`tests/blocks/registry.test.ts`
+   lists the second modules a block installs).
 9. SQL functions are named through `ctx.fn`, from the entity singular:
    `create_<entity>`, `update_<entity>`, `get_<entity>`, `list_<entities>`,
    `delete_<entity>`, plus domain verbs (`close_case`, `assess_risk`).

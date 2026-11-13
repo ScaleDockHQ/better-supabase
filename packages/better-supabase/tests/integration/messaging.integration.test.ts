@@ -279,7 +279,7 @@ describe.skipIf(!live)("messaging", () => {
         new Set([
           "conversation.created",
           "message.sent",
-          "message.edited",
+          "message.updated",
           "message.pinned",
           "message.resolved",
           "message.deleted",

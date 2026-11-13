@@ -210,8 +210,35 @@ export interface BlockMutationActions<A extends readonly unknown[], T> {
 }
 
 /**
+ * Shows a write's result in the engine's cached reads before the call answers,
+ * and puts the reads back when the call fails (or returns an error `Result`).
+ * `optimisticUpdate`, `optimisticArchive` and `optimisticReorder` from
+ * `better-supabase/blocks/optimistic` build one for the common writes.
+ */
+export interface BlockOptimistic<A extends readonly unknown[]> {
+  /** The read methods whose cached data the write rewrites. */
+  readonly reads: readonly string[];
+  /**
+   * The cached data of one read after the write, given the write's arguments as
+   * a list.
+   */
+  readonly apply: (input: {
+    readonly data: unknown;
+    readonly args: A;
+  }) => unknown;
+}
+
+/** What `createBlockMutation` takes. */
+export type BlockMutationOptions<A extends readonly unknown[]> =
+  | BlockEngineOptions
+  | (Extract<BlockEngineOptions, { instance: string }> & {
+      readonly optimistic: BlockOptimistic<A>;
+    });
+
+/**
  * Calls one write method of a block client and tracks its state. With `engine`,
- * a write that succeeds makes the instance's reads in it stale.
+ * a write that succeeds makes the instance's reads in it stale, and
+ * `optimistic` rewrites them first.
  */
 export function createBlockMutation<
   C extends object,
@@ -219,7 +246,7 @@ export function createBlockMutation<
 >(
   client: C,
   method: K,
-  options: BlockEngineOptions = {},
+  options: BlockMutationOptions<BlockArgsOf<C, K>> = {},
 ): Controller<
   BlockMutationState<BlockDataOf<C, K>>,
   BlockMutationActions<BlockArgsOf<C, K>, BlockDataOf<C, K>>
@@ -242,8 +269,24 @@ export function createBlockMutation<
           const mine = latest;
           state.set({ status: "pending", error: undefined });
 
+          const rollbacks =
+            "optimistic" in options
+              ? options.optimistic.reads.map((read) =>
+                  options.engine.rewrite(
+                    [BLOCK_KEY, options.instance, read],
+                    (data) => options.optimistic.apply({ data, args }),
+                  ),
+                )
+              : [];
+
           // SAFETY: the method's `Result` carries `BlockDataOf<C, K>`.
           const result = (await call(...args)) as Result<BlockDataOf<C, K>>;
+
+          if (!result.ok) {
+            for (const rollback of rollbacks) {
+              rollback();
+            }
+          }
 
           if (result.ok && options.engine !== undefined) {
             options.engine.invalidate([BLOCK_KEY, options.instance]);

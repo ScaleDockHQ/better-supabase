@@ -35,6 +35,8 @@ export const tasksBlock: BlockOf<
   entities: {
     task: {
       mutability: "editable",
+      expectedVersion: true,
+      idempotent: ["create"],
       emits: { create: true, update: true, delete: true },
     },
     project: { mutability: "editable", emits: { update: false } },
@@ -44,6 +46,7 @@ export const tasksBlock: BlockOf<
       emits: { update: false, delete: false },
     },
   },
+  concerns: ["history", "lifecycle", "realtime", "search"],
   description:
     "Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.",
   recipes: ["work-item-board", "work-item-grid", "entity-form", "my-work"],

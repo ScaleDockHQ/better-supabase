@@ -7,6 +7,12 @@
 // Next.js (`experimental.useOffline`), not by this worker.
 
 const CACHE = "acme-shell-v1";
+// Hashed build files live apart from the shell so a deploy never clears them:
+// a tab on the previous build still needs its chunks. Bump the suffix only
+// when the matching rule changes.
+const STATIC_CACHE = "acme-next-static-v1";
+const STATIC_MAX_ENTRIES = 512;
+const CACHES = new Set([CACHE, STATIC_CACHE]);
 const PRECACHE = [
   "/",
   "/offline.html",
@@ -53,7 +59,9 @@ self.addEventListener("activate", (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)),
+          keys
+            .filter((key) => !CACHES.has(key))
+            .map((key) => caches.delete(key)),
         ),
       )
       .then(() => self.clients.claim()),
@@ -90,8 +98,34 @@ async function networkFirst(request) {
   }
 }
 
+// `/_next/static/service-worker/` keeps a stable URL and `must-revalidate`;
+// every other file under `/_next/static` is immutable per URL.
+function isHashedStatic(url) {
+  return (
+    url.pathname.startsWith("/_next/static/") &&
+    !url.pathname.startsWith("/_next/static/service-worker/")
+  );
+}
+
+function immutable(response) {
+  return (
+    storable(response) &&
+    /\bimmutable\b/i.test(response.headers.get("cache-control") ?? "")
+  );
+}
+
+async function trim(cache) {
+  const keys = await cache.keys();
+
+  await Promise.all(
+    keys
+      .slice(0, Math.max(0, keys.length - STATIC_MAX_ENTRIES))
+      .map((key) => cache.delete(key)),
+  );
+}
+
 async function cacheFirst(request) {
-  const cache = await caches.open(CACHE);
+  const cache = await caches.open(STATIC_CACHE);
   const cached = await cache.match(request);
 
   if (cached) {
@@ -100,8 +134,14 @@ async function cacheFirst(request) {
 
   const response = await fetch(request);
 
-  if (storable(response)) {
-    await cache.put(request, response.clone());
+  if (immutable(response)) {
+    try {
+      await cache.put(request, response.clone());
+      await trim(cache);
+    } catch {
+      // Out of quota: drop the build cache rather than fail the request.
+      await caches.delete(STATIC_CACHE);
+    }
   }
 
   return response;
@@ -115,8 +155,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Build output is content-hashed and immutable.
-  if (url.pathname.startsWith("/_next/static/")) {
+  if (isHashedStatic(url)) {
     event.respondWith(cacheFirst(request));
 
     return;

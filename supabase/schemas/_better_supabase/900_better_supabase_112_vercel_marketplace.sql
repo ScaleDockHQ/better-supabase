@@ -1,6 +1,6 @@
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:29c81b450248941b4be25829db43b37678142c1151a21853ecd66e3054c954a4
+-- @bsb-hash sha256:82bc2648d58581f99d804ab9f5565cca5d1c76ce3bc418b8f1ec809a6a121f28
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -558,6 +558,50 @@ begin
 end;
 $$;
 
+-- Tenant reads for a signed-in member of the tenant an installation or a
+-- resource is linked to (link_marketplace_tenant, set_marketplace_resource_state).
+-- They leave out the Vault handle of the access token and the app's secret
+-- handles, so a settings page can show them without the service role.
+create or replace function "better_supabase"."marketplace_installation_for"(tenant text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not exists (select 1 from better_supabase.member_organization_ids() as m(id) where m.id::text = marketplace_installation_for.tenant) then
+    return null;
+  end if;
+  return (
+    select to_jsonb(x) - 'access_token_secret_id'
+    from "better_supabase"."marketplace_installations" x
+    where x."tenant" = marketplace_installation_for.tenant and x."status"::text <> 'removed'
+    order by x."created_at" desc
+    limit 1
+  );
+end;
+$$;
+
+create or replace function "better_supabase"."marketplace_resources_for"(tenant text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not exists (select 1 from better_supabase.member_organization_ids() as m(id) where m.id::text = marketplace_resources_for.tenant) then
+    return '[]'::jsonb;
+  end if;
+  return (
+    select coalesce(jsonb_agg(to_jsonb(y) - 'secret_refs' order by y."created_at"), '[]'::jsonb)
+    from "better_supabase"."marketplace_resources" y join "better_supabase"."marketplace_installations" x on x."id" = y."installation_id"
+    where y."tenant" = marketplace_resources_for.tenant and y."status"::text <> 'deleted'
+  );
+end;
+$$;
+
 -- Marks a resource deleted; the row stays for invoices and audit.
 create or replace function "better_supabase"."delete_marketplace_resource"(configuration_id text, external_id text)
 returns jsonb
@@ -615,6 +659,10 @@ revoke execute on function "better_supabase"."marketplace_resources"(text) from 
 grant execute on function "better_supabase"."marketplace_resources"(text) to service_role;
 revoke execute on function "better_supabase"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."delete_marketplace_resource"(text, text) to service_role;
+revoke execute on function "better_supabase"."marketplace_installation_for"(text) from public, anon;
+grant execute on function "better_supabase"."marketplace_installation_for"(text) to authenticated, service_role;
+revoke execute on function "better_supabase"."marketplace_resources_for"(text) from public, anon;
+grant execute on function "better_supabase"."marketplace_resources_for"(text) to authenticated, service_role;
 
 -- blocks.vercel-marketplace.api: entry points for the Data API.
 create schema if not exists "api";
@@ -777,3 +825,23 @@ set search_path = ''
 as $$ select "better_supabase"."delete_marketplace_resource"($1, $2) $$;
 revoke execute on function "api"."delete_marketplace_resource"(text, text) from public, anon, authenticated;
 grant execute on function "api"."delete_marketplace_resource"(text, text) to service_role;
+
+create or replace function "api"."marketplace_installation_for"(tenant text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."marketplace_installation_for"($1) $$;
+revoke execute on function "api"."marketplace_installation_for"(text) from public, anon;
+grant execute on function "api"."marketplace_installation_for"(text) to authenticated, service_role;
+
+create or replace function "api"."marketplace_resources_for"(tenant text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."marketplace_resources_for"($1) $$;
+revoke execute on function "api"."marketplace_resources_for"(text) from public, anon;
+grant execute on function "api"."marketplace_resources_for"(text) to authenticated, service_role;

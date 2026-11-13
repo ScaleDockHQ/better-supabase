@@ -1,6 +1,6 @@
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:01d848eb90a5f2c8c58fa6c2463da2a0d5df41ae9c292ff62276c01991ecdd04
+-- @bsb-hash sha256:f6b5e340c98d3e25516f3e85fbfdf34b4515180df8bd923a3e067bd7c691f5e1
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1329,6 +1329,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."meeting_action_items
 create trigger "bsb_search_meeting_index"
   after insert or delete or update of "id", "tenant_id", "title", "location", "summary" on "better_supabase"."meetings"
   for each row execute function "better_supabase"."search_index_row"('meeting', 'id');
+create trigger "bsb_search_meeting_decision_index"
+  after insert or delete or update of "id", "tenant_id", "title" on "better_supabase"."meeting_decisions"
+  for each row execute function "better_supabase"."search_index_row"('meeting_decision', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.meetings deferrable initially deferred for each row when (better_supabase.import_run() is null or current_setting('better_supabase.import_audit', true) is distinct from 'summary') execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"meeting","event_prefix":"meeting"}');

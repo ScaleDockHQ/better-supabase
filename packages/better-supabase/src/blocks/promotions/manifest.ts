@@ -22,6 +22,7 @@ export const promotionsBlock: BlockOf<
       emits: { update: false, delete: false },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.",
   recipes: ["promotion-code-field"],

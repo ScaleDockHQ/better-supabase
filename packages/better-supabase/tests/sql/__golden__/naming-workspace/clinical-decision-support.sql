@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:17c8b3ce79ab96f608e152947c94649b5a115e2f4ade2aaf10f2847144ff7753
+-- @bsb-hash sha256:d0e3dae7ce4d339ad83de3a5c01f5664f23f70754e4253a5a75c0ec8cd5e8de5
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -102,31 +102,31 @@ declare
   v_details jsonb;
 begin
   if jsonb_typeof(sync_care_alerts.alerts) is distinct from 'array' then
-    raise exception 'alerts is an array' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'alerts is an array' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   for v_item in select e.value from jsonb_array_elements(sync_care_alerts.alerts) e loop
     v_kind := coalesce(nullif(v_item ->> 'kind', ''), 'other');
     v_severity := coalesce(nullif(v_item ->> 'severity', ''), 'warning');
     v_message := nullif(trim(v_item ->> 'message'), '');
     if v_kind not in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other') then
-      raise exception 'kind is dose_range, duplicate_therapy, interaction, allergy or other' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+      raise exception 'kind is dose_range, duplicate_therapy, interaction, allergy or other' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
     end if;
     if v_severity not in ('info', 'warning', 'critical') then
-      raise exception 'severity is info, warning or critical' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+      raise exception 'severity is info, warning or critical' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
     end if;
     if v_message is null or length(v_message) > 1000 then
-      raise exception 'an alert needs a message of up to 1000 characters' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+      raise exception 'an alert needs a message of up to 1000 characters' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
     end if;
     v_fingerprint := coalesce(nullif(trim(v_item ->> 'fingerprint'), ''), md5(v_kind || '|' || v_message));
     if length(v_fingerprint) > 200 then
-      raise exception 'a fingerprint is up to 200 characters' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+      raise exception 'a fingerprint is up to 200 characters' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
     end if;
     v_details := case when jsonb_typeof(v_item -> 'details') = 'object' then v_item -> 'details' else null end;
     begin
       v_rule := nullif(v_item ->> 'ruleId', '')::uuid;
       v_orders := coalesce((select array_agg(e.value::uuid) from jsonb_array_elements_text(case when jsonb_typeof(v_item -> 'orderIds') = 'array' then v_item -> 'orderIds' else '[]'::jsonb end) e), '{}');
     exception when invalid_text_representation then
-      raise exception 'ruleId and orderIds are uuids' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+      raise exception 'ruleId and orderIds are uuids' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
     end;
     select * into v_row from "better_supabase"."care_alerts" x
     where x."tenant_id" = sync_care_alerts.tenant and x."subject_type" = sync_care_alerts.subject_type and x."subject_id" = sync_care_alerts.subject_id
@@ -177,10 +177,10 @@ declare
   v_alerts jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (evaluate_care_rules.tenant is not null and coalesce(better_supabase.can('tenant', evaluate_care_rules.tenant, 'clinical_decision_support.write'), false))) then
-    raise exception 'not allowed to evaluate care rules' using errcode = '42501', hint = 'CARE_ALERT_FORBIDDEN';
+    raise exception 'not allowed to evaluate care rules' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or false) then
-    raise exception 'evaluating needs a record of the organization' using errcode = '22023', hint = 'CARE_ALERT_SUBJECT_INVALID';
+    raise exception 'evaluating needs a record of the organization' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_SUBJECT_INVALID';
   end if;
   with active as (
     select o."id" as order_id, o."medication_id" as medication_id, o."dose" as dose, o."dose_unit" as unit, mx."name" as name,
@@ -266,13 +266,13 @@ as $$
 #variable_conflict use_variable
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (record_care_alerts.tenant is not null and coalesce(better_supabase.can('tenant', record_care_alerts.tenant, 'clinical_decision_support.write'), false))) then
-    raise exception 'not allowed to record care alerts' using errcode = '42501', hint = 'CARE_ALERT_FORBIDDEN';
+    raise exception 'not allowed to record care alerts' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
   end if;
   if coalesce(trim(record_care_alerts.source), '') = '' or length(record_care_alerts.source) > 100 or record_care_alerts.source = 'built-in' then
-    raise exception 'source names the engine, up to 100 characters, and is not the built-in source' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'source names the engine, up to 100 characters, and is not the built-in source' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or false) then
-    raise exception 'recording needs a record of the organization' using errcode = '22023', hint = 'CARE_ALERT_SUBJECT_INVALID';
+    raise exception 'recording needs a record of the organization' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_SUBJECT_INVALID';
   end if;
   return "better_supabase"."sync_care_alerts"(record_care_alerts.tenant, record_care_alerts.subject_type, record_care_alerts.subject_id, trim(record_care_alerts.source), record_care_alerts.alerts);
 end;
@@ -294,10 +294,10 @@ as $$
 #variable_conflict use_variable
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (care_decision_context.tenant is not null and coalesce(better_supabase.can('tenant', care_decision_context.tenant, 'clinical_decision_support.read'), false))) then
-    raise exception 'not allowed to read the decision context' using errcode = '42501', hint = 'CARE_ALERT_FORBIDDEN';
+    raise exception 'not allowed to read the decision context' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or false) then
-    raise exception 'the context needs a record of the organization' using errcode = '22023', hint = 'CARE_ALERT_SUBJECT_INVALID';
+    raise exception 'the context needs a record of the organization' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_SUBJECT_INVALID';
   end if;
   return jsonb_build_object(
     'organizationId', care_decision_context.tenant,
@@ -329,7 +329,7 @@ declare
   v_filters jsonb := coalesce(list_care_alerts.filters, '{}'::jsonb);
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_care_alerts.tenant is not null and coalesce(better_supabase.can('tenant', list_care_alerts.tenant, 'clinical_decision_support.read'), false))) then
-    raise exception 'not allowed to read care alerts' using errcode = '42501', hint = 'CARE_ALERT_FORBIDDEN';
+    raise exception 'not allowed to read care alerts' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'kind', q."kind", 'severity', q."severity", 'source', q."source", 'ruleId', q."rule_id", 'orderIds', to_jsonb(q."order_ids"), 'message', q."message", 'details', q."details", 'fingerprint', q."fingerprint", 'status', q."status", 'decidedBy', q."decided_by", 'decidedAt', q."decided_at", 'decisionReason', q."decision_reason", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by case q."severity" when 'critical' then 0 when 'warning' then 1 else 2 end, q."created_at" desc, q."id")
@@ -379,7 +379,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (save_care_rule.tenant is not null and coalesce(better_supabase.can('tenant', save_care_rule.tenant, 'clinical_decision_support.manage'), false))) then
-    raise exception 'not allowed to change care rules' using errcode = '42501', hint = 'CARE_ALERT_FORBIDDEN';
+    raise exception 'not allowed to change care rules' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
   end if;
   begin
     v_id := nullif(v_attrs ->> 'id', '')::uuid;
@@ -389,37 +389,37 @@ begin
     v_day := nullif(v_attrs ->> 'maxPerDay', '')::numeric;
     v_active := coalesce((v_attrs ->> 'active')::boolean, true);
   exception when invalid_text_representation or invalid_parameter_value then
-    raise exception 'ids are uuids, doses are numbers and active is true or false' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'ids are uuids, doses are numbers and active is true or false' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end;
   v_kind := v_attrs ->> 'kind';
   v_severity := coalesce(nullif(v_attrs ->> 'severity', ''), 'warning');
   v_message := nullif(trim(v_attrs ->> 'message'), '');
   if v_kind is null or v_kind not in ('dose_range', 'duplicate_therapy', 'interaction') then
-    raise exception 'kind is dose_range, duplicate_therapy or interaction' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'kind is dose_range, duplicate_therapy or interaction' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_severity not in ('info', 'warning', 'critical') then
-    raise exception 'severity is info, warning or critical' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'severity is info, warning or critical' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_message is not null and length(v_message) > 1000 then
-    raise exception 'a message is up to 1000 characters' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'a message is up to 1000 characters' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if (select count(*) from "better_supabase"."medications" mx where mx."tenant_id" = save_care_rule.tenant and mx."id" = any(v_ids)) <> cardinality(v_ids) then
-    raise exception 'medicationIds names medications that are not in the organization''s catalog' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'medicationIds names medications that are not in the organization''s catalog' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_kind = 'dose_range' and (cardinality(v_ids) <> 1 or (v_min is null and v_max is null and v_day is null)) then
-    raise exception 'a dose range rule names one medication and at least one bound' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'a dose range rule names one medication and at least one bound' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_kind = 'dose_range' and v_min is not null and v_max is not null and v_min > v_max then
-    raise exception 'minDose is at most maxDose' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'minDose is at most maxDose' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_kind <> 'dose_range' and (v_min is not null or v_max is not null or v_day is not null) then
-    raise exception 'only a dose range rule has dose bounds' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'only a dose range rule has dose bounds' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_kind = 'interaction' and cardinality(v_ids) <> 2 then
-    raise exception 'an interaction rule names two medications' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'an interaction rule names two medications' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_kind = 'duplicate_therapy' and cardinality(v_ids) < 2 then
-    raise exception 'a duplicate therapy rule names at least two medications' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'a duplicate therapy rule names at least two medications' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   begin
     if v_id is null then
@@ -433,11 +433,11 @@ begin
       where x."id" = v_id and x."tenant_id" = save_care_rule.tenant
       returning * into v_row;
       if not found then
-        raise exception 'no such rule' using errcode = 'P0002', hint = 'CARE_RULE_NOT_FOUND';
+        raise exception 'no such rule' using errcode = 'P0002', hint = 'DECISION_SUPPORT_RULE_NOT_FOUND';
       end if;
     end if;
   exception when check_violation then
-    raise exception 'the rule''s medications and bounds do not fit its kind' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'the rule''s medications and bounds do not fit its kind' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end;
   if v_created then
     null;
@@ -467,10 +467,10 @@ begin
   end if;
   select * into v_row from "better_supabase"."care_rules" x where x."id" = delete_care_rule.rule_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'clinical_decision_support.read'), false))) then
-    raise exception 'no such rule' using errcode = 'P0002', hint = 'CARE_RULE_NOT_FOUND';
+    raise exception 'no such rule' using errcode = 'P0002', hint = 'DECISION_SUPPORT_RULE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'clinical_decision_support.manage'), false))) then
-    raise exception 'not allowed to change care rules' using errcode = '42501', hint = 'CARE_ALERT_FORBIDDEN';
+    raise exception 'not allowed to change care rules' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
   end if;
   delete from "better_supabase"."care_rules" x where x."id" = v_row."id";
   null;
@@ -491,7 +491,7 @@ as $$
 #variable_conflict use_variable
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_care_rules.tenant is not null and coalesce(better_supabase.can('tenant', list_care_rules.tenant, 'clinical_decision_support.read'), false))) then
-    raise exception 'not allowed to read care rules' using errcode = '42501', hint = 'CARE_ALERT_FORBIDDEN';
+    raise exception 'not allowed to read care rules' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
   end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'kind', y."kind", 'medicationIds', to_jsonb(y."medication_ids"), 'minDose', y."min_dose", 'maxDose', y."max_dose", 'maxPerDay', y."max_per_day", 'severity', y."severity", 'message', y."message", 'active', y."active", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."kind", y."created_at", y."id")
@@ -522,22 +522,22 @@ begin
   end if;
   select * into v_row from "better_supabase"."care_alerts" x where x."id" = decide_care_alert.alert_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'clinical_decision_support.read'), false))) then
-    raise exception 'no such alert' using errcode = 'P0002', hint = 'CARE_ALERT_NOT_FOUND';
+    raise exception 'no such alert' using errcode = 'P0002', hint = 'DECISION_SUPPORT_ALERT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'clinical_decision_support.write'), false))) then
-    raise exception 'not allowed to decide on care alerts' using errcode = '42501', hint = 'CARE_ALERT_FORBIDDEN';
+    raise exception 'not allowed to decide on care alerts' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
   end if;
   if decide_care_alert.decision is null or decide_care_alert.decision not in ('acknowledged', 'overridden') then
-    raise exception 'decision is acknowledged or overridden' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'decision is acknowledged or overridden' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_row."status" = 'resolved' or (v_row."status" = 'overridden') or (v_row."status" = 'acknowledged' and decide_care_alert.decision = 'acknowledged') then
-    raise exception 'this alert has already been decided or resolved' using errcode = '55000', hint = 'CARE_ALERT_STATUS';
+    raise exception 'this alert has already been decided or resolved' using errcode = '55000', hint = 'DECISION_SUPPORT_ALERT_STATUS';
   end if;
   if v_reason is null and (decide_care_alert.decision = 'overridden' or v_row."severity" = 'critical') then
-    raise exception 'overriding an alert, or deciding on a critical one, needs a reason' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'overriding an alert, or deciding on a critical one, needs a reason' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   if v_reason is not null and length(v_reason) > 1000 then
-    raise exception 'a reason is up to 1000 characters' using errcode = '22023', hint = 'CARE_ALERT_INVALID';
+    raise exception 'a reason is up to 1000 characters' using errcode = '22023', hint = 'DECISION_SUPPORT_ALERT_INVALID';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_care_alert_decide"(uuid, text)');

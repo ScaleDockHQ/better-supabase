@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 import type { QuotesEvents } from "./events.ts";
 
+import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { quoteFromDealFactory } from "./actions.ts";
 import { QUOTES_AUTOMATIONS } from "./automations.ts";
@@ -18,8 +19,23 @@ export const quotesBlock: BlockOf<"quotes", typeof createQuotes, QuotesEvents> =
     create: createQuotes,
     category: "crm",
     entities: {
-      quote: { mutability: "editable", emits: { create: true, update: true } },
+      quote: {
+        mutability: "editable",
+        idempotent: ["create"],
+        emits: { create: true, update: true },
+      },
     },
+    links: [
+      blockLink(
+        "fromDeal",
+        "conversion",
+        "quote",
+        "deals",
+        "deal",
+        "quote_from_deal",
+      ),
+    ],
+    concerns: ["lifecycle", "search"],
     description:
       "Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.",
     recipes: ["quote-builder"],

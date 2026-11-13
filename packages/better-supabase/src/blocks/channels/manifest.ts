@@ -23,6 +23,7 @@ export const channelsBlock: BlockOf<
   entities: {
     channel: { mutability: "editable", emits: { create: true, update: true } },
   },
+  concerns: ["lifecycle", "search"],
   description:
     "Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.",
   recipes: ["channel-sidebar", "message-list", "thread-panel"],

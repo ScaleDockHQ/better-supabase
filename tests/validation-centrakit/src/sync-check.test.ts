@@ -228,7 +228,7 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           "blocks.invitations.options.tokenStorage",
           "blocks.outbox.options.blockSource",
           "blocks.outbox.options.defaultSource",
-          "blocks.webhooks-out.options.secretStorage",
+          "blocks.webhooks.options.secretStorage",
         ],
         // Block columns on tables CentraKit creates itself, left undeclared.
         "warning BS622": [

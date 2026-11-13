@@ -31,8 +31,8 @@ export const MODULE_PERMISSION_SCOPES: {
   audit: { read: "tenant", readAll: "platform", revert: "tenant" },
   impersonation: { start: "platform", read: "platform", revoke: "platform" },
   notifications: { send: "tenant", read: "tenant" },
-  "webhooks-out": { manage: "tenant", read: "tenant" },
-  "webhooks-in": {
+  webhooks: { manage: "tenant", read: "tenant" },
+  "incoming-webhooks": {
     create: "tenant",
     update: "tenant",
     delete: "tenant",

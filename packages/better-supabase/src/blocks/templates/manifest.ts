@@ -24,6 +24,7 @@ export const templatesBlock: BlockOf<
       emits: { update: false, delete: false },
     },
   },
+  concerns: ["lifecycle"],
   description:
     "Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.",
   recipes: ["templates-gallery"],

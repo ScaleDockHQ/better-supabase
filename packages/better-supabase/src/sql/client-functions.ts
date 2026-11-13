@@ -133,8 +133,11 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   housekeeping: "maintenance maintenance_scheduler",
   idempotency:
     "acquire_lease begin_idempotent complete_idempotent extend_idempotent extend_lease purge_idempotency_keys release_idempotent release_lease",
+  "field-encryption": "field_key_status",
   identities:
     "backfill_verified_emails begin_identity_link my_identities principal_by_identity redeem_identity_link unlink_identity",
+  impersonation:
+    "approve_support_request end_support_session list_support_sessions request_support_session start_support_session",
   imports:
     "cancel_import_run fail_import_chunk finish_import_run get_import_run import_chunk_progress import_resolve import_upsert_batch list_import_runs mark_import_running process_import_chunk start_import start_import_run store_import_chunk",
   inbox:
@@ -299,7 +302,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   usage:
     "consume_quota mark_usage_reported purge_usage_events purge_usage_history record_usage record_usage_batch remove_usage_quota set_usage_quota unreported_usage usage_breakdown usage_history usage_meters usage_overview usage_remaining usage_status",
   "vercel-marketplace":
-    "delete_marketplace_resource link_marketplace_tenant mark_marketplace_meter_sent marketplace_access_token marketplace_installation marketplace_resource marketplace_resources record_marketplace_invoice record_marketplace_meter_report remove_marketplace_installation seal_marketplace_access_token set_marketplace_resource_state unreported_marketplace_meter_reports upsert_marketplace_installation upsert_marketplace_plan upsert_marketplace_resource",
+    "delete_marketplace_resource link_marketplace_tenant mark_marketplace_meter_sent marketplace_access_token marketplace_installation marketplace_installation_for marketplace_resource marketplace_resources marketplace_resources_for record_marketplace_invoice record_marketplace_meter_report remove_marketplace_installation seal_marketplace_access_token set_marketplace_resource_state unreported_marketplace_meter_reports upsert_marketplace_installation upsert_marketplace_plan upsert_marketplace_resource",
   versions:
     "delete_version get_version get_versions label_version list_versions restore_version snapshot_version",
   waitlist:
@@ -308,9 +311,9 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "create_warranty_claim decide_warranty_claim list_warranty_claims submit_warranty_claim",
   "webhook-inbox":
     "checkpoint_webhook claim_webhooks complete_webhook extend_webhook fail_webhook list_webhooks purge_webhooks receive_webhook",
-  "webhooks-in":
+  "incoming-webhooks":
     "create_incoming_webhook delete_incoming_webhook incoming_webhook_by_token list_incoming_webhooks record_incoming_webhook rotate_incoming_webhook rotate_incoming_webhook_secret set_incoming_webhook_enabled update_incoming_webhook",
-  "webhooks-out":
+  webhooks:
     "claim_webhook_deliveries complete_webhook_delivery create_webhook_endpoint delete_webhook_endpoint dispatch_webhook list_webhook_endpoints publish_webhook_event publish_webhook_events purge_webhook_deliveries redeliver_webhook rotate_webhook_secret update_webhook_endpoint webhook_secrets",
   "workflow-editor":
     "check_workflow_alerts fork_workflow_definition publish_workflow_version record_workflow_node_run remove_workflow_alert remove_workflow_credential remove_workflow_definition remove_workflow_trigger resolve_workflow_definition rotate_workflow_webhook_token save_workflow_alert save_workflow_credential save_workflow_definition save_workflow_draft save_workflow_trigger set_workflow_definition_grant set_workflow_definition_purpose set_workflow_opt_out start_test_run sync_workflow_node_kinds sync_workflow_steps workflow_alerts_list workflow_credential_get workflow_credentials_list workflow_definition_get workflow_definition_grants_list workflow_definitions_list workflow_graph_permissions workflow_node_kinds_list workflow_node_runs_list workflow_run_principal workflow_start_target workflow_steps_list workflow_subject_start_target workflow_triggers_list workflow_version_get workflow_versions_list workflow_webhook_target",

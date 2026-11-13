@@ -11,7 +11,7 @@ const ALLOWED = (name: string): boolean =>
   name === "credentials" ||
   name === "vault" ||
   name === "signing-keys" ||
-  name.startsWith("webhook");
+  name.includes("webhook");
 
 /**
  * Not credentials: the domain and hostname challenges are published in a DNS

@@ -301,7 +301,7 @@ describe.skipIf(!live)("field encryption", () => {
         "select better_supabase.set_field_value($1, 'contact', 'c-2', $2, 'NL91ABNA0417164301')",
         [annOrg, definition],
       ),
-    ).toBe("FIELD_VALUE_INVALID");
+    ).toBe("CUSTOM_FIELD_VALUE_INVALID");
   });
 
   it("encrypts a custom field's values, audits the read and shreds them with the key", async () => {

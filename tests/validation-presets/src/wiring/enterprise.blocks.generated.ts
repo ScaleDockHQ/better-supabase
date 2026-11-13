@@ -15,6 +15,7 @@ import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SsoEvents } from "better-supabase/blocks/sso";
+import type { ImpersonationEvents } from "better-supabase/blocks/impersonation";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import { saasBlock as saasBlockInstance } from "better-supabase/blocks/saas";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
@@ -35,6 +36,7 @@ import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/p
 import { sessionsBlock as sessionsBlockInstance } from "better-supabase/blocks/sessions";
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { ssoBlock as ssoBlockInstance } from "better-supabase/blocks/sso";
+import { impersonationBlock as impersonationBlockInstance } from "better-supabase/blocks/impersonation";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
 /** Re-exported for server code; client code imports `blocks.config.ts`. */
@@ -68,6 +70,7 @@ export const blocks = {
   sessions: sessionsBlockInstance,
   settings: settingsBlockInstance,
   sso: ssoBlockInstance,
+  impersonation: impersonationBlockInstance,
   teams: teamsBlockInstance,
 } as const;
 
@@ -75,7 +78,7 @@ export const blocks = {
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & DataLifecycleEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & SsoEvents & TeamsEvents;
+export type BlockEvents = AccessRequestsEvents & ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & DataLifecycleEvents & EnrollmentsEvents & NotificationsEvents & OrganizationsEvents & SettingsEvents & SsoEvents & ImpersonationEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -176,6 +179,9 @@ export const blockEvents: Events<BlockEvents> = {
     "sso_domain.verified",
     "sso_provider.registered",
     "sso_provider.unregistered",
+    "support_session.denied",
+    "support_session.ended",
+    "support_session.started",
     "team.archived",
     "team.created",
     "team.deleted",
@@ -283,6 +289,9 @@ export const blockEventSchemas = {
   "sso_domain.verified": true,
   "sso_provider.registered": true,
   "sso_provider.unregistered": true,
+  "support_session.denied": true,
+  "support_session.ended": true,
+  "support_session.started": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,

@@ -384,7 +384,7 @@ declare
   v_rank text;
 begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("save_field_definition.tenant", manage)}) then
-    ${fail("FIELD_FORBIDDEN", "not allowed to manage custom fields")}
+    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to manage custom fields")}
   end if;
   ${
     inline
@@ -492,7 +492,7 @@ declare
   v_id uuid;
 begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("set_field_value.tenant", manage)}) then
-    ${fail("FIELD_FORBIDDEN", "not allowed to set custom fields")}
+    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to set custom fields")}
   end if;${
     subjectWrite === undefined
       ? ""
@@ -505,7 +505,7 @@ begin
       ? ""
       : `
   if exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and not (${customFieldValueCheck(`d.${ctx.col("definitions", "type")}`, "set_field_value.value", ctx.schemaName)})) then
-    ${fail("FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
+    ${fail("CUSTOM_FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
   end if;`
   }
   insert into ${values} (${ctx.col("values", "tenant")}, ${ctx.has("values", "definition") && !inline ? `${ctx.col("values", "definition")}, ` : ""}${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "valueText")}${perEntity ? `, ${FIELD_VALUE_ENTITY_COLUMN}` : ""})
@@ -549,10 +549,10 @@ begin
   into v_tenant, v_type, v_subject${definitionOn ? ", v_definition" : ""}
   from ${values} v where v.${ctx.col("values", "id")} = update_field_value.value_id;
   if not found then
-    ${fail("FIELD_VALUE_NOT_FOUND", "field value not found", "P0002")}
+    ${fail("CUSTOM_FIELD_VALUE_NOT_FOUND", "field value not found", "P0002")}
   end if;
   if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
-    ${fail("FIELD_FORBIDDEN", "not allowed to set custom fields")}
+    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to set custom fields")}
   end if;${
     valueWrite === undefined
       ? ""
@@ -564,7 +564,7 @@ begin
     definitionOn
       ? `
   if exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = v_definition and not (${customFieldValueCheck(`d.${ctx.col("definitions", "type")}`, "update_field_value.value", ctx.schemaName)})) then
-    ${fail("FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
+    ${fail("CUSTOM_FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
   end if;`
       : ""
   }
@@ -598,10 +598,10 @@ begin
   into v_tenant, v_type, v_subject
   from ${values} v where v.${ctx.col("values", "id")} = delete_field_value.value_id;
   if not found then
-    ${fail("FIELD_VALUE_NOT_FOUND", "field value not found", "P0002")}
+    ${fail("CUSTOM_FIELD_VALUE_NOT_FOUND", "field value not found", "P0002")}
   end if;
   if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
-    ${fail("FIELD_FORBIDDEN", "not allowed to delete this field value")}
+    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to delete this field value")}
   end if;${
     valueWrite === undefined
       ? ""
@@ -637,10 +637,10 @@ begin
       ? fail("FIELD_INLINE", "inline fields have no definition row", "0A000")
       : `select ${ctx.col("definitions", "tenant")} into v_tenant from ${definitions} where ${ctx.col("definitions", "id")} = delete_field_definition.definition;
   if not found then
-    ${fail("FIELD_NOT_FOUND", "field not found", "P0002")}
+    ${fail("CUSTOM_FIELD_NOT_FOUND", "field not found", "P0002")}
   end if;
   if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
-    ${fail("FIELD_FORBIDDEN", "not allowed to manage custom fields")}
+    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to manage custom fields")}
   end if;
   delete from ${definitions} where ${ctx.col("definitions", "id")} = delete_field_definition.definition;`
   }
@@ -751,10 +751,10 @@ declare
 begin
   select ${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "type")} into v_tenant, v_type from ${definitions} where ${id} = encrypt_field_definition.definition;
   if not found then
-    ${fail("FIELD_NOT_FOUND", "field not found", "P0002")}
+    ${fail("CUSTOM_FIELD_NOT_FOUND", "field not found", "P0002")}
   end if;
   if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
-    ${fail("FIELD_FORBIDDEN", "not allowed to manage custom fields")}
+    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to manage custom fields")}
   end if;
   if v_type not in (${ENCRYPTABLE_TYPES.map((type) => sqlString(type)).join(", ")}) then
     ${fail("FIELD_NOT_ENCRYPTABLE", "only text fields can be encrypted", "22023")}
@@ -852,14 +852,14 @@ declare
   v_tenant ${ctx.idType};
 begin
   if rank_field_definition.rank is null or rank_field_definition.rank !~ ${RANK_KEY_PATTERN} then
-    ${fail("FIELD_RANK_INVALID", "not a rank key", "22023")}
+    ${fail("CUSTOM_FIELD_RANK_INVALID", "not a rank key", "22023")}
   end if;
   select ${ctx.col("definitions", "tenant")} into v_tenant from ${definitions} where ${ctx.col("definitions", "id")} = rank_field_definition.definition;
   if not found then
-    ${fail("FIELD_NOT_FOUND", "field not found", "P0002")}
+    ${fail("CUSTOM_FIELD_NOT_FOUND", "field not found", "P0002")}
   end if;
   if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
-    ${fail("FIELD_FORBIDDEN", "not allowed to manage custom fields")}
+    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to manage custom fields")}
   end if;
   update ${definitions} set ${rank} = rank_field_definition.rank where ${ctx.col("definitions", "id")} = rank_field_definition.definition;
   return true;
@@ -1009,7 +1009,7 @@ alter table ${definitions} drop column if exists position;`;
     {
       from: 3,
       description:
-        "Field definitions name a registered subject type (FIELD_ENTITY_UNKNOWN), carry the field pack they came from, and install_field_pack installs a pack idempotently; blocks.custom-fields.options.entityMap renames stored entities, and with the legal-entities block field_values gain a nullable legal_entity_id.",
+        "Field definitions name a registered subject type (CUSTOM_FIELD_ENTITY_UNKNOWN), carry the field pack they came from, and install_field_pack installs a pack idempotently; blocks.custom-fields.options.entityMap renames stored entities, and with the legal-entities block field_values gain a nullable legal_entity_id.",
       sql: (ctx) => {
         if (
           !ctx.owns("definitions") ||

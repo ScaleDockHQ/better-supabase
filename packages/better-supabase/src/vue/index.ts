@@ -126,6 +126,8 @@ export type {
 
 export type {
   BlockEngineOptions,
+  BlockMutationOptions,
+  BlockOptimistic,
   BlockEventSource,
   BlockMutationActions,
   BlockMutationState,
@@ -134,6 +136,16 @@ export type {
   BlockQueryState,
   BlockRefetchOn,
 } from "../blocks/block-controller.ts";
+
+export type {
+  BlockListStatus,
+  BlockRealtimeManifest,
+} from "../blocks/block-list-status.ts";
+
+export {
+  blockListStatus,
+  blockRealtimeRefetch,
+} from "../blocks/block-list-status.ts";
 
 const SESSION: InjectionKey<MaybeRefOrGetter<AuthSession>> = Symbol(
   "better-supabase-session",
@@ -700,3 +712,9 @@ export function useAction<I, T>(
     },
   };
 }
+
+export {
+  optimisticArchive,
+  optimisticReorder,
+  optimisticUpdate,
+} from "../blocks/optimistic.ts";

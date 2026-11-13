@@ -98,6 +98,7 @@ export function startAuthzRefresh(options: AuthzRefreshOptions): () => void {
     realtimeVersionSource(options.client, options.userId, {
       ...(options.topic ? { topic: options.topic } : {}),
       ...(options.event ? { event: options.event } : {}),
+      ...(options.schema ? { schema: options.schema } : {}),
       onError: report,
     });
 

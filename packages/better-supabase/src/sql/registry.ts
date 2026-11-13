@@ -90,6 +90,7 @@ import { IDENTITIES } from "./modules/identities.ts";
 import { IMPORTS } from "./modules/imports.ts";
 import { INBOX } from "./modules/inbox.ts";
 import { INCIDENTS } from "./modules/incidents.ts";
+import { INCOMING_WEBHOOKS } from "./modules/incoming-webhooks.ts";
 import { INSPECTIONS } from "./modules/inspections.ts";
 import { INVENTORY } from "./modules/inventory.ts";
 import { INVITATIONS } from "./modules/invitations.ts";
@@ -189,8 +190,7 @@ import { WAITLIST } from "./modules/waitlist.ts";
 import { WAREHOUSE } from "./modules/warehouse.ts";
 import { WARRANTY } from "./modules/warranty.ts";
 import { WEBHOOK_INBOX } from "./modules/webhook-inbox.ts";
-import { WEBHOOKS_IN } from "./modules/webhooks-in.ts";
-import { WEBHOOKS_OUT } from "./modules/webhooks-out.ts";
+import { WEBHOOKS } from "./modules/webhooks.ts";
 import { WORKFLOW_BUILDER } from "./modules/workflow-editor.ts";
 import { WORKFLOW_SDK_WORLD } from "./modules/workflow-sdk.ts";
 import { WORKFLOWS } from "./modules/workflows.ts";
@@ -316,9 +316,9 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(PROFILES),
       built(OUTBOX),
       built(NOTIFICATIONS),
-      built(WEBHOOKS_OUT),
+      built(WEBHOOKS),
       built(SESSIONS),
-      built(WEBHOOKS_IN),
+      built(INCOMING_WEBHOOKS),
       built(API_KEYS),
       built(SETTINGS),
       built(USAGE),

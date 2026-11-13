@@ -1250,9 +1250,9 @@ describe("modulePermissionKeys", () => {
       },
     ]);
     expect(
-      modulePermissionKeys({ "webhooks-out": { mode: "custom" } }, [
-        "webhooks-out",
-      ]).filter((entry) => entry.module === "webhooks-out"),
+      modulePermissionKeys({ webhooks: { mode: "custom" } }, [
+        "webhooks",
+      ]).filter((entry) => entry.module === "webhooks"),
     ).toEqual([]);
   });
 

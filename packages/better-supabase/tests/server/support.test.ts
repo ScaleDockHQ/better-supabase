@@ -172,9 +172,9 @@ describe("support sessions on the server", () => {
     }
 
     expect(codes).toEqual([
-      "SUPPORT_REASON_REQUIRED",
-      "SUPPORT_SELF",
-      "SUPPORT_TTL",
+      "IMPERSONATION_REASON_REQUIRED",
+      "IMPERSONATION_SELF",
+      "IMPERSONATION_TTL",
       "SUPPORT_NESTED",
     ]);
     expect(events.map((event) => event.type)).toEqual(
@@ -217,7 +217,7 @@ describe("support sessions on the server", () => {
 
       expect(result.error).toMatchObject({
         kind: "forbidden",
-        code: "SUPPORT_FORBIDDEN",
+        code: "IMPERSONATION_FORBIDDEN",
       });
       expect(events[0]?.data).toMatchObject({ denial: "authorize" });
     }
@@ -234,7 +234,9 @@ describe("support sessions on the server", () => {
           ...store,
           start: () =>
             Promise.reject(
-              pgError("42501", "Not allowed", { hint: "SUPPORT_FORBIDDEN" }),
+              pgError("42501", "Not allowed", {
+                hint: "IMPERSONATION_FORBIDDEN",
+              }),
             ),
         },
       }),

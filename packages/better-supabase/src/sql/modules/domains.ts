@@ -178,7 +178,7 @@ function build(ctx: BlockSqlContext): string {
   if right(v_hostname, ${String(platform.length + 1)}) = ${sqlString(`.${platform}`)} then
     v_label := left(v_hostname, length(v_hostname) - ${String(platform.length + 1)});
     if position('.' in v_label) > 0 then
-      ${raise("Only one label below the platform domain: %", "22023", "HOSTNAME_INVALID", "v_hostname")}
+      ${raise("Only one label below the platform domain: %", "22023", "DOMAIN_INVALID", "v_hostname")}
     end if;${reservedLabel}
     v_kind := 'subdomain';
   end if;`;
@@ -221,17 +221,17 @@ declare
   v_new boolean;
 begin
   if not (${SERVICE_CALLER} or ${can("add_hostname.tenant", manage)}) then
-    ${fail("HOSTNAME_FORBIDDEN", "You may not manage this organization's hostnames")}
+    ${fail("DOMAIN_FORBIDDEN", "You may not manage this organization's hostnames")}
   end if;
   if v_hostname is null or length(v_hostname) > 253 or v_hostname !~ ${sqlString(HOSTNAME)} then
-    ${raise("Not a hostname: %", "22023", "HOSTNAME_INVALID", "add_hostname.hostname")}
+    ${raise("Not a hostname: %", "22023", "DOMAIN_INVALID", "add_hostname.hostname")}
   end if;${platformCheck}
   select * into v_row from ${t} x where x.${c("tenant")} = add_hostname.tenant and x.${c("hostname")} = v_hostname;
   if v_row.${c("id")} is not null then
     return ${publicRow("v_row")};
   end if;
   if v_kind = 'subdomain' and exists (select 1 from ${t} x where x.${c("hostname")} = v_hostname and x.${c("verifiedAt")} is not null) then
-    ${raise("Another organization holds %", "23505", "HOSTNAME_TAKEN", "v_hostname")}
+    ${raise("Another organization holds %", "23505", "DOMAIN_TAKEN", "v_hostname")}
   end if;
   insert into ${t} (${c("tenant")}, ${c("hostname")}, ${c("kind")}, ${c("verifiedAt")})
   values (add_hostname.tenant, v_hostname, ${ctx.cast("hostnames", "kind", "v_kind")}, case when v_kind = 'subdomain' then now() end)
@@ -242,7 +242,7 @@ begin
   end if;
   return ${publicRow("v_row")};
 exception when unique_violation then
-  ${raise("Another organization holds %", "23505", "HOSTNAME_TAKEN", "v_hostname")}
+  ${raise("Another organization holds %", "23505", "DOMAIN_TAKEN", "v_hostname")}
 end;
 $$;
 
@@ -256,7 +256,7 @@ set search_path = ''
 as $$
 begin
   if not (${SERVICE_CALLER} or ${can("list_hostnames.tenant", read)}) then
-    ${fail("HOSTNAME_FORBIDDEN", "You may not read this organization's hostnames")}
+    ${fail("DOMAIN_FORBIDDEN", "You may not read this organization's hostnames")}
   end if;
   return (
     select coalesce(jsonb_agg(${publicRow("x")} order by x.${c("primary")} desc, x.${c("hostname")}), '[]'::jsonb)
@@ -296,17 +296,17 @@ declare
   v_row ${t};
 begin
   if not (${SERVICE_CALLER}) then
-    ${fail("HOSTNAME_FORBIDDEN", "Only the service role verifies hostnames")}
+    ${fail("DOMAIN_FORBIDDEN", "Only the service role verifies hostnames")}
   end if;
   select * into v_row from ${t} x where x.${c("id")} = verify_hostname.id for update;
   if v_row.${c("id")} is null or not ${actorCan(`v_row.${c("tenant")}`, "verify_hostname.actor")} then
-    ${fail("HOSTNAME_NOT_FOUND", "No hostname you manage has this id", "P0002")}
+    ${fail("DOMAIN_NOT_FOUND", "No hostname you manage has this id", "P0002")}
   end if;
   if v_row.${c("verifiedAt")} is not null then
     return ${publicRow("v_row")};
   end if;
   if exists (select 1 from ${t} x where x.${c("hostname")} = v_row.${c("hostname")} and x.${c("verifiedAt")} is not null) then
-    ${raise("Another organization holds %", "23505", "HOSTNAME_TAKEN", `v_row.${c("hostname")}`)}
+    ${raise("Another organization holds %", "23505", "DOMAIN_TAKEN", `v_row.${c("hostname")}`)}
   end if;
   update ${t} x set ${c("verifiedAt")} = now() where x.${c("id")} = v_row.${c("id")} returning * into v_row;
   ${hostnameEvent("hostname.verified", "v_row", "verify_hostname.actor")}
@@ -327,10 +327,10 @@ declare
 begin
   select * into v_row from ${t} x where x.${c("id")} = set_primary_hostname.id for update;
   if v_row.${c("id")} is null or not (${SERVICE_CALLER} or ${can(`v_row.${c("tenant")}`, manage)}) then
-    ${fail("HOSTNAME_NOT_FOUND", "No hostname you manage has this id", "P0002")}
+    ${fail("DOMAIN_NOT_FOUND", "No hostname you manage has this id", "P0002")}
   end if;
   if v_row.${c("verifiedAt")} is null then
-    ${fail("HOSTNAME_NOT_VERIFIED", "Verify the hostname first", "22023")}
+    ${fail("DOMAIN_NOT_VERIFIED", "Verify the hostname first", "22023")}
   end if;
   if v_row.${c("primary")} then
     return ${publicRow("v_row")};

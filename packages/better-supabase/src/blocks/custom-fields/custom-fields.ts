@@ -154,9 +154,9 @@ export interface CustomFields {
   /**
    * Installs a field pack in the tenant. A definition is matched by pack and
    * key, so installing a version again changes nothing. Fails with
-   * `FIELD_ENTITY_UNKNOWN` for a subject type that isn't registered and with
-   * `FIELD_PACK_CONFLICT` for a key a definition outside the pack uses. Needs
-   * `custom_fields.manage`.
+   * `CUSTOM_FIELD_ENTITY_UNKNOWN` for a subject type that isn't registered and
+   * with `CUSTOM_FIELD_PACK_CONFLICT` for a key a definition outside the pack
+   * uses. Needs `custom_fields.manage`.
    */
   installPack(pack: FieldPack): AsyncResult<FieldPackInstall>;
   /** Installs each pack of `options.packs`, in order. */
@@ -191,8 +191,8 @@ export interface CustomFields {
   }): AsyncResult<FieldValue>;
   /**
    * Changes the value of one field value row, keeping its subject and field.
-   * Needs `custom_fields.manage`. Fails with `FIELD_VALUE_NOT_FOUND` and, for a
-   * value the field's format refuses, `FIELD_VALUE_INVALID`.
+   * Needs `custom_fields.manage`. Fails with `CUSTOM_FIELD_VALUE_NOT_FOUND`
+   * and, for a value the field's format refuses, `CUSTOM_FIELD_VALUE_INVALID`.
    */
   updateValue(input: {
     id: string;

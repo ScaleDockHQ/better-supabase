@@ -13,7 +13,7 @@ export type MessagingEvents = {
   readonly "conversation.member_added": ConversationEventData;
   readonly "conversation.member_removed": ConversationEventData;
   readonly "message.sent": MessageEventData;
-  readonly "message.edited": MessageEventData;
+  readonly "message.updated": MessageEventData;
   readonly "message.deleted": MessageEventData;
   readonly "message.pinned": MessageEventData;
   readonly "message.resolved": MessageEventData;
@@ -26,7 +26,7 @@ export const messagingEvents: Events<MessagingEvents> = defineEvents({
   "conversation.member_added": event<ConversationEventData>(),
   "conversation.member_removed": event<ConversationEventData>(),
   "message.sent": event<MessageEventData>(),
-  "message.edited": event<MessageEventData>(),
+  "message.updated": event<MessageEventData>(),
   "message.deleted": event<MessageEventData>(),
   "message.pinned": event<MessageEventData>(),
   "message.resolved": event<MessageEventData>(),

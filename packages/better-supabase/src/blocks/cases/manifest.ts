@@ -1,6 +1,7 @@
 import type { BlockOf } from "../define-block.ts";
 import type { CasesEvents } from "./events.ts";
 
+import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { createCases } from "./cases.ts";
 import { casesEvents } from "./events.ts";
@@ -37,6 +38,10 @@ export const casesBlock: BlockOf<"cases", typeof createCases, CasesEvents> =
         emits: { create: true, delete: true },
       },
     },
+    links: [
+      blockLink("task", "relation", "case", "tasks", "task", "created_from"),
+    ],
+    concerns: ["lifecycle", "search"],
     description:
       "Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.",
     schedules: [

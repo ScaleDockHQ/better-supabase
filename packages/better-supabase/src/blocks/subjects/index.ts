@@ -1,9 +1,11 @@
 export {
   createSubjects,
+  labelsOf,
   MY_WORK_LIMIT,
   type MyTask,
   type MyWorkOptions,
   type ResolvedSubject,
+  type SubjectLabel,
   SUBJECT_TITLES_LIMIT,
   type Subjects,
   type SubjectsOptions,
@@ -42,6 +44,18 @@ export type {
 export { subjectsBlock } from "./manifest.ts";
 
 export { subjectKey } from "../../core/block-subjects.ts";
+
+export {
+  createPartyResolver,
+  initialsOf,
+  type Party,
+  type PartyLabel,
+  type PartyLabeler,
+  type PartyProfile,
+  type PartyReader,
+  type PartyResolver,
+  type PartyResolverOptions,
+} from "../../core/party.ts";
 
 export type { RecordRef } from "../../schema/types.ts";
 

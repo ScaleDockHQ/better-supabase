@@ -369,7 +369,7 @@ export function createEPrescribing(
         return Promise.resolve(
           failure(
             "only a signed prescription has a medication request",
-            "PRESCRIPTION_STATUS",
+            "E_PRESCRIBING_STATUS",
             409,
           ),
         );

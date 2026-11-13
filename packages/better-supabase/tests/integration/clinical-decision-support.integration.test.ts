@@ -153,7 +153,7 @@ describe.skipIf(!live)("clinical-decision-support", () => {
         await cds
           .decide({ alertId: critical?.id ?? "", decision: "acknowledged" })
           .then(hint),
-      ).toBe("CARE_ALERT_INVALID");
+      ).toBe("DECISION_SUPPORT_ALERT_INVALID");
 
       const decided = await cds
         .decide({
@@ -177,13 +177,13 @@ describe.skipIf(!live)("clinical-decision-support", () => {
       await s.as(aide);
 
       expect(await cds.evaluate({ subject }).then(hint)).toBe(
-        "CARE_ALERT_FORBIDDEN",
+        "DECISION_SUPPORT_ALERT_FORBIDDEN",
       );
       expect(
         await cds
           .saveRule({ kind: "interaction", medicationIds: [warfarin.id] })
           .then(hint),
-      ).toBe("CARE_ALERT_FORBIDDEN");
+      ).toBe("DECISION_SUPPORT_ALERT_FORBIDDEN");
     } finally {
       await s.close();
     }

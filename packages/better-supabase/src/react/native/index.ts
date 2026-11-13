@@ -342,6 +342,8 @@ export interface NativeSessionProviderProps {
   readonly topic?: (userId: string) => string;
   /** The broadcast event. Defaults to `changed`. */
   readonly event?: string;
+  /** The schema of `caller_authz_version()`. Defaults to `api`. */
+  readonly schema?: string;
   readonly onError?: (error: Error) => void;
   readonly children?: ReactNode;
 }
@@ -366,7 +368,7 @@ export function SessionProvider(props: NativeSessionProviderProps): ReactNode {
   const handlers = useRef(props);
   // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
   handlers.current = props;
-  const { appState, powersync, source, topic, event } = props;
+  const { appState, powersync, source, topic, event, schema } = props;
 
   useEffect(() => {
     if (!userId) {
@@ -381,10 +383,11 @@ export function SessionProvider(props: NativeSessionProviderProps): ReactNode {
       ...(source ? { source } : {}),
       ...(topic ? { topic } : {}),
       ...(event ? { event } : {}),
+      ...(schema ? { schema } : {}),
       onChange: () => handlers.current.onAuthzChange?.(),
       onError: (error) => handlers.current.onError?.(error),
     });
-  }, [client, userId, appState, powersync, source, topic, event]);
+  }, [client, userId, appState, powersync, source, topic, event, schema]);
 
   return props.children ?? null;
 }

@@ -1014,7 +1014,7 @@ export interface BlockNameRegistry {
   };
   readonly "field-encryption": {
     readonly tables: {};
-    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_hash" | "field_key" | "field_lookup" | "field_lookup_key" | "field_open" | "field_seal";
+    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_hash" | "field_key" | "field_key_status" | "field_lookup" | "field_lookup_key" | "field_open" | "field_seal";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -1250,6 +1250,16 @@ export interface BlockNameRegistry {
       readonly "status_page": "id" | "tenant_id" | "slug" | "title" | "description" | "published" | "created_at" | "updated_at";
     };
     readonly primary: "incident";
+  };
+  readonly "incoming-webhooks": {
+    readonly tables: {
+      readonly "endpoints": "id" | "tenant" | "name" | "tokenHash" | "verify" | "secret" | "secretId" | "previousSecret" | "previousSecretId" | "previousSecretExpiresAt" | "signatureHeader" | "enabled" | "maxBodyBytes" | "receiveCount" | "lastReceivedAt" | "lastStatus" | "metadata" | "subjectType" | "subjectId" | "createdBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "create_incoming_webhook" | "delete_incoming_webhook" | "drop_incoming_webhook_secret" | "incoming_webhook_by_token" | "incoming_webhook_subject_readable" | "incoming_webhook_tenant_ids" | "list_incoming_webhooks" | "record_incoming_webhook" | "rotate_incoming_webhook" | "rotate_incoming_webhook_secret" | "set_incoming_webhook_enabled" | "update_incoming_webhook";
+    readonly actions: "create" | "update" | "delete" | "read";
+    readonly hooks: never;
+    readonly entities: {};
+    readonly primary: never;
   };
   readonly "inspections": {
     readonly tables: {
@@ -2532,7 +2542,7 @@ export interface BlockNameRegistry {
       readonly "invoices": "id" | "installation" | "externalId" | "state" | "periodStart" | "periodEnd" | "total" | "currency" | "items" | "eventAt" | "createdAt" | "updatedAt";
       readonly "meterReports": "id" | "installation" | "resourceExternalId" | "meterId" | "periodStart" | "periodEnd" | "quantity" | "reportedQuantity" | "reportedAt" | "createdAt";
     };
-    readonly functions: "delete_marketplace_resource" | "link_marketplace_tenant" | "mark_marketplace_meter_reported" | "mark_marketplace_meter_sent" | "marketplace_access_token" | "marketplace_installation" | "marketplace_resource" | "marketplace_resources" | "record_marketplace_invoice" | "record_marketplace_meter_report" | "remove_marketplace_installation" | "seal_marketplace_access_token" | "set_marketplace_resource_state" | "unreported_marketplace_meter_reports" | "upsert_marketplace_installation" | "upsert_marketplace_plan" | "upsert_marketplace_resource";
+    readonly functions: "delete_marketplace_resource" | "link_marketplace_tenant" | "mark_marketplace_meter_reported" | "mark_marketplace_meter_sent" | "marketplace_access_token" | "marketplace_installation" | "marketplace_installation_for" | "marketplace_resource" | "marketplace_resources" | "marketplace_resources_for" | "record_marketplace_invoice" | "record_marketplace_meter_report" | "remove_marketplace_installation" | "seal_marketplace_access_token" | "set_marketplace_resource_state" | "unreported_marketplace_meter_reports" | "upsert_marketplace_installation" | "upsert_marketplace_plan" | "upsert_marketplace_resource";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -2610,17 +2620,7 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
-  readonly "webhooks-in": {
-    readonly tables: {
-      readonly "endpoints": "id" | "tenant" | "name" | "tokenHash" | "verify" | "secret" | "secretId" | "previousSecret" | "previousSecretId" | "previousSecretExpiresAt" | "signatureHeader" | "enabled" | "maxBodyBytes" | "receiveCount" | "lastReceivedAt" | "lastStatus" | "metadata" | "subjectType" | "subjectId" | "createdBy" | "createdAt" | "updatedAt";
-    };
-    readonly functions: "create_incoming_webhook" | "delete_incoming_webhook" | "drop_incoming_webhook_secret" | "incoming_webhook_by_token" | "incoming_webhook_subject_readable" | "incoming_webhook_tenant_ids" | "list_incoming_webhooks" | "record_incoming_webhook" | "rotate_incoming_webhook" | "rotate_incoming_webhook_secret" | "set_incoming_webhook_enabled" | "update_incoming_webhook";
-    readonly actions: "create" | "update" | "delete" | "read";
-    readonly hooks: never;
-    readonly entities: {};
-    readonly primary: never;
-  };
-  readonly "webhooks-out": {
+  readonly "webhooks": {
     readonly tables: {
       readonly "endpoints": "id" | "tenant" | "name" | "url" | "enabled" | "eventTypes" | "permissions" | "batch" | "signing" | "format" | "credentialRef" | "failingSince" | "disabledAt" | "disabledReason" | "createdBy" | "createdAt" | "updatedAt";
       readonly "secrets": "id" | "endpoint" | "tenant" | "secret" | "vaultId" | "expiresAt" | "createdAt";

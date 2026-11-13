@@ -19,6 +19,7 @@ export const waitlistBlock: BlockOf<
   create: createWaitlist,
   category: "growth",
   entities: { waitlist_entry: { mutability: "state-machine" } },
+  concerns: ["lifecycle"],
   description:
     "A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.",
   recipes: ["waitlist-signup"],

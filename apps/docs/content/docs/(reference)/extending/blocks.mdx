@@ -352,6 +352,8 @@ export const invoicingBlock = defineBlock({
 | `client`   | The name of its headless controller, when it has one                                                                                                              |
 | `category` | Where it sits in the catalog: `identity`, `tenancy`, `work`, `commerce`, `developer` and so on (16 in all)                                                        |
 | `entities` | What each entity declares about itself: how it changes, its sorts and facets, and which methods record an event ([Declare your entities](#declare-your-entities)) |
+| `links`    | The links from its entities to other blocks' entities ([Declare links and concerns](#declare-links-and-concerns))                                                 |
+| `concerns` | The row-level concerns its tables take part in beyond audit and events                                                                                            |
 | `recipes`  | The [UI recipes](/docs/registry/ui-recipes) that use it                                                                                                           |
 | `record`   | The part of a record page it owns, from `defineRecordBinding` ([Record bindings](/docs/repository/record-bindings))                                               |
 
@@ -369,9 +371,13 @@ declares what it knows today:
 | `filters`                                                                                 | The names `filters` accepts, each with a list of values                                                                                                |
 | `search`                                                                                  | `true`, or the columns the entity's search indexes; `q` is accepted only when it is set                                                                |
 | `emits`                                                                                   | Per method (`create`, `update`, `delete`, `archive`, `restore`, `purge`): `true` when it records an event, `false` when a mutating method records none |
+| `expectedVersion`                                                                         | `true` when `update` takes an `expectedVersion` (the row's `updatedAt`) and refuses a stale one with a `STALE_WRITE` conflict                          |
+| `idempotent`                                                                              | The methods that take an `idempotencyKey` and claim it through the idempotency block, such as `["create"]`                                             |
 | `permissions`                                                                             | The permission key each verb checks, as `<block>.<entity>.<verb>` ([Declare permission keys](#declare-permission-keys))                                |
 | `recordAccess`                                                                            | `"team"` when the entity's rows are visible by record team, so a list can filter by the caller's teams                                                 |
 | `personalData`, `retention`, `realtime`, `offline`, `versioned`, `flag`, `meter`, `limit` | Reserved for the generators and checks that read them; each is documented where it starts to take effect                                               |
+
+`tests/blocks/write-safety-gaps.ts` lists the editable entities that take no `expectedVersion` yet and the entities whose `create` takes no `idempotencyKey`; `write-safety.test.ts` fails on one that is missing from the list and on one that is listed after it was fixed. The lists only shrink.
 
 The conformance test fails when an entity has no `mutability`, when `emits`
 names a method that records no event of the entity, and when a method is marked
@@ -394,6 +400,47 @@ shape.
 `gen.permissionCatalog` it writes them as catalog rows, grants every key to the
 `owner` and `admin` roles and each `read` key to `member`, and lists them in
 `apiKeyScopes` and `oauthScopes` ([Permission catalog](/docs/cli/gen#permission-catalog)).
+
+A subject entity registers for search with its title column and the body
+columns `search` lists. `search: false` keeps it out, and an app replaces the
+columns on the entity in `blocks.<name>.names` (see
+[Scope and naming](/docs/blocks/sql#scope-and-naming)).
+
+### Declare links and concerns
+
+`links` lists how the block's entities point at other blocks' entities. Each
+link has a `key`, a `kind`, the `source` entity of this block and the `target`
+block and entity. `blockLink` writes one in a line:
+
+```ts
+import { blockLink, defineBlock } from "better-supabase/blocks";
+
+export const quotesBlock = defineBlock({
+  name: "quotes",
+  category: "commerce",
+  entities: { quote: { mutability: "state-machine" } },
+  links: [
+    blockLink(
+      "fromDeal",
+      "conversion",
+      "quote",
+      "deals",
+      "deal",
+      "quote_from_deal",
+    ),
+  ],
+  concerns: ["lifecycle", "search"],
+});
+```
+
+A `reference` link is a typed pair or a foreign key, a `relation` link is a
+contributed `relations` kind and a `conversion` link names the action that
+creates the target and records `created_from`. `concerns` lists the row-level
+concerns the block's tables take part in beyond the audit and event triggers
+that every block table gets: `history`, `lifecycle`, `realtime` and `search`.
+The SQL module's `NAMES` stays the source the SQL renders from, and a test
+fails when the manifest and `NAMES` disagree, so the catalog and the page
+generator read the manifest.
 
 ### The list contract
 

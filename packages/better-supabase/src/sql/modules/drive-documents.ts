@@ -511,7 +511,7 @@ begin
     ${transitionTo(kit, "draft", "null")}
     select * into v_node from ${T} x where x.${n("id")} = v_node.${n("id")};
   end if;
-  ${record("drive_node.document_saved", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'documentType', v_node.${n("documentType")}, 'ownerId', v_node.${n("documentOwner")}`, kit.dataAudit("v_node", "document saved"))}
+  ${record("drive_node.document_updated", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'documentType', v_node.${n("documentType")}, 'ownerId', v_node.${n("documentOwner")}`, kit.dataAudit("v_node", "document saved"))}
   return ${withRole("v_node")};
 end;
 $$;

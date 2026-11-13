@@ -10,6 +10,7 @@ export const goalsBlock: BlockOf<"goals", typeof createGoals> = defineBlock({
   create: createGoals,
   category: "crm",
   entities: { goal: { mutability: "editable", emits: { update: false } } },
+  concerns: ["lifecycle"],
   description:
     "Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.",
   recipes: ["targets-progress"],

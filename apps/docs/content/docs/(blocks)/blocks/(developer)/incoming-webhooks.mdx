@@ -4,14 +4,14 @@ description: Trigger URLs a tenant hands to other systems, with hashed tokens, o
 ---
 
 `incoming-webhooks` lets a tenant create a URL that another system calls:
-a form, a CRM, a monitoring tool. The `webhooks-in` SQL module keeps those
+a form, a CRM, a monitoring tool. The `incoming-webhooks` SQL module keeps those
 endpoints per tenant, and `createIncomingWebhooks` from
 `better-supabase/blocks/webhooks` serves them. Each delivery is checked, then
 stored in the [webhook inbox](/docs/blocks/queue#webhook-inbox) with the
 endpoint's tenant, so it is acknowledged fast and processed with retries.
 
 ```bash
-better-supabase add webhooks-in   # adds access, tenant and webhook-inbox
+better-supabase add incoming-webhooks   # adds access, tenant and webhook-inbox
 ```
 
 ## Endpoints
@@ -20,7 +20,7 @@ A member with `webhooks.manage` (see Permissions below) creates an endpoint for 
 the signing secret are returned once. Only the token's hash is stored, and
 the secret is a [Vault](https://supabase.com/docs/guides/database/vault)
 secret that only the receiving route decrypts. Set
-`blocks.webhooks-in.options.secretStorage` to `"column"` to keep it in
+`blocks.incoming-webhooks.options.secretStorage` to `"column"` to keep it in
 the `secret` column instead (members can't read that column either). Deleting
 an endpoint, or rotating its secret, deletes the old Vault secret.
 
@@ -65,7 +65,7 @@ signed with the old secret still verify, so the sender can switch over
 without dropped deliveries. Without `grace` the old secret stops at once.
 The old Vault secret is deleted at the next rotation, a change of `verify`
 or the endpoint's deletion. An endpoint without a secret (`verify: "none"`)
-is refused with `WEBHOOK_IN_NO_SECRET`. In SQL it is
+is refused with `INCOMING_WEBHOOK_NO_SECRET`. In SQL it is
 `rotate_incoming_webhook_secret(endpoint, grace)`, checked with the `update`
 key.
 
@@ -90,10 +90,10 @@ Changing `verify` to a signing mode returns a new secret once, and the old
 Vault secret is deleted; changing it to `none` drops the secret. The same
 `verify` keeps the secret, and `secret` comes back `null`. In SQL it is
 `update_incoming_webhook(endpoint, name, metadata, verify, signature_header)`,
-which refuses an empty name (`WEBHOOK_IN_NAME_REQUIRED`), metadata that is
-not an object (`WEBHOOK_IN_METADATA_INVALID`), an unknown mode
-(`WEBHOOK_IN_VERIFY_UNKNOWN`), and a caller without the `update` key
-(`WEBHOOK_IN_NOT_FOUND`).
+which refuses an empty name (`INCOMING_WEBHOOK_NAME_REQUIRED`), metadata that is
+not an object (`INCOMING_WEBHOOK_METADATA_INVALID`), an unknown mode
+(`INCOMING_WEBHOOK_VERIFY_UNKNOWN`), and a caller without the `update` key
+(`INCOMING_WEBHOOK_NOT_FOUND`).
 
 ### Permissions
 
@@ -103,7 +103,7 @@ and `create`, `update` or `delete` override one of them, so an app can let
 members add endpoints while only admins remove them:
 
 ```ts title="better-supabase.config.ts"
-"webhooks-in": {
+"incoming-webhooks": {
   permissions: { manage: "integrations.manage", delete: "integrations.delete" },
 },
 ```
@@ -144,7 +144,7 @@ same way the comments block does:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  "webhooks-in": {
+  "incoming-webhooks": {
     on: {
       workflow: { table: "workflows", cascade: true },
       integration: { table: "app.integrations", permission: "integrations.read" },
@@ -166,7 +166,7 @@ const forWorkflow = await hooks.list({
 ```
 
 Creating an endpoint checks that the subject exists in the tenant and that
-the caller holds its `permission` (`WEBHOOK_IN_SUBJECT_INVALID` otherwise).
+the caller holds its `permission` (`INCOMING_WEBHOOK_SUBJECT_INVALID` otherwise).
 The read policy also requires that the caller can read the subject row
 through the subject table's own policies, so an endpoint on a record a
 member can't see is hidden from them. `cascade: true` deletes a subject's
@@ -192,7 +192,7 @@ export const POST = (
 
 `receive` answers `404` for an unknown or disabled token, `413` for a body over
 the endpoint's `max_body_bytes` (1 MiB by default,
-`blocks.webhooks-in.options.maxBodyBytes`), `429` with `Retry-After` past
+`blocks.incoming-webhooks.options.maxBodyBytes`), `429` with `Retry-After` past
 `rateLimit` (counted per endpoint with the
 [`rate-limit` module](/docs/blocks/sql#limits-in-route-handlers)), and `401` for a
 bad signature. Otherwise it stores the delivery and answers `202`, or `200`
@@ -297,7 +297,7 @@ and columns, and map an optional column to `null` when you don't want it:
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
   blocks: {
-    "webhooks-in": {
+    "incoming-webhooks": {
       tables: { endpoints: "public.integration_hooks" },
       columns: {
         endpoints: {

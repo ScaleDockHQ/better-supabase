@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   functionFiles,
+  readGitignores,
   seedFiles,
   sourceGlobs,
 } from "../../../src/cli/doctor/inputs.ts";
@@ -128,5 +129,36 @@ describe("functionFiles", () => {
       { path: "supabase/functions/a.mjs", text: "export {};" },
       { path: "supabase/functions/hello/index.ts", text: "export {};" },
     ]);
+  });
+});
+
+describe("readGitignores", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "bsb-doctor-gitignore-"));
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("joins the app's rules with each parent's up to the repository root", async () => {
+    await mkdir(join(root, ".git"), { recursive: true });
+    await mkdir(join(root, "apps/web"), { recursive: true });
+    await writeFile(join(root, ".gitignore"), ".env*\n");
+    await writeFile(join(root, "apps/web/.gitignore"), ".next\n");
+
+    const text = await readGitignores(join(root, "apps/web"));
+
+    expect(text.split("\n").filter(Boolean)).toEqual([".next", ".env*"]);
+  });
+
+  it("stops at the repository root", async () => {
+    await mkdir(join(root, "repo/.git"), { recursive: true });
+    await writeFile(join(root, ".gitignore"), "outside\n");
+    await writeFile(join(root, "repo/.gitignore"), "inside\n");
+
+    expect(await readGitignores(join(root, "repo"))).toBe("inside\n");
   });
 });

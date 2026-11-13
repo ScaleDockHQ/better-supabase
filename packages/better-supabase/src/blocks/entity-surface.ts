@@ -76,6 +76,16 @@ export interface EntitySurface {
   readonly offline?: boolean;
   /** `true` when every change keeps a version. */
   readonly versioned?: boolean;
+  /**
+   * `true` when `update` takes an `expectedVersion` (the row's `updatedAt`) and
+   * refuses a stale one with a `STALE_WRITE` conflict (ADR 0809).
+   */
+  readonly expectedVersion?: boolean;
+  /**
+   * The client methods that take an `idempotencyKey` and claim it through the
+   * idempotency block (ADR 0809), such as `["create"]`.
+   */
+  readonly idempotent?: readonly string[];
   /** The feature flag that turns the entity on. */
   readonly flag?: string;
   /** The meter each write counts against. */

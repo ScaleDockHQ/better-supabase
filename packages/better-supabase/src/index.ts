@@ -66,6 +66,19 @@ export type {
   ValidationIssue,
 } from "./core/errors.ts";
 
+export {
+  isStaleWrite,
+  STALE_WRITE,
+  staleWriteError,
+} from "./core/stale-write.ts";
+
+export type { ExpectedVersion } from "./core/stale-write.ts";
+
+export type {
+  IdempotencyClaims,
+  IdempotencyOption,
+} from "./core/idempotent-write.ts";
+
 export { createErrorMessages } from "./core/error-messages.ts";
 
 export type { ErrorMessages } from "./core/error-messages.ts";

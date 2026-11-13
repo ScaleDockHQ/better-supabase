@@ -105,6 +105,10 @@ await db.tasks
 
 Without `atomic`, a refused change comes back in `rejected` and the others stay applied. Pass `strict: true` to get the first refused change as the error instead, with its hint as the `raised` code, so an action can return it as it is.
 
+A change takes an optional `expectedVersion`, the `updatedAt` of the item as you read it. When the item changed since, that change is refused with the hint `STALE_WRITE` (a `conflict` error under `strict`, see [stale writes](/docs/concepts/results#stale-writes)). Every change of one batch compares to the item as it was before the batch, so two changes to one item don't refuse each other.
+
+`create` takes an `idempotencyKey` when `createTasks` gets the `idempotency` option (`createIdempotency(...)` from `better-supabase/blocks/queue`). A retry with the same key and input returns the first task, a retry that overlaps the first answers `conflict` (`IDEMPOTENCY_KEY_IN_USE`), and the same key with other input answers `validation` (`IDEMPOTENCY_KEY_REUSED`).
+
 `move({ taskId, stageId })` is `update` with one `stageId` change and `strict`, so a refused board drag comes back as the error.
 
 `assign(id, userIds)` replaces the assignees. Each one watches the item, and the people newly assigned get a `work_item.assigned` notification. The `task.assigned` event is recorded only when the call adds someone: `assigneeIds` holds everyone assigned now and `addedIds` the people the call added. `options.maxAssignees` caps the list (`TASK_ASSIGNEES_LIMIT`), and `1` gives the single-assignee shape of Linear and Jira.
@@ -202,6 +206,7 @@ The ReUI Kanban blocks commit a drag through `onValueCommit`: call `rank.move("t
 | `TASK_PARENT_CYCLE`                  | the parent would put the item under itself          |
 | `TASK_PARENT_INVALID`                | the parent is in another organization               |
 | `TASK_LOCKED`                        | a locked item's dates don't change                  |
+| `STALE_WRITE`                        | the item changed since `expectedVersion` was read   |
 | `TASK_ASSIGNEES_LIMIT`               | more assignees than `maxAssignees`                  |
 | `TASK_PROJECT_*`, `TASK_ITERATION_*` | a project or iteration is missing, taken or invalid |
 | `TASK_CHECKLIST_ITEM_INVALID`        | a checklist step has no title or an invalid rank    |
