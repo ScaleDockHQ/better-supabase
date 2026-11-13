@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:0b62292c15d71594afa113bd7d21917e2633a0e1a01d8d060fd83553d923cfaf
+-- @bsb-hash sha256:234706ad439ba14c05ea5e969a62ec083d0412f0bc17cab86fcf1596596a2fcf
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.

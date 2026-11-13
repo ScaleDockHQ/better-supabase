@@ -1,6 +1,6 @@
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:0a75b658b34a45aa1bce76ccffe07c5277fc61858dd64f9c4943a02090e7656f
+-- @bsb-hash sha256:314b37717d4a2d2937c4e4eb3042386b7e11d42952d5b88f58eef7ea882b1da1
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
