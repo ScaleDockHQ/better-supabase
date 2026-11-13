@@ -183,18 +183,36 @@ The hooks are `before_appraisal_cycle_create` and
 
 ## Paging a list
 
-`listAppraisals` still takes `offset`. `appraisalPage` pages the same list by keyset and
-returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
-`after`, and set `total: true` to count up to `totalCap` rows (ADR 0660).
+`listAppraisals` is the capped convenience list. `appraisalPage` is the full contract for appraisals (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `rating`, and the default order is createdAt (newest first); filters are `cycleId`, `status`, `subjectUserId`, `mine`; facets are `status`. `mine` is `["true"]` and limits the list to the appraisals the caller is the subject or a reviewer of.
 
 ```ts
 const first = await appraisals
-  .appraisalPage({ limit: 50, total: true })
+  .appraisalPage({
+    filters: { status: ["reviewed", "signed_off"] },
+    sort: { by: "createdAt" },
+    limit: 50,
+  })
   .orThrow();
 
 if (first.hasMore) {
   const next = await appraisals
-    .appraisalPage({ limit: 50, after: first.nextCursor })
+    .appraisalPage({
+      filters: { status: ["reviewed", "signed_off"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
     .orThrow();
 }
+
+// How many rows each facet value holds under the same filters.
+const facets = await appraisals
+  .appraisalFacets({ filters: { status: ["reviewed", "signed_off"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await appraisals
+  .appraisalCount({ filters: { status: ["reviewed", "signed_off"] } })
+  .orThrow();
 ```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.

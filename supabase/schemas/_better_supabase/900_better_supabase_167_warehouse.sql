@@ -1,6 +1,6 @@
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:d95d8e4886905eb5415f7e2eb8d70d52e46f85d937cba8d42cfa41bb0e49691c
+-- @bsb-hash sha256:3a9b22cbfa89f5a3ee8c86b9d02a2c1dcdcfd0b6fb21e8f9909dc6dabf5c7465
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -682,8 +682,9 @@ revoke execute on function "better_supabase"."get_pick_list"(uuid) from public, 
 grant execute on function "better_supabase"."get_pick_list"(uuid) to authenticated, service_role;
 
 -- Pick lists of an organization, newest first. filters is { waveId, status,
--- documentType, documentId, mine: true, limit, after, offset, paged, total, totalCap }. Readers see all of
--- them; everyone else sees the lists assigned to them.
+-- documentType, documentId (each a value or a list of them), mine: true, sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap } (ADR
+-- 0749). Readers see all of them; everyone else sees the lists assigned to them.
 create or replace function "better_supabase"."list_pick_lists"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -703,16 +704,60 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_wave text := nullif(v_filters ->> 'waveId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_doc_type text := nullif(v_filters ->> 'documentType', '');
-  v_doc_id text := nullif(v_filters ->> 'documentId', '');
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_pick_lists.tenant is not null and coalesce(better_supabase.can('tenant', list_pick_lists.tenant, 'warehouse.read'), false)));
 begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('status', 'documentType') then
+      raise exception 'facet is one of status, documentType' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'documentType' then (x."document_type")::text end) as v
+      from "better_supabase"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (not (v_filters -> 'waveId' is not null and jsonb_typeof(v_filters -> 'waveId') <> 'null' and not (jsonb_typeof(v_filters -> 'waveId') = 'array' and jsonb_array_length(v_filters -> 'waveId') = 0)) or x."wave_id" = any((case when jsonb_typeof(v_filters -> 'waveId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'waveId')) else array[v_filters ->> 'waveId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'documentId' is not null and jsonb_typeof(v_filters -> 'documentId') <> 'null' and not (jsonb_typeof(v_filters -> 'documentId') = 'array' and jsonb_array_length(v_filters -> 'documentId') = 0)) or x."document_id" = any((case when jsonb_typeof(v_filters -> 'documentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentId')) else array[v_filters ->> 'documentId'] end)::text[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or coalesce(x."assignee_id" = auth.uid(), false))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (not (v_filters -> 'waveId' is not null and jsonb_typeof(v_filters -> 'waveId') <> 'null' and not (jsonb_typeof(v_filters -> 'waveId') = 'array' and jsonb_array_length(v_filters -> 'waveId') = 0)) or x."wave_id" = any((case when jsonb_typeof(v_filters -> 'waveId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'waveId')) else array[v_filters ->> 'waveId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'documentId' is not null and jsonb_typeof(v_filters -> 'documentId') <> 'null' and not (jsonb_typeof(v_filters -> 'documentId') = 'array' and jsonb_array_length(v_filters -> 'documentId') = 0)) or x."document_id" = any((case when jsonb_typeof(v_filters -> 'documentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentId')) else array[v_filters ->> 'documentId'] end)::text[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or coalesce(x."assignee_id" = auth.uid(), false))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'pickedAt') then
+    raise exception 'sort is one of createdAt, pickedAt' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -724,16 +769,132 @@ begin
     from (
       select * from "better_supabase"."pick_lists" x
       where x."tenant_id" = list_pick_lists.tenant
-        and (v_wave is null or x."wave_id" = v_wave::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_doc_type is null or x."document_type" = v_doc_type)
-        and (v_doc_id is null or x."document_id" = v_doc_id)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
+        and (not (v_filters -> 'waveId' is not null and jsonb_typeof(v_filters -> 'waveId') <> 'null' and not (jsonb_typeof(v_filters -> 'waveId') = 'array' and jsonb_array_length(v_filters -> 'waveId') = 0)) or x."wave_id" = any((case when jsonb_typeof(v_filters -> 'waveId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'waveId')) else array[v_filters ->> 'waveId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'documentId' is not null and jsonb_typeof(v_filters -> 'documentId') <> 'null' and not (jsonb_typeof(v_filters -> 'documentId') = 'array' and jsonb_array_length(v_filters -> 'documentId') = 0)) or x."document_id" = any((case when jsonb_typeof(v_filters -> 'documentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentId')) else array[v_filters ->> 'documentId'] end)::text[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or coalesce(x."assignee_id" = auth.uid(), false))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."pick_list_json"(x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (not (v_filters -> 'waveId' is not null and jsonb_typeof(v_filters -> 'waveId') <> 'null' and not (jsonb_typeof(v_filters -> 'waveId') = 'array' and jsonb_array_length(v_filters -> 'waveId') = 0)) or x."wave_id" = any((case when jsonb_typeof(v_filters -> 'waveId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'waveId')) else array[v_filters ->> 'waveId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'documentId' is not null and jsonb_typeof(v_filters -> 'documentId') <> 'null' and not (jsonb_typeof(v_filters -> 'documentId') = 'array' and jsonb_array_length(v_filters -> 'documentId') = 0)) or x."document_id" = any((case when jsonb_typeof(v_filters -> 'documentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentId')) else array[v_filters ->> 'documentId'] end)::text[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or coalesce(x."assignee_id" = auth.uid(), false))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."pick_list_json"(x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (not (v_filters -> 'waveId' is not null and jsonb_typeof(v_filters -> 'waveId') <> 'null' and not (jsonb_typeof(v_filters -> 'waveId') = 'array' and jsonb_array_length(v_filters -> 'waveId') = 0)) or x."wave_id" = any((case when jsonb_typeof(v_filters -> 'waveId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'waveId')) else array[v_filters ->> 'waveId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'documentId' is not null and jsonb_typeof(v_filters -> 'documentId') <> 'null' and not (jsonb_typeof(v_filters -> 'documentId') = 'array' and jsonb_array_length(v_filters -> 'documentId') = 0)) or x."document_id" = any((case when jsonb_typeof(v_filters -> 'documentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentId')) else array[v_filters ->> 'documentId'] end)::text[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or coalesce(x."assignee_id" = auth.uid(), false))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."pick_list_json"(x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (not (v_filters -> 'waveId' is not null and jsonb_typeof(v_filters -> 'waveId') <> 'null' and not (jsonb_typeof(v_filters -> 'waveId') = 'array' and jsonb_array_length(v_filters -> 'waveId') = 0)) or x."wave_id" = any((case when jsonb_typeof(v_filters -> 'waveId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'waveId')) else array[v_filters ->> 'waveId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'documentId' is not null and jsonb_typeof(v_filters -> 'documentId') <> 'null' and not (jsonb_typeof(v_filters -> 'documentId') = 'array' and jsonb_array_length(v_filters -> 'documentId') = 0)) or x."document_id" = any((case when jsonb_typeof(v_filters -> 'documentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentId')) else array[v_filters ->> 'documentId'] end)::text[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or coalesce(x."assignee_id" = auth.uid(), false))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'pickedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."pick_list_json"(x."id") as j, jsonb_build_array((coalesce(x."picked_at", '-infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (not (v_filters -> 'waveId' is not null and jsonb_typeof(v_filters -> 'waveId') <> 'null' and not (jsonb_typeof(v_filters -> 'waveId') = 'array' and jsonb_array_length(v_filters -> 'waveId') = 0)) or x."wave_id" = any((case when jsonb_typeof(v_filters -> 'waveId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'waveId')) else array[v_filters ->> 'waveId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'documentId' is not null and jsonb_typeof(v_filters -> 'documentId') <> 'null' and not (jsonb_typeof(v_filters -> 'documentId') = 'array' and jsonb_array_length(v_filters -> 'documentId') = 0)) or x."document_id" = any((case when jsonb_typeof(v_filters -> 'documentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentId')) else array[v_filters ->> 'documentId'] end)::text[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or coalesce(x."assignee_id" = auth.uid(), false))
+        and (v_after is null or (coalesce(x."picked_at", '-infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."picked_at", '-infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'pickedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WAREHOUSE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, "better_supabase"."pick_list_json"(x."id") as j, jsonb_build_array((coalesce(x."picked_at", '-infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pick_lists" x
+      where x."tenant_id" = list_pick_lists.tenant
+        and (not (v_filters -> 'waveId' is not null and jsonb_typeof(v_filters -> 'waveId') <> 'null' and not (jsonb_typeof(v_filters -> 'waveId') = 'array' and jsonb_array_length(v_filters -> 'waveId') = 0)) or x."wave_id" = any((case when jsonb_typeof(v_filters -> 'waveId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'waveId')) else array[v_filters ->> 'waveId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'documentId' is not null and jsonb_typeof(v_filters -> 'documentId') <> 'null' and not (jsonb_typeof(v_filters -> 'documentId') = 'array' and jsonb_array_length(v_filters -> 'documentId') = 0)) or x."document_id" = any((case when jsonb_typeof(v_filters -> 'documentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentId')) else array[v_filters ->> 'documentId'] end)::text[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or coalesce(x."assignee_id" = auth.uid(), false))
+        and (v_after is null or (coalesce(x."picked_at", '-infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."picked_at", '-infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."picked_at", '-infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."picked_at", '-infinity'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -741,11 +902,11 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."pick_lists" x
       where x."tenant_id" = list_pick_lists.tenant
-        and (v_wave is null or x."wave_id" = v_wave::uuid)
-        and (v_status is null or x."status" = v_status)
-        and (v_doc_type is null or x."document_type" = v_doc_type)
-        and (v_doc_id is null or x."document_id" = v_doc_id)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or coalesce(x."assignee_id" = auth.uid(), false))
+        and (not (v_filters -> 'waveId' is not null and jsonb_typeof(v_filters -> 'waveId') <> 'null' and not (jsonb_typeof(v_filters -> 'waveId') = 'array' and jsonb_array_length(v_filters -> 'waveId') = 0)) or x."wave_id" = any((case when jsonb_typeof(v_filters -> 'waveId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'waveId')) else array[v_filters ->> 'waveId'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'documentId' is not null and jsonb_typeof(v_filters -> 'documentId') <> 'null' and not (jsonb_typeof(v_filters -> 'documentId') = 'array' and jsonb_array_length(v_filters -> 'documentId') = 0)) or x."document_id" = any((case when jsonb_typeof(v_filters -> 'documentId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentId')) else array[v_filters ->> 'documentId'] end)::text[]))
+        and ((v_all and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or coalesce(x."assignee_id" = auth.uid(), false))
       limit v_total_cap + 1
     ) c;
   end if;

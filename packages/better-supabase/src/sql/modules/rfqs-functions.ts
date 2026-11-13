@@ -1,7 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { RfqsSql } from "./rfqs-sql.ts";
 
-import { listBody, listDeclare } from "../list-template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { userGrant } from "../shared.ts";
 import { rfqsSql } from "./rfqs-sql.ts";
@@ -42,12 +42,28 @@ export function rfqsFunctions(ctx: BlockSqlContext): string {
     alias: "x",
     where: [
       `x.${q("tenant")} = list_rfqs.tenant`,
-      `(v_status is null or x.${q("status")} = v_status)`,
+      filterAny("status", `x.${q("status")}`),
     ],
     keys: [
       { expr: `x.${q("sequence")}`, dir: "desc", type: "bigint" },
       { expr: `x.${q("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      number: [
+        { expr: `x.${q("sequence")}`, dir: "desc", type: "bigint" },
+        { expr: `x.${q("id")}`, dir: "asc", type: "uuid" },
+      ],
+      dueAt: [
+        {
+          expr: `coalesce(x.${q("dueAt")}, 'infinity'::timestamptz)`,
+          dir: "asc",
+          type: "timestamptz",
+        },
+        { expr: `x.${q("sequence")}`, dir: "desc", type: "bigint" },
+        { expr: `x.${q("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${q("status")}` },
     rowJson: sql.rfqJson("x"),
     invalid: sql.invalid,
   } as const;
@@ -214,7 +230,9 @@ end;
 $$;
 ${userGrant(`${fn("get_rfq")}(uuid)`)}
 
--- Requests, newest first. filters is { status, limit, after, offset, paged, total, totalCap }.
+-- Requests, newest first. filters is { status (a value or a list of them), sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap } (ADR
+-- 0749).
 create or replace function ${fn("list_rfqs")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -226,7 +244,6 @@ as $$
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
   ${listDeclare(list)}
-  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not ${sql.allowed("list_rfqs.tenant", sql.read)} then
     ${sql.forbidden("not allowed to read requests for quotation")}

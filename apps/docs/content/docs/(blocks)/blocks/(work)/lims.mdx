@@ -129,16 +129,36 @@ custom mode you implement them over your own tables.
 
 ## Paging a list
 
-`listSamples` still takes `offset`. For a deep list, `samplePage` pages by keyset and
-returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as
-`after`, and set `total: true` to count up to `totalCap` rows (ADR 0642).
+`listSamples` is the capped convenience list. `samplePage` is the full contract for samples (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `number`, `receivedOn`, and the default order is number (newest first); filters are `status`, `kind`; facets are `status`, `kind`.
 
 ```ts
-const first = await lims.samplePage({ limit: 50, total: true }).orThrow();
+const first = await lims
+  .samplePage({
+    filters: { status: ["received", "testing"] },
+    sort: { by: "number" },
+    limit: 50,
+  })
+  .orThrow();
 
 if (first.hasMore) {
   const next = await lims
-    .samplePage({ limit: 50, after: first.nextCursor })
+    .samplePage({
+      filters: { status: ["received", "testing"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
     .orThrow();
 }
+
+// How many rows each facet value holds under the same filters.
+const facets = await lims
+  .sampleFacets({ filters: { status: ["received", "testing"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await lims
+  .sampleCount({ filters: { status: ["received", "testing"] } })
+  .orThrow();
 ```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.

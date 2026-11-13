@@ -4,6 +4,7 @@ import type { WarehouseEvents } from "./events.ts";
 import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { warehouseEvents } from "./events.ts";
+import { pickListListSurface } from "./lists.ts";
 import {
   countPlanInputSchema,
   pickListInputSchema,
@@ -31,7 +32,11 @@ export const warehouseBlock: BlockOf<
   recipes: [],
   category: "commerce",
   entities: {
-    pick_list: { mutability: "state-machine", emits: { create: true } },
+    pick_list: {
+      ...pickListListSurface,
+      mutability: "state-machine",
+      emits: { create: true },
+    },
     pick_wave: { mutability: "state-machine", emits: { create: true } },
     pick_line: { mutability: "read-only" },
     count_plan: { mutability: "state-machine", emits: { create: true } },

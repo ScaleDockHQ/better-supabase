@@ -3445,6 +3445,10 @@
     "message": "kind is open or click"
   },
   {
+    "code": "MAINTENANCE_CALIBRATION_NOT_FOUND",
+    "message": "no such calibration"
+  },
+  {
     "code": "MAINTENANCE_INVALID",
     "message": "required qualifications need the qualifications block"
   },

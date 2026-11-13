@@ -1,13 +1,20 @@
 import type { Money } from "../../commerce/money.ts";
-import type { ListPage } from "../../core/block-helpers.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { blockPage, optionalPlainDateOf } from "../../core/block-helpers.ts";
+import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
@@ -27,6 +34,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { rfqListSurface } from "./lists.ts";
 
 /** Where a request for quotation stands. */
 export type RfqStatus = (typeof RFQ_STATUSES)[number];
@@ -147,16 +155,6 @@ export interface RfqListOptions {
   readonly offset?: number;
 }
 
-/** What `rfqPage` reads: the filters of the list, paged by keyset (ADR 0642). */
-export interface RfqPageOptions extends Omit<RfqListOptions, "offset"> {
-  /** The `nextCursor` of the previous page. */
-  readonly after?: readonly string[];
-  /** Also count the matching rows, up to `totalCap`. */
-  readonly total?: boolean;
-  /** The most rows the total counts. Default 10,000. */
-  readonly totalCap?: number;
-}
-
 export interface RfqQuoteInput {
   readonly leadTimeDays?: number | null;
   readonly validUntil?: Temporal.PlainDate | null;
@@ -229,8 +227,19 @@ export interface Rfqs {
   }): AsyncResultType<RfqDetail>;
   getRfq(rfqId: string): AsyncResultType<RfqDetail>;
   listRfqs(options?: RfqListOptions): AsyncResultType<readonly Rfq[]>;
-  /** One keyset page of `listRfqs`, with `hasMore` and a `nextCursor`. */
-  rfqPage(options?: RfqPageOptions): AsyncResultType<ListPage<Rfq>>;
+  /**
+   * One keyset page of requests for quotation, in the order of `sort` (the
+   * default order without it), with `hasMore` and a `nextCursor` to pass as
+   * `after`.
+   */
+  rfqPage(options?: PageOptions): AsyncResultType<ListPage<Rfq>>;
+  /**
+   * The values of each facet of requests for quotation and their counts, under
+   * the page's filters.
+   */
+  rfqFacets(options?: FacetOptions): AsyncResultType<readonly FacetResult[]>;
+  /** How many of requests for quotation match the page's filters. */
+  rfqCount(options?: CountOptions): AsyncResultType<Count>;
   /**
    * Asks a supplier to quote. When the contacts block is installed the supplier
    * must be an active supplier there; needs `rfqs.write`.
@@ -493,6 +502,15 @@ export function createRfqs(options: RfqsOptions): Rfqs {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResultType<string> => requireTenant(options.tenant);
 
+  const rfqs = entityList({
+    entity: "rfq",
+    surface: rfqListSurface,
+    call,
+    tenant,
+    fn: "list_rfqs",
+    rowOf: rfqOf,
+  });
+
   const client: Rfqs = {
     awardBest: ({ rfqId, location }) =>
       hooked.compare(rfqId).andThen((comparison) => {
@@ -546,8 +564,9 @@ export function createRfqs(options: RfqsOptions): Rfqs {
             recordsOf(value, "list_rfqs").map((row) => rfqOf(row, "list_rfqs")),
         ),
       ),
-    rfqPage: (page = {}) =>
-      blockPage(call, tenant, "list_rfqs", rfqOf, definedOf(page)),
+    rfqPage: rfqs.page,
+    rfqFacets: rfqs.facets,
+    rfqCount: rfqs.count,
     inviteSupplier: ({ rfqId, supplier }) =>
       call(
         "invite_rfq_supplier",

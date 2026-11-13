@@ -1,7 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { RisksSql } from "./risks-sql.ts";
 
-import { listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  filterFlag,
+  filterSet,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { fail, serviceGrant, userGrant } from "../shared.ts";
 import { risksSql } from "./risks-sql.ts";
 
@@ -250,11 +256,11 @@ function reads(ctx: BlockSqlContext, q: RisksSql): string {
     where: [
       `x.${r("tenant")} = list_risks.tenant`,
       `x.${r("archivedAt")} is null`,
-      `(case when v_filters ? 'status' then x.${r("status")} = v_filters ->> 'status' else x.${r("status")} <> 'closed' end)`,
-      `(not v_filters ? 'category' or x.${r("category")} = v_filters ->> 'category')`,
-      `(not v_filters ? 'band' or x.${r("residualBand")} = v_filters ->> 'band')`,
-      `(not v_filters ? 'ownerId' or x.${r("owner")} = (v_filters ->> 'ownerId')::uuid)`,
-      `(coalesce((v_filters ->> 'reviewDue')::boolean, false) is false or x.${r("nextReviewOn")} <= current_date)`,
+      `(case when ${filterSet("status")} then ${filterAny("status", `x.${r("status")}`)} else x.${r("status")} <> 'closed' end)`,
+      filterAny("category", `x.${r("category")}`),
+      filterAny("band", `x.${r("residualBand")}`),
+      filterAny("ownerId", `x.${r("owner")}`, "uuid"),
+      `(not ${filterFlag("reviewDue")} or x.${r("nextReviewOn")} <= current_date)`,
       `(v_search is null or ${search})`,
     ],
     keys: [
@@ -266,6 +272,35 @@ function reads(ctx: BlockSqlContext, q: RisksSql): string {
       { expr: `x.${r("sequence")}`, dir: "asc", type: "bigint" },
       { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      residualScore: [
+        {
+          expr: `coalesce(x.${r("residualScore")}, -1)`,
+          dir: "desc",
+          type: "integer",
+        },
+        { expr: `x.${r("sequence")}`, dir: "asc", type: "bigint" },
+        { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+      ],
+      number: [
+        { expr: `x.${r("sequence")}`, dir: "desc", type: "bigint" },
+        { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+      ],
+      nextReviewOn: [
+        {
+          expr: `coalesce(x.${r("nextReviewOn")}, 'infinity'::date)`,
+          dir: "asc",
+          type: "date",
+        },
+        { expr: `x.${r("sequence")}`, dir: "asc", type: "bigint" },
+        { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: {
+      status: `x.${r("status")}`,
+      category: `x.${r("category")}`,
+      band: `x.${r("residualBand")}`,
+    },
     rowJson: riskJson("x"),
     invalid: q.invalid,
   } as const;
@@ -303,10 +338,12 @@ $$;
 ${userGrant(`${fn("get_risk")}(uuid)`)}
 
 -- The organization's risks, the highest residual score first. filters is
--- { category, band (residual), ownerId, status, reviewDue, search, limit,
--- after, offset, paged, total, totalCap }; closed risks are left out unless
--- status asks for them. Pages by keyset (after is the previous nextCursor);
--- offset stays for callers that show page numbers (ADR 0637).
+-- { category, band (residual), ownerId, status (each a value or a list of them),
+-- reviewDue, search, sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap }; closed risks are left out unless status asks for them.
+-- Pages by keyset (after is the previous nextCursor); offset stays for callers
+-- that show page numbers (ADR 0637). facet returns { facet, values } and count
+-- returns { value, exact } under the same filters (ADR 0749).
 create or replace function ${fn("list_risks")}(tenant ${idType}, filters jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql

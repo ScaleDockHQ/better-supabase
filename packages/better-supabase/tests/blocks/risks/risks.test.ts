@@ -321,44 +321,110 @@ describe("createRisks", () => {
     ]);
   });
 
-  it("pages by keyset and returns the cursor", async () => {
+  it("pages by keyset with a sort, list filters and text", async () => {
     const t = fieldsTransport({
       list_risks: () => ({
         items: [RISK],
         hasMore: true,
         nextCursor: ["5", "1", "r1"],
-        total: 120,
-        totalCapped: false,
       }),
     });
 
     const risks = createRisks({ transport: t, tenant: "org-1" });
 
     const page = await risks
-      .page({ limit: 1, after: ["9", "2", "r0"], total: true })
+      .page({
+        limit: 1,
+        after: ["9", "2", "r0"],
+        sort: { by: "nextReviewOn", direction: "desc" },
+        filters: { band: ["high", "critical"] },
+        q: "supplier",
+      })
       .orThrow();
 
     expect(page.items.map((risk) => risk.number)).toEqual(["RSK-0001"]);
-    expect(page).toMatchObject({
-      hasMore: true,
-      nextCursor: ["5", "1", "r1"],
-      total: 120,
-      totalCapped: false,
-    });
+    expect(page).toMatchObject({ hasMore: true, nextCursor: ["5", "1", "r1"] });
     expect(t.calls).toEqual([
       [
         "list_risks",
         {
           tenant: "org-1",
           filters: {
-            limit: 1,
+            sort: "nextReviewOn",
+            direction: "desc",
+            band: ["high", "critical"],
+            search: "supplier",
             after: ["9", "2", "r0"],
-            total: true,
+            limit: 1,
             paged: true,
           },
         },
       ],
     ]);
+  });
+
+  it("counts facets under the page filters", async () => {
+    const t = fieldsTransport({
+      list_risks: () => ({
+        facet: "status",
+        values: [{ value: "a", count: { value: 2, exact: false } }],
+      }),
+    });
+
+    const risks = createRisks({ transport: t, tenant: "org-1" });
+
+    await expect(
+      risks
+        .facets({ facets: ["status"], filters: { category: ["x"] } })
+        .orThrow(),
+    ).resolves.toEqual([
+      {
+        facet: "status",
+        values: [{ value: "a", count: { value: 2, exact: false } }],
+      },
+    ]);
+
+    expect(t.calls).toEqual([
+      [
+        "list_risks",
+        { tenant: "org-1", filters: { category: ["x"], facet: "status" } },
+      ],
+    ]);
+  });
+
+  it("counts the rows that match", async () => {
+    const t = fieldsTransport({
+      list_risks: () => ({ value: 3, exact: true }),
+    });
+
+    const risks = createRisks({ transport: t, tenant: "org-1" });
+
+    await expect(
+      risks.count({ filters: { band: ["high"] } }).orThrow(),
+    ).resolves.toEqual({ value: 3, exact: true });
+
+    expect(t.calls).toEqual([
+      [
+        "list_risks",
+        { tenant: "org-1", filters: { band: ["high"], count: true } },
+      ],
+    ]);
+  });
+
+  it("rejects a sort, filter or facet the entity does not declare", async () => {
+    const t = fieldsTransport({});
+    const risks = createRisks({ transport: t, tenant: "org-1" });
+
+    const sort = await risks.page({ sort: { by: "title" } });
+    const filter = await risks.page({ filters: { colour: ["red"] } });
+    const facet = await risks.facets({ facets: ["colour"] });
+
+    for (const result of [sort, filter, facet]) {
+      expect(result.ok).toBe(false);
+      expect(result.error?.kind).toBe("invalid_input");
+    }
+
+    expect(t.calls).toEqual([]);
   });
 
   it("rejects a malformed row", async () => {

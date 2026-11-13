@@ -1,5 +1,5 @@
 import "server-only";
-import type { RiskPageOptions, RiskStatus } from "better-supabase/blocks/risks";
+import type { PageOptions } from "better-supabase/blocks";
 
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
@@ -42,26 +42,9 @@ async function settle<T>(load: () => Promise<T | null>): Promise<Loaded<T>> {
 
 const PAGE_SIZE = 50;
 
-type PageDraft = { -readonly [K in keyof RiskPageOptions]: RiskPageOptions[K] };
+type PageDraft = { -readonly [K in keyof PageOptions]: PageOptions[K] };
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
-
-const STATUSES: readonly string[] = [
-  "identified",
-  "assessed",
-  "treating",
-  "accepted",
-  "closed",
-] satisfies readonly RiskStatus[];
-
-function isRiskStatus(value: string | undefined): value is RiskStatus {
-  return value !== undefined && STATUSES.includes(value);
-}
-
-/** The first value of a facet: the block's page filters take one per key. */
-function one(values: readonly string[] | undefined): string | undefined {
-  return values?.[0];
-}
 
 /**
  * One keyset page of risks for a list query, with the matrices that name the
@@ -71,28 +54,25 @@ export async function readRiskPage(
   db: Db,
   query: RecordListUrlQuery,
 ): Promise<RecordListPage<RiskRow>> {
-  const status = one(query.facets["status"]);
-
   const options: PageDraft = { limit: PAGE_SIZE };
+  const filters: Record<string, readonly string[]> = {};
 
-  const category = one(query.facets["category"]);
-  const band = one(query.facets["band"]);
+  for (const key of ["status", "category", "band"]) {
+    const values = query.facets[key];
+
+    if (values !== undefined && values.length > 0) {
+      filters[key] = values;
+    }
+  }
+
   const after = query.after === undefined ? undefined : cursorOf(query.after);
 
   if (query.q !== undefined) {
-    options.search = query.q;
+    options.q = query.q;
   }
 
-  if (isRiskStatus(status)) {
-    options.status = status;
-  }
-
-  if (category !== undefined) {
-    options.category = category;
-  }
-
-  if (band !== undefined) {
-    options.band = band;
+  if (Object.keys(filters).length > 0) {
+    options.filters = filters;
   }
 
   if (after !== undefined) {

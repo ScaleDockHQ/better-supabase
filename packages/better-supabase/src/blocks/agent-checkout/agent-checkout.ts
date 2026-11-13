@@ -1,7 +1,13 @@
 import type { Money } from "../../commerce/money.ts";
 import type { Payment } from "../../commerce/payments.ts";
-import type { ListPage } from "../../core/block-helpers.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type {
   AsyncResult as AsyncResultType,
@@ -17,9 +23,9 @@ import type { BlockOptions } from "../shared.ts";
 import type { SigningKeyOwner, SigningKeys } from "../signing-keys/index.ts";
 
 import { money } from "../../commerce/money.ts";
-import { blockPage } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { JwsError, verifyCompact } from "../../core/jws.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -43,6 +49,10 @@ import {
   sha256Hex,
   textOf,
 } from "../shared.ts";
+import {
+  agentMandateListSurface,
+  checkoutSessionListSurface,
+} from "./lists.ts";
 
 /** The protocol a checkout session speaks: ACP or UCP. */
 export type CheckoutProtocol = (typeof Protocols)[number];
@@ -106,22 +116,6 @@ export interface CheckoutSessionListOptions {
   readonly offset?: number;
 }
 
-/**
- * What `sessionPage` reads: the filters of `listSessions`, paged by keyset (ADR
- * 0642).
- */
-export interface CheckoutSessionPageOptions extends Omit<
-  CheckoutSessionListOptions,
-  "offset"
-> {
-  /** The `nextCursor` of the previous page. */
-  readonly after?: readonly string[];
-  /** Also count the matching rows, up to `totalCap`. */
-  readonly total?: boolean;
-  /** The most rows the total counts. Default 10,000. */
-  readonly totalCap?: number;
-}
-
 /** A stored AP2 mandate. */
 export interface AgentMandate {
   readonly id: string;
@@ -148,22 +142,6 @@ export interface AgentMandateListOptions {
   readonly vct?: AgentMandateType;
   readonly limit?: number;
   readonly offset?: number;
-}
-
-/**
- * What `mandatePage` reads: the filters of `listMandates`, paged by keyset (ADR
- * 0642).
- */
-export interface AgentMandatePageOptions extends Omit<
-  AgentMandateListOptions,
-  "offset"
-> {
-  /** The `nextCursor` of the previous page. */
-  readonly after?: readonly string[];
-  /** Also count the matching rows, up to `totalCap`. */
-  readonly total?: boolean;
-  /** The most rows the total counts. Default 10,000. */
-  readonly totalCap?: number;
 }
 
 /** The claims of a mandate whose signature and shape verified. */
@@ -227,10 +205,22 @@ export interface AgentCheckout {
   listSessions(
     options?: CheckoutSessionListOptions,
   ): AsyncResultType<readonly CheckoutSession[]>;
-  /** One keyset page of `listSessions`, with `hasMore` and a `nextCursor`. */
+  /**
+   * One keyset page of checkout sessions, in the order of `sort` (the default
+   * order without it), with `hasMore` and a `nextCursor` to pass as `after`.
+   */
   sessionPage(
-    options?: CheckoutSessionPageOptions,
+    options?: PageOptions,
   ): AsyncResultType<ListPage<CheckoutSession>>;
+  /**
+   * The values of each facet of checkout sessions and their counts, under the
+   * page's filters.
+   */
+  sessionFacets(
+    options?: FacetOptions,
+  ): AsyncResultType<readonly FacetResult[]>;
+  /** How many of checkout sessions match the page's filters. */
+  sessionCount(options?: CountOptions): AsyncResultType<Count>;
   /** The session's cart at today's price, from the orders client. */
   priceSession(
     sessionId: string,
@@ -260,10 +250,20 @@ export interface AgentCheckout {
   listMandates(
     options?: AgentMandateListOptions,
   ): AsyncResultType<readonly AgentMandate[]>;
-  /** One keyset page of `listMandates`, with `hasMore` and a `nextCursor`. */
-  mandatePage(
-    options?: AgentMandatePageOptions,
-  ): AsyncResultType<ListPage<AgentMandate>>;
+  /**
+   * One keyset page of agent mandates, in the order of `sort` (the default
+   * order without it), with `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  mandatePage(options?: PageOptions): AsyncResultType<ListPage<AgentMandate>>;
+  /**
+   * The values of each facet of agent mandates and their counts, under the
+   * page's filters.
+   */
+  mandateFacets(
+    options?: FacetOptions,
+  ): AsyncResultType<readonly FacetResult[]>;
+  /** How many of agent mandates match the page's filters. */
+  mandateCount(options?: CountOptions): AsyncResultType<Count>;
   /** Stops an active mandate; needs `agent-checkout.manage`. */
   revokeMandate(mandateId: string): AsyncResultType<boolean>;
 }
@@ -761,6 +761,24 @@ export function createAgentCheckout(
         .signJwt(claims);
     });
 
+  const sessions = entityList({
+    entity: "checkout_session",
+    surface: checkoutSessionListSurface,
+    call,
+    tenant,
+    fn: "list_checkout_sessions",
+    rowOf: sessionOf,
+  });
+
+  const mandates = entityList({
+    entity: "agent_mandate",
+    surface: agentMandateListSurface,
+    call,
+    tenant,
+    fn: "list_agent_mandates",
+    rowOf: mandateOf,
+  });
+
   const client: AgentCheckout = {
     createSession: (input) =>
       AsyncResult.from(async () => {
@@ -817,14 +835,9 @@ export function createAgentCheckout(
             ),
         ),
       ),
-    sessionPage: (page = {}) =>
-      blockPage(
-        call,
-        tenant,
-        "list_checkout_sessions",
-        sessionOf,
-        definedOf(page),
-      ),
+    sessionPage: sessions.page,
+    sessionFacets: sessions.facets,
+    sessionCount: sessions.count,
     priceSession,
     cancelSession: (sessionId) =>
       client.updateSession({ sessionId, status: "canceled" }),
@@ -847,14 +860,9 @@ export function createAgentCheckout(
             ),
         ),
       ),
-    mandatePage: (page = {}) =>
-      blockPage(
-        call,
-        tenant,
-        "list_agent_mandates",
-        mandateOf,
-        definedOf(page),
-      ),
+    mandatePage: mandates.page,
+    mandateFacets: mandates.facets,
+    mandateCount: mandates.count,
     revokeMandate: (mandateId) =>
       call("revoke_agent_mandate", { mandate_id: mandateId }, Boolean),
   };

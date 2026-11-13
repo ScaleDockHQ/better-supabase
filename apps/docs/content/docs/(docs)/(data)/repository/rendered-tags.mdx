@@ -83,7 +83,7 @@ const next = await db
   .orThrow();
 ```
 
-The built-in `risks` block takes the same options through `risks.page({ after, limit, total })`.
+The built-in `risks` block takes `after` and `limit` through `risks.page({ after, limit })`, with the sort, list filters, facets and count of the [list contract](/docs/extending/blocks#the-list-contract).
 
 ## idempotency
 

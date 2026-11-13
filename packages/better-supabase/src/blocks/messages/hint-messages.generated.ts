@@ -1014,6 +1014,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "MAIL_THREAD_NOT_FOUND": "No such thread in your mailbox.",
   "MAIL_TOKEN_REFUSED": "Mail token refused.",
   "MAIL_TRACKING_INVALID": "Kind is open or click.",
+  "MAINTENANCE_CALIBRATION_NOT_FOUND": "No such calibration.",
   "MAINTENANCE_FORBIDDEN": "Not allowed to manage maintenance plans.",
   "MAINTENANCE_INVALID": "Input must be an object.",
   "MAINTENANCE_METER_NOT_FOUND": "No such meter.",

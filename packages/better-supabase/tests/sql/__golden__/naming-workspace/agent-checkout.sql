@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_179_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:45c83fa2ad9998682ee277202488dac96d5fa4e0e0e9893f2a34b80b7448e4c0
+-- @bsb-hash sha256:3d6aed77d379c8fc6817abb2883cdfad9bc83ab673238d1c10109c1fce3e0d26
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -192,8 +192,9 @@ $$;
 revoke execute on function "better_supabase"."get_checkout_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_checkout_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { status, protocol, cartId, limit, after, offset, paged,
--- total, totalCap }.
+-- Sessions, newest first. filters is { status, protocol, cartId (each a value or
+-- a list of them), sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_checkout_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -213,9 +214,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_protocol text := nullif(v_filters ->> 'protocol', '');
-  v_cart text := nullif(v_filters ->> 'cartId', '');
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_checkout_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_checkout_sessions.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read checkout sessions' using errcode = '42501', hint = 'CHECKOUT_FORBIDDEN';
@@ -223,7 +226,46 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHECKOUT_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('status', 'protocol') then
+      raise exception 'facet is one of status, protocol' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'protocol' then (x."protocol")::text end) as v
+      from "better_supabase"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
+        and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
+        and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'expiresAt') then
+    raise exception 'sort is one of createdAt, expiresAt' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -235,14 +277,120 @@ begin
     from (
       select * from "better_supabase"."checkout_sessions" x
       where x."tenant_id" = list_checkout_sessions.tenant
-        and (v_status is null or x."status" = v_status)
-        and (v_protocol is null or x."protocol" = v_protocol)
-        and (v_cart is null or x."cart_id"::text = v_cart)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
+        and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cartId', x."cart_id", 'protocol', x."protocol", 'status', x."status", 'buyer', x."buyer", 'orderId', x."order_id", 'expiresAt', x."expires_at", 'expired', (x."status" in ('open', 'ready') and x."expires_at" is not null and x."expires_at" <= now()), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
+        and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cartId', x."cart_id", 'protocol', x."protocol", 'status', x."status", 'buyer', x."buyer", 'orderId', x."order_id", 'expiresAt', x."expires_at", 'expired', (x."status" in ('open', 'ready') and x."expires_at" is not null and x."expires_at" <= now()), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
+        and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cartId', x."cart_id", 'protocol', x."protocol", 'status', x."status", 'buyer', x."buyer", 'orderId', x."order_id", 'expiresAt', x."expires_at", 'expired', (x."status" in ('open', 'ready') and x."expires_at" is not null and x."expires_at" <= now()), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
+        and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cartId', x."cart_id", 'protocol', x."protocol", 'status', x."status", 'buyer', x."buyer", 'orderId', x."order_id", 'expiresAt', x."expires_at", 'expired', (x."status" in ('open', 'ready') and x."expires_at" is not null and x."expires_at" <= now()), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."expires_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
+        and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."expires_at", 'infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHECKOUT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cartId', x."cart_id", 'protocol', x."protocol", 'status', x."status", 'buyer', x."buyer", 'orderId', x."order_id", 'expiresAt', x."expires_at", 'expired', (x."status" in ('open', 'ready') and x."expires_at" is not null and x."expires_at" <= now()), 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."expires_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."checkout_sessions" x
+      where x."tenant_id" = list_checkout_sessions.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
+        and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."expires_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."expires_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."expires_at", 'infinity'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -250,9 +398,9 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."checkout_sessions" x
       where x."tenant_id" = list_checkout_sessions.tenant
-        and (v_status is null or x."status" = v_status)
-        and (v_protocol is null or x."protocol" = v_protocol)
-        and (v_cart is null or x."cart_id"::text = v_cart)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
+        and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -460,8 +608,9 @@ $$;
 revoke execute on function "better_supabase"."get_agent_mandate"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_agent_mandate"(uuid) to authenticated, service_role;
 
--- Mandates, newest first. filters is { sessionId, status, vct, limit, after, offset, paged,
--- total, totalCap }.
+-- Mandates, newest first. filters is { sessionId, status, vct (each a value or a
+-- list of them), sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_agent_mandates"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -481,9 +630,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_session text := nullif(v_filters ->> 'sessionId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_vct text := nullif(v_filters ->> 'vct', '');
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_agent_mandates.tenant is not null and coalesce(better_supabase.can('tenant', list_agent_mandates.tenant, 'agent_checkout.read'), false))) then
     raise exception 'not allowed to read mandates' using errcode = '42501', hint = 'AGENT_MANDATE_FORBIDDEN';
@@ -491,7 +642,46 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('status', 'vct') then
+      raise exception 'facet is one of status, vct' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'vct' then (x."vct")::text end) as v
+      from "better_supabase"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'expiresAt') then
+    raise exception 'sort is one of createdAt, expiresAt' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -503,14 +693,120 @@ begin
     from (
       select * from "better_supabase"."agent_mandates" x
       where x."tenant_id" = list_agent_mandates.tenant
-        and (v_session is null or x."session_id"::text = v_session)
-        and (v_status is null or x."status" = v_status)
-        and (v_vct is null or x."vct" = v_vct)
+        and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sessionId', x."session_id", 'vct', x."vct", 'status', x."status", 'credential', x."credential", 'credentialHash', x."credential_hash", 'issuerKid', x."issuer_kid", 'subject', x."subject", 'expiresAt', x."expires_at", 'expired', (x."status" = 'active' and x."expires_at" <= now()), 'consumedAt', x."consumed_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sessionId', x."session_id", 'vct', x."vct", 'status', x."status", 'credential', x."credential", 'credentialHash', x."credential_hash", 'issuerKid', x."issuer_kid", 'subject', x."subject", 'expiresAt', x."expires_at", 'expired', (x."status" = 'active' and x."expires_at" <= now()), 'consumedAt', x."consumed_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sessionId', x."session_id", 'vct', x."vct", 'status', x."status", 'credential', x."credential", 'credentialHash', x."credential_hash", 'issuerKid', x."issuer_kid", 'subject', x."subject", 'expiresAt', x."expires_at", 'expired', (x."status" = 'active' and x."expires_at" <= now()), 'consumedAt', x."consumed_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sessionId', x."session_id", 'vct', x."vct", 'status', x."status", 'credential', x."credential", 'credentialHash', x."credential_hash", 'issuerKid', x."issuer_kid", 'subject', x."subject", 'expiresAt', x."expires_at", 'expired', (x."status" = 'active' and x."expires_at" <= now()), 'consumedAt', x."consumed_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_after is null or (x."expires_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."expires_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'expiresAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AGENT_MANDATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'sessionId', x."session_id", 'vct', x."vct", 'status', x."status", 'credential', x."credential", 'credentialHash', x."credential_hash", 'issuerKid', x."issuer_kid", 'subject', x."subject", 'expiresAt', x."expires_at", 'expired', (x."status" = 'active' and x."expires_at" <= now()), 'consumedAt', x."consumed_at", 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."expires_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."agent_mandates" x
+      where x."tenant_id" = list_agent_mandates.tenant
+        and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_after is null or (x."expires_at" <= (v_after ->> 0)::timestamptz and ((x."expires_at" < (v_after ->> 0)::timestamptz) or (x."expires_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."expires_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -518,9 +814,9 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."agent_mandates" x
       where x."tenant_id" = list_agent_mandates.tenant
-        and (v_session is null or x."session_id"::text = v_session)
-        and (v_status is null or x."status" = v_status)
-        and (v_vct is null or x."vct" = v_vct)
+        and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;

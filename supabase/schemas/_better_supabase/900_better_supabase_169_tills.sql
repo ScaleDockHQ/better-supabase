@@ -1,6 +1,6 @@
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:5c905cd6bc3fa3c9a4609c8636817d4a1ca4c15158aff9267c2c35593c77d054
+-- @bsb-hash sha256:21a4b88ef08424add50a8701f6a49dfe26361e22dd6e495f36758ddad6b27a9c
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -388,8 +388,9 @@ $$;
 revoke execute on function "better_supabase"."get_till_session"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_till_session"(uuid) to authenticated, service_role;
 
--- Sessions, newest first. filters is { tillId, status, limit, after, offset, paged, total,
--- totalCap }.
+-- Sessions, newest first. filters is { tillId, status (each a value or a list of
+-- them), sort, direction, facet, count, limit, after, offset, paged, total,
+-- totalCap } (ADR 0749).
 create or replace function "better_supabase"."list_till_sessions"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -409,8 +410,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_till text := nullif(v_filters ->> 'tillId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_till_sessions.tenant is not null and coalesce(better_supabase.can('tenant', list_till_sessions.tenant, 'tills.read'), false))) then
     raise exception 'not allowed to read till sessions' using errcode = '42501', hint = 'TILL_FORBIDDEN';
@@ -418,7 +422,44 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'TILL_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('status', 'tillId') then
+      raise exception 'facet is one of status, tillId' using errcode = '22023', hint = 'TILL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'tillId' then (x."till_id")::text end) as v
+      from "better_supabase"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('openedAt', 'closedAt') then
+    raise exception 'sort is one of openedAt, closedAt' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -430,13 +471,114 @@ begin
     from (
       select * from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
-        and (v_till is null or x."till_id"::text = v_till)
-        and (v_status is null or x."status" = v_status)
+        and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."opened_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tillId', x."till_id", 'organizationId', x."tenant_id", 'status', x."status", 'openingFloat', x."opening_float"::text, 'expected', (select (x."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = x."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = x."till_id"), 'openedBy', x."opened_by", 'openedAt', x."opened_at", 'closedBy', x."closed_by", 'closedAt', x."closed_at", 'notes', x."notes") as j, jsonb_build_array((x."opened_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."opened_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'openedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tillId', x."till_id", 'organizationId', x."tenant_id", 'status', x."status", 'openingFloat', x."opening_float"::text, 'expected', (select (x."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = x."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = x."till_id"), 'openedBy', x."opened_by", 'openedAt', x."opened_at", 'closedBy', x."closed_by", 'closedAt', x."closed_at", 'notes', x."notes") as j, jsonb_build_array((x."opened_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."opened_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."opened_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'openedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tillId', x."till_id", 'organizationId', x."tenant_id", 'status', x."status", 'openingFloat', x."opening_float"::text, 'expected', (select (x."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = x."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = x."till_id"), 'openedBy', x."opened_by", 'openedAt', x."opened_at", 'closedBy', x."closed_by", 'closedAt', x."closed_at", 'notes', x."notes") as j, jsonb_build_array((x."opened_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."opened_at" <= (v_after ->> 0)::timestamptz and ((x."opened_at" < (v_after ->> 0)::timestamptz) or (x."opened_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."opened_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'closedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tillId', x."till_id", 'organizationId', x."tenant_id", 'status', x."status", 'openingFloat', x."opening_float"::text, 'expected', (select (x."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = x."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = x."till_id"), 'openedBy', x."opened_by", 'openedAt', x."opened_at", 'closedBy', x."closed_by", 'closedAt', x."closed_at", 'notes', x."notes") as j, jsonb_build_array((coalesce(x."closed_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."closed_at", 'infinity'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'closedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'TILL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tillId', x."till_id", 'organizationId', x."tenant_id", 'status', x."status", 'openingFloat', x."opening_float"::text, 'expected', (select (x."opening_float" + coalesce(sum(case when bm."kind" in ('cash_sale', 'cash_in') then bm."amount" else -bm."amount" end), 0))::text from "better_supabase"."till_movements" bm where bm."session_id" = x."id"), 'currency', (select bt."currency" from "better_supabase"."tills" bt where bt."id" = x."till_id"), 'openedBy', x."opened_by", 'openedAt', x."opened_at", 'closedBy', x."closed_by", 'closedAt', x."closed_at", 'notes', x."notes") as j, jsonb_build_array((coalesce(x."closed_at", 'infinity'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."till_sessions" x
+      where x."tenant_id" = list_till_sessions.tenant
+        and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (coalesce(x."closed_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."closed_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."closed_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."closed_at", 'infinity'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -444,8 +586,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."till_sessions" x
       where x."tenant_id" = list_till_sessions.tenant
-        and (v_till is null or x."till_id"::text = v_till)
-        and (v_status is null or x."status" = v_status)
+        and (not (v_filters -> 'tillId' is not null and jsonb_typeof(v_filters -> 'tillId') <> 'null' and not (jsonb_typeof(v_filters -> 'tillId') = 'array' and jsonb_array_length(v_filters -> 'tillId') = 0)) or x."till_id"::text = any((case when jsonb_typeof(v_filters -> 'tillId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'tillId')) else array[v_filters ->> 'tillId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
       limit v_total_cap + 1
     ) c;
   end if;

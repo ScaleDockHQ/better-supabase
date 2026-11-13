@@ -1,6 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { listBody, listDeclare } from "../list-template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { userGrant } from "../shared.ts";
 import { tillsSql } from "./tills-sql.ts";
 
@@ -15,13 +15,28 @@ export function tillsFunctions(ctx: BlockSqlContext): string {
     alias: "x",
     where: [
       `x.${s("tenant")} = list_till_sessions.tenant`,
-      `(v_till is null or x.${s("till")}::text = v_till)`,
-      `(v_status is null or x.${s("status")} = v_status)`,
+      filterAny("tillId", `x.${s("till")}::text`),
+      filterAny("status", `x.${s("status")}`),
     ],
     keys: [
       { expr: `x.${s("openedAt")}`, dir: "desc", type: "timestamptz" },
       { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      openedAt: [
+        { expr: `x.${s("openedAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+      ],
+      closedAt: [
+        {
+          expr: `coalesce(x.${s("closedAt")}, 'infinity'::timestamptz)`,
+          dir: "desc",
+          type: "timestamptz",
+        },
+        { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${s("status")}`, tillId: `x.${s("till")}` },
     rowJson: sql.sessionJson("x"),
     invalid: sql.invalid,
   } as const;
@@ -229,8 +244,9 @@ end;
 $$;
 ${userGrant(`${fn("get_till_session")}(uuid)`)}
 
--- Sessions, newest first. filters is { tillId, status, limit, after, offset, paged, total,
--- totalCap }.
+-- Sessions, newest first. filters is { tillId, status (each a value or a list of
+-- them), sort, direction, facet, count, limit, after, offset, paged, total,
+-- totalCap } (ADR 0749).
 create or replace function ${fn("list_till_sessions")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -242,8 +258,6 @@ as $$
 declare
   v_filters jsonb := coalesce(list_till_sessions.filters, '{}'::jsonb);
   ${listDeclare(list)}
-  v_till text := nullif(v_filters ->> 'tillId', '');
-  v_status text := nullif(v_filters ->> 'status', '');
 begin
   if not ${sql.allowed("list_till_sessions.tenant", sql.read)} then
     ${sql.forbidden("not allowed to read till sessions")}
