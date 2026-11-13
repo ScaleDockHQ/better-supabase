@@ -1,6 +1,6 @@
 -- better-supabase module: vercel-marketplace
--- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:82bc2648d58581f99d804ab9f5565cca5d1c76ce3bc418b8f1ec809a6a121f28
+-- @bsb-block vercel-marketplace@3 managed
+-- @bsb-hash sha256:d1a129cafa46304725c8d88ced13099c3e5e8f500df7779fef2ac527d7e32bf4
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -80,8 +80,8 @@ create table "better_supabase"."marketplace_invoices" (
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "external_id" text not null,
   "state" text not null default 'pending',
-  "period_start" timestamptz,
-  "period_end" timestamptz,
+  "period_starts_at" timestamptz,
+  "period_ends_at" timestamptz,
   "total" numeric not null default 0,
   "currency" text not null default 'usd',
   "items" jsonb not null default '[]'::jsonb,
@@ -102,12 +102,12 @@ create table "better_supabase"."marketplace_meter_reports" (
   "installation_id" uuid not null references "better_supabase"."marketplace_installations" ("id") on delete cascade,
   "resource_external_id" text not null default '',
   "meter_id" text not null,
-  "period_start" timestamptz not null,
-  "period_end" timestamptz not null,
+  "period_starts_at" timestamptz not null,
+  "period_ends_at" timestamptz not null,
   "quantity" numeric not null constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0),
   "reported_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  unique ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end")
+  unique ("installation_id", "resource_external_id", "meter_id", "period_starts_at", "period_ends_at")
 );
 -- reported_quantity: the total Vercel accepted for the period, so the next
 -- report sends the rest as dayValue.
@@ -294,12 +294,12 @@ begin
     raise exception 'No installation has this configuration id' using errcode = 'P0002', hint = 'MARKETPLACE_INSTALLATION_NOT_FOUND';
   end if;
   select y."state" into v_before from "better_supabase"."marketplace_invoices" y where y."installation_id" = v_installation and y."external_id" = record_marketplace_invoice.external_id;
-  insert into "better_supabase"."marketplace_invoices" ("installation_id", "external_id", "state", "period_start", "period_end", "total", "currency", "items", "event_at")
+  insert into "better_supabase"."marketplace_invoices" ("installation_id", "external_id", "state", "period_starts_at", "period_ends_at", "total", "currency", "items", "event_at")
   values (v_installation, record_marketplace_invoice.external_id, record_marketplace_invoice.state, record_marketplace_invoice.period_start, record_marketplace_invoice.period_end, coalesce(record_marketplace_invoice.total, 0), coalesce(record_marketplace_invoice.currency, 'usd'), coalesce(record_marketplace_invoice.items, '[]'::jsonb), coalesce(record_marketplace_invoice.event_at, now()))
   on conflict ("installation_id", "external_id") do update set
     "state" = excluded."state",
-    "period_start" = coalesce(excluded."period_start", "better_supabase"."marketplace_invoices"."period_start"),
-    "period_end" = coalesce(excluded."period_end", "better_supabase"."marketplace_invoices"."period_end"),
+    "period_starts_at" = coalesce(excluded."period_starts_at", "better_supabase"."marketplace_invoices"."period_starts_at"),
+    "period_ends_at" = coalesce(excluded."period_ends_at", "better_supabase"."marketplace_invoices"."period_ends_at"),
     "total" = case when record_marketplace_invoice.total is null then "better_supabase"."marketplace_invoices"."total" else excluded."total" end,
     "currency" = case when record_marketplace_invoice.currency is null then "better_supabase"."marketplace_invoices"."currency" else excluded."currency" end,
     "items" = case when record_marketplace_invoice.items is null then "better_supabase"."marketplace_invoices"."items" else excluded."items" end,
@@ -342,9 +342,9 @@ begin
   if v_installation is null then
     raise exception 'No installation has this configuration id' using errcode = 'P0002', hint = 'MARKETPLACE_INSTALLATION_NOT_FOUND';
   end if;
-  insert into "better_supabase"."marketplace_meter_reports" ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end", "quantity")
+  insert into "better_supabase"."marketplace_meter_reports" ("installation_id", "resource_external_id", "meter_id", "period_starts_at", "period_ends_at", "quantity")
   values (v_installation, coalesce(record_marketplace_meter_report.resource_external_id, ''), record_marketplace_meter_report.meter_id, record_marketplace_meter_report.period_start, record_marketplace_meter_report.period_end, record_marketplace_meter_report.quantity)
-  on conflict ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end") do update set
+  on conflict ("installation_id", "resource_external_id", "meter_id", "period_starts_at", "period_ends_at") do update set
     "quantity" = excluded."quantity",
     "reported_at" = case when "better_supabase"."marketplace_meter_reports"."quantity" = excluded."quantity" then "better_supabase"."marketplace_meter_reports"."reported_at" end
   returning * into v_row;
@@ -409,7 +409,7 @@ begin
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(to_jsonb(x) order by x."period_start", x."meter_id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(to_jsonb(x) order by x."period_starts_at", x."meter_id"), '[]'::jsonb)
     from "better_supabase"."marketplace_meter_reports" x join "better_supabase"."marketplace_installations" y on y."id" = x."installation_id"
     where y."configuration_id" = unreported_marketplace_meter_reports.configuration_id and x."reported_at" is null
   );
