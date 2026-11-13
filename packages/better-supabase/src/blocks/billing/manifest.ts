@@ -19,6 +19,9 @@ export const billingBlock: BlockOf<
   events: billingEvents,
   create: createBilling,
   category: "commerce",
+  entities: {
+    billing: { mutability: "state-machine", emits: { create: false } },
+  },
   description:
     "Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.",
   recipes: ["plan-picker"],

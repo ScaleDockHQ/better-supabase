@@ -32,6 +32,18 @@ export const tasksBlock: BlockOf<
   create: createTasks,
   record: taskChecklistBinding,
   category: "work",
+  entities: {
+    task: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+    project: { mutability: "editable", emits: { update: false } },
+    iteration: { mutability: "editable", emits: { update: false } },
+    checklist_item: {
+      mutability: "editable",
+      emits: { update: false, delete: false },
+    },
+  },
   description:
     "Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.",
   recipes: ["work-item-board", "work-item-grid", "entity-form", "my-work"],

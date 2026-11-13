@@ -27,6 +27,13 @@ export const observationsBlock: BlockOf<
   create: createObservations,
   recipes: ["observation-chart"],
   category: "people",
+  entities: {
+    observation: { mutability: "state-machine", emits: { create: true } },
+    observation_definition: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+  },
   description:
     "Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.",
 });

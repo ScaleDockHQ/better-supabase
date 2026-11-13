@@ -18,6 +18,15 @@ export const dataLifecycleBlock: BlockOf<
   events: dataLifecycleEvents,
   create: createDataLifecycle,
   category: "admin",
+  entities: {
+    data_export: { mutability: "state-machine", emits: { create: false } },
+    organization: { mutability: "state-machine" },
+    legal_hold: { mutability: "state-machine" },
+    data_subject_request: {
+      mutability: "state-machine",
+      emits: { create: false },
+    },
+  },
   description:
     "Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.",
   recipes: ["data-export-delete"],

@@ -30,6 +30,16 @@ export const vercelMarketplaceBlock: BlockOf<
     },
   ],
   category: "developer",
+  entities: {
+    marketplace_installation: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+    marketplace_invoice: {
+      mutability: "state-machine",
+      emits: { create: false },
+    },
+  },
   description:
     "Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.",
 });

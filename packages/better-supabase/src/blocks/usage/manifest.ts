@@ -11,6 +11,7 @@ export const usageBlock: BlockOf<"usage", typeof createUsage> = defineBlock({
   options: { usage: usageSqlOptions },
   create: createUsage,
   category: "commerce",
+  entities: { usage: { mutability: "append-only", emits: { create: false } } },
   description:
     "Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.",
   recipes: ["usage-meter"],

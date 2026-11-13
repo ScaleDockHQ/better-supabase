@@ -31,6 +31,12 @@ export const donationsBlock: BlockOf<
   create: createDonations,
   record: givingBinding,
   category: "commerce",
+  entities: {
+    donation: { mutability: "state-machine" },
+    pledge: { mutability: "editable", emits: { create: true, update: true } },
+    donation_fund: { mutability: "editable", emits: { update: false } },
+    donation_receipt: { mutability: "state-machine" },
+  },
   description:
     "Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.",
   providers: [

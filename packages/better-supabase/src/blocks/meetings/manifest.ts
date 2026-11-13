@@ -29,6 +29,22 @@ export const meetingsBlock: BlockOf<
   create: createMeetings,
   recipes: ["meeting-agenda", "meeting-minutes"],
   category: "collaboration",
+  entities: {
+    meeting: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+    meeting_attendee: {
+      mutability: "editable",
+      emits: { update: false, delete: false },
+    },
+    meeting_agenda_item: {
+      mutability: "editable",
+      emits: { update: false, delete: false },
+    },
+    meeting_decision: { mutability: "state-machine", emits: { create: true } },
+    meeting_action_item: { mutability: "append-only", emits: { create: true } },
+  },
   description:
     "Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.",
 });

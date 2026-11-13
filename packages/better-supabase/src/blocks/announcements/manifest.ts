@@ -19,6 +19,12 @@ export const announcementsBlock: BlockOf<
   create: createAnnouncements,
   client: "announcements",
   category: "growth",
+  entities: {
+    announcement: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+  },
   description:
     "In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.",
   recipes: ["announcement-banner"],

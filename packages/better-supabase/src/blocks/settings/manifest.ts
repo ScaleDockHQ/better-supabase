@@ -22,6 +22,16 @@ export const settingsBlock: BlockOf<
   events: settingsEvents,
   create: createSettings,
   category: "tenancy",
+  entities: {
+    organization_setting: {
+      mutability: "editable",
+      emits: { create: false, update: true },
+    },
+    platform_setting: {
+      mutability: "editable",
+      emits: { create: false, update: true },
+    },
+  },
   description:
     "Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.",
   recipes: ["settings-layout"],

@@ -21,6 +21,7 @@ export const accessRequestsBlock: BlockOf<
   provides: { recordAccess: (client) => client },
   create: createAccessRequests,
   category: "identity",
+  entities: { access_request: { mutability: "state-machine" } },
   description:
     "Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.",
   recipes: ["access-requests-inbox"],

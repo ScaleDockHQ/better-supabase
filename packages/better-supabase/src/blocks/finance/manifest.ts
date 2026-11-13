@@ -33,6 +33,9 @@ export const financeBlock: BlockOf<"finance", typeof createFinance> =
     composes: financeParts,
     create: createFinance,
     category: "commerce",
+    entities: {
+      finance: { mutability: "append-only", emits: { create: false } },
+    },
     description:
       "Accounting, tax, banking and invoices installed together for the books.",
   });

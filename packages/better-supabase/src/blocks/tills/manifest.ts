@@ -16,6 +16,13 @@ export const tillsBlock: BlockOf<"tills", typeof createTills, TillsEvents> =
     create: createTills,
     recipes: [],
     category: "commerce",
+    entities: {
+      till: { mutability: "editable", emits: { create: true, update: true } },
+      till_session: { mutability: "state-machine", emits: { create: false } },
+      till_movement: { mutability: "append-only", emits: { create: true } },
+      till_count: { mutability: "read-only" },
+      till_deposit: { mutability: "state-machine", emits: { create: true } },
+    },
     description:
       "Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.",
   });

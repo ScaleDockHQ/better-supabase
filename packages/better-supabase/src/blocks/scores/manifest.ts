@@ -23,6 +23,12 @@ export const scoresBlock: BlockOf<
   create: createScores,
   record: scoresBinding,
   category: "growth",
+  entities: {
+    score_model: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+  },
   description:
     "Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.",
 });

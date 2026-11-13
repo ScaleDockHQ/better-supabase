@@ -16,6 +16,11 @@ export const hiringBlock: BlockOf<"hiring", typeof createHiring, HiringEvents> =
     events: hiringEvents,
     create: createHiring,
     category: "people",
+    entities: {
+      job_opening: { mutability: "state-machine" },
+      application: { mutability: "state-machine", emits: { create: true } },
+      interview: { mutability: "state-machine" },
+    },
     description:
       "Jobs and applications on a pipeline per job, candidates from config.recordTypes, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.",
     recipes: ["hiring-board"],

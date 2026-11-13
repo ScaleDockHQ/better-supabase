@@ -16,6 +16,12 @@ export const promotionsBlock: BlockOf<
   events: promotionsEvents,
   create: createPromotions,
   category: "commerce",
+  entities: {
+    promotion: {
+      mutability: "editable",
+      emits: { update: false, delete: false },
+    },
+  },
   description:
     "Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.",
   recipes: ["promotion-code-field"],

@@ -27,6 +27,16 @@ export const bankingBlock: BlockOf<
   create: createBanking,
   recipes: ["bank-reconciliation"],
   category: "commerce",
+  entities: {
+    bank_transaction: { mutability: "state-machine" },
+    bank_account: { mutability: "editable", emits: { update: false } },
+    bank_statement: { mutability: "state-machine" },
+    bank_match: { mutability: "read-only" },
+    bank_rule: {
+      mutability: "editable",
+      emits: { update: false, delete: false },
+    },
+  },
   description:
     "Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.",
 });

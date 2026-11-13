@@ -18,6 +18,15 @@ export const inventoryBlock: BlockOf<
   events: inventoryEvents,
   create: createInventory,
   category: "commerce",
+  entities: {
+    inventory_location: { mutability: "read-only" },
+    purchase_order: { mutability: "editable", emits: { update: false } },
+    purchase_requisition: {
+      mutability: "state-machine",
+      emits: { create: true },
+    },
+    inventory_receipt: { mutability: "append-only", emits: { create: true } },
+  },
   description:
     "Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.",
   recipes: ["inventory-table"],

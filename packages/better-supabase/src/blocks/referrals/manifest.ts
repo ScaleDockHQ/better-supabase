@@ -20,6 +20,10 @@ export const referralsBlock: BlockOf<
   create: createReferrals,
   recipes: [],
   category: "commerce",
+  entities: {
+    referral_code: { mutability: "append-only", emits: { create: true } },
+    referral: { mutability: "state-machine" },
+  },
   description:
     "Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.",
 });

@@ -21,6 +21,16 @@ export const organizationsBlock: BlockOf<
   events: organizationsEvents,
   create: createOrganizations,
   category: "tenancy",
+  entities: {
+    organization: {
+      mutability: "editable",
+      emits: { create: true, update: true, delete: true },
+    },
+    invitation: {
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
+  },
   description:
     "create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.",
   recipes: [

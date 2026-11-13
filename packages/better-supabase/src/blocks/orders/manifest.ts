@@ -16,6 +16,10 @@ export const ordersBlock: BlockOf<"orders", typeof createOrders, OrdersEvents> =
     events: ordersEvents,
     create: createOrders,
     category: "commerce",
+    entities: {
+      order: { mutability: "state-machine" },
+      cart: { mutability: "append-only", emits: { create: false } },
+    },
     description:
       "Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.",
     recipes: ["order-detail", "kitchen-display", "order-state-board"],

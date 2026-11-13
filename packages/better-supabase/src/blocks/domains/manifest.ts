@@ -18,6 +18,12 @@ export const domainsBlock: BlockOf<
   events: domainsEvents,
   create: createDomains,
   category: "tenancy",
+  entities: {
+    hostname: {
+      mutability: "state-machine",
+      emits: { create: true, delete: true },
+    },
+  },
   description:
     "Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.",
 });

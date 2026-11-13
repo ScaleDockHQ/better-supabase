@@ -23,6 +23,7 @@ export const relationsBlock: BlockOf<
   create: createRelations,
   record: relationsBinding,
   category: "work",
+  entities: { relation: { mutability: "read-only" } },
   description:
     "Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.",
   recipes: ["related-items-panel"],

@@ -9,6 +9,7 @@ export const updatedAtBlock: Block<"updated-at"> = defineBlock({
   sql: ["updated-at"],
   options: { "updated-at": updatedAtSqlOptions },
   category: "database",
+  entities: { updated_at: { mutability: "read-only" } },
   description: "Keeps an updated_at column current on every update.",
   extension: "updatedAtExtension",
 });

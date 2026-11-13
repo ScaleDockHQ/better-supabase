@@ -23,6 +23,10 @@ export const messagingBlock: BlockOf<
   create: createMessaging,
   client: "messaging",
   category: "collaboration",
+  entities: {
+    message: { mutability: "editable", emits: { update: false, delete: true } },
+    conversation: { mutability: "state-machine", emits: { create: true } },
+  },
   description:
     "Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.",
   recipes: [

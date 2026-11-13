@@ -15,6 +15,12 @@ export const teamsBlock: BlockOf<"teams", typeof createTeams, TeamsEvents> =
     events: teamsEvents,
     create: createTeams,
     category: "tenancy",
+    entities: {
+      team: {
+        mutability: "editable",
+        emits: { create: true, update: true, delete: true },
+      },
+    },
     description:
       "Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.",
     recipes: ["team-picker"],

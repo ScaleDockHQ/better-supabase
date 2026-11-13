@@ -35,6 +35,9 @@ export const procurementBlock: BlockOf<
   composes: procurementParts,
   create: createProcurement,
   category: "commerce",
+  entities: {
+    procurement: { mutability: "append-only", emits: { create: false } },
+  },
   description:
     "Requests for quotation, inventory, invoices and banking installed together for buying.",
 });

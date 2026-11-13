@@ -9,6 +9,7 @@ export const goalsBlock: BlockOf<"goals", typeof createGoals> = defineBlock({
   sql: ["goals"],
   create: createGoals,
   category: "crm",
+  entities: { goal: { mutability: "editable", emits: { update: false } } },
   description:
     "Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.",
   recipes: ["targets-progress"],

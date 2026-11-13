@@ -23,5 +23,6 @@ export const eventsBlock: BlockOf<"events", typeof createEvents> = defineBlock({
   composes: eventsParts,
   create: createEvents,
   category: "scheduling",
+  entities: { event: { mutability: "read-only" } },
   description: "Bookings and admission passes installed together for events.",
 });
