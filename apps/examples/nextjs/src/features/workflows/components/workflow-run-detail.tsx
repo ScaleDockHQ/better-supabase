@@ -2,7 +2,7 @@
 
 import type { WorkflowNodeRun } from "better-supabase/blocks/workflow-editor";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import {
   CheckIcon,
   CircleStopIcon,
@@ -48,7 +48,6 @@ import {
 import { useWorkflowCanvasRun } from "@/hooks/use-workflow-editor";
 import { Link } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { JsonObject, JsonValue } from "../builder/config-templates";
 import type { RunDetailData, RunStepNode } from "../workflows-queries";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 
 import { Badge } from "@/components/reui/badge";
@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/card";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { createFromTemplate } from "../builder-actions";
 import { workflowTemplates } from "../workflow-templates";

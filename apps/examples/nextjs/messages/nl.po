@@ -1837,6 +1837,61 @@ msgctxt "app.HetEY5"
 msgid "It moved, or it isn't available to your organization."
 msgstr "Ze is verplaatst, of niet beschikbaar voor je organisatie."
 
+#: src/components/error-messages.tsx
+msgctxt "errors.JI3eca"
+msgid "That already exists."
+msgstr "Dat bestaat al."
+
+#: src/components/error-messages.tsx
+msgctxt "errors.U8S-VX"
+msgid "Check the highlighted fields and try again."
+msgstr "Controleer de gemarkeerde velden en probeer het opnieuw."
+
+#: src/components/error-messages.tsx
+msgctxt "errors.l4YmKm"
+msgid "Someone else changed this. Reload and try again."
+msgstr "Iemand anders heeft dit gewijzigd. Herlaad en probeer het opnieuw."
+
+#: src/components/error-messages.tsx
+msgctxt "errors.0Wy2tt"
+msgid "The server didn't answer. Try again."
+msgstr "De server antwoordde niet. Probeer het opnieuw."
+
+#: src/components/error-messages.tsx
+msgctxt "errors.3kJE8G"
+msgid "Something went wrong. Try again."
+msgstr "Er ging iets mis. Probeer het opnieuw."
+
+#: src/components/error-messages.tsx
+msgctxt "errors.p0Vi70"
+msgid "Sign in again to continue."
+msgstr "Log opnieuw in om door te gaan."
+
+#: src/components/error-messages.tsx
+msgctxt "errors.7GZhCN"
+msgid "You don't have permission to do that."
+msgstr "Je hebt geen toestemming om dat te doen."
+
+#: src/components/error-messages.tsx
+msgctxt "errors.ZT3lBq"
+msgid "That item no longer exists."
+msgstr "Dat item bestaat niet meer."
+
+#: src/components/error-messages.tsx
+msgctxt "errors.GhZx8v"
+msgid "Too many requests. Wait a moment and try again."
+msgstr "Te veel verzoeken. Wacht even en probeer het opnieuw."
+
+#: src/components/error-messages.tsx
+msgctxt "errors.L-85Jk"
+msgid "Your plan's limit is reached. Upgrade to continue."
+msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
+
+#: src/components/error-messages.tsx
+msgctxt "errors.TM7s8X"
+msgid "The list was cut off. Ask for a page instead."
+msgstr "De lijst is afgekapt. Vraag in plaats daarvan om een pagina."
+
 #: src/components/finance-pages/finance-pages.tsx
 msgctxt "finance.6dqYnF"
 msgid "Invoices"
@@ -32702,58 +32757,3 @@ msgstr "Nog geen runs"
 msgctxt "workflows.G5eG81"
 msgid "Start a sample workflow to see its run here."
 msgstr "Start een voorbeeldworkflow om de run hier te zien."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.JI3eca"
-msgid "That already exists."
-msgstr "Dat bestaat al."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.U8S-VX"
-msgid "Check the highlighted fields and try again."
-msgstr "Controleer de gemarkeerde velden en probeer het opnieuw."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.l4YmKm"
-msgid "Someone else changed this. Reload and try again."
-msgstr "Iemand anders heeft dit gewijzigd. Herlaad en probeer het opnieuw."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.0Wy2tt"
-msgid "The server didn't answer. Try again."
-msgstr "De server antwoordde niet. Probeer het opnieuw."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.3kJE8G"
-msgid "Something went wrong. Try again."
-msgstr "Er ging iets mis. Probeer het opnieuw."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.p0Vi70"
-msgid "Sign in again to continue."
-msgstr "Log opnieuw in om door te gaan."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.7GZhCN"
-msgid "You don't have permission to do that."
-msgstr "Je hebt geen toestemming om dat te doen."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.ZT3lBq"
-msgid "That item no longer exists."
-msgstr "Dat item bestaat niet meer."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.GhZx8v"
-msgid "Too many requests. Wait a moment and try again."
-msgstr "Te veel verzoeken. Wacht even en probeer het opnieuw."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.L-85Jk"
-msgid "Your plan's limit is reached. Upgrade to continue."
-msgstr "De limiet van je abonnement is bereikt. Upgrade om door te gaan."
-
-#: src/lib/use-error-message.ts
-msgctxt "errors.TM7s8X"
-msgid "The list was cut off. Ask for a page instead."
-msgstr "De lijst is afgekapt. Vraag in plaats daarvan om een pagina."

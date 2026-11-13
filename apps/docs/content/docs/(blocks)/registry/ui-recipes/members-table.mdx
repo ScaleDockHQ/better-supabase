@@ -24,6 +24,7 @@ import type { CellContext, ColumnDef } from "@tanstack/react-table";
 
 import { useTable } from "@tanstack/react-table";
 import { DbException } from "better-supabase";
+import { useErrorMessage } from "better-supabase/react";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { createContext, use, useCallback, useMemo, useState } from "react";
@@ -71,7 +72,6 @@ import { initials } from "@/lib/initials";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
 import { useSearchParam } from "@/lib/url-filters";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
   const result = await loadMembers({});

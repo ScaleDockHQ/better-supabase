@@ -1146,6 +1146,7 @@ npx shadcn add @better-supabase/use-comments
 
 import type { SubmitEvent } from "react";
 
+import { useErrorMessage } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useOptimistic, useState, useTransition } from "react";
 
@@ -1154,7 +1155,6 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useComments } from "@/hooks/use-comments";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
  * A record's comments, oldest first, through the browser client. `subject` is
@@ -1368,6 +1368,7 @@ npx shadcn add @better-supabase/use-organizations
 "use client";
 
 import { DbException } from "better-supabase";
+import { useErrorMessage } from "better-supabase/react";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState, useTransition } from "react";
@@ -1385,7 +1386,6 @@ import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { OrganizationSummary } from "../organization-queries";
 
@@ -1605,6 +1605,7 @@ import type { Money } from "better-supabase/commerce";
 
 import { DbException } from "better-supabase";
 import { formatMoney } from "better-supabase/commerce";
+import { useErrorMessage } from "better-supabase/react";
 import { useExtracted, useLocale } from "next-intl";
 
 import type { PlanCatalog } from "@/hooks/use-billing";
@@ -1620,7 +1621,6 @@ import {
 } from "@/components/ui/card";
 import { usePlanPicker } from "@/hooks/use-billing";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { PlanOption } from "../billing-queries";
 
@@ -2136,7 +2136,7 @@ npx shadcn add @better-supabase/use-settings
 
 import type { SettingEntries } from "better-supabase/blocks/settings";
 
-import { tenantOf } from "better-supabase/react";
+import { tenantOf, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
 
@@ -2170,7 +2170,6 @@ import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/lib/hooks";
 import { settingsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { settings } from "../settings-definition";
 
@@ -2577,6 +2576,7 @@ import type { CellContext, ColumnDef } from "@tanstack/react-table";
 
 import { useTable } from "@tanstack/react-table";
 import { DbException } from "better-supabase";
+import { useErrorMessage } from "better-supabase/react";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { createContext, use, useCallback, useMemo, useState } from "react";
@@ -2624,7 +2624,6 @@ import { initials } from "@/lib/initials";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
 import { useSearchParam } from "@/lib/url-filters";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
   const result = await loadMembers({});
@@ -3235,6 +3234,7 @@ npx shadcn add @better-supabase/use-organizations
 
 import type { SubmitEvent } from "react";
 
+import { useErrorMessage } from "better-supabase/react";
 import { CopyIcon, UserPlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -3273,7 +3273,6 @@ import { useInvitations } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
  * Invites a teammate through `invite_member` in the browser, then shows the
@@ -3582,6 +3581,7 @@ npx shadcn add @better-supabase/use-api-keys
 ```tsx title="apps/examples/nextjs/src/features/api-keys/components/api-key-table.tsx"
 "use client";
 
+import { useErrorMessage } from "better-supabase/react";
 import { KeyRoundIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -3606,7 +3606,6 @@ import {
 import { useApiKeys } from "@/hooks/use-api-keys";
 import { apiKeysConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { apiKeyCreated } from "../api-keys-actions";
 import { CreateApiKeyDialog } from "./create-api-key-dialog";
@@ -3871,6 +3870,7 @@ npx shadcn add @better-supabase/use-audit
 ```tsx title="apps/examples/nextjs/src/features/audit/components/audit-log-table.tsx"
 "use client";
 
+import { useErrorMessage } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -3892,7 +3892,6 @@ import {
 } from "@/components/ui/table";
 import { useAuditLog } from "@/hooks/use-audit";
 import { auditConfig } from "@/lib/supabase/blocks/slices";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 const ALL = "all";
 
@@ -4181,6 +4180,7 @@ npx shadcn add @better-supabase/use-tags
 
 import type { SubmitEvent } from "react";
 
+import { useErrorMessage } from "better-supabase/react";
 import { XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -4190,7 +4190,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTagInput } from "@/hooks/use-tags";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
  * A record's tags. Typing a name adds the organization's tag of the subject's
@@ -4479,7 +4478,7 @@ npx shadcn add button field input
 ```tsx title="apps/examples/nextjs/src/features/user/components/profile-form.tsx"
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
 
@@ -4494,7 +4493,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { SubmitLabel } from "@/features/offline/components/submit-label";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { updateProfile } from "../user-actions";
 
@@ -5274,7 +5272,7 @@ npx shadcn add @better-supabase/use-messaging
 
 import type { SubmitEvent } from "react";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import {
   HashIcon,
   LockIcon,
@@ -5326,7 +5324,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useConversations } from "@/hooks/use-messaging";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
 
 import type { ChannelRow } from "../chat-actions";
@@ -5725,6 +5722,7 @@ npx shadcn add @better-supabase/use-messaging
 
 import type { Message } from "better-supabase/blocks/messaging";
 
+import { useErrorMessage } from "better-supabase/react";
 import { MessagesSquareIcon, RotateCwIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useRef } from "react";
@@ -5751,7 +5749,6 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMessages } from "@/hooks/use-messaging";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { MessageComposer } from "./message-composer";
 import { MessageItem } from "./message-item";
@@ -5912,7 +5909,7 @@ npx shadcn add badge button label spinner textarea
 import type { Result } from "better-supabase";
 import type { DragEvent, Ref } from "react";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { PaperclipIcon, SendIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useRef, useState } from "react";
@@ -5926,7 +5923,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useSupabase } from "@/lib/hooks";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { confirmChatUpload, startChatUpload } from "../chat-actions";
 
@@ -6175,6 +6171,7 @@ npx shadcn add @better-supabase/use-messaging
 
 import type { Message } from "better-supabase/blocks/messaging";
 
+import { useErrorMessage } from "better-supabase/react";
 import { MessageSquareIcon, RotateCwIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useRef } from "react";
@@ -6201,7 +6198,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMessages } from "@/hooks/use-messaging";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { MessageComposer } from "./message-composer";
 import { MessageItem } from "./message-item";
@@ -6423,7 +6419,7 @@ npx shadcn add button field input
 ```tsx title="apps/examples/nextjs/src/features/organization/components/organization-form.tsx"
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
 
@@ -6437,7 +6433,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { updateOrganization } from "../organization-actions";
 
@@ -6807,7 +6802,7 @@ npx shadcn add button field input textarea
 ```tsx title="apps/examples/nextjs/src/features/knowledge/components/add-document-form.tsx"
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
 
@@ -6815,7 +6810,6 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { addDocument } from "../knowledge-actions";
 
@@ -7036,7 +7030,7 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { PlayIcon, PlusIcon, SaveIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useState } from "react";
@@ -7054,7 +7048,6 @@ import {
 import { useWorkflowCanvasRun } from "@/hooks/use-workflow-editor";
 import { useWorkflowRuns } from "@/hooks/use-workflows";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BuilderDetail } from "../builder-queries";
 import type { GraphFlowNode, GraphNodeData } from "./graph-node";
@@ -7517,7 +7510,7 @@ npx shadcn add button field input sheet
 ```tsx title="apps/examples/nextjs/src/features/workflows/builder/components/credential-sheet.tsx"
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { KeySquareIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
@@ -7534,7 +7527,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { CredentialRow } from "../builder-queries";
 
@@ -7697,7 +7689,7 @@ npx shadcn add alert badge button card empty skeleton table
 
 import type { AiTaskRunStatus } from "better-supabase/blocks/ai-schedules";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { CalendarClockIcon, PauseIcon, PlayIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useTransition } from "react";
@@ -7736,7 +7728,6 @@ import {
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AiTaskRow, AiTasksRead } from "../ai-tasks-queries";
 
@@ -7989,7 +7980,7 @@ npx shadcn add alert alert-dialog badge button card dialog empty field input sel
 
 import type { SubmitEvent } from "react";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { CpuIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useState, useTransition } from "react";
@@ -8064,7 +8055,6 @@ import {
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Provider } from "../ai-provider-options";
 import type { ProviderKeyRow, ProviderKeysRead } from "../ai-providers-queries";
@@ -9237,6 +9227,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { contains, ruleOperators } from "better-supabase/blocks/automations";
 import { FILTER_OPERATOR_LABELS } from "better-supabase/list";
+import { useErrorMessage } from "better-supabase/react";
 import {
   GripVerticalIcon,
   ListFilterIcon,
@@ -9290,7 +9281,6 @@ import { useStatusLabel } from "@/features/customers/use-status-label";
 import { useRuleBuilder } from "@/hooks/use-automations";
 import { useRouter } from "@/i18n/navigation";
 import { automationsConfig } from "@/lib/supabase/blocks/slices";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import {
   initialConditions,
@@ -13846,7 +13836,7 @@ import type { DbError } from "better-supabase";
 import type { RecordFormInput } from "better-supabase/records";
 
 import { taskInputSchema } from "better-supabase/blocks/tasks";
-import { useRecordForm } from "better-supabase/react";
+import { useRecordForm, useErrorMessage } from "better-supabase/react";
 import { recordForm } from "better-supabase/records";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
@@ -13881,7 +13871,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { TeamOption } from "../work-types";
 
@@ -15507,11 +15496,10 @@ npx shadcn add sonner
 ```tsx title="apps/examples/nextjs/src/features/trash/components/undo-toast.tsx"
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { restoreTrashItem } from "../trash-actions";
 
@@ -21600,7 +21588,7 @@ npx shadcn add alert badge button card empty field select @reui/stepper table
 import type { DbError } from "better-supabase";
 
 import { parseCsv, suggestMapping } from "better-supabase/blocks/imports";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import {
   ArrowLeftIcon,
   CheckIcon,
@@ -21659,7 +21647,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Link } from "@/i18n/navigation";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { ImportOutcome, ImportPreview } from "../imports-actions";
 import type { ColumnMapping, CustomerImportField } from "../imports-fields";

@@ -74,10 +74,65 @@ Every failure is a `DbError` with a `kind`:
 | `not_found`       | `get`, `update(id)` or `delete(id)` matched no row                                 |
 | `forbidden`       | RLS or a missing grant                                                             |
 | `validation`      | A validator plugin or a `jsonb-schemas` check rejected the input (`issues` is set) |
+| `invalid_input`   | A block function rejected an input (`fields` names each one, when it knows)        |
 | `invalid_request` | Caught before the request: a read-only column, an unknown field, a broken rule     |
 
 See [Results](/docs/concepts/results) for the full list and how errors map
 to HTTP Problem Details.
+
+## Block errors in forms
+
+A block function that rejects its input returns an `invalid_input` error
+with `fields`: one `{ path, code, message }` per input at fault. The `path`
+is where the input sits in the call (`["lines", 0, "quantity"]`), the `code`
+is an upper snake case code like a hint code, and the `message` is English.
+`toProblem` sends `fields` as an extension member, so a client that reads
+the Problem Details body gets them back.
+
+```ts
+import { invalidInput } from "better-supabase";
+
+const error = invalidInput("A tag needs a name", [
+  { path: ["name"], code: "TAG_NAME_REQUIRED", message: "A tag needs a name" },
+]);
+```
+
+A SQL function can raise the same list: use an `22xxx` SQLSTATE and put
+`{"fields": [{"path": ["name"], "code": "NAME_REQUIRED", "message": "..."}]}`
+in the `DETAIL`.
+
+Every hint code a block raises has a default English message.
+`better-supabase/blocks/messages` exports them as `BLOCK_HINT_MESSAGES`,
+keyed by code, so the code is also the next-intl key:
+
+```ts
+import {
+  BLOCK_HINT_MESSAGES,
+  blockErrorMessage,
+  fieldMessages,
+} from "better-supabase/blocks/messages";
+
+// messages/en.ts: { blockErrors: BLOCK_HINT_MESSAGES }
+const translate = (code: string, english: string) =>
+  t.has(`blockErrors.${code}`) ? t(`blockErrors.${code}`) : english;
+
+blockErrorMessage(result.error, translate); // the sentence, or undefined
+fieldMessages(result.error, translate); // { name: "A tag needs a name" }
+```
+
+`createBlocks` also takes `locale` and `hintMessages`. When `hintMessages` is set,
+it rewords the message of every error a block's SQL raises with a hint
+code, and each block creator reads `locale` from its options. The error's
+`hint` and `kind` never change, only `message`. Errors a block's TypeScript
+raises keep their English message; word them with `blockErrorMessage`.
+
+```ts
+createBlocks(blocks, {
+  transport,
+  locale: "nl",
+  hintMessages: (hint, locale, english) => dutch[hint],
+});
+```
 
 ## Throwing your own errors
 

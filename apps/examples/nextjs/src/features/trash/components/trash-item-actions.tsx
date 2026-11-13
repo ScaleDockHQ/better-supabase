@@ -2,7 +2,7 @@
 
 import type { DbError } from "better-supabase";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { RotateCcwIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { purgeTrashItem, restoreTrashItem } from "../trash-actions";
 

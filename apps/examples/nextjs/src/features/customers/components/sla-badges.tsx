@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { TimerIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -16,7 +16,6 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Loaded, SlaClockRow } from "../customers-queries";
 

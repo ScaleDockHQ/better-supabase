@@ -22,6 +22,10 @@ export type {
   ProfileOf,
 } from "./hooks.ts";
 
+export { ErrorMessagesProvider, useErrorMessage } from "./error-messages.ts";
+
+export type { ErrorMessageResolver } from "./error-messages.ts";
+
 export { useAction, useActionForm, useOptimisticAction } from "./actions.ts";
 
 export { createRecordProvider } from "./record.ts";

@@ -3,7 +3,7 @@
 
 import type { SettingEntries } from "better-supabase/blocks/settings";
 
-import { tenantOf } from "better-supabase/react";
+import { tenantOf, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
 
@@ -37,7 +37,6 @@ import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/lib/hooks";
 import { settingsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { settings } from "../settings-definition";
 

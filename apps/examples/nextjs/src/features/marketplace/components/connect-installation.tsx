@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { PlugIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
@@ -31,7 +31,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { connectInstallation } from "../marketplace-actions";
 

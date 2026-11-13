@@ -30,7 +30,11 @@ export interface DbErrorKinds {
   check: { constraint?: string };
   not_null: { column?: string };
   exclusion: { constraint?: string };
-  invalid_input: Record<never, never>;
+  /**
+   * `fields`: the inputs that broke a rule, so a form can place each message
+   * next to its field. Block functions fill it; other sources leave it out.
+   */
+  invalid_input: { fields?: readonly InputField[] };
   /**
    * A stored value the app type can't hold, e.g. `infinity` for a Temporal
    * timestamp.
@@ -77,6 +81,16 @@ export interface DbErrorKinds {
 }
 
 export type DbErrorKind = keyof DbErrorKinds;
+
+/** One input a block function rejected. */
+export interface InputField {
+  /** The input's path in the call, such as `["lines", 0, "quantity"]`. */
+  readonly path: readonly (string | number)[];
+  /** A hint-style code in upper snake case, such as `QUANTITY_TOO_LOW`. */
+  readonly code: string;
+  /** An English sentence for the field. */
+  readonly message: string;
+}
 
 export interface ValidationIssue {
   readonly message: string;
@@ -167,6 +181,26 @@ export function dbError<K extends DbErrorKind>(
   // SAFETY: the loop above copied the detail fields for K onto the error.
   // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- the fields were copied from the detail map for K above.
   return error as unknown as DbErrorOf<K>;
+}
+
+/**
+ * An `invalid_input` error that names the inputs at fault, with the first
+ * field's code as the `hint` unless `extra.hint` is set.
+ */
+export function invalidInput(
+  message: string,
+  fields: readonly InputField[],
+  extra: Partial<Pick<DbErrorBase<"invalid_input">, "code" | "details">> & {
+    readonly hint?: string;
+  } = {},
+): DbErrorOf<"invalid_input"> {
+  const hint = extra.hint ?? fields[0]?.code;
+
+  return dbError("invalid_input", message, {
+    ...extra,
+    ...(hint === undefined ? {} : { hint }),
+    fields,
+  });
 }
 
 /**
@@ -492,6 +526,54 @@ function permissionsOf(details: string | undefined): {
     : {};
 }
 
+function isInputField(value: unknown): value is InputField {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  // SAFETY: value is a non-null object here, and each member is checked below.
+  const { path, code, message } = value as Record<string, unknown>;
+
+  return (
+    Array.isArray(path) &&
+    path.every((key) => typeof key === "string" || typeof key === "number") &&
+    typeof code === "string" &&
+    typeof message === "string"
+  );
+}
+
+/**
+ * The `fields` an input check in SQL raised with `detail = '{"fields":
+ * [{"path": ["name"], "code": "NAME_REQUIRED", "message": "..."}]}'` names, so
+ * a rejection from SQL places its message like one from TypeScript.
+ */
+function fieldsOf(details: string | undefined): {
+  fields?: readonly InputField[];
+} {
+  if (details === undefined || !details.startsWith("{")) {
+    return {};
+  }
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(details);
+  } catch {
+    return {};
+  }
+
+  const fields =
+    typeof parsed === "object" && parsed !== null && "fields" in parsed
+      ? parsed.fields
+      : undefined;
+
+  return Array.isArray(fields) &&
+    fields.length > 0 &&
+    fields.every(isInputField)
+    ? { fields }
+    : {};
+}
+
 /** Adds the operation's limit to a `max_affected` error that doesn't name it. */
 export function withMaxAffected(
   error: DbError,
@@ -740,7 +822,10 @@ function mapBuiltin(raw: RawDbError): DbError {
   }
 
   if (code.startsWith("22")) {
-    return dbError("invalid_input", message, base);
+    return dbError("invalid_input", message, {
+      ...base,
+      ...fieldsOf(base.details),
+    });
   }
 
   if (code.startsWith("PGRST1") || code.startsWith("PGRST2")) {

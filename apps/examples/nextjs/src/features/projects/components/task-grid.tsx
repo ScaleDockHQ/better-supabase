@@ -7,7 +7,7 @@ import type {
 } from "@tanstack/react-table";
 
 import { useTable } from "@tanstack/react-table";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { BookmarkIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState, useTransition } from "react";
@@ -58,7 +58,6 @@ import {
 } from "@/components/ui/select";
 import { Link, usePathname, useRouter, withSearch } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type {
   MemberOption,

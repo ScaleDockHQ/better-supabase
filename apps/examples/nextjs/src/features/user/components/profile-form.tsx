@@ -1,7 +1,7 @@
 // #region recipe:profile-form
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
 
@@ -16,7 +16,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { SubmitLabel } from "@/features/offline/components/submit-label";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { updateProfile } from "../user-actions";
 

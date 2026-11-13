@@ -3,7 +3,7 @@
 import type { Money } from "better-supabase/commerce";
 
 import { toDecimal } from "better-supabase/commerce";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState } from "react";
@@ -19,7 +19,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { saveQuoteLines } from "../crm-actions";
 

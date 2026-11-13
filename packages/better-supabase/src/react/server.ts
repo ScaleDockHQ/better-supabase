@@ -21,6 +21,7 @@ import type {
   defineListHook as clientDefineListHook,
   defineOneHook as clientDefineOneHook,
 } from "./data-hooks.ts";
+import type { useErrorMessage as clientUseErrorMessage } from "./error-messages.ts";
 import type {
   ActionForm,
   ActionHandle,
@@ -69,6 +70,10 @@ export {
 export { SessionProvider } from "./session.js";
 
 export { fieldErrorsOf } from "../bindings/field-errors.ts";
+
+export { ErrorMessagesProvider } from "./error-messages.ts";
+
+export type { ErrorMessageResolver } from "./error-messages.ts";
 
 export { can, PermissionsProvider } from "./permissions.ts";
 
@@ -281,6 +286,13 @@ export const defineOneHook: typeof clientDefineOneHook = () =>
 /** The `react-server` build of `defineInfiniteListHook` (see `defineDataHooks`). */
 export const defineInfiniteListHook: typeof clientDefineInfiniteListHook = () =>
   clientOnly("useInfiniteList");
+
+/**
+ * The `react-server` build of `useErrorMessage`: word the error in a Client
+ * Component, or read `error.message`.
+ */
+export const useErrorMessage: typeof clientUseErrorMessage =
+  clientOnly("useErrorMessage");
 
 /** The `react-server` build of `useCan`: call `can()` with the bootstrap value. */
 export const useCan: typeof clientUseCan = clientOnly("useCan");

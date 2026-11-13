@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { CheckIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { startTransition, useOptimistic } from "react";
@@ -8,7 +8,6 @@ import { startTransition, useOptimistic } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { NotificationRow } from "../notification-types";
 

@@ -2,7 +2,7 @@
 
 import type { ChangeEvent, ReactNode } from "react";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import {
   DownloadIcon,
   PaperclipIcon,
@@ -52,7 +52,6 @@ import { Progress } from "@/components/ui/progress";
 import { removeCustomerAttachments } from "@/features/customers/customers-actions";
 import { useAttachmentUpload } from "@/hooks/use-attachments";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AttachmentRow, Loaded } from "../customers-queries";
 

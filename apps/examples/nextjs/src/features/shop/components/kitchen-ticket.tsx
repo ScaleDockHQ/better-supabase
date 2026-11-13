@@ -3,7 +3,7 @@
 import type { DbError } from "better-supabase";
 import type { PreparationState } from "better-supabase/blocks/orders";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 
 import { Badge } from "@/components/reui/badge";
@@ -17,7 +17,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { TicketView } from "../shop-queries";
 

@@ -58,6 +58,7 @@ const entries = [
   "mcp/index",
   "mcp/sdk/index",
   "webmcp/index",
+  "blocks/messages/index",
   "blocks/queue/index",
   "blocks/index",
   "blocks/audit/index",

@@ -26,6 +26,7 @@ pre-commit:
         - "supabase/snapshot.json"
         - "packages/better-supabase/src/preset/catalog.generated.ts"
         - "packages/better-supabase/src/blocks/hint-codes.generated.ts"
+        - "packages/better-supabase/src/blocks/messages/hint-messages.generated.ts"
         - "packages/better-supabase/src/blocks/name-registry.generated.ts"
         - "packages/better-supabase/src/cli/error-codes.data.ts"
       timeout: 120s

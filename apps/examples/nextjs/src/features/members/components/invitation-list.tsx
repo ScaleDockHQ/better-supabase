@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { XIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { revokeInvitation } from "@/features/organization/organization-actions";
 import { RoleBadge } from "@/features/user/components/role-badge";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
 
 /**

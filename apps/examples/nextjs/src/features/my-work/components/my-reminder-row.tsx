@@ -1,13 +1,12 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { removeEventReminder } from "@/features/calendar/calendar-actions";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 /** One reminder of the caller, with a button that removes it. */
 export function MyReminderRow({

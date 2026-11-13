@@ -2,6 +2,7 @@ import type {
   DbError,
   DbErrorKind,
   DbErrorKinds,
+  InputField,
   ValidationIssue,
 } from "./errors.ts";
 
@@ -22,6 +23,8 @@ export interface ProblemDetails {
   readonly columns?: readonly string[];
   readonly column?: string;
   readonly issues?: readonly ValidationIssue[];
+  /** The inputs an `invalid_input` answer rejected, each with a path and a code. */
+  readonly fields?: readonly InputField[];
   /** The assurance level a `forbidden` answer needs (`aal2`). */
   readonly required?: "aal1" | "aal2";
   /** The OAuth scopes a `forbidden` answer needs. */
@@ -198,6 +201,10 @@ export function toProblem(
     problem["issues"] = error.issues;
   }
 
+  if ("fields" in error) {
+    problem["fields"] = error.fields;
+  }
+
   if ("required" in error) {
     problem["required"] = error.required;
   }
@@ -310,6 +317,7 @@ export function fromProblem(problem: ProblemDetails): DbError {
     "constraint",
     "columns",
     "column",
+    "fields",
     "required",
     "scopes",
     "permission",

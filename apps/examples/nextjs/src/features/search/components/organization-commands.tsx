@@ -1,6 +1,7 @@
 "use client";
 
 import { DbException } from "better-supabase";
+import { useErrorMessage } from "better-supabase/react";
 import { Building2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useTransition } from "react";
@@ -17,7 +18,6 @@ import { useRefreshSession } from "@/features/organization/use-refresh-session";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 async function loadOrganizations(): Promise<readonly OrganizationSummary[]> {
   const result = await loadMyOrganizations({});
