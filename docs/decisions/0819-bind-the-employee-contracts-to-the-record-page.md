@@ -33,4 +33,4 @@ a binding must go through the block client so permissions and hooks apply.
 
 Employees gets a record section. The catalog records one more binding and the
 export list gains `employeeContractsBinding`. The manifest grows by one field, which
-the server baseline absorbs (ADR 0690).
+the server baseline absorbs (ADR 0690). Only the eight routes that grew changed in `tests/next-build/server-baseline.json`, by at most 7,744 B raw (the customer records route), so parallel lanes that reset the file don't conflict on the rest.
