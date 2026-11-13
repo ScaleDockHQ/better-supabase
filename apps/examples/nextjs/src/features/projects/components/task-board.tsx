@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useState } from "react";
 
@@ -16,7 +16,6 @@ import {
 } from "@/components/reui/kanban";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { MemberOption, TaskRow } from "../project-types";
 

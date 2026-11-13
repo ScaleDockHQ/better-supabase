@@ -1,12 +1,12 @@
 "use client";
 
+import { useErrorMessage } from "better-supabase/react";
 import { ListPlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { enqueueTestJob, retryJobRun } from "../jobs-actions";
 

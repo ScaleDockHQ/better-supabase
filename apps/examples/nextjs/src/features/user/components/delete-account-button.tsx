@@ -1,6 +1,7 @@
 "use client";
 
 import { useSessionChange } from "better-supabase/next/client";
+import { useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useTransition } from "react";
 
@@ -26,7 +27,6 @@ import {
 import { useRouter } from "@/i18n/navigation";
 import { useSupabase } from "@/lib/hooks";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { deleteMyAccount, sessionChanged } from "../user-actions";
 

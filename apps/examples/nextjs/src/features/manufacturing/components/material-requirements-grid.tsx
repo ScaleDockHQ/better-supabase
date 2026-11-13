@@ -3,7 +3,7 @@
 import type { CellContext, ColumnDef } from "@tanstack/react-table";
 
 import { useTable } from "@tanstack/react-table";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 
 import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
@@ -18,7 +18,6 @@ import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { RequirementRow } from "../manufacturing-queries";
 

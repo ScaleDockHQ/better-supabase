@@ -1,6 +1,7 @@
 // #region recipe:api-keys-table
 "use client";
 
+import { useErrorMessage } from "better-supabase/react";
 import { KeyRoundIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
@@ -25,7 +26,6 @@ import {
 import { useApiKeys } from "@/hooks/use-api-keys";
 import { apiKeysConfig } from "@/lib/supabase/blocks/slices";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { apiKeyCreated } from "../api-keys-actions";
 import { CreateApiKeyDialog } from "./create-api-key-dialog";

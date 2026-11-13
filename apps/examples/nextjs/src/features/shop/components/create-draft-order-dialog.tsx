@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/select";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { createDraftOrder } from "../shop-actions";
 

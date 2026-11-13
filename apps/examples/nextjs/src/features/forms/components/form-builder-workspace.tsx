@@ -2,7 +2,7 @@
 
 import type { FormField, FormFieldType } from "better-supabase/blocks/forms";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { PlusIcon, SendIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
@@ -34,7 +34,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { publishForm, submitForm } from "../forms-actions";
 

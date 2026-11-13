@@ -20,6 +20,7 @@ npx shadcn add @better-supabase/use-audit
 ```tsx title="apps/examples/nextjs/src/features/audit/components/audit-log-table.tsx"
 "use client";
 
+import { useErrorMessage } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 
 import { Button } from "@/components/ui/button";
@@ -41,7 +42,6 @@ import {
 } from "@/components/ui/table";
 import { useAuditLog } from "@/hooks/use-audit";
 import { auditConfig } from "@/lib/supabase/blocks/slices";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 const ALL = "all";
 

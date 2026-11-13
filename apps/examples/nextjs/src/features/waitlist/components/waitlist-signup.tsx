@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionForm } from "better-supabase/react";
+import { useActionForm, useErrorMessage } from "better-supabase/react";
 import { ListOrderedIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Link } from "@/i18n/navigation";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { joinWaitlist } from "../waitlist-actions";
 

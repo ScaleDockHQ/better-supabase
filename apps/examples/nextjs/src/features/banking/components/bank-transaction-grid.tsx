@@ -5,7 +5,7 @@ import type { BankTransactionStatus } from "better-supabase/blocks/banking";
 
 import { useTable } from "@tanstack/react-table";
 import { formatMoney, moneyFromJson } from "better-supabase/commerce";
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted, useFormatter, useLocale } from "next-intl";
 import { createContext, use, useCallback, useMemo } from "react";
 
@@ -21,7 +21,6 @@ import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BankTransactionRow } from "../banking-queries";
 

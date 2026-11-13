@@ -34,6 +34,7 @@
       "fromBetterResult",
       "fromProblem",
       "invalidationTargets",
+      "invalidInput",
       "isCheck",
       "isConflict",
       "isDbError",
@@ -164,6 +165,7 @@
       "InferReadSetParams",
       "InferReadType",
       "InferResult",
+      "InputField",
       "LogFields",
       "Logger",
       "ManyResult",
@@ -966,6 +968,7 @@
       "defineInfiniteListHook",
       "defineListHook",
       "defineOneHook",
+      "ErrorMessagesProvider",
       "escapeLike",
       "fieldErrorsOf",
       "OfflineContext",
@@ -989,6 +992,7 @@
       "useConflicts",
       "useController",
       "useDebouncedSearch",
+      "useErrorMessage",
       "useImage",
       "useLatest",
       "useLiveCount",
@@ -1040,6 +1044,7 @@
       "DataWrites",
       "DebouncedSearch",
       "DebouncedSearchOptions",
+      "ErrorMessageResolver",
       "ImageSource",
       "Impersonator",
       "InfiniteList",
@@ -2651,6 +2656,17 @@
       "WebMcpRegistration"
     ]
   },
+  "./blocks/messages": {
+    "values": [
+      "BLOCK_HINT_MESSAGES",
+      "blockErrorMessage",
+      "fieldMessages",
+      "hintMessage"
+    ],
+    "types": [
+      "TranslateHint"
+    ]
+  },
   "./blocks/queue": {
     "values": [
       "assertCron",
@@ -2846,6 +2862,7 @@
       "BlockHooks",
       "BlockInvalidates",
       "BlockMap",
+      "BlockMessages",
       "BlockMethodHooks",
       "BlockMethodName",
       "BlockNaming",

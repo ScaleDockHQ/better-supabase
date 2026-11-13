@@ -5,7 +5,7 @@ import type { DbError } from "better-supabase";
 import type { RecordFormInput } from "better-supabase/records";
 
 import { taskInputSchema } from "better-supabase/blocks/tasks";
-import { useRecordForm } from "better-supabase/react";
+import { useRecordForm, useErrorMessage } from "better-supabase/react";
 import { recordForm } from "better-supabase/records";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
@@ -40,7 +40,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { TeamOption } from "../work-types";
 

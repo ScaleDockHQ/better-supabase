@@ -47,6 +47,7 @@ export {
   isCheck,
   isConflict,
   isDbError,
+  invalidInput,
   isForeignKey,
   mapDbError,
   matchDbError,
@@ -60,6 +61,7 @@ export type {
   DbErrorMatchers,
   DbErrorOf,
   ErrorMapper,
+  InputField,
   RawDbError,
   ValidationIssue,
 } from "./core/errors.ts";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useAction } from "better-supabase/react";
+import { useAction, useErrorMessage } from "better-supabase/react";
 import { UserMinusIcon, UserPlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useOptimistic, useState, useTransition } from "react";
@@ -23,7 +23,6 @@ import {
 import { Link } from "@/i18n/navigation";
 import { initials } from "@/lib/initials";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { setTeamMember } from "../teams-actions";
 

@@ -3,6 +3,7 @@
 import type { DbError } from "better-supabase";
 import type { SubmitEvent } from "react";
 
+import { useErrorMessage } from "better-supabase/react";
 import { CopyIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState, useTransition } from "react";
@@ -38,7 +39,6 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import {
   addDomain,

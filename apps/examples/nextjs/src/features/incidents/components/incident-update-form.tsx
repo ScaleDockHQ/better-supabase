@@ -2,6 +2,7 @@
 
 import type { DbError } from "better-supabase";
 
+import { useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId, useRef, useState, useTransition } from "react";
 
@@ -21,7 +22,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
-import { useErrorMessage } from "@/lib/use-error-message";
 
 import { postIncidentUpdate, resolveIncident } from "../incidents-actions";
 
