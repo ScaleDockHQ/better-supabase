@@ -1016,11 +1016,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M3
 
 - Scope: Generated seed, nav, route manifest, coverage, message keys
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-lane-m3`
-- PR: none yet
+- PR: [#957](https://github.com/ScaleDockHQ/better-supabase/pull/957)
 - Findings: none left; EX-1264, EX-1267 and EX-1268 are partly fixed and finish in lane M4
-- Log: 2026-11-14, lane M3 started from main (522f461335) in `../bsb-audit-M3`. One PR: the `seed`, `navigation` and `manifest` outputs in `better-supabase/list`'s generator, ADR 0879. No SQL change, so no migration.
+- Log: 2026-11-14, lane M3 started from main (522f461335) in `../bsb-audit-M3`. One PR: the `seed`, `navigation` and `manifest` outputs in `better-supabase/list`'s generator, ADR 0879. No SQL change, so no migration. EX-1264, EX-1267 and EX-1268 are partly fixed (the generator side is done) and moved to lane M4. Merged as [#957](https://github.com/ScaleDockHQ/better-supabase/pull/957).
 
 ### Lane M4
 
