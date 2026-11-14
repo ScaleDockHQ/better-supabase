@@ -230,6 +230,10 @@ export type {
   EntitySurface,
 } from "./entity-surface.ts";
 
+export { entityFlagHooks } from "./entity-flags.ts";
+
+export type { EntityFlagCheck } from "./entity-flags.ts";
+
 export { webhookEventCatalog } from "./event-catalog.ts";
 
 export type {

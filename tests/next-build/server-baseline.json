@@ -275,7 +275,7 @@
     "brotli": 802551
   },
   "/[locale]/(app)/crm/companies/[id]/page": {
-    "raw": 1463429,
+    "raw": 3167114,
     "gzip": 971378,
     "brotli": 805412
   },
@@ -285,7 +285,7 @@
     "brotli": 794844
   },
   "/[locale]/(app)/crm/contacts/[id]/page": {
-    "raw": 1463429,
+    "raw": 3167092,
     "gzip": 971371,
     "brotli": 805388
   },
@@ -305,7 +305,7 @@
     "brotli": 794656
   },
   "/[locale]/(app)/crm/deals/[id]/page": {
-    "raw": 1583878,
+    "raw": 3168452,
     "gzip": 972153,
     "brotli": 806055
   },
@@ -400,7 +400,7 @@
     "brotli": 794451
   },
   "/[locale]/(app)/customers/[id]/page": {
-    "raw": 1507791,
+    "raw": 3135215,
     "gzip": 959480,
     "brotli": 795132
   },
@@ -595,7 +595,7 @@
     "brotli": 796288
   },
   "/[locale]/(app)/imports/page": {
-    "raw": 1375663,
+    "raw": 3079006,
     "gzip": 939705,
     "brotli": 778270
   },
@@ -780,7 +780,7 @@
     "brotli": 783725
   },
   "/[locale]/(app)/projects/[id]/page": {
-    "raw": 1418975,
+    "raw": 3108887,
     "gzip": 950668,
     "brotli": 787730
   },
@@ -940,7 +940,7 @@
     "brotli": 783107
   },
   "/[locale]/(app)/settings/members/page": {
-    "raw": 1553394,
+    "raw": 3086218,
     "gzip": 941158,
     "brotli": 779546
   },
@@ -1220,7 +1220,7 @@
     "brotli": 797313
   },
   "/[locale]/(app)/work/grid/page": {
-    "raw": 1395224,
+    "raw": 3092689,
     "gzip": 944302,
     "brotli": 782305
   },
@@ -1265,7 +1265,7 @@
     "brotli": 123076
   },
   "/[locale]/(auth)/invite/[token]/page": {
-    "raw": 1521739,
+    "raw": 1521741,
     "gzip": 482072,
     "brotli": 407608
   },
@@ -1275,7 +1275,7 @@
     "brotli": 354749
   },
   "/[locale]/(auth)/mfa/page": {
-    "raw": 1440020,
+    "raw": 1440022,
     "gzip": 456736,
     "brotli": 385363
   },
@@ -1290,7 +1290,7 @@
     "brotli": 402266
   },
   "/[locale]/(auth)/reset-password/page": {
-    "raw": 1440088,
+    "raw": 1440090,
     "gzip": 456748,
     "brotli": 385375
   },
@@ -1305,7 +1305,7 @@
     "brotli": 738357
   },
   "/[locale]/(auth)/signup/page": {
-    "raw": 1446036,
+    "raw": 1446039,
     "gzip": 459646,
     "brotli": 387890
   },

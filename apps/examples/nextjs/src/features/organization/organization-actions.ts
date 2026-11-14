@@ -169,6 +169,40 @@ export const revokeInvitation = bsb.action(
 );
 
 /**
+ * Sends an open invitation again with a new expiry; the block's `onSent` hook
+ * mails it, and the invitation stays open when the mail fails.
+ */
+export const resendInvitation = bsb.action(
+  {
+    input: v.object({ invitationId: Id }),
+    requireTenant: true,
+    permission: "members.invite",
+  },
+  async ({ invitationId }, { tenant: organizationId, db }) => {
+    const sent = await db.$blocks.organizations.resendInvitation({
+      invitationId,
+    });
+
+    if (!sent.ok) {
+      return sent;
+    }
+
+    after(() =>
+      recordAudit(db, {
+        eventType: "invitation.resent",
+        category: "membership",
+        organizationId,
+        targetType: "invitation",
+        record: invitationId,
+      }),
+    );
+    refresh();
+
+    return ok(true);
+  },
+);
+
+/**
  * Runs after `useMembers` changed a member's role or removed them from the
  * browser (the organizations module checks and audits the change itself). The
  * member's token still carries the old role until it refreshes.

@@ -32529,6 +32529,23 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invitation.declined",
           "invitation.revoked"
         ]
+      },
+      "entityLists": {
+        "invitation": {
+          "sorts": [
+            "expiresAt",
+            "email"
+          ],
+          "facets": [
+            "role"
+          ],
+          "filters": [
+            "role"
+          ],
+          "search": [
+            "email"
+          ]
+        }
       }
     },
     {

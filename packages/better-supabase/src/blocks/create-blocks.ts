@@ -22,6 +22,7 @@ import type { EventSink } from "../events/cloud-event.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
 import type { GeneratedBlock, GeneratedBlocks } from "./block-config.ts";
 import type { AnyBlock, ClientOf } from "./define-block.ts";
+import type { EntityFlagCheck } from "./entity-flags.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 
 import { onBlockEvent } from "../core/block-event-listener.ts";
@@ -38,6 +39,7 @@ import { instanceProperty } from "../core/instance-property.ts";
 import { AsyncResult } from "../core/result.ts";
 import { forwardBlockEvents } from "../events/cloud-event.ts";
 import { generatedOptions } from "./block-config.ts";
+import { entityFlagHooks } from "./entity-flags.ts";
 import { mergeHooks, meteringHooks } from "./metering.ts";
 
 /** The CloudEvents `source` of block events that `createBlocks` forwards. */
@@ -90,6 +92,13 @@ export interface CreateBlocksOptions extends Omit<BlockContext, "schema"> {
    * `false`, so installing `usage` never starts counting by itself.
    */
   readonly metering?: boolean;
+  /**
+   * Whether a feature flag is on. With it, a method of an entity that declares
+   * a `flag` and its `methods` returns `not_found` while the flag is off (ADR
+   * 0922), so the entity's routes and methods are hidden by declaration.
+   * Without it, `flag` gates nothing.
+   */
+  readonly flags?: EntityFlagCheck;
 }
 
 /** The part of a `Db` that `createBlockClient` reads. */
@@ -604,6 +613,7 @@ function blockBuilder(
 ): BlockBuilder {
   const {
     audit: _audit,
+    flags,
     metering,
     hooks,
     config,
@@ -811,42 +821,40 @@ function blockBuilder(
   }
 
   /**
-   * `userHooks` after the manifest's declared limits and meters, which run
-   * first so a user's `before` never skips a plan limit.
+   * `userHooks` after the manifest's declared flags, limits and meters, which
+   * run first so a user's `before` never skips a plan limit or a flag.
    */
   function declaredHooksOf(
     key: string,
     userHooks: object | undefined,
   ): object | undefined {
     const block = blockOf(key);
+    const declared: Record<string, Parameters<typeof mergeHooks>[0]> = {};
 
-    if (
-      metering !== true ||
-      (Object.keys(block.limits ?? {}).length === 0 &&
-        Object.keys(block.meters ?? {}).length === 0)
-    ) {
-      return userHooks;
+    const flagged =
+      flags === undefined ? {} : entityFlagHooks(block.entities ?? {}, flags);
+
+    for (const [method, hook] of Object.entries(flagged)) {
+      declared[method] = hook;
     }
 
-    const provider = Object.keys(blocks).find(
-      (each) => each !== key && blocks[each]?.provides["meter"] !== undefined,
-    );
+    const usage = meterOf(key, block);
 
-    if (provider === undefined) {
-      return userHooks;
+    if (usage !== undefined) {
+      const metered = meteringHooks(
+        key,
+        { limits: block.limits ?? {}, meters: block.meters ?? {} },
+        usage,
+      );
+
+      for (const [method, hook] of Object.entries(metered)) {
+        declared[method] = mergeHooks(declared[method], hook);
+      }
     }
 
-    const usage = portOf(provider, "meter");
-
-    if (usage === undefined) {
+    if (Object.keys(declared).length === 0) {
       return userHooks;
     }
-
-    const declared = meteringHooks(
-      key,
-      { limits: block.limits ?? {}, meters: block.meters ?? {} },
-      usage,
-    );
 
     const user: Readonly<Record<string, unknown>> = isRecord(userHooks)
       ? userHooks
@@ -863,6 +871,23 @@ function blockBuilder(
     }
 
     return merged;
+  }
+
+  /** The `meter` port a block's declared limits and meters apply through. */
+  function meterOf(key: string, block: AnyBlock) {
+    if (
+      metering !== true ||
+      (Object.keys(block.limits ?? {}).length === 0 &&
+        Object.keys(block.meters ?? {}).length === 0)
+    ) {
+      return;
+    }
+
+    const provider = Object.keys(blocks).find(
+      (each) => each !== key && blocks[each]?.provides["meter"] !== undefined,
+    );
+
+    return provider === undefined ? undefined : portOf(provider, "meter");
   }
 
   function build(key: string): unknown {
