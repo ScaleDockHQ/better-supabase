@@ -630,7 +630,7 @@ export interface EveScheduleAuthContext {
 }
 
 /** What `queueDynamicSchedules` passes to a definition's `run`. */
-export interface EveDynamicRunArgs {
+export interface EveDynamicRunParams {
   readonly to: (channel: never, target: never) => EveDynamicTargetHandle;
   readonly payload: unknown;
   readonly occurrence: EveScheduleOccurrenceIdentity;
@@ -644,7 +644,7 @@ export interface EveDynamicRunArgs {
  * calls, typed structurally so this entry never imports eve. eve types `auth`,
  * `run` and the events by the definition's payload, so they take `never` here;
  * `queueDynamicSchedules` calls them with `EveScheduleAuthContext`,
- * `EveDynamicRunArgs` and `EveScheduleOccurrenceEvent`.
+ * `EveDynamicRunParams` and `EveScheduleOccurrenceEvent`.
  */
 export interface EveDynamicSchedules {
   readonly inputSchema: {
@@ -937,7 +937,7 @@ export function queueDynamicSchedules(
 
       const tasks: Promise<unknown>[] = [];
 
-      const runArgs: EveDynamicRunArgs = {
+      const runArgs: EveDynamicRunParams = {
         payload,
         occurrence,
         auth,
