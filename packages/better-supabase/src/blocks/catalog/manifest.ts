@@ -19,6 +19,15 @@ export const catalogBlock: BlockOf<
   events: catalogEvents,
   create: createCatalog,
   category: "commerce",
+  importTarget: [
+    "supplier_item",
+    "product_identifier",
+    "discount_group",
+    "discount_rule",
+    "party_discount_group",
+    "product",
+    "product_category",
+  ],
   entities: {
     product: {
       mutability: "editable",

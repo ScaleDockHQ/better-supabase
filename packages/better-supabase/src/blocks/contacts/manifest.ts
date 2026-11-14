@@ -23,6 +23,15 @@ export const contactsBlock: BlockOf<
   events: contactsEvents,
   create: createContacts,
   category: "crm",
+  importTarget: [
+    "payment_term",
+    "document_delivery_preference",
+    "party",
+    "party_contact",
+    "contact_method",
+    "party_location",
+    "party_bank_account",
+  ],
   entities: {
     company: { mutability: "editable", emits: { create: true, update: true } },
     person: { mutability: "editable", emits: { create: true, update: true } },

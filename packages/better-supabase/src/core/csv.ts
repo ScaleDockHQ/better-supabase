@@ -50,6 +50,25 @@ export function csvColumns(
   return [...columns];
 }
 
+/** The header line of a CSV, with its CRLF. */
+export function csvHeader(columns: readonly string[]): string {
+  return `${columns.map((column) => cell(column, false)).join(",")}\r\n`;
+}
+
+/** The lines of `rows` in `columns`, each with its CRLF and no header. */
+export function csvLines(
+  rows: readonly Readonly<Record<string, unknown>>[],
+  columns: readonly string[],
+  escapeFormulas = true,
+): string {
+  return rows
+    .map(
+      (row) =>
+        `${columns.map((column) => cell(row[column], escapeFormulas)).join(",")}\r\n`,
+    )
+    .join("");
+}
+
 /**
  * RFC 4180 CSV with a header row and CRLF line ends. Objects and arrays are
  * written as JSON, null and undefined as empty cells.
@@ -59,16 +78,10 @@ export function toCsv(
   options: CsvOptions = {},
 ): string {
   const columns = options.columns ?? csvColumns(rows);
-  const escape = options.escapeFormulas ?? true;
 
-  const lines = [
-    columns.map((column) => cell(column, false)).join(","),
-    ...rows.map((row) =>
-      columns.map((column) => cell(row[column], escape)).join(","),
-    ),
-  ];
-
-  return `${lines.join("\r\n")}\r\n`;
+  return (
+    csvHeader(columns) + csvLines(rows, columns, options.escapeFormulas ?? true)
+  );
 }
 
 /**

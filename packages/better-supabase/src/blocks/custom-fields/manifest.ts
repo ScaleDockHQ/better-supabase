@@ -24,6 +24,7 @@ export const customFieldsBlock: BlockOf<
   record: customFieldsBinding,
   create: createCustomFields,
   category: "work",
+  importTarget: ["field_value"],
   entities: {
     field_definition: {
       mutability: "editable",

@@ -24,6 +24,7 @@ export const invoicesBlock: BlockOf<
   create: createInvoices,
   record: invoicesBinding,
   category: "commerce",
+  importTarget: ["invoice", "credit_note", "open_item", "invoice_allocation"],
   entities: {
     invoice: {
       mutability: "editable",

@@ -784,6 +784,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "IMPORT_ITEM_INVALID": "An account item needs data.",
   "IMPORT_NOT_FOUND": "Import not found.",
   "IMPORT_RUN_ACTIVE": "An import of this source is already pending or running.",
+  "IMPORT_RUN_FAILED": "Import run failed.",
   "IMPORT_RUN_NOT_RUNNING": "This import already finished.",
   "IMPORT_TARGET_UNKNOWN": "No import target for this entity.",
   "INBOX_ASSIGNEE_INVALID": "The assignee cannot read this inbox.",

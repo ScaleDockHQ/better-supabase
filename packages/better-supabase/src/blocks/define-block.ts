@@ -176,6 +176,12 @@ export interface BlockDefinition<
    */
   readonly concerns?: readonly BlockConcern[];
   /**
+   * The import entities this block takes rows for through the `imports` block
+   * (ADR 0856): the names its SQL module contributes to `import_upsert_batch`.
+   * `importTargetsOf` lists them across blocks.
+   */
+  readonly importTarget?: readonly string[];
+  /**
    * The read methods each event pattern (`"task.*"`) makes stale, for
    * `invalidateOnBlockEvents`. An event no pattern matches makes every read
    * method of the block stale.
@@ -273,6 +279,8 @@ export interface Block<
   readonly links: readonly BlockLink[];
   /** The row-level concerns beyond audit and events. */
   readonly concerns: readonly BlockConcern[];
+  /** The import entities the block takes rows for. */
+  readonly importTarget: readonly string[];
   /**
    * The read methods each event pattern (`"task.*"`) makes stale, for
    * `invalidateOnBlockEvents`. An event no pattern matches makes every read
@@ -347,6 +355,7 @@ export interface AnyBlock {
   readonly meters?: BlockMeters;
   readonly links?: readonly BlockLink[];
   readonly concerns?: readonly BlockConcern[];
+  readonly importTarget?: readonly string[];
   readonly invalidates?: BlockInvalidates;
   readonly record?: AnyRecordBinding | undefined;
   readonly extension?: string | undefined;
@@ -466,6 +475,7 @@ function blockOf<
     meters: parts.meters ?? {},
     links: parts.links ?? [],
     concerns: parts.concerns ?? [],
+    importTarget: parts.importTarget ?? [],
     invalidates: parts.invalidates ?? {},
     record: parts.record,
     extension: parts.extension,

@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:c264dd2d4b41d5e01a2fd6c195a8553e4686e35260206e98289d5e782dc9ee75
+-- @bsb-hash sha256:d0f58e44a08e865aa602dee7c96e070684b686b6af857de05560e0fbd56f520d
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -458,6 +458,41 @@ begin
 end;
 $$;
 
+-- The role change for many members in one call (ADR 0853). It runs as the
+-- caller: update_member_role is the security definer and does the checking,
+-- once per distinct member in its own subtransaction, so every check and event
+-- of the single call still runs. Returns { succeeded: [id], failed: [{ id,
+-- code, message }] }; more than 500 members fail with BULK_TOO_MANY.
+create or replace function "better_supabase"."update_member_roles"(organization uuid, members uuid[], role text)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  one uuid;
+  succeeded jsonb := '[]'::jsonb;
+  failed jsonb := '[]'::jsonb;
+  failure_hint text;
+  failure_message text;
+begin
+  if coalesce(cardinality(members), 0) > 500 then
+    raise exception 'A bulk call takes at most 500 members' using errcode = '22023', hint = 'BULK_TOO_MANY';
+  end if;
+  for one in select distinct m from unnest(members) m loop
+    begin
+      perform "better_supabase"."update_member_role"(organization, one, role);
+      succeeded := succeeded || to_jsonb(one::text);
+    exception when others then
+      get stacked diagnostics failure_hint = pg_exception_hint, failure_message = message_text;
+      failed := failed || jsonb_build_object('id', one::text, 'code', failure_hint, 'message', failure_message);
+    end;
+  end loop;
+  return jsonb_build_object('succeeded', succeeded, 'failed', failed);
+end;
+$$;
+
 create or replace function "better_supabase"."suspend_member"(organization uuid, member uuid)
 returns boolean
 language plpgsql
@@ -678,6 +713,8 @@ revoke execute on function "better_supabase"."delete_organization"(uuid) from pu
 grant execute on function "better_supabase"."delete_organization"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_member_role"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) from public, anon;
+grant execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
 revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;

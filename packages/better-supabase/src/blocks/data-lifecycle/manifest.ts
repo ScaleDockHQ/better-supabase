@@ -18,6 +18,7 @@ export const dataLifecycleBlock: BlockOf<
   events: dataLifecycleEvents,
   create: createDataLifecycle,
   category: "admin",
+  importTarget: ["data_lifecycle_row"],
   entities: {
     data_export: { mutability: "state-machine", emits: { create: false } },
     organization: { mutability: "state-machine" },
