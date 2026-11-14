@@ -3,6 +3,7 @@ import type {
   GraphNodeCall,
   GraphStepCall,
 } from "better-supabase/blocks/workflow-editor";
+import type { NodeRunReportOptions } from "better-supabase/workflow-sdk/builder";
 
 import { generateText } from "ai";
 import { createApprovals } from "better-supabase/blocks/approvals";
@@ -47,9 +48,21 @@ function stepBuilder() {
 const report = <T>(call: GraphStepCall, run: () => Promise<T>) =>
   nodeRunReporter(stepBuilder().nodeRuns)(call, run);
 
-/** Reports a node of the deployment's own kind under its node id. */
-export const reportNode = <T>(call: GraphNodeCall, run: () => Promise<T>) =>
-  report({ ...call, step: call.kind }, run);
+/**
+ * Reports a node of the deployment's own kind under its node id. A waiting
+ * node's first call (`waits`) records `waiting`; its resumed call records
+ * `completed`.
+ */
+export const reportNode = <T>(
+  call: GraphNodeCall,
+  run: () => Promise<T>,
+  options?: NodeRunReportOptions,
+) =>
+  nodeRunReporter(stepBuilder().nodeRuns)(
+    { ...call, step: call.kind },
+    run,
+    options,
+  );
 
 const Text = v.fallback(v.string(), "");
 const SummaryInput = v.fallback(v.object({ text: v.string() }), { text: "" });
@@ -296,46 +309,65 @@ async function parallelNode(call: GraphNodeCall) {
   });
 }
 
+/** The payload a completed human task resumes its run with. */
+export const HumanTaskDone = v.object({ completedBy: v.string() });
+
 /**
- * The `human-task` node: tells a member what to do and by when. The run goes on
- * once the notification is sent; waiting on a person is what the approval node
- * is for.
+ * The `human-task` node: tells a member what to do and by when, then the run
+ * waits (`waits: true`) until `completeHumanTask` resumes it. The resumed call
+ * returns the task with who completed it.
  */
 async function humanTaskNode(call: GraphNodeCall) {
   "use step";
 
-  return reportNode(call, async () => {
-    const config = withConfig(call).config;
-    const { tenant, actor } = await runOwner();
-    const assignee = text(config, "assignee") || actor;
+  if (call.resumed !== undefined) {
+    const done = v.safeParse(HumanTaskDone, call.resumed.payload);
 
-    if (tenant === undefined || assignee === undefined) {
-      throw new Error("A human task needs a tenant and an assignee");
-    }
+    const task = v.parse(Config, call.resumed.output);
 
-    const days = v.parse(
-      v.fallback(v.nullable(v.number()), null),
-      config["dueInDays"],
-    );
+    // oxlint-disable-next-line typescript/require-await -- reportNode takes an async function.
+    return reportNode(call, async () => ({
+      ...task,
+      completedBy: done.success ? done.output.completedBy : null,
+    }));
+  }
 
-    const title = text(config, "title").slice(0, 160);
+  return reportNode(
+    call,
+    async () => {
+      const config = withConfig(call).config;
+      const { tenant, actor } = await runOwner();
+      const assignee = text(config, "assignee") || actor;
 
-    await serviceNotifications()
-      .send({
-        type: "workflow.message",
-        input: {
-          tenant,
-          recipients: [assignee],
-          includeActor: true,
-          data: {
-            title: days === null ? title : `${title} (due in ${days} days)`,
+      if (tenant === undefined || assignee === undefined) {
+        throw new Error("A human task needs a tenant and an assignee");
+      }
+
+      const days = v.parse(
+        v.fallback(v.nullable(v.number()), null),
+        config["dueInDays"],
+      );
+
+      const title = text(config, "title").slice(0, 160);
+
+      await serviceNotifications()
+        .send({
+          type: "workflow.message",
+          input: {
+            tenant,
+            recipients: [assignee],
+            includeActor: true,
+            data: {
+              title: days === null ? title : `${title} (due in ${days} days)`,
+            },
           },
-        },
-      })
-      .orThrow();
+        })
+        .orThrow();
 
-    return { assignee, title, dueInDays: days };
-  });
+      return { assignee, title, dueInDays: days };
+    },
+    { waits: true },
+  );
 }
 
 const DEFAULT_MODEL = "openai/gpt-5-mini";

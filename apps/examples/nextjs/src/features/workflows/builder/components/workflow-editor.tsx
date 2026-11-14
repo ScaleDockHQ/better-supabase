@@ -42,6 +42,7 @@ import type { GraphFlowNode, GraphNodeData } from "./graph-node";
 
 import { isFinished } from "../../workflow-labels";
 import {
+  completeHumanTask,
   decideNode,
   publishGraph,
   runDefinition,
@@ -198,6 +199,7 @@ function EditorInner({ detail }: { detail: BuilderDetail }) {
   });
 
   const decide = useAction(decideNode, { onError });
+  const complete = useAction(completeHumanTask, { onError });
 
   // ----------------------------------------------------------- history
 
@@ -633,6 +635,11 @@ function EditorInner({ detail }: { detail: BuilderDetail }) {
                   onDecide={(node, approved) => {
                     if (runId !== null) {
                       void decide.run({ run: runId, node, approved });
+                    }
+                  }}
+                  onComplete={(node) => {
+                    if (runId !== null) {
+                      void complete.run({ run: runId, node });
                     }
                   }}
                 />

@@ -32355,6 +32355,11 @@ msgid "The node failed"
 msgstr "De node is mislukt"
 
 #: src/features/workflows/builder/components/node-inspector.tsx
+msgctxt "workflows.it6Lig"
+msgid "Input"
+msgstr ""
+
+#: src/features/workflows/builder/components/node-inspector.tsx
 #: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.fio5op"
 msgid "Output"
@@ -32373,6 +32378,11 @@ msgstr "Goedkeuren"
 msgctxt "workflows.VzIOKf"
 msgid "Reject"
 msgstr "Afwijzen"
+
+#: src/features/workflows/builder/components/node-inspector.tsx
+msgctxt "workflows.tQpQon"
+msgid "Mark done"
+msgstr ""
 
 #: src/features/workflows/builder/components/node-inspector.tsx
 #: src/features/workflows/builder/components/node-panel.tsx
@@ -32557,6 +32567,7 @@ msgid "What each node returns in a test run, by node id. Approvals take {example
 msgstr "Wat elke node in een testrun teruggeeft, per node-id. Goedkeuringen nemen {example} om de andere tak te testen."
 
 #: src/features/workflows/builder/components/run-panel.tsx
+#: src/features/workflows/builder/components/workflow-editor.tsx
 #: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.lAE6P2"
 msgid "Test run"
@@ -32633,6 +32644,11 @@ msgstr "Webhook"
 msgctxt "workflows.hGQqkW"
 msgid "Schedule"
 msgstr "Schema"
+
+#: src/features/workflows/builder/components/trigger-sheet.tsx
+msgctxt "workflows.m1czzY"
+msgid "Event"
+msgstr ""
 
 #: src/features/workflows/builder/components/trigger-sheet.tsx
 msgctxt "workflows.M59JhX"
@@ -32737,11 +32753,6 @@ msgstr "Goedkeuring"
 msgctxt "workflows.XMpO69"
 msgid "Condition"
 msgstr "Voorwaarde"
-
-#: src/features/workflows/builder/components/workflow-editor.tsx
-msgctxt "workflows.H1o9T9"
-msgid "Test run {n}"
-msgstr "Testrun {n}"
 
 #: src/features/workflows/builder/components/workflow-editor.tsx
 msgctxt "workflows.2KLkia"
@@ -32931,6 +32942,11 @@ msgstr "Live run"
 msgctxt "workflows.I3b4hn"
 msgid "Version"
 msgstr "Versie"
+
+#: src/features/workflows/components/workflow-run-detail.tsx
+msgctxt "workflows.1BrFfC"
+msgid "v{version} (hidden test snapshot)"
+msgstr ""
 
 #: src/features/workflows/components/workflow-run-detail.tsx
 msgctxt "workflows.4hC_e1"
