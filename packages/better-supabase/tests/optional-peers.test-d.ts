@@ -29,12 +29,15 @@ import type {
   ProvidedArgumentValue,
 } from "eve/connections";
 import type { SessionAuthContext } from "eve/context";
+import type {
+  DefinedDynamicSchedules,
+  ScheduleProvider as EveScheduleProviderContract,
+  ScheduleProviderContext,
+} from "eve/experimental/schedules";
+import type { StreamEventHooks } from "eve/hooks";
 import type { MemoryProvider } from "eve/memory";
 import type { ScheduleRunHandler } from "eve/schedules";
-import type {
-  ToolApprovalConfiguration,
-  ToolApproval,
-} from "eve/tools/approval";
+import type { Approval, ApprovalConfiguration } from "eve/tools/approval";
 import type {
   Adapter,
   FlagDeclaration,
@@ -59,10 +62,15 @@ import type { CredentialSubject } from "../src/credentials/index.ts";
 import type {
   EveApprovalConfiguration,
   EveConnectionAuthorization,
+  EveDynamicSchedules,
   EveScheduleOptions,
+  EveScheduleProviderContext,
   EveSessionAuth,
   EveToolApproval,
   approvalPolicy,
+  persistSessions,
+  queueDynamicSchedules,
+  queueScheduleProvider,
   queueSchedules,
   supabaseJwtAuth,
   supabaseMemory,
@@ -177,16 +185,19 @@ describe("structurally typed optional peers", () => {
     expectTypeOf<FlagsSdkOption[]>().toExtend<FlagOptionType[]>();
   });
 
-  it("eve takes the session auth, memory, connection, tool, approval and schedule shapes", () => {
+  it("eve takes the session auth, memory, connection, tool, approval, hook and schedule shapes", () => {
     expectTypeOf<EveSessionAuth>().toExtend<SessionAuthContext>();
     expectTypeOf<SessionAuthContext>().toExtend<EveSessionAuth>();
     expectTypeOf<
       ReturnType<typeof supabaseMemory>
     >().toExtend<MemoryProvider>();
     expectTypeOf<EveConnectionAuthorization>().toExtend<ConnectionAuthDefinition>();
-    expectTypeOf<EveApprovalConfiguration>().toExtend<ToolApprovalConfiguration>();
-    expectTypeOf<ReturnType<typeof approvalPolicy>>().toExtend<ToolApproval>();
-    expectTypeOf<EveToolApproval>().toExtend<ToolApproval>();
+    expectTypeOf<EveApprovalConfiguration>().toExtend<ApprovalConfiguration>();
+    expectTypeOf<ReturnType<typeof approvalPolicy>>().toExtend<Approval>();
+    expectTypeOf<EveToolApproval>().toExtend<Approval>();
+    expectTypeOf<
+      ReturnType<typeof persistSessions>
+    >().toExtend<StreamEventHooks>();
     expectTypeOf<
       ReturnType<typeof queueSchedules>
     >().toExtend<ScheduleRunHandler>();
@@ -197,6 +208,19 @@ describe("structurally typed optional peers", () => {
       EveScheduleOptions["appAuth"]
     >().toExtend<SessionAuthContext>();
     expectTypeOf<ReturnType<typeof supabaseJwtAuth>>().toExtend<AuthFn>();
+  });
+
+  it("eve takes the queue-backed dynamic schedules provider and its tick", () => {
+    expectTypeOf<
+      ReturnType<typeof queueScheduleProvider>
+    >().toExtend<EveScheduleProviderContract>();
+    expectTypeOf<ScheduleProviderContext>().toExtend<EveScheduleProviderContext>();
+    expectTypeOf<
+      DefinedDynamicSchedules<{ readonly task: string }>
+    >().toExtend<EveDynamicSchedules>();
+    expectTypeOf<
+      ReturnType<typeof queueDynamicSchedules>
+    >().toExtend<ScheduleRunHandler>();
   });
 
   it("a PowerSync database has what syncWithAuth drives", () => {

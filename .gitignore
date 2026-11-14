@@ -30,6 +30,8 @@ expo-env.d.ts
 out/
 apps/docs/AGENTS.md
 apps/docs/CLAUDE.md
+apps/examples/eve/AGENTS.md
+apps/examples/eve/CLAUDE.md
 apps/examples/nextjs/AGENTS.md
 apps/examples/nextjs/CLAUDE.md
 apps/marketing/AGENTS.md

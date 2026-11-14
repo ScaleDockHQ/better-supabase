@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   checkLanes,
+  checkMissingRows,
+  checkRowFloor,
   countStates,
   expandIds,
+  namedIds,
   parseFindings,
   parseLanes,
   renderCounts,
@@ -129,6 +132,41 @@ describe("check-example-findings", () => {
     ).toEqual(["Lane X1 is merged but EX-2 is unfinished"]);
   });
 
+  it("fails when a lane names an id that has no row", () => {
+    const { rows } = parseFindings(
+      table("| EX-1 | a | bug | fixed (PR #1) | x |"),
+    );
+
+    const tracker = [
+      "## Progress",
+      "### Lane X1",
+      "- Findings: EX-1, EX-2",
+      "- Log: covers EX-5 to EX-6",
+      "## Lane ownership",
+      "EX-90 to EX-91",
+    ].join("\n");
+
+    const lanes = parseLanes(tracker);
+    const named = namedIds(lanes, tracker);
+
+    expect([...named]).toEqual(["EX-1", "EX-2", "EX-5", "EX-6"]);
+    expect(checkMissingRows(rows, named)).toEqual([
+      expect.stringContaining("EX-2, EX-5, EX-6"),
+    ]);
+    expect(checkMissingRows(rows, new Set(["EX-1"]))).toEqual([]);
+  });
+
+  it("fails when the row count drops below the floor", () => {
+    const { rows } = parseFindings(
+      table("| EX-1 | a | bug | fixed (PR #1) | x |"),
+    );
+
+    expect(checkRowFloor(rows, 1)).toEqual([]);
+    expect(checkRowFloor(rows, 2)).toEqual([
+      expect.stringContaining("floor of 2"),
+    ]);
+  });
+
   it("holds for the committed report and tracker", () => {
     const { rows, problems } = parseFindings(
       readFileSync("docs/agents/example-findings.md", "utf-8"),
@@ -140,5 +178,17 @@ describe("check-example-findings", () => {
 
     expect(problems).toEqual([]);
     expect(checkLanes(rows, lanes)).toEqual([]);
+
+    const tracker = readFileSync(
+      "docs/agents/block-consistency-audit.md",
+      "utf-8",
+    );
+
+    const floor = Number(
+      readFileSync("docs/agents/example-findings.count", "utf-8"),
+    );
+
+    expect(checkMissingRows(rows, namedIds(lanes, tracker))).toEqual([]);
+    expect(checkRowFloor(rows, floor)).toEqual([]);
   });
 });
