@@ -1,3 +1,4 @@
+import type { EntityPage } from "../../list/entity-page.ts";
 import type { GEN_TASKS, INTEGRATION_NAMES, SKILLS_AGENTS } from "../names.ts";
 
 /** A docs UI `spec emit --ui` writes next to an OpenAPI document. */
@@ -138,6 +139,16 @@ export interface GenConfig {
    * "catalog"` with the managed tables. Defaults to `false` (ADR 0799).
    */
   readonly permissionCatalog?: boolean;
+  /**
+   * Generates from entity page descriptors (`defineEntityPage` in
+   * `better-supabase/list`): for each page, `pages/<name>.list.ts` with the
+   * list query over the entity's declared sorts, facets, filters and search,
+   * the `/api/<name>/list` route handler, a migration with the indexes those
+   * sorts and facets need, and `scale_list_<name>.test.sql` (ADR 0859). Needs
+   * the entity's block installed. Lanes M2 to M4 add columns, forms, seed rows
+   * and navigation to the same descriptors.
+   */
+  readonly entityPages?: EntityPagesGen;
   /**
    * Block instances the browser client wires: `gen` writes `blocks.client.ts`
    * with `clientBlocks`, a `defineBlocks` set over only these instances, so
@@ -316,4 +327,21 @@ export interface MigrationSafetyConfig {
    * migration.
    */
   readonly since?: string;
+}
+
+/** `gen.entityPages`: the page descriptors and where `gen` writes their output. */
+export interface EntityPagesGen {
+  readonly pages: readonly EntityPage[];
+  /**
+   * The Next.js app directory the list routes go under. Default `src/app`
+   * (`app` when the project root has no `src` folder).
+   */
+  readonly appDir?: string;
+  /**
+   * The module and export the generated routes get `route()` from, as the app's
+   * `server-core.ts` does. Default `@/lib/supabase/server-core` and `bsbCore`.
+   */
+  readonly server?: { readonly module: string; readonly export: string };
+  /** The folder of the generated pgTAP files. Default `supabase/tests/scale`. */
+  readonly scaleDir?: string;
 }

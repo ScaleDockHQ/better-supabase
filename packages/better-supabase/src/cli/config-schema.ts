@@ -27,6 +27,7 @@ import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
 import * as blockSchemas from "./block-config-schema.ts";
 import { movedKeyIssues } from "./config-moved.ts";
 import { bucketSchema } from "./config-schema-bucket.ts";
+import { entityPageSchema } from "./config-schema-entity-page.ts";
 import { hooksSchema, sourceSchema } from "./config-schema-gen.ts";
 import { GEN_TASKS, INTEGRATIONS } from "./names.ts";
 import { powersyncGenSchema } from "./powersync/config-schema.ts";
@@ -1057,6 +1058,16 @@ const ENTRIES = {
       ),
       blockModules: v.optional(v.boolean()),
       permissionCatalog: v.optional(v.boolean()),
+      entityPages: v.optional(
+        v.strictObject({
+          pages: v.array(entityPageSchema),
+          appDir: v.optional(v.string()),
+          server: v.optional(
+            v.strictObject({ module: v.string(), export: v.string() }),
+          ),
+          scaleDir: v.optional(v.string()),
+        }),
+      ),
       clientBlocks: v.optional(v.array(v.string())),
       serverBlocks: v.optional(v.record(v.string(), v.array(v.string()))),
       powersync: v.optional(powersyncGenSchema),

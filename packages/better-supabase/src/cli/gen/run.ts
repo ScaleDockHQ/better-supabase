@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
 import type { BlockSqlFile } from "../../sql/index.ts";
@@ -38,6 +38,10 @@ import {
   writeLatestMigration,
   writesMigrations,
 } from "../sql/module-migration.ts";
+import {
+  ENTITY_PAGE_INDEXES_SUFFIX,
+  entityPageIndexSql,
+} from "./entity-pages.ts";
 import { leftoverFiles, manifestPath, writeManifest } from "./manifest.ts";
 import { generationNotices } from "./notices.ts";
 import {
@@ -160,10 +164,20 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
 
   // The catalog rows go into a migration the manifest never lists, as the
   // read sets do under the migrations workflow.
-  const catalogSql =
-    !options.isolated && config.gen.permissionCatalog === true
-      ? permissionCatalogSql(config)
-      : undefined;
+  const managed: { readonly suffix: string; readonly sql: string }[] = [];
+
+  if (!options.isolated && config.gen.permissionCatalog === true) {
+    managed.push({
+      suffix: PERMISSION_CATALOG_SUFFIX,
+      sql: permissionCatalogSql(config),
+    });
+  }
+
+  const pageIndexes = options.isolated ? undefined : entityPageIndexSql(config);
+
+  if (pageIndexes !== undefined) {
+    managed.push({ suffix: ENTITY_PAGE_INDEXES_SUFFIX, sql: pageIndexes });
+  }
 
   const notice = (await generationNotices(snapshot, warnings, notices, config))
     .map((line) => `\n${line}`)
@@ -231,16 +245,15 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       }
     }
 
-    if (catalogSql !== undefined) {
-      const latest = await latestMigration(config, PERMISSION_CATALOG_SUFFIX);
+    for (const entry of managed) {
+      const latest = await latestMigration(config, entry.suffix);
 
-      if (!sameModuleMigration(latest?.text, catalogSql)) {
+      if (!sameModuleMigration(latest?.text, entry.sql)) {
         compare(
           {
             path:
-              latest?.path ??
-              `${migrationsDir(config)}/<stamp>${PERMISSION_CATALOG_SUFFIX}`,
-            contents: catalogSql,
+              latest?.path ?? `${migrationsDir(config)}/<stamp>${entry.suffix}`,
+            contents: entry.sql,
           },
           latest?.text,
         );
@@ -284,9 +297,39 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     remove,
   });
 
+  // A file outside the project (a monorepo's shared `supabase/tests`) is written
+  // from its own folder, as the read sets are under a shared `sql.dir`.
+  const isOutside = (path: string): boolean => {
+    const inside = relative(config.root, resolve(config.root, path));
+
+    return inside.startsWith("..") || isAbsolute(inside);
+  };
+
   const changes: FileChange[] = [
-    ...(await applyPlan(plan(files), flags)).changes,
+    ...(
+      await applyPlan(
+        plan(files.filter((file) => !isOutside(file.path))),
+        flags,
+      )
+    ).changes,
   ];
+
+  for (const file of files.filter((entry) => isOutside(entry.path))) {
+    const path = resolve(config.root, file.path);
+
+    changes.push(
+      ...(
+        await applyPlan(
+          {
+            ...plan([{ ...file, path }]),
+            root: dirname(path),
+            base: config.root,
+          },
+          flags,
+        )
+      ).changes,
+    );
+  }
 
   // Read-set modules import the generated module, so they load after it is written.
   const readSets = await readSetsOf();
@@ -305,11 +348,11 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
     });
   }
 
-  if (catalogSql !== undefined) {
+  for (const entry of managed) {
     const migration = await writeLatestMigration(
       config,
-      PERMISSION_CATALOG_SUFFIX,
-      catalogSql,
+      entry.suffix,
+      entry.sql,
       { now: new Date(), dryRun: options.dryRun === true },
     );
 
