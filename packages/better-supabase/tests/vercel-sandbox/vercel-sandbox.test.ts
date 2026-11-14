@@ -19,6 +19,7 @@ import {
   brokered,
   gatewayOnly,
   mergeSandboxOptions,
+  sandboxErrorToDbError,
   untrusted,
   vercelSandboxes,
 } from "../../src/vercel-sandbox/index.ts";
@@ -451,5 +452,66 @@ describe("network presets", () => {
     );
 
     expect(result.error?.kind).toBe("unauthorized");
+  });
+});
+
+describe("sandboxErrorToDbError", () => {
+  it("maps an abort and each API status to a fixed message", () => {
+    const abort = new Error("stopped");
+    abort.name = "AbortError";
+
+    expect(sandboxErrorToDbError(abort)).toMatchObject({
+      kind: "aborted",
+      hint: "AI_SANDBOX_ABORTED",
+    });
+
+    for (const [status, kind, hint] of [
+      [401, "forbidden", "AI_SANDBOX_FORBIDDEN"],
+      [403, "forbidden", "AI_SANDBOX_FORBIDDEN"],
+      [404, "not_found", "AI_SANDBOX_NOT_FOUND"],
+      [429, "rate_limited", "AI_SANDBOX_LIMIT"],
+      [500, "network", "AI_SANDBOX_UNAVAILABLE"],
+    ] as const) {
+      expect(sandboxErrorToDbError(apiError(status))).toMatchObject({
+        kind,
+        hint,
+      });
+    }
+
+    for (const cause of [
+      "boom",
+      { response: "none" },
+      { response: { status: "500" } },
+    ]) {
+      expect(sandboxErrorToDbError(cause).kind).toBe("network");
+    }
+  });
+
+  it("brokered keeps the sandbox's own timeout for a token that doesn't expire, and passes scopes", async () => {
+    const asked: unknown[] = [];
+
+    const options = await brokered(
+      {
+        getToken: (_ref, tokenOptions) => {
+          asked.push(tokenOptions);
+
+          return AsyncResult.ok({
+            token: "t",
+            headers: { authorization: "Bearer t" },
+          });
+        },
+      },
+      { provider: "vercel-connect", connector: "github" },
+      {
+        domain: "api.github.com",
+        subject: { type: "user", id: "user_1" },
+        scopes: ["repo"],
+      },
+    ).orThrow();
+
+    expect("timeout" in options).toBe(false);
+    expect(asked).toEqual([
+      { subject: { type: "user", id: "user_1" }, scopes: ["repo"] },
+    ]);
   });
 });

@@ -488,6 +488,99 @@ describe("vercelScheduler", () => {
     expect(schedules.space("acme").size).toBe(1);
   });
 
+  it("rethrows what it can't absorb from create, list and delete", async () => {
+    const schedules = fakeSchedules();
+    const at = Temporal.Now.instant();
+    const refused = new FakeSchedulesApiError(403, "forbidden");
+
+    const creating = vercelScheduler({
+      ...schedules.client,
+      update: () => Promise.reject(new FakeSchedulesApiError(404, "not_found")),
+      create: () => Promise.reject(refused),
+    });
+
+    await expect(
+      creating.schedule("x", "0 4 * * *", "reports", {}, "UTC", at),
+    ).rejects.toMatchObject({ error: { kind: "forbidden" } });
+
+    const listing = vercelScheduler({
+      ...schedules.client,
+      list: () => Promise.reject(refused),
+    });
+
+    await expect(listing.listSchedules?.({})).rejects.toMatchObject({
+      error: { kind: "forbidden" },
+    });
+
+    const scheduler = vercelScheduler(schedules.client);
+
+    await scheduler.schedule(
+      "y",
+      "0 4 * * *",
+      "reports",
+      {},
+      "UTC",
+      at,
+      "acme",
+    );
+
+    const deleting = vercelScheduler({
+      ...schedules.client,
+      delete: () => Promise.reject(refused),
+    });
+
+    await expect(deleting.unschedule("y", "acme")).rejects.toMatchObject({
+      error: { kind: "forbidden" },
+    });
+    await expect(deleting.unscheduleTenant?.("acme")).rejects.toMatchObject({
+      error: { kind: "forbidden" },
+    });
+    await expect(
+      vercelScheduler({
+        ...schedules.client,
+        delete: () => Promise.reject(new TypeError("fetch failed")),
+      }).unschedule("y", "acme"),
+    ).rejects.toThrow("fetch failed");
+  });
+
+  it("maps a name conflict, and lists a one-time schedule without a next run", async () => {
+    expect(
+      vercelSchedulesErrorOf(
+        new FakeSchedulesApiError(409, "schedule_already_exists"),
+      ),
+    ).toMatchObject({ kind: "conflict", code: "schedule_already_exists" });
+
+    const schedules = fakeSchedules();
+    const scheduler = vercelScheduler(schedules.client);
+
+    await scheduler.schedule(
+      "once",
+      "0 4 * * *",
+      "reports",
+      {},
+      "UTC",
+      Temporal.Now.instant(),
+    );
+
+    const [name] = schedules.space("better-supabase").keys();
+    const stored = schedules.space("better-supabase").get(name ?? "");
+
+    if (stored === undefined || name === undefined) {
+      throw new Error("the fake must hold the schedule");
+    }
+
+    schedules
+      .space("better-supabase")
+      .set(name, {
+        ...stored,
+        expression: { type: "single", at: "2027-01-01T09:00" },
+      });
+
+    expect(await scheduler.listSchedules?.({})).toMatchObject([
+      { name: "once", cron: "", nextRun: null },
+    ]);
+  });
+
   it("keeps the tenant-less namespace apart from tenants", async () => {
     const scheduler = vercelScheduler(fakeSchedules().client);
 

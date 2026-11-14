@@ -281,6 +281,75 @@ describe("vercelDomainProvider", () => {
       });
     });
 
+    it("reads Retry-After as an HTTP date, and ignores an empty or unreadable one", async () => {
+      const at = new Date(Date.now() + 90_000).toUTCString();
+
+      const dated = await failing(
+        new FakeVercelError(429, "rate_limited", "Slow down", {
+          "retry-after": at,
+        }),
+      ).add(HOST);
+
+      expect(dated.ok ? undefined : dated.error).toMatchObject({
+        kind: "rate_limited",
+        retryAfter: expect.any(Number),
+      });
+
+      for (const value of [" ", "soon"]) {
+        const unread = await failing(
+          new FakeVercelError(429, "rate_limited", "Slow down", {
+            "retry-after": value,
+          }),
+        ).add(HOST);
+
+        expect(unread.ok ? undefined : "retryAfter" in unread.error).toBe(
+          false,
+        );
+      }
+    });
+
+    it("maps 401, 404 and 409 by status, with the body's code", async () => {
+      for (const [status, kind] of [
+        [401, "forbidden"],
+        [404, "not_found"],
+        [409, "conflict"],
+      ] as const) {
+        const result = await failing(
+          new FakeVercelError(status, `code_${status}`, "Refused"),
+        ).verify(HOST);
+
+        expect(result.ok ? undefined : result.error).toMatchObject({
+          kind,
+          code: `code_${status}`,
+          message: "Vercel: Refused",
+        });
+      }
+    });
+
+    it("uses the error's own text when the body is missing, not JSON or has no error", async () => {
+      const withBody = (body: unknown): Error =>
+        Object.assign(new Error("API error occurred"), {
+          statusCode: 403,
+          body,
+        });
+
+      for (const body of [undefined, "<html>", '{"error":"nope"}', "[]"]) {
+        const result = await failing(withBody(body)).verify(HOST);
+
+        expect(result.ok ? undefined : result.error).toMatchObject({
+          kind: "forbidden",
+          message: "Vercel: API error occurred",
+        });
+        expect(result.ok ? undefined : "code" in result.error).toBe(false);
+      }
+
+      const status = await failing(
+        Object.assign(new Error("Gone"), { status: 404 }),
+      ).verify(HOST);
+
+      expect(status.ok ? undefined : status.error.kind).toBe("not_found");
+    });
+
     it("turns another 4xx into unexpected, and an abort into aborted", async () => {
       const gone = await failing(
         new FakeVercelError(402, "payment_required", "Upgrade"),
