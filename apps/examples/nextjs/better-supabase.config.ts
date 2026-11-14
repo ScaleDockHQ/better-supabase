@@ -3,6 +3,7 @@ import { defineConfig } from "better-supabase/config";
 import { factories } from "better-supabase/generators/factories";
 import { nuqs } from "better-supabase/generators/nuqs";
 import { zod } from "better-supabase/generators/zod";
+import { defineEntityPage } from "better-supabase/list";
 
 import { gettingStarted } from "./src/features/onboarding/checklist.ts";
 import { metrics } from "./src/metrics.ts";
@@ -86,6 +87,20 @@ export default defineConfig({
     hooks: "react",
     // Keys and default grants for every installed block, in a migration, so a new block's pages never answer 403 for the owner.
     permissionCatalog: true,
+    // One descriptor per entity page: gen writes the list query, `/api/periods/list`,
+    // the indexes of its sorts and facets and `scale_list_periods.test.sql` (ADR 0859).
+    entityPages: {
+      pages: [
+        defineEntityPage({
+          entity: "periods.period",
+          route: "/finance/periods",
+          // The periods block names its list reads per entity.
+          methods: { page: "periodPage", facets: "periodFacets" },
+        }),
+      ],
+      server: { module: "@/lib/supabase/server", export: "bsb" },
+      scaleDir: "../../../supabase/tests/scale",
+    },
     // Tested consumers of the first-party generators: zod schemas (not wired
     // into the repositories, so no route bundles them), nuqs search params and test factories for the app's own tables.
     generators: [

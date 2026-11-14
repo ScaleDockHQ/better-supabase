@@ -2931,6 +2931,119 @@
         "permissionCatalog": {
           "type": "boolean"
         },
+        "entityPages": {
+          "type": "object",
+          "properties": {
+            "pages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "apiVersion": {
+                    "const": 1
+                  },
+                  "entity": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*\\.[a-z][a-z0-9_]*$"
+                  },
+                  "route": {
+                    "type": "string",
+                    "pattern": "^/"
+                  },
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*$"
+                  },
+                  "reads": {
+                    "type": "string"
+                  },
+                  "methods": {
+                    "type": "object",
+                    "properties": {
+                      "page": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z_$][\\w$]*$"
+                      },
+                      "facets": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z_$][\\w$]*$"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "list": {
+                    "type": "object",
+                    "properties": {
+                      "pageSize": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "maxPageSize": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "area": {
+                    "type": "string"
+                  },
+                  "columns": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "sections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "seed": {
+                    "type": "object",
+                    "properties": {
+                      "demo": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "tiers": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["apiVersion", "entity", "route"],
+                "additionalProperties": false
+              }
+            },
+            "appDir": {
+              "type": "string"
+            },
+            "server": {
+              "type": "object",
+              "properties": {
+                "module": {
+                  "type": "string"
+                },
+                "export": {
+                  "type": "string"
+                }
+              },
+              "required": ["module", "export"],
+              "additionalProperties": false
+            },
+            "scaleDir": {
+              "type": "string"
+            }
+          },
+          "required": ["pages"],
+          "additionalProperties": false
+        },
         "clientBlocks": {
           "type": "array",
           "items": {
