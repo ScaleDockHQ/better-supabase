@@ -157,6 +157,8 @@ export interface Lims {
   }): AsyncResultType<LimsMethod>;
   /** Archives a method. Its results stay; needs `lims.manage`. */
   archiveMethod(methodId: string): AsyncResultType<LimsMethod>;
+  /** Brings an archived method back; needs `lims.manage`. */
+  restoreMethod(methodId: string): AsyncResultType<LimsMethod>;
   listMethods(options?: {
     readonly includeArchived?: boolean;
   }): AsyncResultType<readonly LimsMethod[]>;
@@ -345,6 +347,10 @@ export function createLims(options: LimsOptions): Lims {
     archiveMethod: (methodId) =>
       call("archive_lims_method", { method_id: methodId }, (value) =>
         methodOf(value, "archive_lims_method"),
+      ),
+    restoreMethod: (methodId) =>
+      call("restore_lims_method", { method_id: methodId }, (value) =>
+        methodOf(value, "restore_lims_method"),
       ),
     listMethods: (list = {}) =>
       tenant().andThen((organizationId) =>

@@ -99,7 +99,7 @@
     "row-triggers": 1
   },
   "cases": {
-    "security-definer-functions": 157,
+    "security-definer-functions": 163,
     "row-triggers": 6
   },
   "catalog": {
@@ -127,7 +127,7 @@
     "security-definer-functions": 66
   },
   "consents": {
-    "security-definer-functions": 84
+    "security-definer-functions": 90
   },
   "contacts": {
     "security-definer-functions": 206
@@ -293,7 +293,7 @@
     "security-definer-functions": 36
   },
   "lims": {
-    "security-definer-functions": 72
+    "security-definer-functions": 78
   },
   "mail-sync": {
     "security-definer-functions": 80
@@ -355,7 +355,7 @@
     "security-definer-functions": 105
   },
   "observations": {
-    "security-definer-functions": 57,
+    "security-definer-functions": 63,
     "row-triggers": 1
   },
   "onboarding": {
@@ -499,7 +499,7 @@
     "security-definer-functions": 40
   },
   "shifts": {
-    "security-definer-functions": 91
+    "security-definer-functions": 97
   },
   "shipments": {
     "security-definer-functions": 75,

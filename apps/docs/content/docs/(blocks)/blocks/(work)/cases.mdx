@@ -69,7 +69,7 @@ pipeline with the stages `reported`, `investigating`, `acting`, `verifying`,
 
 `saveKind` adds a kind or, with `kindId`, changes one; it needs
 `cases.manage`. `archiveKind` stops new cases of a kind and keeps the old
-ones.
+ones; `restoreKind` brings the kind back and records `case_kind.restored`.
 
 ```ts
 await db.cases
@@ -233,6 +233,7 @@ a missed dose opens a case of that kind.
 | ---------------------------------------- | ---------------------------------------------------------- |
 | `saveKind(input)`                        | the kind                                                   |
 | `archiveKind(kindId)`                    | the archived kind                                          |
+| `restoreKind(kindId)`                    | the restored kind                                          |
 | `kinds(options)`                         | the kinds by name                                          |
 | `open(input)`                            | the case                                                   |
 | `update(caseId, change)`                 | the case                                                   |

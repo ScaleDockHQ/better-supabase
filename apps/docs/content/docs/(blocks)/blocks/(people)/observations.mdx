@@ -84,7 +84,8 @@ await db.observations
 `saveDefinition` creates the definition or updates the one with the same key,
 and restores it if it was archived. A key a system definition uses overrides
 it for that organization. `archiveDefinition` stops a definition from taking
-new observations; its observations stay. `definitions` lists the
+new observations; its observations stay. `restoreDefinition` lets it take
+observations again. `definitions` lists the
 organization's and the system ones by title, with
 `{ includeArchived: true }` for the archived ones too.
 

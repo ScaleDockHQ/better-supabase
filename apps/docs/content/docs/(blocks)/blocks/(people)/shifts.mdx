@@ -85,7 +85,8 @@ end at or before the start runs into the next day, so `22:00` to `06:00` is a
 night shift. `weekdays` are ISO weekdays, 1 (Monday) to 7 (Sunday).
 `generate` covers at most 92 days and skips days that already have the
 template's shift, so running it twice creates nothing new. `archiveTemplate`
-stops a template from generating; its shifts stay.
+stops a template from generating; its shifts stay. `restoreTemplate` lets it
+generate again.
 
 ## Shifts
 

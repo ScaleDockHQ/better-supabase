@@ -143,6 +143,41 @@ end;
 $$;
 ${userGrant(`${fn("archive_consent_purpose")}(uuid)`)}
 
+-- Restores an archived purpose: new consents can be recorded for it again.
+create or replace function ${fn("restore_consent_purpose")}(purpose_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${purposes};
+begin
+  select * into v_row from ${purposes} x where x.${p("id")} = restore_consent_purpose.purpose_id for update;
+  if not found then
+    ${q.purposeMissing}
+  end if;
+  if v_row.${p("tenant")} is null then
+    if not ${SERVICE_CALLER} then
+      ${q.forbidden("only the service role restores a system purpose")}
+    end if;
+  elsif not ${q.allowed(`v_row.${p("tenant")}`, q.manage)} then
+    ${q.forbidden("not allowed to manage consent purposes")}
+  end if;
+  if v_row.${p("archivedAt")} is null then
+    return ${purposeJson("v_row")};
+  end if;
+  update ${purposes} x set${updated}
+    ${p("archivedAt")} = null
+  where x.${p("id")} = v_row.${p("id")}
+  returning * into v_row;
+  ${q.recordPurpose("consent_purpose.updated", "v_row", "restored a consent purpose")}
+  return ${purposeJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("restore_consent_purpose")}(uuid)`)}
+
 -- The purposes an organization asks consent for: its own and the system ones,
 -- by key, the newest version first.
 create or replace function ${fn("list_consent_purposes")}(tenant ${ctx.idType}, include_archived boolean default false)

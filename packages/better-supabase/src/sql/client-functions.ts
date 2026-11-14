@@ -63,7 +63,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   calendar:
     "calendar_bootstrap calendar_free_busy cancel_calendar_occurrence create_calendar delete_calendar delete_calendar_event import_calendar_events list_calendar_events list_calendar_working_hours list_calendars remove_calendar_attendee respond_calendar_event save_calendar_event set_calendar_attendee set_calendar_working_hours split_calendar_event",
   cases:
-    "archive_case_kind cancel_case case_close_blockers case_stats close_case create_case_action get_case link_case_action list_case_kinds list_cases notify_due_case_effectiveness open_case page_cases record_case_effectiveness record_case_root_cause remove_case_action reopen_case save_case_kind update_case",
+    "archive_case_kind cancel_case case_close_blockers case_stats close_case create_case_action get_case link_case_action list_case_kinds list_cases notify_due_case_effectiveness open_case page_cases record_case_effectiveness record_case_root_cause remove_case_action reopen_case restore_case_kind save_case_kind update_case",
   "care-plans":
     "add_care_plan_action add_care_plan_goal add_care_plan_problem archive_care_plan create_care_plan due_care_plan_reviews end_care_plan_action get_care_plan get_care_plans list_care_plan_measures list_care_plans publish_care_plan record_care_plan_evaluation request_care_plan_agreement review_care_plan_action start_care_plan_action update_care_plan update_care_plan_action update_care_plan_goal update_care_plan_problem",
   catalog:
@@ -81,7 +81,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   connectors:
     "check_connector_fingerprint decide_connector_fingerprint delete_connector_server expiring_connector_grants get_connector get_connector_session list_connector_servers purge_connector_sessions record_connector_grant renew_connector_grant revoke_connector_grant save_connector_server save_connector_session",
   consents:
-    "archive_consent_purpose consent_active expire_consents issue_consent_receipt list_consent_purposes list_consent_receipts list_consent_signals list_consents record_consent record_consent_signal save_consent_purpose withdraw_consent",
+    "archive_consent_purpose consent_active expire_consents issue_consent_receipt list_consent_purposes list_consent_receipts list_consent_signals list_consents record_consent record_consent_signal restore_consent_purpose save_consent_purpose withdraw_consent",
   contacts:
     "add_person_identity archive_company archive_person company_people_of delete_payment_term find_person_by_identity get_company get_person list_companies list_document_delivery_preferences list_payment_terms list_people list_person_identities merge_companies merge_people remove_company_person remove_person_identity save_company save_payment_term save_person set_company_person set_document_delivery_preferences set_party_roles set_supplier_status supplier_status_from_qualifications",
   content:
@@ -165,7 +165,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "complete_checkout_session consume_agent_mandate create_checkout_session get_agent_mandate get_checkout_session list_agent_mandates list_checkout_sessions revoke_agent_mandate store_agent_mandate update_checkout_session",
   tills:
     "close_till_session create_till deposit_till_cash get_till_session list_till_sessions list_tills open_till_session reconcile_till_deposit record_till_movement update_till",
-  lims: "archive_lims_method complete_sample get_sample instrument_status list_lims_methods list_qualified_instruments list_samples record_lims_result register_sample reject_sample release_sample save_lims_method",
+  lims: "archive_lims_method complete_sample get_sample instrument_status list_lims_methods list_qualified_instruments list_samples record_lims_result register_sample reject_sample release_sample restore_lims_method save_lims_method",
   dam: "check_usage get_usage_right grant_usage_right list_renditions list_usage_rights notify_expiring_usage_rights record_rendition revoke_usage_right",
   appraisals:
     "calibrate_appraisal calibrate_appraisal_competencies close_appraisal_cycle create_appraisal_cycle get_appraisal list_appraisal_cycles list_appraisals open_appraisal_cycle set_appraisal_competencies set_appraisal_goals sign_off_appraisal submit_appraisal_review",
@@ -211,7 +211,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "oauth-server":
     "create_oauth_authorization_code create_oauth_device_code decide_oauth_device_code delete_oauth_client is_oauth_token_revoked list_oauth_grants oauth_client oauth_device_request poll_oauth_device_code purge_oauth_server redeem_oauth_authorization_code register_oauth_client revoke_oauth_grant revoke_oauth_token rotate_oauth_client_secret update_oauth_client verify_oauth_client verify_oauth_registration_token",
   observations:
-    "amend_observation archive_observation_definition ingest_observations latest_observations list_observation_definitions list_observations mark_observation_error observation_series record_observations save_observation_definition",
+    "amend_observation archive_observation_definition ingest_observations latest_observations list_observation_definitions list_observations mark_observation_error observation_series record_observations restore_observation_definition save_observation_definition",
   onboarding:
     "complete_onboarding_step onboarding_progress reset_onboarding_step",
   orders:
@@ -273,7 +273,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "share-links":
     "create_share_link list_share_links record_view resolve_share_link revoke_share_link set_user_state",
   shifts:
-    "archive_shift_template assign_shift cancel_shift decide_shift_request decide_shift_swap generate_shifts list_shift_availability list_shift_templates my_shifts publish_shifts request_open_shift request_shift_swap roster save_shift save_shift_template set_shift_availability shift_hours unassign_shift",
+    "archive_shift_template assign_shift cancel_shift decide_shift_request decide_shift_swap generate_shifts list_shift_availability list_shift_templates my_shifts publish_shifts request_open_shift request_shift_swap restore_shift_template roster save_shift save_shift_template set_shift_availability shift_hours unassign_shift",
   shipments:
     "cancel_shipment create_shipment delete_intrastat_line get_shipment ingest_tracking_events list_shipments list_tracking_events prepare_intrastat receive_shipment_return record_delivery_proof record_tracking_events save_intrastat_line set_shipment_direction set_shipment_label set_shipment_lines",
   signatures:
