@@ -644,6 +644,44 @@ describe("defineListQuery", () => {
     ]);
   });
 
+  it("switches a capped list to exact facet counts for one call", async () => {
+    const faceted = defineListQuery(betterSupabase, "customers", {
+      facets: { status: "status" },
+      sorts: { name: { name: "asc" } },
+      defaultSort: "name",
+      facetCounts: true,
+      facetCountMode: "capped",
+      facetScanCap: 2,
+    });
+
+    const { client, requests } = capturingClient((request) => {
+      const select = request.params.get("select");
+
+      if (select?.includes("count()")) {
+        return { body: [{ status: "active", _count: 7 }] };
+      }
+
+      return { body: [{ id: "c1" }], headers: { "content-range": "0-0/1" } };
+    });
+
+    const db = betterSupabase.connect(client);
+
+    const page = await faceted
+      .run(db, faceted.defaults, { facetCountMode: "exact" })
+      .orThrow();
+
+    expect(page.facetCounts.status["active"]).toBe(7);
+    expect(page.facetCountsCapped).toBeFalsy();
+    expect(
+      requests.some((request) =>
+        request.params.get("select")?.includes("count()"),
+      ),
+    ).toBe(true);
+    expect(
+      requests.some((request) => request.params.has("facetCountMode")),
+    ).toBe(false);
+  });
+
   it("caps facet counts at a sample and reuses a cached count", async () => {
     const faceted = defineListQuery(betterSupabase, "customers", {
       facets: { status: "status" },

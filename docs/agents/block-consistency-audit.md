@@ -1065,11 +1065,11 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X2
 
 - Scope: Library follow-ups: what lane H left open, the facet count and the diff rewrites
-- Status: planned
+- Status: merged
 - Branch: `feat/findings-x2`
-- PR: none yet
+- PR: [#930](https://github.com/ScaleDockHQ/better-supabase/pull/930)
 - Findings: EX-611, EX-506, EX-513, EX-808, EX-1108, EX-016, EX-924, EX-814
-- Log: 2026-11-14, planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start).
+- Log: 2026-11-14, lane X2 started from main (f6e7d2b78d) in `../bsb-findings-x2`. EX-016, EX-506, EX-513 and EX-1108 fixed, EX-808, EX-924 and EX-814 measured and closed; ADR 0949 and migrations 20270102100000 to 20270102100004.
 
 ### Lane X2b
 

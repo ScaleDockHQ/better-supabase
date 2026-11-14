@@ -172,6 +172,7 @@ export const permissions = {
     read: "notifications.read",
   },
   numbering: {
+    read: "numbering.read",
     assign: "numbering.assign",
   },
   onboarding: {
@@ -214,4 +215,4 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "donations.manage" | "donations.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "goals.manage" | "goals.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "donations.manage" | "donations.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "goals.manage" | "goals.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "numbering.read" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
