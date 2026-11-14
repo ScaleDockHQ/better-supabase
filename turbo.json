@@ -230,9 +230,19 @@
         "apps/examples/nextjs/src/**"
       ]
     },
+    "//#check:empty-translations": {
+      "inputs": [
+        "scripts/check-empty-translations.ts",
+        "scripts/entity-routes.ts",
+        "apps/examples/nextjs/messages/*.po",
+        "apps/examples/nextjs/src/lib/supabase/pages/routes.manifest.ts"
+      ]
+    },
     "//#check:example-coverage": {
       "inputs": [
         "scripts/check-example-coverage.ts",
+        "scripts/entity-routes.ts",
+        "apps/examples/nextjs/src/lib/supabase/pages/routes.manifest.ts",
         "apps/examples/nextjs/coverage/**",
         "apps/examples/nextjs/src/app/**/page.tsx",
         "packages/better-supabase/src/preset/catalog.generated.ts",

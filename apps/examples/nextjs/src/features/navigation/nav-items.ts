@@ -2,6 +2,12 @@ import type { Permission } from "@/features/user/user-permissions";
 import type { navFlags } from "@/flags";
 import type { AppHref } from "@/i18n/navigation";
 
+import { commissionsNav } from "@/lib/supabase/pages/commissions.navigation";
+import { periodsNav } from "@/lib/supabase/pages/periods.navigation";
+import { referralsNav } from "@/lib/supabase/pages/referrals.navigation";
+import { risksNav } from "@/lib/supabase/pages/risks.navigation";
+import { workOrdersNav } from "@/lib/supabase/pages/work-orders.navigation";
+
 export type NavId =
   | "dashboard"
   | "myWork"
@@ -291,14 +297,14 @@ export const navItems: readonly NavItem[] = [
   },
   {
     id: "commissions",
-    href: "/crm/commissions",
-    area: "sales",
+    href: commissionsNav.href,
+    area: commissionsNav.area,
     requires: "commissions.read",
   },
   {
     id: "referrals",
-    href: "/crm/referrals",
-    area: "sales",
+    href: referralsNav.href,
+    area: referralsNav.area,
     requires: "referrals.read",
   },
   {
@@ -352,8 +358,8 @@ export const navItems: readonly NavItem[] = [
   },
   {
     id: "dispatch",
-    href: "/field/dispatch",
-    area: "operations",
+    href: workOrdersNav.href,
+    area: workOrdersNav.area,
     requires: "dispatch.read",
   },
   {
@@ -399,7 +405,12 @@ export const navItems: readonly NavItem[] = [
     requires: "compliance.read",
   },
   { id: "qualifications", href: "/qualifications", area: "people" },
-  { id: "risks", href: "/risks", area: "quality", requires: "risks.read" },
+  {
+    id: "risks",
+    href: risksNav.href,
+    area: risksNav.area,
+    requires: "risks.read",
+  },
   { id: "cases", href: "/cases", area: "quality", requires: "cases.read" },
   {
     id: "encryption",
@@ -566,8 +577,8 @@ export const navItems: readonly NavItem[] = [
   { id: "tax", href: "/finance/tax", area: "finance", requires: "tax.read" },
   {
     id: "periods",
-    href: "/finance/periods",
-    area: "finance",
+    href: periodsNav.href,
+    area: periodsNav.area,
     requires: "periods.read",
   },
   { id: "care", href: "/care", area: "care", requires: "customers.read" },

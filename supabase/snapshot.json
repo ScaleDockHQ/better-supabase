@@ -328007,6 +328007,57 @@
             "predicate": null
           },
           {
+            "name": "commissions_tenant_id_amount_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "amount",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "commissions_tenant_id_created_at_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "created_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "commissions_tenant_id_occurred_on_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "occurred_on",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "commissions_tenant_id_seller_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "seller_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "commissions_tenant_id_source_type_source_id_seller_id_key",
             "columns": [
               "tenant_id",
@@ -328015,6 +328066,18 @@
               "seller_id"
             ],
             "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "commissions_tenant_id_status_page_idx",
+            "columns": [
+              "tenant_id",
+              "status"
+            ],
+            "unique": false,
             "primary": false,
             "partial": false,
             "method": "btree",
@@ -382766,6 +382829,43 @@
             "predicate": null
           },
           {
+            "name": "referrals_tenant_id_created_at_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "created_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "referrals_tenant_id_referrer_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "referrer_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "referrals_tenant_id_status_page_idx",
+            "columns": [
+              "tenant_id",
+              "status"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "referrals_user_key",
             "columns": [
               "tenant_id",
@@ -385328,6 +385428,18 @@
             "predicate": "(status <> 'closed'::text)"
           },
           {
+            "name": "risks_tenant_id_category_page_idx",
+            "columns": [
+              "tenant_id",
+              "category"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "risks_tenant_id_id_key",
             "columns": [
               "tenant_id",
@@ -385340,12 +385452,63 @@
             "predicate": null
           },
           {
+            "name": "risks_tenant_id_next_review_on_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "next_review_on",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "risks_tenant_id_number_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "number",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "risks_tenant_id_number_key",
             "columns": [
               "tenant_id",
               "number"
             ],
             "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "risks_tenant_id_residual_score_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "residual_score",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "risks_tenant_id_status_page_idx",
+            "columns": [
+              "tenant_id",
+              "status"
+            ],
+            "unique": false,
             "primary": false,
             "partial": false,
             "method": "btree",
@@ -404717,6 +404880,69 @@
               "tenant_id",
               "subject_type",
               "subject_id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "work_orders_tenant_id_created_at_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "created_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "work_orders_tenant_id_priority_page_idx",
+            "columns": [
+              "tenant_id",
+              "priority"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "work_orders_tenant_id_starts_at_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "starts_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "work_orders_tenant_id_status_page_idx",
+            "columns": [
+              "tenant_id",
+              "status"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "work_orders_tenant_id_title_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "title",
+              "id"
             ],
             "unique": false,
             "primary": false,

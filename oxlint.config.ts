@@ -42,6 +42,9 @@ export const ignorePatterns: string[] = [
   "**/error-codes.data.ts",
   "**/lib/supabase/records/**",
   "**/lib/supabase/tables/**",
+  // The page modules `gen` writes for `gen.entityPages` (ADR 0859): list queries,
+  // columns, forms, seed rows, navigation and the route manifest.
+  "**/lib/supabase/pages/**",
   // The table and block modules `gen` writes.
   "**/lib/supabase/blocks/*.ts",
   "**/src/tables/*.ts",

@@ -1044,12 +1044,22 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 
 ### Lane M4
 
-- Scope: Example on generated output, app list helpers removed
-- Status: planned
-- Branch: `feat/audit-m4`
-- PR: none yet
-- Findings: EX-1264, EX-1267, EX-1268 (moved from M3: example seed rows, the coverage map and the empty-translation check), EX-1294, EX-1327, EX-813, EX-024 (once the instant allow list is empty), EX-033 and EX-034 (header sort on the generated columns, ReUI `Filters` state; moved from M2)
+- Scope: Example nav, risk register, seed and checks on generated output
+- Status: merged
+- Branch: `feat/audit-lane-m4`
+- PR: [#963](https://github.com/ScaleDockHQ/better-supabase/pull/963)
+- Findings: EX-1268, EX-034, EX-1001, EX-1327
 - Log: 2026-11-12, planned.
+- Log: 2026-11-14, lane M4 started from main (614cf1ff16) in `../bsb-audit-M4`. One PR, ADR 0889, migration `20270117120013` (a slot of 20261221 sorts before main's newest, so the generated index migration takes the next number). The example declares `risks`, `commissions`, `referrals` and `work-orders` beside `periods`; five nav items read `<name>Nav`; the risk register reads its state through the generated `risksList` and offers its three sorts (EX-1001); `pnpm db:seed:pages` seeds the work orders; `check:example-coverage` checks the map against `entityRoutes`; `check:empty-translations` fails on an empty `msgstr` (EX-1268); `tests/risks-register.spec.ts` covers the sort and an unfinished filter rule (EX-034 closed). `customers` (an app table), the inbox (no list surface) and `incidents` (`organizationId` per call) cannot be declared with the current generator. EX-1327 waits for an axe dependency. The other rows move to lane M5.
+
+### Lane M5
+
+- Scope: Remaining example list helpers, app-table and inbox pages, free sort
+- Status: planned
+- Branch: `feat/audit-lane-m5`
+- PR: none yet
+- Findings: EX-001, EX-014, EX-024, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
+- Log: 2026-11-14, planned from lane M4's leftovers. ADR numbers continue M4's range from 0890. Needs: a page descriptor for an app table (customers) and for a block entity with a per-call tenant, a list surface for the inbox conversations, a free multi-column sort in the blocks' `page`, and the pages that still read arrays (EX-600).
 
 ### Lane O1
 
@@ -1237,6 +1247,7 @@ ADR numbers and migration slots are reserved per lane so parallel branches never
 | M2   | 0869 to 0878 | 20261219hhmmss | page generator output for columns, detail frame and forms                                                                                                                              |
 | M3   | 0879 to 0888 | 20261220hhmmss | page generator output for seed, nav, route manifest, coverage and message keys                                                                                                         |
 | M4   | 0889 to 0898 | 20261221hhmmss | example app (`apps/examples/*`): delete `block-list.ts`, `block-status-list.ts`, `array-list.ts`, `simple-list.ts`, `admin-list.ts` and the finance registry                           |
+| M5   | 0890 to 0898 | 20261221hhmmss | continues lane M4's range and slot: the list helpers that lane M4 leaves in the example, and the generator changes they need                                                           |
 | O1   | 0899 to 0908 | 20261222hhmmss | data-lifecycle, consents, field-history and `personalData`, retention and partition declarations                                                                                       |
 | O2   | 0909 to 0918 | 20261223hhmmss | entitlements, plan limit, quota and meter declarations                                                                                                                                 |
 | O3   | 0919 to 0928 | 20261224hhmmss | offline streams, public events and webhook catalog, impersonation actor, entity flags, invitations                                                                                     |

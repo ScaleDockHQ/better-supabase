@@ -7,6 +7,7 @@ import { riskList } from "./risk-list";
 
 const parsers = {
   q: parseAsString,
+  sort: parseAsString,
   status: parseAsArrayOf(parseAsString),
   category: parseAsArrayOf(parseAsString),
   band: parseAsArrayOf(parseAsString),
