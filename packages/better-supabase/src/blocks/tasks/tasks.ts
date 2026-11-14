@@ -6,6 +6,7 @@ import type {
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { BulkOptions, BulkReport } from "../../core/bulk.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { IdempotencyClaims } from "../../core/idempotent-write.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -15,6 +16,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { bulkOfSet } from "../../core/bulk.ts";
 import { dbError } from "../../core/errors.ts";
 import { idempotentCall } from "../../core/idempotent-write.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -97,6 +99,9 @@ export interface Task<F extends object = Record<never, never>> {
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
 }
+
+/** The actions `tasks.bulk` takes. */
+export type TaskBulkAction = "archive" | "restore" | "remove";
 
 /** What the set forms of `archive` and `remove` did. */
 export interface TaskSetResult {
@@ -345,6 +350,17 @@ export interface Tasks<F extends object = Record<never, never>> {
   remove(taskId: string): AsyncResult<boolean>;
   /** Removes many items in one statement; `skipped` lists the refused ids. */
   remove(taskIds: readonly string[]): AsyncResult<TaskSetResult>;
+  /**
+   * `archive`, `restore` or `remove` for many tasks in one statement, as the
+   * common `bulk(ids, action)` (ADR 0854): `{ succeeded, failed }`, where the
+   * ids the set call skipped are `failed` with `not_found`. More ids than the
+   * limit (500) fail with `BULK_TOO_MANY`.
+   */
+  bulk(
+    ids: readonly string[],
+    action: TaskBulkAction,
+    options?: BulkOptions,
+  ): AsyncResult<BulkReport>;
   tree(rootId: string): AsyncResult<TaskNode[]>;
   /** One item you can read, or `undefined`. */
   get(taskId: string): AsyncResult<Task<F> | undefined>;
@@ -935,6 +951,19 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
             { ids: [...target] },
             setResultOf,
           )) as Tasks<F>["remove"],
+    bulk: (ids, action, bulkOptions) =>
+      bulkOfSet(
+        ids,
+        (unique) =>
+          action === "remove"
+            ? call("delete_tasks", { ids: [...unique] }, setResultOf)
+            : call(
+                "archive_tasks",
+                { ids: [...unique], archived: action === "archive" },
+                setResultOf,
+              ),
+        bulkOptions,
+      ),
     tree: (rootId) =>
       call("task_tree", { root: rootId }, (value) =>
         recordsOf(value, "task_tree").map(nodeOf),

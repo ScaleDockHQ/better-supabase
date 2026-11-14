@@ -1,11 +1,13 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { JobRef, JobSource } from "../../core/jobs.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
+import { jobRef, jobResultOf } from "../../core/jobs.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { fromStorageError } from "../../storage/errors.ts";
 import {
@@ -207,6 +209,20 @@ export interface DataLifecycle {
       readonly format?: DataExportFormat;
     },
   ): AsyncResult<DataExport>;
+  /**
+   * `requestExport` as a job (ADR 0852): `{ jobId: "export:<id>" }`, read back
+   * with `jobs.get`.
+   */
+  startExportJob(options?: {
+    readonly organizationId?: string;
+  }): AsyncResult<JobRef>;
+  /**
+   * The `export` job kind for `createJobs`: an export the caller can see, as a
+   * job result. `result` holds the export once it is `ready` (fetch the files
+   * with `download`), `error` the reason it failed. `null` for an id the caller
+   * cannot see.
+   */
+  readonly jobs: JobSource;
   /** The caller's exports, or a tenant's, newest first. */
   exports(organizationId?: string): AsyncResult<readonly DataExport[]>;
   /** Signed URLs for a ready export's files. */
@@ -455,7 +471,39 @@ export function createDataLifecycle(
   const call = blockCall(options.transport, options.schema, options.mappers);
   const ttl = options.downloadTtl ?? 300;
 
+  const jobs: JobSource = {
+    get: (id) =>
+      call("get_data_export", { id }, (value) =>
+        isRecord(value) ? exportOf(value) : null,
+      ).map((found) =>
+        found === null
+          ? null
+          : jobResultOf("export", found.id, {
+              status: found.status === "ready" ? "completed" : found.status,
+              ...(found.status === "ready" ? { result: found } : {}),
+              ...(found.status === "failed"
+                ? {
+                    error: dbError(
+                      "raised",
+                      found.error ?? "The export failed",
+                      { hint: "DATA_EXPORT_FAILED" },
+                    ),
+                  }
+                : {}),
+            }),
+      ),
+  };
+
   const client: DataLifecycle = {
+    startExportJob: (request = {}) =>
+      call(
+        "request_data_export",
+        request.organizationId === undefined
+          ? { subject: "user" }
+          : { subject: "organization", tenant: request.organizationId },
+        exportOf,
+      ).map((started) => jobRef("export", started.id)),
+    jobs,
     requestExport: (request = {}) =>
       call(
         "request_data_export",

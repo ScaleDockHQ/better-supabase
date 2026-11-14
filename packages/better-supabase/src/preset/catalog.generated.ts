@@ -34993,6 +34993,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "TaskBulkAction"
+        },
+        {
           "name": "TaskChange",
           "fields": true
         },
