@@ -1838,5 +1838,35 @@
     "raw": 182438,
     "gzip": 60789,
     "brotli": 54202
+  },
+  "/api/assignment-queues/list/route": {
+    "raw": 2590189,
+    "gzip": 785041,
+    "brotli": 666771
+  },
+  "/api/contracts/list/route": {
+    "raw": 2590459,
+    "gzip": 785122,
+    "brotli": 666848
+  },
+  "/api/deals/list/route": {
+    "raw": 2591183,
+    "gzip": 785418,
+    "brotli": 667114
+  },
+  "/api/pipelines/list/route": {
+    "raw": 2589940,
+    "gzip": 784969,
+    "brotli": 666714
+  },
+  "/api/scores/list/route": {
+    "raw": 2590049,
+    "gzip": 785004,
+    "brotli": 666737
+  },
+  "/api/segments/list/route": {
+    "raw": 2590164,
+    "gzip": 785039,
+    "brotli": 666746
   }
 }

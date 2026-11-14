@@ -50,7 +50,6 @@ create index "assignment_queues_tenant_id_name_id_page_idx" on "better_supabase"
 create index "assignment_queues_tenant_id_strategy_page_idx" on "better_supabase"."assignment_queues" ("tenant_id", "strategy");
 create index "assignment_queues_name_trgm_idx" on "better_supabase"."assignment_queues" using gin ("name" extensions.gin_trgm_ops);
 create index "score_models_tenant_id_name_id_page_idx" on "better_supabase"."score_models" ("tenant_id", "name", "id");
-create index "score_models_tenant_id_subject_type_page_idx" on "better_supabase"."score_models" ("tenant_id", "subject_type");
 create index "score_models_name_trgm_idx" on "better_supabase"."score_models" using gin ("name" extensions.gin_trgm_ops);
 create index "contracts_tenant_id_ends_on_id_page_idx" on "better_supabase"."contracts" ("tenant_id", "ends_on", "id");
 create index "contracts_tenant_id_title_id_page_idx" on "better_supabase"."contracts" ("tenant_id", "title", "id");

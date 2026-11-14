@@ -387319,18 +387319,6 @@
             "partial": false,
             "method": "btree",
             "predicate": null
-          },
-          {
-            "name": "score_models_tenant_id_subject_type_page_idx",
-            "columns": [
-              "tenant_id",
-              "subject_type"
-            ],
-            "unique": false,
-            "primary": false,
-            "partial": false,
-            "method": "btree",
-            "predicate": null
           }
         ],
         "policies": [

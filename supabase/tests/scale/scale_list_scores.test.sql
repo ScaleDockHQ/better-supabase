@@ -4,7 +4,7 @@
 -- step and a facet count must be read from an index. The rows are the
 -- running stack's seed; run `pnpm db:seed:scale --tier l` first to measure.
 begin;
-select plan(2);
+select plan(1);
 
 create function pg_temp.plan_of(text) returns jsonb language plpgsql as $$
 declare result jsonb;
@@ -22,11 +22,6 @@ set local enable_bitmapscan = off;
 select ok(
   pg_temp.plan_of('select id from "better_supabase"."score_models" where "tenant_id" = ''00000000-0000-4000-8000-000000000001'' order by "name", id limit 50')::text !~ '"Node Type": "(Incremental )?Sort"',
   'app.scores sort_name needs no sort step'
-);
-
-select ok(
-  pg_temp.plan_of('select "subject_type", count(*) from "better_supabase"."score_models" where "tenant_id" = ''00000000-0000-4000-8000-000000000001'' group by "subject_type"')::text ~ '"Node Type": "Index (Only )?Scan"',
-  'app.scores facet_subjectType reads an index'
 );
 
 select * from finish();

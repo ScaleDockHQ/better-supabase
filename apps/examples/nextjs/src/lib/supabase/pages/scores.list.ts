@@ -5,7 +5,7 @@ import { defineEntityListQuery } from "better-supabase/list";
 export const scoresList = defineEntityListQuery(
   {
     sorts: ["name"],
-    facets: ["subjectType"],
+    facets: [],
     filters: ["subjectType"],
     search: ["name"],
   },

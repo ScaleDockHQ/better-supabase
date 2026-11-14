@@ -116,7 +116,7 @@ export const entityRoutes = [
     route: "/crm/scoring",
     api: "/api/scores/list",
     detail: undefined,
-    messageKeys: ["scores.title", "scores.columns.name", "scores.columns.key", "scores.columns.subjectType", "scores.facets.subjectType"],
+    messageKeys: ["scores.title", "scores.columns.name", "scores.columns.key", "scores.columns.subjectType"],
   },
   {
     entity: "app.contracts",

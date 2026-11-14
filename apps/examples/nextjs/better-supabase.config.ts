@@ -352,7 +352,9 @@ export default defineConfig({
           app: {
             surface: {
               sorts: ["name"],
-              facets: ["subjectType"],
+              // A filter, not a facet: the block's own `score_models_subject_idx` already serves
+              // `(tenant_id, subject_type)`, and a facet would write an identical index.
+              filters: ["subjectType"],
               search: ["name"],
             },
             table: {
