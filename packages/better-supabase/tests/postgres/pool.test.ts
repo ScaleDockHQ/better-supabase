@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { AttachablePool } from "../../src/postgres/pool.ts";
+
 import { createSupabase } from "../../src/core/define.ts";
 import { createPostgres, escapeLiteral } from "../../src/postgres/pool.ts";
 import { fakePgPool } from "../fixtures/fake-pg-pool.ts";
@@ -477,6 +479,46 @@ describe("createPostgres", () => {
     await createPostgres().end();
     vi.stubEnv("SUPABASE_DB_URL", "postgresql://127.0.0.1:1/postgres");
     await createPostgres().end();
+  });
+
+  it("hands the pool it opens to attachDatabasePool once", async () => {
+    const attached: AttachablePool[] = [];
+
+    const pg = createPostgres({
+      connectionString: "postgresql://postgres:postgres@127.0.0.1:1/postgres",
+      idleTimeout: 5000,
+      attachDatabasePool: (pool) => {
+        attached.push(pool);
+      },
+    });
+
+    expect(attached).toHaveLength(1);
+    expect(attached[0]?.options?.idleTimeoutMillis).toBe(5000);
+    expect(typeof attached[0]?.on).toBe("function");
+    await pg.end();
+  });
+
+  it("does not call attachDatabasePool for a pool passed in", async () => {
+    const attach = vi.fn();
+
+    const pg = createPostgres({
+      pool: fakePgPool().pool,
+      attachDatabasePool: attach,
+    });
+
+    expect(attach).not.toHaveBeenCalled();
+    await pg.end();
+  });
+
+  it("throws what attachDatabasePool throws", () => {
+    expect(() =>
+      createPostgres({
+        connectionString: "postgresql://127.0.0.1:1/postgres",
+        attachDatabasePool: () => {
+          throw new Error("attach failed");
+        },
+      }),
+    ).toThrow("attach failed");
   });
 
   it("falls back to the Vercel Postgres connection strings", async () => {

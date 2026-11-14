@@ -199,6 +199,32 @@ describe("accessTokenResolver", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it("verifies with a key set from cache.store without fetching it", async () => {
+    const { jwks, sign } = await issuer();
+    const url = new URL("https://auth.example.com/stored-jwks");
+    const fetch = vi.fn(async () => Response.json({ keys: [] }));
+
+    const store = {
+      get: vi.fn(async () => ({ keys: jwks, at: NOW * 1000 - 1000 })),
+      set: vi.fn(async () => undefined),
+    };
+
+    const resolver = accessTokenResolver({
+      jwks: url,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      fetch,
+      now,
+      cache: { store },
+    });
+
+    expect(await resolver.resolve(request(await sign()))).toMatchObject({
+      kind: "user",
+    });
+    expect(store.get).toHaveBeenCalledWith(`better-supabase:jwks:${url.href}`);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("checks the revocation list by jti and grant", async () => {
     const { jwks, sign } = await issuer();
 

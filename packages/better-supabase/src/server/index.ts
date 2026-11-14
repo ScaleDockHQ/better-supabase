@@ -298,6 +298,15 @@ export {
 
 export { purgeKeys } from "../auth/resolve.ts";
 
+export type { JwksStore } from "../core/jwks-cache.ts";
+
+export { vercelRuntimeCache } from "../core/jwks-store.ts";
+
+export type {
+  VercelRuntimeCache,
+  VercelRuntimeCacheOptions,
+} from "../core/jwks-store.ts";
+
 export {
   BOOTSTRAP_PERMISSIONS_API_VERSION,
   compactBootstrapPermissions,
