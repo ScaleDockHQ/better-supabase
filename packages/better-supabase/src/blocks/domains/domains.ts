@@ -2,13 +2,18 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { TxtResolver } from "../sso/sso.ts";
+import type {
+  DomainProvider,
+  DomainProviderCallOptions,
+  DomainProviderRecord,
+  DomainProviderStatus,
+} from "./provider.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { err } from "../../core/result.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -22,6 +27,7 @@ import {
   toInstant,
 } from "../shared.ts";
 import { dohResolver } from "../sso/sso.ts";
+import { domainProviderOf } from "./provider.ts";
 
 /** The DNS record that proves a custom domain belongs to the organization. */
 export interface HostnameRecord {
@@ -195,13 +201,20 @@ export interface DomainsAdminOptions extends BlockTemporalOptions {
   readonly resolver?: TxtResolver;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+  /**
+   * The hosting platform that serves the hostnames, such as
+   * `vercelDomainProvider(...)`. With it, `verify` also needs the platform to
+   * verify the hostname, and `add`, `remove` and `status` work.
+   */
+  readonly provider?: DomainProvider;
 }
 
 export interface DomainsAdmin {
   /**
    * Looks up the hostname's TXT record and marks it verified when the token is
    * there. With `actorId`, the database checks that they hold `domains.manage`;
-   * omit it for app-owned calls.
+   * omit it for app-owned calls. With a `provider`, the platform must verify
+   * the hostname too (`DOMAIN_PROVIDER_UNVERIFIED` until it does).
    */
   verify(
     input: { hostnameId: string } & {
@@ -209,6 +222,39 @@ export interface DomainsAdmin {
       readonly signal?: AbortSignal;
     },
   ): AsyncResult<Hostname>;
+  /**
+   * Adds the hostname to the `provider`'s project, with the platform's own
+   * records to publish. Call it from a `hostname.added` handler, once
+   * `domains.add` has stored the hostname.
+   */
+  add(input: {
+    readonly hostnameId: string;
+    readonly signal?: AbortSignal;
+  }): AsyncResult<DomainProviderStatus>;
+  /**
+   * Removes the hostname from the `provider`'s project; `false` when it wasn't
+   * there. Takes the hostname, not its id, because a `hostname.deleted` handler
+   * runs after the row is gone.
+   */
+  remove(input: {
+    readonly hostname: string;
+    readonly signal?: AbortSignal;
+  }): AsyncResult<boolean>;
+  /** The hostname on the `provider`'s project; `undefined` when it isn't there. */
+  status(input: {
+    readonly hostnameId: string;
+    readonly signal?: AbortSignal;
+  }): AsyncResult<DomainProviderStatus | undefined>;
+}
+
+const callOptions = (
+  signal: AbortSignal | undefined,
+): DomainProviderCallOptions => (signal === undefined ? {} : { signal });
+
+function recordsText(records: readonly DomainProviderRecord[]): string {
+  return records
+    .map((record) => `${record.type} ${record.name} ${record.value}`)
+    .join(", ");
 }
 
 /** Hostname verification with a service-role client. */
@@ -217,19 +263,42 @@ export function createDomainsAdmin(options: DomainsAdminOptions): DomainsAdmin {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const resolver = options.resolver ?? dohResolver();
 
+  const provider =
+    options.provider === undefined
+      ? undefined
+      : domainProviderOf(options.provider);
+
+  const byId = (hostnameId: string): AsyncResult<Hostname> =>
+    call("hostname_by_id", { id: hostnameId }, (value) =>
+      isRecord(value) ? hostnameOf(value) : undefined,
+    ).andThen((found) =>
+      Promise.resolve(
+        found === undefined
+          ? err(
+              dbError("not_found", "No hostname has this id", {
+                hint: "DOMAIN_NOT_FOUND",
+              }),
+            )
+          : ok(found),
+      ),
+    );
+
+  const withProvider = <T>(
+    body: (provider: DomainProvider) => AsyncResult<T>,
+  ): AsyncResult<T> =>
+    provider === undefined
+      ? AsyncResult.err(
+          dbError(
+            "invalid_request",
+            "createDomainsAdmin was called without a provider",
+            { hint: "DOMAIN_PROVIDER_MISSING" },
+          ),
+        )
+      : body(provider);
+
   return {
     verify: ({ hostnameId, ...request }) =>
-      call("hostname_by_id", { id: hostnameId }, (value) =>
-        isRecord(value) ? hostnameOf(value) : undefined,
-      ).andThen(async (found) => {
-        if (found === undefined) {
-          return err(
-            dbError("not_found", "No hostname has this id", {
-              hint: "DOMAIN_NOT_FOUND",
-            }),
-          );
-        }
-
+      byId(hostnameId).andThen(async (found) => {
         if (found.record !== undefined) {
           let values: readonly string[];
 
@@ -250,11 +319,52 @@ export function createDomainsAdmin(options: DomainsAdminOptions): DomainsAdmin {
           }
         }
 
+        if (provider !== undefined) {
+          const platform = await provider.verify(
+            found.hostname,
+            callOptions(request.signal),
+          );
+
+          if (!platform.ok) {
+            return err(platform.error);
+          }
+
+          if (!platform.data.verified) {
+            const { records } = platform.data;
+
+            return err(
+              dbError(
+                "invalid_request",
+                records.length === 0
+                  ? `${provider.name} has not verified ${found.hostname} yet`
+                  : `${provider.name} has not verified ${found.hostname} yet; publish ${recordsText(records)}`,
+                { hint: "DOMAIN_PROVIDER_UNVERIFIED" },
+              ),
+            );
+          }
+        }
+
         return call(
           "verify_hostname",
           { id: hostnameId, actor: request.actorId ?? null },
           hostnameOf,
         );
       }),
+    add: ({ hostnameId, signal }) =>
+      withProvider((platform) =>
+        byId(hostnameId).andThen((found) =>
+          platform.add(found.hostname, callOptions(signal)),
+        ),
+      ),
+    remove: ({ hostname, signal }) =>
+      withProvider((platform) =>
+        platform.remove(normalizeHostname(hostname), callOptions(signal)),
+      ),
+    status: ({ hostnameId, signal }) =>
+      withProvider((platform) =>
+        byId(hostnameId).andThen((found) =>
+          platform.status(found.hostname, callOptions(signal)),
+        ),
+      ),
   };
 }

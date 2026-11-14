@@ -7,7 +7,9 @@ import {
   createDomainsAdmin,
   domainsBlock,
   normalizeHostname,
+  vercelDomainProvider,
 } from "../../../src/blocks/domains/index.ts";
+import { CHALLENGE, FakeVercelError, fakeVercel } from "./fixtures.ts";
 
 type Answer = (args: Record<string, unknown>) => unknown;
 
@@ -235,5 +237,226 @@ describe("createDomainsAdmin", () => {
     }).verify({ hostnameId: "h1" });
 
     expect(result.ok ? undefined : result.error.kind).toBe("network");
+  });
+});
+
+describe("createDomainsAdmin with a provider", () => {
+  const hasRecord = () => Promise.resolve([RECORD.value]);
+
+  it("adds, reads and removes the hostname on the platform", async () => {
+    const vercel = fakeVercel({ challenge: true });
+
+    const { calls, transport } = fakeTransport({
+      hostname_by_id: hostnameRow(),
+    });
+
+    const admin = createDomainsAdmin({
+      transport,
+      provider: vercelDomainProvider(vercel.sdk, { projectId: "prj_1" }),
+    });
+
+    const { signal } = new AbortController();
+
+    expect(await admin.add({ hostnameId: "h1", signal }).orThrow()).toEqual({
+      hostname: "app.acme.test",
+      verified: false,
+      records: [
+        {
+          type: "TXT",
+          name: CHALLENGE.domain,
+          value: CHALLENGE.value,
+          reason: CHALLENGE.reason,
+        },
+      ],
+    });
+    expect((await admin.status({ hostnameId: "h1" }).orThrow())?.verified).toBe(
+      false,
+    );
+    expect(await admin.remove({ hostname: "App.Acme.Test." }).orThrow()).toBe(
+      true,
+    );
+    expect(await admin.status({ hostnameId: "h1" }).orThrow()).toBeUndefined();
+    expect(await admin.remove({ hostname: "app.acme.test" }).orThrow()).toBe(
+      false,
+    );
+
+    expect(calls).toEqual([
+      ["hostname_by_id", { id: "h1" }],
+      ["hostname_by_id", { id: "h1" }],
+      ["hostname_by_id", { id: "h1" }],
+    ]);
+    expect(vercel.calls[0]).toEqual([
+      "addProjectDomain",
+      { idOrName: "prj_1", requestBody: { name: "app.acme.test" } },
+      { signal },
+    ]);
+    expect(vercel.calls[2]?.[1]).toEqual({
+      idOrName: "prj_1",
+      domain: "app.acme.test",
+    });
+  });
+
+  it("reports an unknown id before calling the platform", async () => {
+    const vercel = fakeVercel();
+    const { transport } = fakeTransport({ hostname_by_id: null });
+
+    const admin = createDomainsAdmin({
+      transport,
+      provider: vercelDomainProvider(vercel.sdk, { projectId: "prj_1" }),
+    });
+
+    const added = await admin.add({ hostnameId: "nope" });
+
+    expect(added.ok ? undefined : added.error.hint).toBe("DOMAIN_NOT_FOUND");
+    expect(vercel.calls).toEqual([]);
+  });
+
+  it("verifies on the platform after the TXT record, then in the database", async () => {
+    const vercel = fakeVercel({ challenge: true });
+    vercel.domains.set("app.acme.test", { verified: false });
+
+    const { calls, transport } = fakeTransport({
+      hostname_by_id: hostnameRow(),
+      verify_hostname: hostnameRow(verified),
+    });
+
+    const admin = createDomainsAdmin({
+      transport,
+      resolver: hasRecord,
+      provider: vercelDomainProvider(vercel.sdk, { projectId: "prj_1" }),
+    });
+
+    const pending = await admin.verify({ hostnameId: "h1", actorId: "u1" });
+
+    expect(pending.ok ? undefined : pending.error).toMatchObject({
+      kind: "invalid_request",
+      hint: "DOMAIN_PROVIDER_UNVERIFIED",
+      message: `vercel has not verified app.acme.test yet; publish TXT ${CHALLENGE.domain} ${CHALLENGE.value}`,
+    });
+    expect(calls.map(([fn]) => fn)).toEqual(["hostname_by_id"]);
+
+    vercel.publish();
+
+    const done = await admin
+      .verify({ hostnameId: "h1", actorId: "u1" })
+      .orThrow();
+
+    expect(done.verifiedAt?.toString()).toBe("2026-10-19T12:05:00Z");
+    expect(calls.map(([fn]) => fn)).toEqual([
+      "hostname_by_id",
+      "hostname_by_id",
+      "verify_hostname",
+    ]);
+  });
+
+  it("doesn't call the platform while the TXT record is missing", async () => {
+    const vercel = fakeVercel();
+    const { transport } = fakeTransport({ hostname_by_id: hostnameRow() });
+
+    const result = await createDomainsAdmin({
+      transport,
+      resolver: () => Promise.resolve([]),
+      provider: vercelDomainProvider(vercel.sdk, { projectId: "prj_1" }),
+    }).verify({ hostnameId: "h1" });
+
+    expect(result.ok ? undefined : result.error.hint).toBe(
+      "DOMAIN_RECORD_MISSING",
+    );
+    expect(vercel.calls).toEqual([]);
+  });
+
+  it("checks a subdomain on the platform without a TXT lookup", async () => {
+    const vercel = fakeVercel();
+    vercel.domains.set("acme.acme.app", { verified: true });
+    const lookups: string[] = [];
+
+    const { calls, transport } = fakeTransport({
+      hostname_by_id: hostnameRow({
+        hostname: "acme.acme.app",
+        kind: "subdomain",
+        ...verified,
+      }),
+      verify_hostname: hostnameRow({
+        hostname: "acme.acme.app",
+        kind: "subdomain",
+        ...verified,
+      }),
+    });
+
+    const result = await createDomainsAdmin({
+      transport,
+      resolver: (name) => {
+        lookups.push(name);
+
+        return Promise.resolve([]);
+      },
+      provider: vercelDomainProvider(vercel.sdk, { projectId: "prj_1" }),
+    }).verify({ hostnameId: "h1" });
+
+    expect(result.ok).toBe(true);
+    expect(lookups).toEqual([]);
+    expect(vercel.calls.map(([method]) => method)).toEqual([
+      "verifyProjectDomain",
+    ]);
+    expect(calls.at(-1)?.[0]).toBe("verify_hostname");
+  });
+
+  it("returns the platform's error without verifying in the database", async () => {
+    const vercel = fakeVercel();
+
+    vercel.failWith(
+      "verifyProjectDomain",
+      new FakeVercelError(403, "forbidden", "Not authorized"),
+    );
+
+    const { calls, transport } = fakeTransport({
+      hostname_by_id: hostnameRow(),
+    });
+
+    const result = await createDomainsAdmin({
+      transport,
+      resolver: hasRecord,
+      provider: vercelDomainProvider(vercel.sdk, { projectId: "prj_1" }),
+    }).verify({ hostnameId: "h1" });
+
+    expect(result.ok ? undefined : result.error.kind).toBe("forbidden");
+    expect(calls.map(([fn]) => fn)).toEqual(["hostname_by_id"]);
+  });
+
+  it("refuses add, remove and status without a provider", async () => {
+    const { calls, transport } = fakeTransport({
+      hostname_by_id: hostnameRow(),
+    });
+
+    const admin = createDomainsAdmin({ transport, resolver: hasRecord });
+
+    for (const result of [
+      await admin.add({ hostnameId: "h1" }),
+      await admin.remove({ hostname: "app.acme.test" }),
+      await admin.status({ hostnameId: "h1" }),
+    ]) {
+      expect(result.ok ? undefined : result.error).toMatchObject({
+        kind: "invalid_request",
+        hint: "DOMAIN_PROVIDER_MISSING",
+      });
+    }
+
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses a provider for another apiVersion", () => {
+    const { transport } = fakeTransport({});
+
+    const provider = vercelDomainProvider(fakeVercel().sdk, {
+      projectId: "prj_1",
+    });
+
+    expect(() =>
+      createDomainsAdmin({
+        transport,
+        // SAFETY: simulates a provider built for a newer API.
+        provider: { ...provider, apiVersion: 2 } as never,
+      }),
+    ).toThrow(TypeError);
   });
 });
