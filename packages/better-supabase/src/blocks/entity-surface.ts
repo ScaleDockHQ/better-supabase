@@ -118,8 +118,9 @@ export interface EntitySurface {
    */
   readonly erase?: EntityErase;
   /**
-   * The retention class the entity's rows follow: a kind of the `data-lifecycle`
-   * retention policies (`audit`, `outbox`, `trash`) or the app's own (ADR 0901).
+   * The retention class the entity's rows follow: a kind of the
+   * `data-lifecycle` retention policies (`audit`, `outbox`, `trash`) or the
+   * app's own (ADR 0901).
    */
   readonly retention?: string;
   /** `true` when a legal hold on the retention class stops the entity's purge. */

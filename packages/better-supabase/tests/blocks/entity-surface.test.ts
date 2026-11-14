@@ -140,16 +140,13 @@ describe("the entity surface of a manifest", () => {
 
     for (const block of BLOCK_MANIFESTS) {
       for (const [key, surface] of entriesOf(block)) {
-        if (surface.erase !== undefined) {
-          expect(ENTITY_ERASES, `${block.name}.${key}`).toContain(
-            surface.erase,
-          );
-        }
+        const erase = surface.erase ?? "delete";
 
         if (
-          surface.personalData !== undefined &&
-          surface.mutability === "append-only" &&
-          (surface.erase ?? "delete") === "delete"
+          !ENTITY_ERASES.includes(erase) ||
+          (surface.personalData !== undefined &&
+            surface.mutability === "append-only" &&
+            erase === "delete")
         ) {
           wrong.push(`${block.name}.${key}`);
         }
@@ -159,37 +156,43 @@ describe("the entity surface of a manifest", () => {
     expect(wrong).toStrictEqual([]);
   });
 
-  it("declares a valid partition and a retention class where it names one", () => {
+  it("declares a valid partition, retention class and legal hold", () => {
+    const wrong: string[] = [];
+
     for (const block of BLOCK_MANIFESTS) {
       for (const [key, surface] of entriesOf(block)) {
-        const at = `${block.name}.${key}`;
+        const partition = surface.partition;
+        const retention = surface.retention;
 
-        if (surface.partition !== undefined) {
-          expect(surface.partition.by, at).toMatch(/^[a-z][A-Za-z0-9]*$/);
-          expect(ENTITY_PARTITION_EVERY, at).toContain(surface.partition.every);
-        }
+        const bad =
+          (partition !== undefined &&
+            (!/^[a-z][A-Za-z0-9]*$/.test(partition.by) ||
+              !ENTITY_PARTITION_EVERY.includes(partition.every))) ||
+          (retention !== undefined && !/^[a-z][a-z0-9_]*$/.test(retention)) ||
+          (surface.legalHold === true &&
+            retention === undefined &&
+            surface.personalData === undefined);
 
-        if (surface.retention !== undefined) {
-          expect(surface.retention, at).toMatch(/^[a-z][a-z0-9_]*$/);
-        }
-
-        if (surface.legalHold) {
-          expect(surface.retention !== undefined || surface.personalData, at)
-            .toBeTruthy();
+        if (bad) {
+          wrong.push(`${block.name}.${key}`);
         }
       }
     }
+
+    expect(wrong).toStrictEqual([]);
   });
 
   it("keeps history only on entities that are not append-only", () => {
+    const wrong: string[] = [];
+
     for (const block of BLOCK_MANIFESTS) {
       for (const [key, surface] of entriesOf(block)) {
-        if (surface.history) {
-          expect(surface.mutability, `${block.name}.${key}`).not.toBe(
-            "append-only",
-          );
+        if (surface.history && surface.mutability === "append-only") {
+          wrong.push(`${block.name}.${key}`);
         }
       }
     }
+
+    expect(wrong).toStrictEqual([]);
   });
 });

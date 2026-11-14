@@ -15,9 +15,9 @@ export interface HistoryTab {
 }
 
 /**
- * Lists the entities whose manifest declares `history` (ADR 0902). A page
- * shows a history tab for each, reading `fieldHistory.of({ subject })` with
- * the entity's record type, instead of probing the database for a binding.
+ * Lists the entities whose manifest declares `history` (ADR 0902). A page shows
+ * a history tab for each, reading `fieldHistory.of({ subject })` with the
+ * entity's record type, instead of probing the database for a binding.
  */
 export function historyTabs(
   blocks: readonly HistoryTabBlock[],

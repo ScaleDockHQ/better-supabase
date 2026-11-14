@@ -49,9 +49,9 @@ describe("subjectAccessPlan", () => {
   it("collects the entities that declare personal data", () => {
     const plan = subjectAccessPlan(blocks);
 
-    expect(plan.access.map((step) => `${step.block}.${step.entity}`)).toStrictEqual(
-      ["notes.note", "notes.log", "notes.invoice"],
-    );
+    expect(
+      plan.access.map((step) => `${step.block}.${step.entity}`),
+    ).toStrictEqual(["notes.note", "notes.log", "notes.invoice"]);
   });
 
   it("groups the erasure by what it does to the rows", () => {
@@ -78,9 +78,9 @@ describe("subjectAccessPlan", () => {
   });
 
   it("limits the plan to the named blocks", () => {
-    expect(subjectAccessPlan(blocks, { blocks: ["broken"] }).access).toStrictEqual(
-      [],
-    );
+    expect(
+      subjectAccessPlan(blocks, { blocks: ["broken"] }).access,
+    ).toStrictEqual([]);
   });
 
   it("has no gaps across the shipped manifests", () => {

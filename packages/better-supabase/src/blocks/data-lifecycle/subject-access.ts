@@ -1,3 +1,4 @@
+import type { Result } from "../../core/result.ts";
 import type { BlockEntities, EntityErase } from "../entity-surface.ts";
 import type {
   DataLifecycle,
@@ -5,7 +6,7 @@ import type {
   DataSubjectRequestKind,
 } from "./data-lifecycle.ts";
 
-import { AsyncResult, ok, type Result } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 
 /** What `subjectAccessPlan` reads of a block: its name and declared entities. */
 export interface SubjectAccessBlock {
@@ -158,7 +159,10 @@ async function openRequest(
     .map((step) => `${step.block}.${step.entity}`)
     .join(", ");
 
-  const details = [input.details, listed === "" ? undefined : `Covers: ${listed}`]
+  const details = [
+    input.details,
+    listed === "" ? undefined : `Covers: ${listed}`,
+  ]
     .filter((part): part is string => part !== undefined)
     .join("\n");
 
