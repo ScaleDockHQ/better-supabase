@@ -2649,6 +2649,21 @@
       "_edited": "_updated",
       "_saved": "_updated",
       "_set": "_changed"
-    }
+    },
+    "bannedEnding": {
+      "aborted": "cancelled",
+      "abandoned": "cancelled",
+      "dismissed": "rejected",
+      "discarded": "deleted or archived",
+      "deactivated": "disabled",
+      "invalidated": "voided",
+      "finished": "completed or closed",
+      "stopped": "cancelled or ended",
+      "terminated": "cancelled, closed or ended"
+    },
+    "endingExceptions": [
+      "lease.terminated",
+      "medication_order.stopped"
+    ]
   }
 }
