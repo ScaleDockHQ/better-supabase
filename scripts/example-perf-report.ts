@@ -1,7 +1,7 @@
 // Merges the Next.js example's numbers into one line per route: first load and
 // server bundle (tests/next-build baselines), the HTML payload, the database
 // budget and the cold, warm and client timings that budgets.spec.ts and
-// cold-warm.spec.ts leave in test-results/example-perf, and the SCALE_MS lines
+// cold-warm.spec.ts leave in perf-results/example-perf, and the SCALE_MS lines
 // of a pgTAP scale run. Run with
 // `node scripts/example-perf-report.ts [--scale <pgtap-output>] [--json]`.
 import { existsSync, readFileSync } from "node:fs";
@@ -103,7 +103,7 @@ export const formatLine = (line: RouteLine): string =>
     .join(" | ");
 
 if (argv[1] === import.meta.filename) {
-  const perf = "apps/examples/nextjs/test-results/example-perf";
+  const perf = "apps/examples/nextjs/perf-results/example-perf";
 
   const report = buildReport({
     firstLoad: read("tests/next-build/baseline.json", {}),
