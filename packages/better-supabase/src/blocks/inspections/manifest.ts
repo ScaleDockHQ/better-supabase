@@ -4,6 +4,7 @@ import type { InspectionsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { inspectionsEvents } from "./events.ts";
 import { createInspections } from "./inspections.ts";
+import { inspectionListSurface } from "./lists.ts";
 import { inspectionsSqlOptions } from "./options.ts";
 import {
   inspectionFindingInputSchema,
@@ -31,6 +32,7 @@ export const inspectionsBlock: BlockOf<
   category: "work",
   entities: {
     inspection: {
+      ...inspectionListSurface,
       mutability: "editable",
       emits: { create: false, update: true },
     },

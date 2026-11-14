@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:f257dc93dda4c4de1cb200b6a2d095264581561f14fe0fd636761a5569b5c5a4
+-- @bsb-hash sha256:b0dbdae33cd6d50c78dc4babf5987c6bfdc75309de8a5c6c565c661dc444433c
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1098,8 +1098,9 @@ revoke execute on function "better_supabase"."get_inspection"(uuid) from public,
 grant execute on function "better_supabase"."get_inspection"(uuid) to authenticated, service_role;
 
 -- The organization's inspections, the latest planned first. filters is
--- { programId, kind, status, leadId, from, to (on the planned start),
--- auditeeType, auditeeId, search, limit, after, offset, paged, total, totalCap }. Without inspections.read
+-- { programId, kind, status, leadId, auditeeType, auditeeId (each a value or a
+-- list of them), from, to (on the planned start), search, sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap } (ADR 0749). Without inspections.read
 -- the caller sees only the inspections they are a member of.
 create or replace function "better_supabase"."list_inspections"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -1121,6 +1122,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_inspections.tenant is not null and coalesce(better_supabase.can('tenant', list_inspections.tenant, 'inspections.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -1132,7 +1138,64 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+  if v_facet is not null then
+    if v_facet not in ('status', 'kind') then
+      raise exception 'facet is one of status, kind' using errcode = '22023', hint = 'INSPECTION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'kind' then (x."kind")::text end) as v
+      from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('plannedStart', 'number') then
+    raise exception 'sort is one of plannedStart, number' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -1147,20 +1210,171 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -1171,14 +1385,14 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -1288,7 +1502,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:8b9094fc2f72982d39ffb22052c7ee7caa70caa8826d5f6d6c3d62f64f6845e3
+-- @bsb-hash sha256:8252eb9f29db7956485f3addcc5db8cffbb1a2072aa55cc0a3e78a1a8fc0eaa2
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2605,8 +2819,9 @@ revoke execute on function "better_supabase"."get_inspection"(uuid) from public,
 grant execute on function "better_supabase"."get_inspection"(uuid) to authenticated, service_role;
 
 -- The organization's inspections, the latest planned first. filters is
--- { programId, kind, status, leadId, from, to (on the planned start),
--- auditeeType, auditeeId, search, limit, after, offset, paged, total, totalCap }. Without inspections.read
+-- { programId, kind, status, leadId, auditeeType, auditeeId (each a value or a
+-- list of them), from, to (on the planned start), search, sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap } (ADR 0749). Without inspections.read
 -- the caller sees only the inspections they are a member of.
 create or replace function "better_supabase"."list_inspections"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -2628,6 +2843,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_inspections.tenant is not null and coalesce(better_supabase.can('tenant', list_inspections.tenant, 'inspections.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -2639,7 +2859,64 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+  if v_facet is not null then
+    if v_facet not in ('status', 'kind') then
+      raise exception 'facet is one of status, kind' using errcode = '22023', hint = 'INSPECTION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'kind' then (x."kind")::text end) as v
+      from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('plannedStart', 'number') then
+    raise exception 'sort is one of plannedStart, number' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -2654,20 +2931,171 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -2678,14 +3106,14 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -2887,7 +3315,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:dbb72e8cf62168333ac514862e6fad6d92fc4f5fc62a6c423524202b8b42918a
+-- @bsb-hash sha256:3e2f821c6c863000916e99ab4a7e951c7de25dbcfc0624c4d0d3cae092a00d71
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3989,8 +4417,9 @@ revoke execute on function "app_private"."get_inspection"(uuid) from public, ano
 grant execute on function "app_private"."get_inspection"(uuid) to authenticated, service_role;
 
 -- The organization's inspections, the latest planned first. filters is
--- { programId, kind, status, leadId, from, to (on the planned start),
--- auditeeType, auditeeId, search, limit, after, offset, paged, total, totalCap }. Without inspections.read
+-- { programId, kind, status, leadId, auditeeType, auditeeId (each a value or a
+-- list of them), from, to (on the planned start), search, sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap } (ADR 0749). Without inspections.read
 -- the caller sees only the inspections they are a member of.
 create or replace function "app_private"."list_inspections"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -4012,6 +4441,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_inspections.tenant is not null and coalesce(better_supabase.can('tenant', list_inspections.tenant, 'inspections.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -4023,7 +4457,64 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+  if v_facet is not null then
+    if v_facet not in ('status', 'kind') then
+      raise exception 'facet is one of status, kind' using errcode = '22023', hint = 'INSPECTION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'kind' then (x."kind")::text end) as v
+      from "app_private"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('plannedStart', 'number') then
+    raise exception 'sort is one of plannedStart, number' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -4038,20 +4529,171 @@ begin
         and (v_all or exists (
           select 1 from "app_private"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -4062,14 +4704,14 @@ begin
         and (v_all or exists (
           select 1 from "app_private"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -4179,7 +4821,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:95cf5906b453dadec853ecb15cba3419b5934798a349ea362f7c0b7b2f154e58
+-- @bsb-hash sha256:d567814c8231a4f7582a0aadee6e245dd016425bdf99437ba9c93f6d2cf98b5f
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5276,8 +5918,9 @@ revoke execute on function "better_supabase"."get_inspection"(uuid) from public,
 grant execute on function "better_supabase"."get_inspection"(uuid) to authenticated, service_role;
 
 -- The organization's inspections, the latest planned first. filters is
--- { programId, kind, status, leadId, from, to (on the planned start),
--- auditeeType, auditeeId, search, limit, after, offset, paged, total, totalCap }. Without inspections.read
+-- { programId, kind, status, leadId, auditeeType, auditeeId (each a value or a
+-- list of them), from, to (on the planned start), search, sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap } (ADR 0749). Without inspections.read
 -- the caller sees only the inspections they are a member of.
 create or replace function "better_supabase"."list_inspections"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -5299,6 +5942,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_inspections.tenant is not null and coalesce(better_supabase.can('tenant', list_inspections.tenant, 'inspections.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -5310,7 +5958,64 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+  if v_facet is not null then
+    if v_facet not in ('status', 'kind') then
+      raise exception 'facet is one of status, kind' using errcode = '22023', hint = 'INSPECTION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'kind' then (x."kind")::text end) as v
+      from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('plannedStart', 'number') then
+    raise exception 'sort is one of plannedStart, number' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -5325,20 +6030,171 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -5349,14 +6205,14 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -5670,7 +6526,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:bb325a4605922cd798144a6b7ba3c47981d209de49d1c1fe9d942d642748d0cc
+-- @bsb-hash sha256:c45ec8ad88a3473c4b45ef79cc816fea77ba7d11e76c8cf5457b496b3e56677f
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6748,8 +7604,9 @@ revoke execute on function "better_supabase"."get_inspection"(uuid) from public,
 grant execute on function "better_supabase"."get_inspection"(uuid) to authenticated, service_role;
 
 -- The organization's inspections, the latest planned first. filters is
--- { programId, kind, status, leadId, from, to (on the planned start),
--- auditeeType, auditeeId, search, limit, after, offset, paged, total, totalCap }. Without inspections.read
+-- { programId, kind, status, leadId, auditeeType, auditeeId (each a value or a
+-- list of them), from, to (on the planned start), search, sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap } (ADR 0749). Without inspections.read
 -- the caller sees only the inspections they are a member of.
 create or replace function "better_supabase"."list_inspections"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -6771,6 +7628,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_inspections.tenant is not null and coalesce(better_supabase.can('tenant', list_inspections.tenant, 'inspections.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -6782,7 +7644,64 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+  if v_facet is not null then
+    if v_facet not in ('status', 'kind') then
+      raise exception 'facet is one of status, kind' using errcode = '22023', hint = 'INSPECTION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'kind' then (x."kind")::text end) as v
+      from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('plannedStart', 'number') then
+    raise exception 'sort is one of plannedStart, number' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -6797,20 +7716,171 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."tenant_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -6821,14 +7891,14 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1
     ) c;
@@ -6938,7 +8008,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:fff52a3c247dd5185d38d86793d960a34a49612d4befb26bd69b46d8693542e3
+-- @bsb-hash sha256:29d9930412a45509f9235c1c529ad961ede175f176774dce62eaea72c834c729
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8035,8 +9105,9 @@ revoke execute on function "better_supabase"."get_inspection"(uuid) from public,
 grant execute on function "better_supabase"."get_inspection"(uuid) to authenticated, service_role;
 
 -- The organization's inspections, the latest planned first. filters is
--- { programId, kind, status, leadId, from, to (on the planned start),
--- auditeeType, auditeeId, search, limit, after, offset, paged, total, totalCap }. Without inspections.read
+-- { programId, kind, status, leadId, auditeeType, auditeeId (each a value or a
+-- list of them), from, to (on the planned start), search, sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap } (ADR 0749). Without inspections.read
 -- the caller sees only the inspections they are a member of.
 create or replace function "better_supabase"."list_inspections"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -8058,6 +9129,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_inspections.tenant is not null and coalesce(better_supabase.can('tenant', list_inspections.tenant, 'inspections.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -8069,7 +9145,64 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+  if v_facet is not null then
+    if v_facet not in ('status', 'kind') then
+      raise exception 'facet is one of status, kind' using errcode = '22023', hint = 'INSPECTION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'kind' then (x."kind")::text end) as v
+      from "better_supabase"."inspections" x
+      where x."org_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."inspections" x
+      where x."org_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('plannedStart', 'number') then
+    raise exception 'sort is one of plannedStart, number' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -8084,20 +9217,171 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."org_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."org_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) asc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'plannedStart' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."planned_start", '-infinity'::date))::text, (x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."org_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (coalesce(x."planned_start", '-infinity'::date) <= (v_after ->> 0)::date and ((coalesce(x."planned_start", '-infinity'::date) < (v_after ->> 0)::date) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."planned_start", '-infinity'::date) = (v_after ->> 0)::date and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(x."planned_start", '-infinity'::date) desc, x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."org_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."sequence" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'INSPECTION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'programId', x."program_id", 'number', x."number", 'kind', x."kind", 'title', x."title", 'scope', x."scope", 'criteria', x."criteria", 'auditee', case when x."auditee_type" is null then null else jsonb_build_object('type', x."auditee_type", 'id', x."auditee_id") end, 'leadId', x."lead_id", 'plannedStart', x."planned_start", 'plannedEnd', x."planned_end", 'startedAt', x."started_at", 'completedAt', x."completed_at", 'closedAt', x."closed_at", 'status', x."status", 'checklistFormId', x."checklist_form_id", 'checklistSubmissionId', x."checklist_submission_id", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."sequence")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."inspections" x
+      where x."org_id" = list_inspections.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."sequence" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -8108,14 +9392,14 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."inspection_members" y where y."inspection_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'programId' or x."program_id" = (v_filters ->> 'programId')::uuid)
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'leadId' or x."lead_id" = (v_filters ->> 'leadId')::uuid)
-        and (not v_filters ? 'from' or x."planned_start" >= (v_filters ->> 'from')::date)
-        and (not v_filters ? 'to' or x."planned_start" <= (v_filters ->> 'to')::date)
-        and (not v_filters ? 'auditeeType' or x."auditee_type" = v_filters ->> 'auditeeType')
-        and (not v_filters ? 'auditeeId' or x."auditee_id" = v_filters ->> 'auditeeId')
+        and (not (v_filters -> 'programId' is not null and jsonb_typeof(v_filters -> 'programId') <> 'null' and not (jsonb_typeof(v_filters -> 'programId') = 'array' and jsonb_array_length(v_filters -> 'programId') = 0)) or x."program_id" = any((case when jsonb_typeof(v_filters -> 'programId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'programId')) else array[v_filters ->> 'programId'] end)::uuid[]))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'leadId' is not null and jsonb_typeof(v_filters -> 'leadId') <> 'null' and not (jsonb_typeof(v_filters -> 'leadId') = 'array' and jsonb_array_length(v_filters -> 'leadId') = 0)) or x."lead_id" = any((case when jsonb_typeof(v_filters -> 'leadId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'leadId')) else array[v_filters ->> 'leadId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."planned_start" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::date)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."planned_start" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::date)
+        and (not (v_filters -> 'auditeeType' is not null and jsonb_typeof(v_filters -> 'auditeeType') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeType') = 'array' and jsonb_array_length(v_filters -> 'auditeeType') = 0)) or x."auditee_type" = any((case when jsonb_typeof(v_filters -> 'auditeeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeType')) else array[v_filters ->> 'auditeeType'] end)::text[]))
+        and (not (v_filters -> 'auditeeId' is not null and jsonb_typeof(v_filters -> 'auditeeId') <> 'null' and not (jsonb_typeof(v_filters -> 'auditeeId') = 'array' and jsonb_array_length(v_filters -> 'auditeeId') = 0)) or x."auditee_id" = any((case when jsonb_typeof(v_filters -> 'auditeeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'auditeeId')) else array[v_filters ->> 'auditeeId'] end)::text[]))
         and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."scope" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1
     ) c;

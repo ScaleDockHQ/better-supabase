@@ -1,4 +1,11 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type {
   WarrantyDecision,
@@ -8,6 +15,7 @@ import type { BlockOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import {
   WARRANTY_DECISIONS,
   WARRANTY_STATUSES,
@@ -23,6 +31,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { warrantyClaimListSurface } from "./lists.ts";
 
 /** What `createClaim` takes. `amount` is minor units. */
 export interface WarrantyClaimInput {
@@ -82,6 +91,18 @@ export interface Warranty {
   list(
     options?: WarrantyClaimListOptions,
   ): AsyncResult<readonly WarrantyClaim[]>;
+  /** One claim by id. Needs `warranty.read`. */
+  get(id: string): AsyncResult<WarrantyClaim>;
+  /**
+   * One keyset page of claims, in the order of `sort` (newest first by
+   * default): the rows, `hasMore` and a `nextCursor` to pass as `after`. Needs
+   * `warranty.read`.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<WarrantyClaim>>;
+  /** The claims per status, under the page's filters. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many claims match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
 }
 
 /** What `createWarranty` takes: a transport and the caller's organization. */
@@ -122,6 +143,15 @@ export function createWarranty(options: WarrantyOptions): Warranty {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
   const claim = (fn: string) => (value: unknown) => claimOf(value, fn);
+
+  const claims = entityList({
+    entity: "warranty_claim",
+    surface: warrantyClaimListSurface,
+    call,
+    tenant,
+    fn: "list_warranty_claims",
+    rowOf: claimOf,
+  });
 
   const client: Warranty = {
     createClaim: (input) =>
@@ -181,6 +211,11 @@ export function createWarranty(options: WarrantyOptions): Warranty {
             ),
         ),
       ),
+    get: (id) =>
+      call("get_warranty_claim", { claim_id: id }, claim("get_warranty_claim")),
+    page: claims.page,
+    facets: claims.facets,
+    count: claims.count,
   };
 
   return withBlockHooks(client, options.hooks);

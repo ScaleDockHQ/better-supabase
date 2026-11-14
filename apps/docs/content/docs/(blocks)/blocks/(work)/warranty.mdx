@@ -62,6 +62,34 @@ Approving or denying stores the decision text. The state machine allows the
 same transitions, and an approval of subject `warranty_claim` calls `decide`
 when it is approved or rejected.
 
+## Reading claims
+
+`get(id)` returns one claim. `list` is the capped convenience list, and `page`
+is the full list contract for claims (ADR 0749). It takes `sort`, `filters`
+whose values are lists (a row matches any of a filter's values), `after` and
+`limit`, and returns `{ items, hasMore, nextCursor }`. Sorts are `createdAt` (the
+default, newest first) and `amount`. Filters are `status` and `assetId`, and the
+facet is `status`. Claims declare no text search, so `q` returns
+`invalid_input`.
+
+```ts
+const first = await warranty
+  .page({
+    filters: { status: ["submitted", "approved"] },
+    sort: { by: "amount" },
+  })
+  .orThrow();
+
+const facets = await warranty.facets().orThrow();
+
+// `exact` is false when the count stopped at its cap.
+const total = await warranty
+  .count({ filters: { status: ["submitted"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from.
+
 ## Amount
 
 `amount` is the covered amount in the currency's minor units, stored as

@@ -1,6 +1,6 @@
 -- better-supabase module: warranty
 -- @bsb-block warranty@1 managed
--- @bsb-hash sha256:40ab3f5c712d6a6ede3600719384b7f245df21409133fc2ed133288c5663aae4
+-- @bsb-hash sha256:202ce5ca14b911d18ad4e3feb1e41c79e0a41f789b8dc7168743ad719820d03f
 -- Warranty claims for an asset: the supplier or manufacturer, the covered amount, a status, a decision and attachments on the claim.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -225,8 +225,43 @@ $$;
 revoke execute on function "better_supabase"."decide_warranty_claim"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."decide_warranty_claim"(uuid, text, text) to authenticated, service_role;
 
--- Claims of an organization, newest first. filters is { status, assetId, limit, after, offset,
--- paged, total, totalCap }.
+-- A claim by id. Needs warranty.read.
+create or replace function "better_supabase"."get_warranty_claim"(claim_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."warranty_claims";
+begin
+  select * into v_row from "better_supabase"."warranty_claims" x where x."id" = get_warranty_claim.claim_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'warranty.read'), false))) then
+    raise exception 'no such warranty claim' using errcode = 'P0002', hint = 'WARRANTY_NOT_FOUND';
+  end if;
+  return jsonb_build_object(
+    'id', v_row."id",
+    'organizationId', v_row."tenant_id",
+    'title', v_row."title",
+    'assetId', v_row."asset_id",
+    'supplierId', v_row."supplier_id",
+    'manufacturer', v_row."manufacturer",
+    'amount', v_row."amount"::text,
+    'currency', v_row."currency",
+    'status', v_row."status",
+    'decision', v_row."decision",
+    'decidedAt', v_row."decided_at",
+    'decidedBy', v_row."decided_by");
+end;
+$$;
+revoke execute on function "better_supabase"."get_warranty_claim"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_warranty_claim"(uuid) to authenticated, service_role;
+
+-- Claims of an organization, newest first. filters is { status, assetId (each a
+-- value or a list of them), sort, direction, facet, count, limit, after,
+-- offset, paged, total, totalCap } (ADR 0749).
 -- Needs warranty.read.
 create or replace function "better_supabase"."list_warranty_claims"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -247,22 +282,68 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_asset text := nullif(v_filters ->> 'assetId', '');
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_warranty_claims.tenant is not null and coalesce(better_supabase.can('tenant', list_warranty_claims.tenant, 'warranty.read'), false))) then
     raise exception 'not allowed to read warranty claims' using errcode = '42501', hint = 'WARRANTY_FORBIDDEN';
   end if;
-  if v_status is not null and v_status not in ('draft', 'submitted', 'approved', 'denied', 'closed') then
+  if exists (
+    select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'status') = 'array' then v_filters -> 'status' else jsonb_build_array(v_filters -> 'status') end) s
+    where s not in ('draft', 'submitted', 'approved', 'denied', 'closed')
+  ) then
     raise exception 'status is not a warranty status' using errcode = '22023', hint = 'WARRANTY_INVALID';
   end if;
-  if v_asset is not null and v_asset !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' then
+  if exists (
+    select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'assetId') = 'array' then v_filters -> 'assetId' else jsonb_build_array(v_filters -> 'assetId') end) s
+    where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+  ) then
     raise exception 'assetId must be a uuid' using errcode = '22023', hint = 'WARRANTY_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'WARRANTY_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('status') then
+      raise exception 'facet is one of status' using errcode = '22023', hint = 'WARRANTY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text end) as v
+      from "better_supabase"."warranty_claims" x
+      where x."tenant_id" = list_warranty_claims.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assetId' is not null and jsonb_typeof(v_filters -> 'assetId') <> 'null' and not (jsonb_typeof(v_filters -> 'assetId') = 'array' and jsonb_array_length(v_filters -> 'assetId') = 0)) or x."asset_id" = any((case when jsonb_typeof(v_filters -> 'assetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assetId')) else array[v_filters ->> 'assetId'] end)::uuid[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."warranty_claims" x
+      where x."tenant_id" = list_warranty_claims.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assetId' is not null and jsonb_typeof(v_filters -> 'assetId') <> 'null' and not (jsonb_typeof(v_filters -> 'assetId') = 'array' and jsonb_array_length(v_filters -> 'assetId') = 0)) or x."asset_id" = any((case when jsonb_typeof(v_filters -> 'assetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assetId')) else array[v_filters ->> 'assetId'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'amount') then
+    raise exception 'sort is one of createdAt, amount' using errcode = '22023', hint = 'WARRANTY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'WARRANTY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WARRANTY_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -286,13 +367,174 @@ begin
     from (
       select * from "better_supabase"."warranty_claims" x
       where x."tenant_id" = list_warranty_claims.tenant
-        and (v_status is null or x."status" = v_status)
-        and (v_asset is null or x."asset_id" = v_asset::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assetId' is not null and jsonb_typeof(v_filters -> 'assetId') <> 'null' and not (jsonb_typeof(v_filters -> 'assetId') = 'array' and jsonb_array_length(v_filters -> 'assetId') = 0)) or x."asset_id" = any((case when jsonb_typeof(v_filters -> 'assetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assetId')) else array[v_filters ->> 'assetId'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WARRANTY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organizationId', x."tenant_id",
+    'title', x."title",
+    'assetId', x."asset_id",
+    'supplierId', x."supplier_id",
+    'manufacturer', x."manufacturer",
+    'amount', x."amount"::text,
+    'currency', x."currency",
+    'status', x."status",
+    'decision', x."decision",
+    'decidedAt', x."decided_at",
+    'decidedBy', x."decided_by") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."warranty_claims" x
+      where x."tenant_id" = list_warranty_claims.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assetId' is not null and jsonb_typeof(v_filters -> 'assetId') <> 'null' and not (jsonb_typeof(v_filters -> 'assetId') = 'array' and jsonb_array_length(v_filters -> 'assetId') = 0)) or x."asset_id" = any((case when jsonb_typeof(v_filters -> 'assetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assetId')) else array[v_filters ->> 'assetId'] end)::uuid[]))
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WARRANTY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organizationId', x."tenant_id",
+    'title', x."title",
+    'assetId', x."asset_id",
+    'supplierId', x."supplier_id",
+    'manufacturer', x."manufacturer",
+    'amount', x."amount"::text,
+    'currency', x."currency",
+    'status', x."status",
+    'decision', x."decision",
+    'decidedAt', x."decided_at",
+    'decidedBy', x."decided_by") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."warranty_claims" x
+      where x."tenant_id" = list_warranty_claims.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assetId' is not null and jsonb_typeof(v_filters -> 'assetId') <> 'null' and not (jsonb_typeof(v_filters -> 'assetId') = 'array' and jsonb_array_length(v_filters -> 'assetId') = 0)) or x."asset_id" = any((case when jsonb_typeof(v_filters -> 'assetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assetId')) else array[v_filters ->> 'assetId'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WARRANTY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organizationId', x."tenant_id",
+    'title', x."title",
+    'assetId', x."asset_id",
+    'supplierId', x."supplier_id",
+    'manufacturer', x."manufacturer",
+    'amount', x."amount"::text,
+    'currency', x."currency",
+    'status', x."status",
+    'decision', x."decision",
+    'decidedAt', x."decided_at",
+    'decidedBy', x."decided_by") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."warranty_claims" x
+      where x."tenant_id" = list_warranty_claims.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assetId' is not null and jsonb_typeof(v_filters -> 'assetId') <> 'null' and not (jsonb_typeof(v_filters -> 'assetId') = 'array' and jsonb_array_length(v_filters -> 'assetId') = 0)) or x."asset_id" = any((case when jsonb_typeof(v_filters -> 'assetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assetId')) else array[v_filters ->> 'assetId'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'amount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WARRANTY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organizationId', x."tenant_id",
+    'title', x."title",
+    'assetId', x."asset_id",
+    'supplierId', x."supplier_id",
+    'manufacturer', x."manufacturer",
+    'amount', x."amount"::text,
+    'currency', x."currency",
+    'status', x."status",
+    'decision', x."decision",
+    'decidedAt', x."decided_at",
+    'decidedBy', x."decided_by") as j, jsonb_build_array((x."amount")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."warranty_claims" x
+      where x."tenant_id" = list_warranty_claims.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assetId' is not null and jsonb_typeof(v_filters -> 'assetId') <> 'null' and not (jsonb_typeof(v_filters -> 'assetId') = 'array' and jsonb_array_length(v_filters -> 'assetId') = 0)) or x."asset_id" = any((case when jsonb_typeof(v_filters -> 'assetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assetId')) else array[v_filters ->> 'assetId'] end)::uuid[]))
+        and (v_after is null or (x."amount", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."amount" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'amount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'WARRANTY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object(
+    'id', x."id",
+    'organizationId', x."tenant_id",
+    'title', x."title",
+    'assetId', x."asset_id",
+    'supplierId', x."supplier_id",
+    'manufacturer', x."manufacturer",
+    'amount', x."amount"::text,
+    'currency', x."currency",
+    'status', x."status",
+    'decision', x."decision",
+    'decidedAt', x."decided_at",
+    'decidedBy', x."decided_by") as j, jsonb_build_array((x."amount")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."warranty_claims" x
+      where x."tenant_id" = list_warranty_claims.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assetId' is not null and jsonb_typeof(v_filters -> 'assetId') <> 'null' and not (jsonb_typeof(v_filters -> 'assetId') = 'array' and jsonb_array_length(v_filters -> 'assetId') = 0)) or x."asset_id" = any((case when jsonb_typeof(v_filters -> 'assetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assetId')) else array[v_filters ->> 'assetId'] end)::uuid[]))
+        and (v_after is null or (x."amount" <= (v_after ->> 0)::bigint and ((x."amount" < (v_after ->> 0)::bigint) or (x."amount" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."amount" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -300,8 +542,8 @@ begin
     select count(*) into v_total from (
       select 1 from "better_supabase"."warranty_claims" x
       where x."tenant_id" = list_warranty_claims.tenant
-        and (v_status is null or x."status" = v_status)
-        and (v_asset is null or x."asset_id" = v_asset::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assetId' is not null and jsonb_typeof(v_filters -> 'assetId') <> 'null' and not (jsonb_typeof(v_filters -> 'assetId') = 'array' and jsonb_array_length(v_filters -> 'assetId') = 0)) or x."asset_id" = any((case when jsonb_typeof(v_filters -> 'assetId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assetId')) else array[v_filters ->> 'assetId'] end)::uuid[]))
       limit v_total_cap + 1
     ) c;
   end if;
@@ -371,6 +613,16 @@ set search_path = ''
 as $$ select "better_supabase"."decide_warranty_claim"($1, $2, $3) $$;
 revoke execute on function "api"."decide_warranty_claim"(uuid, text, text) from public, anon;
 grant execute on function "api"."decide_warranty_claim"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."get_warranty_claim"(claim_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_warranty_claim"($1) $$;
+revoke execute on function "api"."get_warranty_claim"(uuid) from public, anon;
+grant execute on function "api"."get_warranty_claim"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_warranty_claims"(tenant uuid, filters jsonb default '{}')
 returns jsonb
