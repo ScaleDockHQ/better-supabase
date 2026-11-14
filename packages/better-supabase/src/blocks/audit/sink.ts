@@ -62,7 +62,8 @@ function supportFields(
  * `data.organizationId`), and the data as metadata. The idempotency key is the
  * event's source and id, so a redelivery records once. A `support_session.*`
  * event also fills the impersonation columns from its `sessionId`, `adminId`
- * and `reason`.
+ * and `reason`. Any event whose data names `impersonatedBy` (a mutation made in
+ * an impersonation session) records that admin next to the actor (ADR 0921).
  */
 export function auditEventOf(
   event: CloudEvent,
@@ -77,6 +78,7 @@ export function auditEventOf(
     textIn(data?.["organizationId"]);
 
   const actorId = textIn(data?.["actorId"]);
+  const actingAdmin = textIn(data?.["impersonatedBy"]);
 
   const metadata =
     data ?? (event.data === undefined ? undefined : { data: event.data });
@@ -93,6 +95,7 @@ export function auditEventOf(
     ...(organizationId === undefined ? {} : { organizationId }),
     ...(actorId === undefined ? {} : { actorId }),
     ...(metadata === undefined ? {} : { metadata }),
+    ...(actingAdmin === undefined ? {} : { impersonatedBy: actingAdmin }),
     ...supportFields(eventType, data),
   };
 }

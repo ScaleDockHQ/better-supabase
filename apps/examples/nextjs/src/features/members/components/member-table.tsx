@@ -45,6 +45,7 @@ import {
   memberChanged,
 } from "@/features/organization/organization-actions";
 import { useRoleLabel } from "@/features/organization/use-role-label";
+import { ViewAsMemberButton } from "@/features/support/components/view-as-member-button";
 import { RoleBadge } from "@/features/user/components/role-badge";
 import { useMembers } from "@/hooks/use-organizations";
 import { Link } from "@/i18n/navigation";
@@ -77,6 +78,8 @@ type MemberRow = Member & {
   /** The roles the caller may pick here, empty when the role is fixed. */
   readonly roleChoices: readonly Role[];
   readonly removable: boolean;
+  /** The caller may start a support session on this member. */
+  readonly viewable: boolean;
   readonly busy: boolean;
 };
 
@@ -236,24 +239,34 @@ function ActionsCell({ row }: MemberCell) {
   const { removeMember } = useMemberActions();
   const member = row.original;
 
-  if (!member.removable) {
+  if (!member.removable && !member.viewable) {
     return null;
   }
 
   return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      disabled={member.busy}
-      aria-label={t("Remove {name}", {
-        name: member.name ?? member.email ?? "",
-      })}
-      onClick={() => {
-        void removeMember(member);
-      }}
-    >
-      <UserMinusIcon />
-    </Button>
+    <div className="flex items-center gap-1">
+      {member.viewable ? (
+        <ViewAsMemberButton
+          userId={member.userId}
+          name={member.name ?? member.email ?? ""}
+        />
+      ) : null}
+      {member.removable ? (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={member.busy}
+          aria-label={t("Remove {name}", {
+            name: member.name ?? member.email ?? "",
+          })}
+          onClick={() => {
+            void removeMember(member);
+          }}
+        >
+          <UserMinusIcon />
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -270,6 +283,7 @@ export function MemberTable({
   assignable,
   canUpdateRole,
   canRemove,
+  canViewAs,
 }: {
   organizationId: string;
   initial: readonly Member[];
@@ -278,6 +292,7 @@ export function MemberTable({
   assignable: readonly Role[];
   canUpdateRole: boolean;
   canRemove: boolean;
+  canViewAs: boolean;
 }) {
   const t = useExtracted("members");
   const roleLabel = useRoleLabel();
@@ -392,6 +407,7 @@ export function MemberTable({
       you: member.userId === currentUserId,
       roleChoices: canUpdateRole && editable(member) ? assignable : [],
       removable: canRemove && editable(member),
+      viewable: canViewAs && member.userId !== currentUserId,
       busy: pending.includes(member.userId),
     }));
 

@@ -24,3 +24,7 @@ RLS.
 An exemption without a reason is a finding. A tenant function runs inside the
 trigger, so it must be `stable` and cheap. The header is advisory for the
 database: only the trusted server sets it.
+
+## Update 2026-11-14 (ADR 0921)
+
+The acting member now reaches block events too. `BlockEventMeta.impersonatedBy` is filled from `context.actor.impersonator`, the CloudEvent data and the row mutation events carry it next to `actorId`, and `auditSink` records it as the audit entry's `impersonatedBy`. A mutating block method that emits an event therefore names the admin behind an impersonated user without its own code (EX-1321).

@@ -491,7 +491,15 @@ impersonation. See
 | `audit` SQL module | `audit_events.impersonated_by`, `impersonation_reason` and `support_session_id` on every row the admin changes                   |
 | `actor` SQL module | `track_actor(table, impersonated_by => 'impersonated_by')` stamps the admin on each write; the user's own writes cannot clear it |
 | Repository context | `context.actor.impersonator`, for plugins                                                                                        |
+| Block events       | `impersonatedBy` on every event a block or a mutation emits during a session, next to `actorId` (the impersonated user)          |
+| `audit` sink       | `auditSink` writes `impersonatedBy` from an event's data, so a block method's event names the acting admin in the audit log      |
 | In SQL             | `auth.jwt() -> 'act' ->> 'sub'` and `auth.jwt() -> 'act' ->> 'session_id'`, for your own triggers and policies                   |
+
+A block method called during a session emits its event with the target as
+`actorId` and the admin as `impersonatedBy`; the value comes from
+`context.actor.impersonator`, so a block needs no code to record it (ADR 0921).
+A sink or `onBlockEvent` handler reads `event.impersonatedBy`, and a CloudEvent
+carries it in `data.impersonatedBy`.
 
 A policy can also refuse impersonated writes where they make no sense:
 
