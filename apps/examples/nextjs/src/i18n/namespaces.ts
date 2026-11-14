@@ -13,6 +13,7 @@ export const APP_NAMESPACES = [
   "organization",
   "search",
   "settings",
+  "support",
   "user",
 ] as const;
 
