@@ -35,9 +35,9 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "api-keys":
     "create_api_key list_api_keys revoke_api_key rotate_api_key verify_api_key",
   approvals:
-    "approval_requirement cancel_approval consume_approval decide_approval decide_approval_items delegate_approval get_approval get_approvals is_approved list_approval_policies list_approvals record_approval_created remove_approval_policy request_approval request_approval_items save_approval_policy settle_approval",
+    "approval_requirement cancel_approval consume_approval decide_approval decide_approval_items delegate_approval get_approval get_approvals is_approved list_approval_policies list_approvals page_approvals record_approval_created remove_approval_policy request_approval request_approval_items save_approval_policy settle_approval",
   assets:
-    "archive_asset_location asset_assignment_history asset_locations_at assets_near assign_asset create_asset create_asset_location dispose_asset get_asset get_asset_location list_asset_depreciations list_asset_locations list_assets release_asset run_asset_depreciation set_asset_link update_asset update_asset_location",
+    "archive_asset_location asset_assignment_history asset_locations_at assets_near assign_asset create_asset create_asset_location dispose_asset get_asset get_asset_location list_asset_depreciations list_asset_locations list_assets page_assets release_asset run_asset_depreciation set_asset_link update_asset update_asset_location",
   assignment:
     "assign_subject assignment_history list_assignment_queues remove_assignment_queue save_assignment_queue set_assignment_members",
   attachments:
@@ -63,7 +63,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   calendar:
     "calendar_bootstrap calendar_free_busy cancel_calendar_occurrence create_calendar delete_calendar delete_calendar_event import_calendar_events list_calendar_events list_calendar_working_hours list_calendars remove_calendar_attendee respond_calendar_event save_calendar_event set_calendar_attendee set_calendar_working_hours split_calendar_event",
   cases:
-    "archive_case_kind cancel_case case_close_blockers case_stats close_case create_case_action get_case link_case_action list_case_kinds list_cases notify_due_case_effectiveness open_case record_case_effectiveness record_case_root_cause remove_case_action reopen_case save_case_kind update_case",
+    "archive_case_kind cancel_case case_close_blockers case_stats close_case create_case_action get_case link_case_action list_case_kinds list_cases notify_due_case_effectiveness open_case page_cases record_case_effectiveness record_case_root_cause remove_case_action reopen_case save_case_kind update_case",
   "care-plans":
     "add_care_plan_action add_care_plan_goal add_care_plan_problem archive_care_plan create_care_plan due_care_plan_reviews end_care_plan_action get_care_plan get_care_plans list_care_plan_measures list_care_plans publish_care_plan record_care_plan_evaluation request_care_plan_agreement review_care_plan_action start_care_plan_action update_care_plan update_care_plan_action update_care_plan_goal update_care_plan_problem",
   catalog:
@@ -98,7 +98,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   deals:
     "archive_deal close_deal create_deal deal_board deal_forecast deal_health delete_deal list_deals_for_subject reopen_deal set_deal_contacts set_deal_lines set_deal_members update_deals",
   dispatch:
-    "create_work_order dispatch_board get_work_order list_work_order_parts list_work_orders plan_dispatch_route record_work_order_part remove_work_order_part schedule_work_order set_work_order_status technician_day unschedule_work_order update_work_order",
+    "create_work_order dispatch_board get_work_order list_work_order_parts list_work_orders page_work_orders plan_dispatch_route record_work_order_part remove_work_order_part schedule_work_order set_work_order_status technician_day unschedule_work_order update_work_order",
   documents:
     "compact_document decide_document_suggestion documents_to_compact list_document_suggestions open_document pull_document_updates push_document_update suggest_document_change",
   domains:
@@ -127,7 +127,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "approve_funding_deliveries build_funding_claim delete_funding_claim end_funding_award funding_award_usage get_funding_claim invoice_funding_claim list_funding_awards list_funding_claims list_funding_deliveries list_funding_products mark_funding_claim_sent record_funding_claim_response register_funding_deliveries_from_time register_funding_delivery save_funding_award save_funding_product",
   goals: "goal_progress save_goal",
   guests:
-    "accept_guest_invite grant_guest_access guest_can invite_guest list_guest_grants list_guests my_guest_access revoke_guest revoke_guest_access",
+    "accept_guest_invite get_guest grant_guest_access guest_can invite_guest list_guest_grants list_guests my_guest_access page_guests revoke_guest revoke_guest_access",
   hiring:
     "application_detail apply_to_job close_application list_applications list_applications_for_jobs list_jobs save_job schedule_interview submit_scorecard",
   housekeeping: "maintenance maintenance_scheduler",
@@ -143,7 +143,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   inbox:
     "assign_conversation cancel_inbox_message create_inbox create_inbox_attachment create_inbox_team delete_message_template discard_inbox_draft edit_inbox_message get_conversation get_inbox_message inbox_counts inbox_file_failed list_conversation_events list_inbox_conversations list_inbox_drafts list_inbox_messages list_scheduled_inbox_messages mark_conversation_read pending_inbound_events pending_inbox_files publish_due_inbox_messages purge_contact purge_inbound_events react_to_inbox_message record_delivery record_inbound reschedule_inbox_message save_inbox_draft schedule_inbox_message send_inbox_draft send_inbox_message set_active_stream set_bot_mode set_conversation_status set_delivery_status set_inbound_event_status set_inbox_member set_inbox_team_member start_conversation store_inbound_event suggest_inbox_draft update_inbox upsert_message_template wake_snoozed_conversations",
   incidents:
-    "delete_status_component get_incident get_incident_regulatory_profile get_status_page list_incident_filings list_incidents list_status_components open_incident post_incident_update public_status_page publish_incident_postmortem save_incident_postmortem save_incident_regulatory_profile save_status_component save_status_page set_incident_impacts submit_incident_filing update_incident",
+    "delete_status_component get_incident get_incident_regulatory_profile get_status_page list_incident_filings list_incidents list_status_components open_incident page_incidents post_incident_update public_status_page publish_incident_postmortem save_incident_postmortem save_incident_regulatory_profile save_status_component save_status_page set_incident_impacts submit_incident_filing update_incident",
   inspections:
     "add_inspection_finding approve_inspection_program cancel_inspection close_inspection close_inspection_program complete_inspection delete_inspection_finding get_inspection list_inspection_programs list_inspections notify_overdue_inspections raise_inspection_finding_case save_inspection_checklist save_inspection_program schedule_inspection set_inspection_members start_inspection update_inspection update_inspection_finding",
   rfqs: "award_rfq cancel_rfq close_rfq compare_rfq create_rfq decline_rfq_supplier get_rfq invite_rfq_supplier list_rfqs open_rfq record_rfq_quote update_rfq withdraw_rfq_quote",
@@ -160,7 +160,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   periods:
     "close_period create_period list_periods lock_period period_close_blockers period_for period_is_open reopen_period",
   deadlines:
-    "approve_rule_version compute_deadlines list_deadlines recompute_deadlines rule_version_at satisfy_deadline save_rule_version",
+    "approve_rule_version compute_deadlines get_deadline list_deadlines page_deadlines recompute_deadlines rule_version_at satisfy_deadline save_rule_version",
   "agent-checkout":
     "complete_checkout_session consume_agent_mandate create_checkout_session get_agent_mandate get_checkout_session list_agent_mandates list_checkout_sessions revoke_agent_mandate store_agent_mandate update_checkout_session",
   tills:

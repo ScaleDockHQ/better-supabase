@@ -5,6 +5,12 @@ import type { ApprovalSqlKit } from "./approvals-steps.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   extraFieldsArg,
@@ -270,6 +276,41 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'subjectType', ${row}.${c("subjectType")}, 'subjectId', ${row}.${c("subjectId")}, 'action', ${row}.${c("action")}, 'status', ${row}.${c("status")}, 'step', ${stepOf(row)}, 'steps', ${policyOf(row)} -> 'steps', 'requestedBy', ${row}.${c("requestedBy")}, 'reason', ${or("requests", row, "reason")}, 'payload', ${or("requests", row, "payload")}, 'expiresAt', ${or("requests", row, "expiresAt")}, 'decidedAt', ${or("requests", row, "decidedAt")}, 'mode', coalesce(${policyOf(row)} ->> 'mode', 'authorize'), 'fingerprint', ${or("requests", row, "fingerprint")}, 'consumedAt', ${or("requests", row, "consumedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
+
+  const createdKeys = [
+    { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${c("id")}`, dir: "desc", type: "uuid" },
+  ] as const;
+
+  const statusText = asText(ctx, "requests", `x.${c("status")}`);
+  const eligible = `x.${c("id")} in (select ${fn("approval_eligible_ids")}(page_approvals.tenant))`;
+
+  const pageList = {
+    name: "page_approvals",
+    from: requests,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = page_approvals.tenant`,
+      filterAny("status", statusText),
+      filterAny("subjectType", `x.${c("subjectType")}`),
+      filterAny("subjectId", `x.${c("subjectId")}`),
+      filterAny("action", `x.${c("action")}`),
+      `case when ${filterFlag("assigned")} then ${eligible}
+        else x.${c("requestedBy")} = auth.uid() or (v_read and (${SERVICE_CALLER} or ${readable("x")})) or ${eligible} end`,
+    ],
+    keys: createdKeys,
+    sorts: {
+      createdAt: createdKeys,
+      action: [
+        { expr: `x.${c("action")}`, dir: "asc", type: "text" },
+        { expr: `x.${c("id")}`, dir: "desc", type: "uuid" },
+      ],
+    },
+    facets: { status: statusText, subjectType: `x.${c("subjectType")}` },
+    rowJson: json("x"),
+    invalid: (message: string): string =>
+      fail("APPROVAL_INVALID", message, "22023"),
+  } as const;
 
   const record = (event: string, row: string, audit: boolean): string =>
     ctx.record({
@@ -1188,6 +1229,32 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_approvals")}(${ctx.idType}, text, boolean, text, text, integer, timestamptz)`)}
+
+-- The requests of an organization as a keyset page (ADR 0749, 0949), newest
+-- first. filters is { status, subjectType, subjectId, action (each a value or
+-- a list of them), assigned (only requests the caller can decide), sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }. The
+-- caller sees the same requests list_approvals shows.
+create or replace function ${fn("page_approvals")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_approvals.filters, '{}'::jsonb);
+  v_read boolean := ${SERVICE_CALLER} or ${ctx.can("tenant", "page_approvals.tenant", read)};
+  ${listDeclare(pageList)}
+begin
+  if jsonb_typeof(v_filters) <> 'object' then
+    ${fail("APPROVAL_INVALID", "filters must be an object", "22023")}
+  end if;
+  ${listBody(pageList)}
+end;
+$$;
+${userGrant(`${fn("page_approvals")}(${ctx.idType}, jsonb)`)}
 
 -- Whether the subject's latest request for the action was approved.
 create or replace function ${fn("is_approved")}(subject_type text, subject_id text, action text)

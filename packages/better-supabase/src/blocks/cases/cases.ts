@@ -3,7 +3,14 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -13,6 +20,7 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -33,6 +41,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { caseListSurface } from "./lists.ts";
 
 /** Where a case stands; its stage's outcome sets it. */
 export type CaseStatus = (typeof CASE_STATUSES)[number];
@@ -327,6 +336,20 @@ export interface Cases<F extends object = Record<never, never>> {
   }): AsyncResult<Case<F>>;
   get(caseId: string): AsyncResult<CaseDetail<F>>;
   list(options?: CaseListOptions): AsyncResult<CasePage<F>>;
+  /**
+   * One keyset page of the organization's cases, newest first. Sort by
+   * `createdAt` or `dueOn`; filter by `kind`, `status`, `severity`, `source`,
+   * `owner`, `stage` and `overdue`; `q` searches the title, number, root cause
+   * and description.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<Case<F>>>;
+  /**
+   * The values of each facet (`status`, `severity`, `source`) and how many
+   * cases hold each.
+   */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many cases match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
   /** Counts per group, most first. */
   stats(options?: CaseStatsOptions): AsyncResult<readonly CaseStat[]>;
   /** Reports the cases whose effectiveness check is due; service role only. */
@@ -543,6 +566,15 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
   const fields: BlockFields<F> = blockFields(options.fields, "case fields");
   const one = (fn: string) => (value: unknown) => caseOf(value, fn);
 
+  const registry = entityList({
+    entity: "case",
+    surface: caseListSurface,
+    call,
+    tenant,
+    fn: "page_cases",
+    rowOf: caseOf,
+  });
+
   const client: Cases<F> = {
     saveKind: (input) =>
       tenant().andThen((organizationId) =>
@@ -726,6 +758,14 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
             .map((items) => ({ ...page, items }) satisfies CasePage<F>),
         ),
       ),
+    page: (pageOptions) =>
+      registry
+        .page(pageOptions)
+        .andThen((page) =>
+          fields.rows(page.items).map((items) => ({ ...page, items })),
+        ),
+    facets: registry.facets,
+    count: registry.count,
     stats: (stats = {}) =>
       tenant().andThen((organizationId) =>
         call(

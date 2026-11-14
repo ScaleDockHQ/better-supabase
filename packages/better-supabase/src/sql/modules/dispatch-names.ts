@@ -214,6 +214,7 @@ export function dispatchContract(
       returns: "jsonb",
     },
     { name: "get_work_order", args: ["uuid"], returns: "jsonb" },
+    { name: "page_work_orders", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "list_work_orders",
       args: [

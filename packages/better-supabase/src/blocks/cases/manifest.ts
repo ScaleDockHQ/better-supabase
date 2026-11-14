@@ -5,6 +5,7 @@ import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { createCases } from "./cases.ts";
 import { casesEvents } from "./events.ts";
+import { caseListSurface } from "./lists.ts";
 import { casesSqlOptions } from "./options.ts";
 import {
   caseActionInputSchema,
@@ -28,7 +29,11 @@ export const casesBlock: BlockOf<"cases", typeof createCases, CasesEvents> =
     recipes: ["case-board", "case-detail"],
     category: "work",
     entities: {
-      case: { mutability: "editable", emits: { create: true, update: true } },
+      case: {
+        ...caseListSurface,
+        mutability: "editable",
+        emits: { create: true, update: true },
+      },
       case_kind: {
         mutability: "editable",
         emits: { create: true, update: true },

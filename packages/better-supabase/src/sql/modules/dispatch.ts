@@ -4,6 +4,14 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { WORK_ORDER_PRIORITIES } from "../../blocks/dispatch/statuses.ts";
 import { sqlString } from "../../core/template.ts";
 import {
+  filterAny,
+  filterFirst,
+  filterHasInvalid,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
+import {
   extraFieldsArg,
   fail,
   pageSize,
@@ -86,6 +94,48 @@ function functions(
       row,
       extras,
     );
+
+  const createdKeys = [
+    { expr: `x.${w("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${w("id")}`, dir: "desc", type: "uuid" },
+  ] as const;
+
+  const pageList = {
+    name: "page_work_orders",
+    from: orders,
+    alias: "x",
+    where: [
+      `x.${w("tenant")} = page_work_orders.tenant`,
+      filterAny("status", status("x")),
+      filterAny("priority", asText(ctx, "workOrders", `x.${w("priority")}`)),
+      filterAny("technicianId", `x.${w("technician")}`, "uuid"),
+      filterAny("assetId", `x.${w("asset")}`, "uuid"),
+      filterAny("subjectType", `x.${w("subjectType")}`),
+      filterAny("subjectId", `x.${w("subjectId")}`),
+      `(v_from is null or x.${w("endsAt")} > v_from)`,
+      `(v_until is null or x.${w("startsAt")} < v_until)`,
+      `(v_search is null or x.${w("title")} ilike v_search)`,
+    ],
+    keys: createdKeys,
+    sorts: {
+      createdAt: createdKeys,
+      startsAt: [
+        { expr: `x.${w("startsAt")}`, dir: "asc", type: "timestamptz" },
+        { expr: `x.${w("id")}`, dir: "asc", type: "uuid" },
+      ],
+      title: [
+        { expr: `x.${w("title")}`, dir: "asc", type: "text" },
+        { expr: `x.${w("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: {
+      status: status("x"),
+      priority: asText(ctx, "workOrders", `x.${w("priority")}`),
+    },
+    rowJson: orderJson("x"),
+    invalid: (message: string): string =>
+      fail("DISPATCH_INVALID", message, "22023"),
+  } as const;
 
   const partJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}::text, 'workOrderId', ${row}.${q("workOrder")}, 'name', ${row}.${q("name")}, 'quantity', ${row}.${q("quantity")}::text, 'unit', ${or("parts", row, "unit")}, 'assetId', ${row}.${q("asset")}, 'variantId', ${row}.${q("variant")}, 'locationId', ${row}.${q("location")}, 'recordedBy', ${row}.${q("recordedBy")}, 'createdAt', ${row}.${q("createdAt")})`;
@@ -545,6 +595,46 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_work_orders")}(${idType}, text, uuid, text, text, timestamptz, timestamptz, timestamptz, integer)`)}
+
+-- A tenant's work orders as a keyset page (ADR 0749, 0949). filters is { status,
+-- priority, technicianId, assetId, subjectType, subjectId (each a value or a
+-- list of them), from (slot ends after), until (slot starts before), search
+-- (title), sort, direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. Needs dispatch.read.
+create or replace function ${fn("page_work_orders")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_work_orders.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  v_from timestamptz;
+  v_until timestamptz;
+  ${listDeclare(pageList)}
+begin
+  if not ${allowed("page_work_orders.tenant", read)} then
+    ${fail("DISPATCH_FORBIDDEN", "not allowed to read work orders")}
+  end if;
+  if jsonb_typeof(v_filters) <> 'object' then
+    ${fail("DISPATCH_INVALID", "filters must be an object", "22023")}
+  end if;
+  if ${filterHasInvalid("technicianId")} or ${filterHasInvalid("assetId")} then
+    ${fail("DISPATCH_INVALID", "technicianId and assetId must be uuids", "22023")}
+  end if;
+  begin
+    v_from := ${filterFirst("from")}::timestamptz;
+    v_until := ${filterFirst("until")}::timestamptz;
+  exception when others then
+    ${fail("DISPATCH_INVALID", "from and until must be timestamps", "22023")}
+  end;
+  ${listBody(pageList)}
+end;
+$$;
+${userGrant(`${fn("page_work_orders")}(${idType}, jsonb)`)}
 
 -- The schedule board from from_date to to_date (at most ${BOARD_DAYS} days, in the
 -- block's time zone): the scheduled work orders with their day, the
