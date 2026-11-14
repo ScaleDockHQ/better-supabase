@@ -1087,9 +1087,9 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X2b
 
 - Scope: Search and calendar (after audit lane G4 for the calendar; ADRs from the range of X2)
-- Status: in progress
+- Status: merged
 - Branch: `feat/findings-x2b`
-- PR: none yet
+- PR: [#939](https://github.com/ScaleDockHQ/better-supabase/pull/939)
 - Findings: EX-1504, EX-1508
 - Log: 2026-11-14, planned.
 - Log: 2026-11-14, started in `../bsb-findings-x2b`.
