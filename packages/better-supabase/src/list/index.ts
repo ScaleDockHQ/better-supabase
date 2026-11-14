@@ -60,6 +60,18 @@ export {
   ENTITY_PAGE_API_VERSION,
 } from "./entity-page.ts";
 
+export { defineEntityForm } from "./entity-ui.ts";
+
+export type {
+  EntityColumn,
+  EntityDetail,
+  EntityDetailSection,
+  EntityFieldKind,
+  EntityForm,
+  EntityFormField,
+  EntityFormParse,
+} from "./entity-ui.ts";
+
 export type {
   EntityListParse,
   EntityListQuery,
