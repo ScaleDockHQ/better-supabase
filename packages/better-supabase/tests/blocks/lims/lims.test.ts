@@ -223,6 +223,31 @@ describe("createLims", () => {
     ]);
   });
 
+  it("lists the instruments that may be used on a day", async () => {
+    const t = fieldsTransport({
+      list_qualified_instruments: () => ["a1", "a2", 7],
+    });
+
+    const lims = createLims({ transport: t, tenant: "org-1" });
+    const { PlainDate } = temporal();
+
+    const today = await lims.listQualifiedInstruments().orThrow();
+
+    const earlier = await lims
+      .listQualifiedInstruments({ on: PlainDate.from("2026-10-30") })
+      .orThrow();
+
+    expect(today).toEqual(["a1", "a2"]);
+    expect(earlier).toEqual(["a1", "a2"]);
+    expect(t.calls).toEqual([
+      ["list_qualified_instruments", { tenant: "org-1" }],
+      [
+        "list_qualified_instruments",
+        { tenant: "org-1", on_date: "2026-10-30" },
+      ],
+    ]);
+  });
+
   it("runs hooks around a call", async () => {
     const seen: string[] = [];
     const t = fieldsTransport({ register_sample: () => SAMPLE });

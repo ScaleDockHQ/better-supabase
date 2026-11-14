@@ -286,7 +286,10 @@ closes month by month: `close_period` posts every pending row due in the month
 (deferred revenue back to revenue) in the same transaction. A row whose
 accounting period is already closed or locked blocks the close until an
 accountant reopens that period. `list_revenue_recognition` returns the rows of a
-source with their status and entry.
+source with their status and entry, and `list_revenue_recognition_schedules`
+returns every schedule of the organization, newest first, with its row count and
+the amount already recognized (`limit_count` is 1 to 500, default 100). Both need
+`accounting.read`, so a list of schedules needs no hand-written policy.
 
 Invoice lines carry no service period, so scheduling is an explicit call, for
 example from an invoice event handler that knows the period. A source line is

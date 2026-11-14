@@ -604,6 +604,31 @@ begin
 end;
 $$;
 ${userGrant(`${fn("instrument_status")}(${idType}, uuid, date)`)}
+
+-- The instruments (asset ids) that may be used on a day: the holders of
+-- options.instrumentQualification, or an empty array without the option. The
+-- list that a result form offers, in one call instead of one instrument_status
+-- per asset.
+create or replace function ${fn("list_qualified_instruments")}(tenant ${idType}, on_date date default current_date)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not ${q.allowed("list_qualified_instruments.tenant", q.read)} then
+    ${q.forbidden("not allowed to read instruments")}
+  end if;
+  ${
+    q.instrumentQualification === undefined || q.qualifications === undefined
+      ? "return '[]'::jsonb;"
+      : `return ${q.qualifications.fn("qualified_holders")}(list_qualified_instruments.tenant, ${sqlString(q.instrumentQualification)}, 'asset', coalesce(list_qualified_instruments.on_date, current_date));`
+  }
+end;
+$$;
+${userGrant(`${fn("list_qualified_instruments")}(${idType}, date)`)}
 `;
 }
 

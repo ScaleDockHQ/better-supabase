@@ -165,7 +165,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "complete_checkout_session consume_agent_mandate create_checkout_session get_agent_mandate get_checkout_session list_agent_mandates list_checkout_sessions revoke_agent_mandate store_agent_mandate update_checkout_session",
   tills:
     "close_till_session create_till deposit_till_cash get_till_session list_till_sessions list_tills open_till_session reconcile_till_deposit record_till_movement update_till",
-  lims: "archive_lims_method complete_sample get_sample instrument_status list_lims_methods list_samples record_lims_result register_sample reject_sample release_sample save_lims_method",
+  lims: "archive_lims_method complete_sample get_sample instrument_status list_lims_methods list_qualified_instruments list_samples record_lims_result register_sample reject_sample release_sample save_lims_method",
   dam: "check_usage get_usage_right grant_usage_right list_renditions list_usage_rights notify_expiring_usage_rights record_rendition revoke_usage_right",
   appraisals:
     "calibrate_appraisal calibrate_appraisal_competencies close_appraisal_cycle create_appraisal_cycle get_appraisal list_appraisal_cycles list_appraisals open_appraisal_cycle set_appraisal_competencies set_appraisal_goals sign_off_appraisal submit_appraisal_review",

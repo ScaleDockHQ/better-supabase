@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:f5c00cd07928dcb895da6944d84a5e06274456424946d6a6af28be912d8551ab
+-- @bsb-hash sha256:50b353dc7084ee038d99c71d22e0cf621aef310596d932491b3e05eb8fb58209
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -762,6 +762,28 @@ end;
 $$;
 revoke execute on function "better_supabase"."instrument_status"(uuid, uuid, date) from public, anon;
 grant execute on function "better_supabase"."instrument_status"(uuid, uuid, date) to authenticated, service_role;
+
+-- The instruments (asset ids) that may be used on a day: the holders of
+-- options.instrumentQualification, or an empty array without the option. The
+-- list that a result form offers, in one call instead of one instrument_status
+-- per asset.
+create or replace function "better_supabase"."list_qualified_instruments"(tenant uuid, on_date date default current_date)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_qualified_instruments.tenant is not null and coalesce(better_supabase.can('tenant', list_qualified_instruments.tenant, 'lims.read'), false))) then
+    raise exception 'not allowed to read instruments' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  return '[]'::jsonb;
+end;
+$$;
+revoke execute on function "better_supabase"."list_qualified_instruments"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."list_qualified_instruments"(uuid, date) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

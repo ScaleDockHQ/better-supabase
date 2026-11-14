@@ -4,6 +4,7 @@ import type { Money } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { bsb } from "@/lib/supabase/server";
 
 import { TILLS_TAG } from "./tills-cache";
@@ -183,5 +184,59 @@ export async function loadSession(
       reference: deposit.reference ?? null,
       status: deposit.status,
     })),
+  };
+}
+
+export interface BankTargets {
+  readonly accounts: readonly { readonly id: string; readonly name: string }[];
+  /** Unmatched transactions that took money in, newest first. */
+  readonly transactions: readonly {
+    readonly id: string;
+    readonly label: string;
+    readonly amount: Money;
+  }[];
+}
+
+/**
+ * The bank accounts and their unmatched incoming transactions, for the import
+ * and the match of a cash deposit (EX-1113).
+ */
+export async function loadBankTargets(): Promise<BankTargets | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(TILLS_TAG, BANKING_TAG);
+
+  if (!tenantOf(session)) {
+    return null;
+  }
+
+  const accounts = await db.banking.accounts().orThrow();
+
+  const lists = await Promise.all(
+    accounts.map((account) =>
+      db.banking
+        .transactions({ accountId: account.id, status: "unmatched", limit: 50 })
+        .orThrow(),
+    ),
+  );
+
+  return {
+    accounts: accounts.map((account) => ({
+      id: account.id,
+      name: account.name,
+    })),
+    transactions: lists
+      .flat()
+      .filter((row) => row.amount.amount > 0n)
+      .map((row) => ({
+        id: row.id,
+        label: [
+          row.bookedOn.toString(),
+          row.counterpartyName ?? row.remittance ?? "",
+        ]
+          .filter(Boolean)
+          .join(" "),
+        amount: row.amount,
+      })),
   };
 }

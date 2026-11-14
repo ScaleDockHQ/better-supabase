@@ -377,3 +377,148 @@ export async function loadVariance(
     lines: variance.lines.map((line) => ({ ...line })),
   };
 }
+
+export interface ReceivableOrder {
+  readonly id: string;
+  readonly number: string;
+}
+
+/** Placed purchase orders that still owe units, for the receive dialog. */
+export async function loadReceivableOrders(): Promise<
+  readonly ReceivableOrder[] | null
+> {
+  "use cache: private";
+  const { session } = await bsb.cached();
+  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  const tenant = tenantOf(session);
+  const connection = postgres();
+  const claims = userClaims(session);
+
+  if (!tenant || !connection || !claims) {
+    return null;
+  }
+
+  const rows = await connection
+    .asUser(claims)
+    .queryRaw<{ id: string; number: string | null }>(
+      `select id, number from better_supabase.purchase_orders
+     where tenant_id = $1 and status in ('ordered', 'partially_received')
+     order by created_at desc limit 50`,
+      [tenant],
+    );
+
+  return rows.map((row) => ({
+    id: row.id,
+    number: row.number ?? row.id.slice(0, 8),
+  }));
+}
+
+/** The units a purchase order still owes, one receipt line per order line. */
+export async function openOrderLines(
+  purchaseOrderId: string,
+): Promise<readonly { lineId: string; quantity: number }[]> {
+  const { session } = await bsb.cached();
+  const connection = postgres();
+  const claims = userClaims(session);
+
+  if (!connection || !claims) {
+    return [];
+  }
+
+  const rows = await connection
+    .asUser(claims)
+    .queryRaw<{ id: string; open: string }>(
+      `select id, (quantity_ordered - quantity_received - quantity_canceled)::text as open
+     from better_supabase.purchase_order_lines where purchase_order_id = $1`,
+      [purchaseOrderId],
+    );
+
+  return rows
+    .map((row) => ({ lineId: row.id, quantity: Number(row.open) }))
+    .filter((line) => line.quantity > 0);
+}
+
+export interface ReceiptRow {
+  readonly id: string;
+  readonly order: string;
+  readonly locationId: string;
+  readonly receivedAt: string;
+}
+
+export interface ReceiptPutaway {
+  readonly receipt: ReceiptRow;
+  readonly suggestions: readonly {
+    readonly variantId: string;
+    readonly quantity: string;
+    readonly unassigned: string;
+    readonly bins: string;
+  }[];
+}
+
+/**
+ * The newest goods receipts, and the putaway suggestion of the latest one. The
+ * inventory block has no list call for receipts, so the read goes through the
+ * caller's connection (EX-1111).
+ */
+export async function loadReceipts(): Promise<{
+  readonly receipts: readonly ReceiptRow[];
+  readonly latest: ReceiptPutaway | null;
+} | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  cacheTag(WAREHOUSE_TAG, SHOP_TAG);
+  const tenant = tenantOf(session);
+  const connection = postgres();
+  const claims = userClaims(session);
+
+  if (!tenant || !connection || !claims) {
+    return null;
+  }
+
+  const rows = await connection
+    .asUser(claims)
+    .queryRaw<{
+      id: string;
+      number: string | null;
+      location_id: string;
+      received_at: Date | string;
+    }>(
+      `select r.id, o.number, r.location_id, r.received_at
+     from better_supabase.inventory_receipts r
+     join better_supabase.purchase_orders o on o.id = r.purchase_order_id
+     where r.tenant_id = $1 order by r.received_at desc limit 20`,
+      [tenant],
+    );
+
+  const receipts = rows.map((row) => ({
+    id: row.id,
+    order: row.number ?? "–",
+    locationId: row.location_id,
+    receivedAt: new Date(row.received_at).toISOString(),
+  }));
+
+  const first = receipts[0];
+
+  if (!first) {
+    return { receipts, latest: null };
+  }
+
+  const suggested = await db.warehouse
+    .suggestReceiptPutaway(first.id)
+    .orThrow();
+
+  return {
+    receipts,
+    latest: {
+      receipt: first,
+      suggestions: suggested.map((row) => ({
+        variantId: row.variantId,
+        quantity: row.quantity,
+        unassigned: row.unassigned,
+        bins: row.placements
+          .map((placement) => `${placement.binCode} (${placement.quantity})`)
+          .join(", "),
+      })),
+    },
+  };
+}
