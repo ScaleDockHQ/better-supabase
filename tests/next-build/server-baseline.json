@@ -1240,7 +1240,7 @@
     "brotli": 1273964
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
-    "raw": 5078720,
+    "raw": 5079427,
     "gzip": 1536153,
     "brotli": 1274130
   },
