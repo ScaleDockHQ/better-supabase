@@ -113,7 +113,9 @@ const config: KnipConfig = {
         "src/lib/supabase/permission-scopes.ts",
         "src/lib/supabase/blocks.core.ts",
         "src/lib/supabase/blocks.api.ts",
-        // `gen.entityPages` also writes each page's form parts and the route manifest; no page imports the forms yet (lane M5, ADRs 0869 and 0879).
+        // `gen.entityPages` also writes each page's form parts, the route manifest and the columns and nav item of the invitations page, which no page imports yet (lane M5, ADRs 0869 and 0879).
+        "src/lib/supabase/pages/*.columns.ts",
+        "src/lib/supabase/pages/*.navigation.ts",
         "src/lib/supabase/pages/*.form.ts",
         "src/lib/supabase/pages/routes.manifest.ts",
         // Copied from the registry, which knip checks as entries.
