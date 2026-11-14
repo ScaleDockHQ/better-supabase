@@ -203,6 +203,38 @@ to `enrollments`, keeps the step that runs next as an open step row with
 `cancelled` with the reason in `cancel_reason`. The sequences client owns
 these enrollments: schedules and `open_enrollment_steps` skip them.
 
+## Paging a list
+
+`list` is the capped convenience list. `enrollmentPage` is the full contract for enrollments (ADR 0749, 0779): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `updatedAt` and `enrolledAt`, and the default order is `updatedAt` (most recently changed first); filters are `status`, `program`, `subjectType` and `subjectId`; facets are `status` and `program`. Without `enrollments.read` a member pages only their own, and `get(enrollmentId)` returns one enrollment the caller may read.
+
+```ts
+const first = await enrollments
+  .enrollmentPage({ filters: { status: ["active"] }, limit: 50 })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await enrollments
+    .enrollmentPage({
+      filters: { status: ["active"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
+    .orThrow();
+}
+
+// How many rows each facet value holds under the same filters.
+const facets = await enrollments
+  .enrollmentFacets({ filters: { status: ["active"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await enrollments
+  .enrollmentCount({ filters: { status: ["active"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the enrollment does not declare returns an `invalid_input` error.
+
 ## Functions
 
 | Function                                                                       | Granted to                      | Does                                       |
@@ -213,6 +245,7 @@ these enrollments: schedules and `open_enrollment_steps` skip them.
 | `enroll(tenant, program, subject_type, subject_id)`                            | `authenticated`, `service_role` | Enrolls a subject                          |
 | `enrollment(tenant, program, subject_type, subject_id)`                        | `authenticated`, `service_role` | A subject's enrollment, or null            |
 | `list_enrollments(tenant, program, subject_type, subject_id, status, ...)`     | `authenticated`, `service_role` | The organization's enrollments             |
+| `page_enrollments(tenant, filters)`, `get_enrollment(enrollment_id)`           | `authenticated`, `service_role` | A keyset page with facets and a count, one |
 | `complete_enrollment_step(enrollment_id, step)`, `reset_enrollment_step(...)`  | `authenticated`, `service_role` | Marks a step done or not done              |
 | `cancel_enrollment(enrollment_id)`                                             | `authenticated`, `service_role` | Cancels an active enrollment               |
 | `pause_enrollment(enrollment_id)`, `resume_enrollment(enrollment_id)`          | `authenticated`, `service_role` | Holds or releases an active enrollment     |

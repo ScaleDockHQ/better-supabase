@@ -1,4 +1,11 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult, Result } from "../../core/result.ts";
 import type { MailSendDraft } from "../mail-sync/mail-sync.ts";
@@ -7,6 +14,7 @@ import type { BlockOptions, RecordRef } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
 import {
@@ -24,6 +32,7 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
+import { sequenceListSurface } from "./lists.ts";
 
 const SEQUENCE_STATUSES = ["draft", "active", "paused", "archived"] as const;
 const RUN_STATUSES = ["active", "paused", "completed", "exited"] as const;
@@ -199,6 +208,19 @@ export interface Sequences {
     readonly limit?: number;
   }): AsyncResult<readonly Sequence[]>;
   get(sequenceId: string): AsyncResult<Sequence>;
+  /**
+   * One keyset page of sequences by name (or by `sort`), with `hasMore` and a
+   * `nextCursor` to pass as `after`. Archived sequences stay out unless
+   * `filters.status` lists `archived`.
+   */
+  sequencePage(options?: PageOptions): AsyncResult<ListPage<Sequence>>;
+  /**
+   * The values of each facet of sequences and their counts, under the page's
+   * filters.
+   */
+  sequenceFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many sequences match the page's filters. */
+  sequenceCount(options?: CountOptions): AsyncResult<Count>;
   /** Deletes a sequence with its enrollments; false when there was none. */
   delete(sequenceId: string): AsyncResult<boolean>;
   /**
@@ -516,7 +538,19 @@ export function createSequences(options: SequencesOptions): Sequences {
     return sent.ok ? ok(sent.data.id) : sent;
   };
 
+  const sequences = entityList({
+    entity: "sequence",
+    surface: sequenceListSurface,
+    call,
+    tenant,
+    fn: "page_sequences",
+    rowOf: sequenceOf,
+  });
+
   const client: Sequences = {
+    sequencePage: sequences.page,
+    sequenceFacets: sequences.facets,
+    sequenceCount: sequences.count,
     upsert: (input) =>
       tenant().andThen((organizationId) =>
         call(

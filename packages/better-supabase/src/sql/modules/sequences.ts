@@ -171,6 +171,7 @@ function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_sequence", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "list_sequences", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "page_sequences", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "get_sequence", args: ["uuid"], returns: "jsonb" },
     { name: "delete_sequence", args: ["uuid"], returns: "boolean" },
     {

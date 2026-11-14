@@ -443,7 +443,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | quotes                    | crm           | quote                      | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | sales                     | crm           | sale                       | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | segments                  | crm           | segment                    | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
-| sequences                 | crm           | sequence                   | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| sequences                 | crm           | sequence                   | editable      | create, update, delete | -                      | name, updatedAt                          | status                 | -           | -        | -       | -         |
 | field-encryption          | database      | field_key                  | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | field-history             | database      | field_history              | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | imports                   | database      | import                     | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
@@ -498,10 +498,10 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | care-plans                | people        | care_plan_evaluation       | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
 | clinical-decision-support | people        | care_alert                 | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | clinical-decision-support | people        | care_rule                  | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
-| e-prescribing             | people        | prescription               | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| e-prescribing             | people        | prescription               | state-machine | create                 | -                      | createdAt, signedAt                      | status                 | -           | -        | -       | -         |
 | employees                 | people        | employee                   | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
 | enrollments               | people        | enrollment_program         | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
-| enrollments               | people        | enrollment                 | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| enrollments               | people        | enrollment                 | state-machine | create                 | -                      | updatedAt, enrolledAt                    | status, program        | -           | -        | -       | -         |
 | hiring                    | people        | job_opening                | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | hiring                    | people        | application                | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
 | hiring                    | people        | interview                  | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -513,7 +513,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | medications               | people        | medication_administration  | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
 | observations              | people        | observation                | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
 | observations              | people        | observation_definition     | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
-| payroll-export            | people        | payroll_run                | state-machine | create                 | delete                 | -                                        | -                      | -           | -        | -       | -         |
+| payroll-export            | people        | payroll_run                | state-machine | create                 | delete                 | periodFrom, createdAt                    | status                 | -           | -        | -       | -         |
 | payroll-export            | people        | payroll_line               | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | people                    | people        | people                     | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | qualifications            | people        | qualification              | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -531,7 +531,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | calendar                  | scheduling    | calendar_event             | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
 | calendar                  | scheduling    | calendar                   | editable      | create, update         | delete                 | -                                        | -                      | -           | -        | -       | -         |
 | events                    | scheduling    | event                      | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
-| passes                    | scheduling    | pass                       | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| passes                    | scheduling    | pass                       | state-machine | -                      | create                 | createdAt, validFrom, validUntil         | status                 | -           | -        | -       | -         |
 | passes                    | scheduling    | pass_check_in              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | reminders                 | scheduling    | reminder                   | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
 | scheduling                | scheduling    | scheduling                 | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
@@ -889,11 +889,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G4
 
 - Scope: List contract rollout: crm, people and scheduling
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-g4`
-- PR: none yet
-- Findings: EX-1200 to EX-1205, EX-1215, EX-600, EX-1000, EX-1001
+- PR: [#918](https://github.com/ScaleDockHQ/better-supabase/pull/918)
+- Findings: EX-1200 to EX-1205, EX-1215
 - Log: 2026-11-12, planned.
+  2026-11-13, lane G4 started from main (7f4bcbfdf7) in `../bsb-audit-g4`.
+  2026-11-13, PR #918 opened: five entities moved over (ADR 0779): sequences, payroll runs, passes, enrollments and prescriptions; sibling `page_*` functions for the positional lists, `get_enrollment` added. Blocks with extra columns and the permission-heavy lists (contacts, contracts, hiring, time-entries, bookings, leave, calendar, shifts, mail-sync, qualifications, medications) stay for a later lane.
 
 ### Lane G5
 

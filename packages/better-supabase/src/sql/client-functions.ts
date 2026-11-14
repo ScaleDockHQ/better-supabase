@@ -49,7 +49,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   banking:
     "apply_bank_rules bank_reconciliation_board bank_reconciliation_status delete_bank_rule get_bank_transaction ignore_bank_transaction import_bank_statement list_bank_accounts list_bank_rules list_bank_statements list_bank_transactions match_bank_transaction save_bank_account save_bank_rule suggest_bank_matches unmatch_bank_transaction",
   "payroll-export":
-    "create_payroll_run delete_payroll_run get_payroll_run list_payroll_runs mark_payroll_run_exported refresh_payroll_run",
+    "create_payroll_run delete_payroll_run get_payroll_run list_payroll_runs mark_payroll_run_exported page_payroll_runs refresh_payroll_run",
   "document-templates":
     "document_template_contract freeze_document get_document_template list_document_templates list_document_text_blocks render_document resolve_document_template save_document_template save_document_text_block set_document_template_active validate_document_template",
   tax: "compute_document_tax file_tax_return list_tax_codes list_tax_returns prepare_tax_return save_tax_code save_tax_rate tax_rate_on",
@@ -112,7 +112,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   enrichment:
     "enrichment_due enrichment_target enrichments_of record_enrichment",
   enrollments:
-    "cancel_enrollment complete_enrollment_step delete_enrollment_program enroll enrollment enrollment_programs list_enrollments open_enrollment_steps pause_enrollment reset_enrollment_step resume_enrollment save_enrollment_program set_enrollment_dates",
+    "cancel_enrollment complete_enrollment_step delete_enrollment_program enroll enrollment enrollment_programs get_enrollment list_enrollments open_enrollment_steps page_enrollments pause_enrollment reset_enrollment_step resume_enrollment save_enrollment_program set_enrollment_dates",
   entitlements: "entitlement_value has_entitlement",
   expenses:
     "add_expense_line archive_expense_category cancel_expense_report check_expense_report create_expense_report get_expense_report list_expense_categories list_expense_reports reimburse_expense_report remove_expense_line save_expense_category submit_expense_report update_expense_line",
@@ -223,7 +223,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "option-sets":
     "archive_option_set_item ensure_option_set list_option_sets rank_option_set_item save_option_set save_option_set_item",
   passes:
-    "check_in_pass get_pass issue_pass list_pass_check_ins list_passes my_passes revoke_pass",
+    "check_in_pass get_pass issue_pass list_pass_check_ins list_passes my_passes page_passes revoke_pass",
   permissions: "can list_roles my_permissions set_permission_override",
   pipelines:
     "archive_pipeline archive_pipeline_stage list_pipelines pipeline_board pipeline_health pipeline_stats rank_pipeline_stage save_pipeline save_pipeline_stage set_pipeline_transitions",
@@ -263,7 +263,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   segments:
     "list_segment_members refresh_due_segments refresh_segment remove_segment save_segment segment_get segments_list segments_of",
   sequences:
-    "change_sequence_enrollment delete_sequence enroll_in_sequence get_sequence list_sequence_enrollments list_sequences run_due_sequences save_sequence sequence_step_failed sequence_step_sent",
+    "change_sequence_enrollment delete_sequence enroll_in_sequence get_sequence list_sequence_enrollments list_sequences page_sequences run_due_sequences save_sequence sequence_step_failed sequence_step_sent",
   "service-accounts":
     "default_service_principal disable_service_principal register_service_principal service_principals_list set_service_principal_role",
   sessions:

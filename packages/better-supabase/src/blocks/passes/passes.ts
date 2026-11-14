@@ -1,6 +1,13 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Jwks } from "../../core/jws.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -11,6 +18,7 @@ import type { Signer } from "../signing-keys/signing-keys.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { JwsError, verifyCompact } from "../../core/jws.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
@@ -29,6 +37,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { jwtType } from "../signing-keys/signing-keys.ts";
+import { passListSurface } from "./lists.ts";
 
 /** The `typ` header of a pass token: `vnd.pass+jwt`. */
 export const PASS_TOKEN_TYPE: string = jwtType("pass");
@@ -225,6 +234,19 @@ export interface Passes {
   get(passId: string): AsyncResult<IssuedPass | null>;
   /** The tenant's passes, newest first. Needs `passes.read`. */
   list(options?: PassListOptions): AsyncResult<readonly Pass[]>;
+  /**
+   * One keyset page of the tenant's passes, newest first (or in the order of
+   * `sort`), with `hasMore` and a `nextCursor` to pass as `after`. Needs
+   * `passes.read`.
+   */
+  passPage(options?: PageOptions): AsyncResult<ListPage<Pass>>;
+  /**
+   * The values of each facet of passes and their counts, under the page's
+   * filters.
+   */
+  passFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many passes match the page's filters. */
+  passCount(options?: CountOptions): AsyncResult<Count>;
   /** The caller's live passes, for a wallet screen. */
   mine(): AsyncResult<readonly IssuedPass[]>;
   /**
@@ -519,7 +541,19 @@ export function createPasses(options: PassesOptions): Passes {
       scanOf,
     );
 
+  const passes = entityList({
+    entity: "pass",
+    surface: passListSurface,
+    call,
+    tenant,
+    fn: "page_passes",
+    rowOf: passOf,
+  });
+
   const client: Passes = {
+    passPage: passes.page,
+    passFacets: passes.facets,
+    passCount: passes.count,
     issue: (input) =>
       tenant().andThen((organizationId) =>
         call(
