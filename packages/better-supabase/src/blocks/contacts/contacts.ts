@@ -274,6 +274,10 @@ export interface Contacts<F extends object = Record<never, never>> {
     id: string;
     archived?: boolean | undefined;
   }): AsyncResult<boolean>;
+  /** Brings an archived company back and records `company.restored`. */
+  restoreCompany(id: string): AsyncResult<boolean>;
+  /** Brings an archived person back and records `person.restored`. */
+  restorePerson(id: string): AsyncResult<boolean>;
   /**
    * Links a person to a company. `primary` replaces the company's primary
    * contact.
@@ -763,6 +767,18 @@ export function createContacts<
       call("archive_company", { id, archived }, (value) => value === true),
     archivePerson: ({ id, archived = true }) =>
       call("archive_person", { id, archived }, (value) => value === true),
+    restoreCompany: (id) =>
+      call(
+        "archive_company",
+        { id, archived: false },
+        (value) => value === true,
+      ),
+    restorePerson: (id) =>
+      call(
+        "archive_person",
+        { id, archived: false },
+        (value) => value === true,
+      ),
     linkPerson: ({ companyId, personId, link = {} }) =>
       call(
         "set_company_person",

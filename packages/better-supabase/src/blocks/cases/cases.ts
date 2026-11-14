@@ -277,6 +277,8 @@ export interface Cases<F extends object = Record<never, never>> {
   saveKind(input: CaseKindInput): AsyncResult<CaseKind>;
   /** Archives a kind; its cases stay. Needs `cases.manage`. */
   archiveKind(kindId: string): AsyncResult<CaseKind>;
+  /** Brings an archived kind back; needs `cases.manage`. */
+  restoreKind(kindId: string): AsyncResult<CaseKind>;
   /** The organization's kinds by name. */
   kinds(options?: {
     readonly includeArchived?: boolean;
@@ -600,6 +602,10 @@ export function createCases<S extends StandardSchemaV1 | undefined = undefined>(
     archiveKind: (kindId) =>
       call("archive_case_kind", { kind_id: kindId }, (value) =>
         kindOf(value, "archive_case_kind"),
+      ),
+    restoreKind: (kindId) =>
+      call("restore_case_kind", { kind_id: kindId }, (value) =>
+        kindOf(value, "restore_case_kind"),
       ),
     kinds: (list = {}) =>
       tenant().andThen((organizationId) =>

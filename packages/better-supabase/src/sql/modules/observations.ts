@@ -335,6 +335,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
+      name: "restore_observation_definition",
+      args: ["uuid"],
+      returns: "jsonb",
+    },
+    {
       name: "list_observation_definitions",
       args: ["{id}", "boolean"],
       returns: "jsonb",

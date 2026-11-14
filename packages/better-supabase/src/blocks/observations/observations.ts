@@ -266,6 +266,8 @@ export interface Observations<F extends object = Record<never, never>> {
   }): AsyncResult<ObservationDefinition>;
   /** Needs `observations.manage`. Its observations stay. */
   archiveDefinition(definitionId: string): AsyncResult<ObservationDefinition>;
+  /** Needs `observations.manage`. New observations can use it again. */
+  restoreDefinition(definitionId: string): AsyncResult<ObservationDefinition>;
   /** The organization's definitions and the system ones, by title. */
   definitions(
     input: { organizationId: string } & { readonly includeArchived?: boolean },
@@ -633,6 +635,12 @@ export function createObservations<
         "archive_observation_definition",
         { definition_id: definitionId },
         (value) => definitionOf(value, "archive_observation_definition"),
+      ),
+    restoreDefinition: (definitionId) =>
+      call(
+        "restore_observation_definition",
+        { definition_id: definitionId },
+        (value) => definitionOf(value, "restore_observation_definition"),
       ),
     definitions: ({ organizationId, ...list }) =>
       call(

@@ -733,6 +733,39 @@ end;
 $$;
 ${userGrant(`${fn("archive_observation_definition")}(uuid)`)}
 
+-- Restores an archived definition: new observations can use it again.
+create or replace function ${fn("restore_observation_definition")}(definition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${definitions}%rowtype;
+begin
+  select * into v_row from ${definitions} x where x.${d("id")} = restore_observation_definition.definition_id;
+  if not found then
+    ${definitionNotFound}
+  end if;
+  if v_row.${d("tenant")} is null then
+    if not ${SERVICE_CALLER} then
+      ${forbidden("only the service role restores system definitions")}
+    end if;
+  elsif not ${allowed(`v_row.${d("tenant")}`, manage)} then
+    ${forbidden("not allowed to manage observation definitions")}
+  end if;
+  if v_row.${d("archivedAt")} is not null then
+    update ${definitions} x set ${d("archivedAt")} = null${touch}
+    where x.${d("id")} = v_row.${d("id")}
+    returning x.* into v_row;
+    ${definitionRecord("observation_definition.updated", "Observation definition restored")}
+  end if;
+  return ${definitionJson(ctx, "v_row")};
+end;
+$$;
+${userGrant(`${fn("restore_observation_definition")}(uuid)`)}
+
 -- Records one observation of a record by its definition key. value is a
 -- number, true or false, a string, or an object of components; details
 -- takes method, device and note.

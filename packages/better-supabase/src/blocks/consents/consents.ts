@@ -206,6 +206,8 @@ export interface Consents {
   savePurpose(input: ConsentPurposeInput): AsyncResult<ConsentPurpose>;
   /** Stops new consents for a purpose; the ones given stay. */
   archivePurpose(purposeId: string): AsyncResult<ConsentPurpose>;
+  /** Takes new consents for an archived purpose again; needs `consents.manage`. */
+  restorePurpose(purposeId: string): AsyncResult<ConsentPurpose>;
   /** The organization's purposes and the system ones, newest version first. */
   purposes(options?: {
     readonly includeArchived?: boolean;
@@ -436,6 +438,12 @@ export function createConsents(options: ConsentsOptions): Consents {
         "archive_consent_purpose",
         { purpose_id: purposeId },
         purpose("archive_consent_purpose"),
+      ),
+    restorePurpose: (purposeId) =>
+      call(
+        "restore_consent_purpose",
+        { purpose_id: purposeId },
+        purpose("restore_consent_purpose"),
       ),
     purposes: (filter = {}) =>
       tenant().andThen((organizationId) =>

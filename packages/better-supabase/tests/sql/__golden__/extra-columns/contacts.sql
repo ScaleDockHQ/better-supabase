@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:744364f310abf193d7ecf02b04aadbd39f60e6bc36a88efb4dbd3964ed674811
+-- @bsb-hash sha256:1cc07363048017220c0cd259683e5a25c24565752add8526386fbe65d811ebdf
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -503,11 +503,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."companies" x where x."id" = archive_company.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."companies" x where x."id" = archive_company.id;
   if v_tenant is null then
     return false;
   end if;
@@ -521,6 +522,8 @@ begin
     raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
   end;
   if archive_company.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -540,11 +543,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."people" x where x."id" = archive_person.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."people" x where x."id" = archive_person.id;
   if v_tenant is null then
     return false;
   end if;
@@ -558,6 +562,8 @@ begin
     raise exception 'another person has this email' using errcode = '23505', hint = 'PARTY_EMAIL_TAKEN';
   end;
   if archive_person.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;

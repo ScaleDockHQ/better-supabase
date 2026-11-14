@@ -1,6 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:2ca9239e8ac9825029f13ca4059fe55ff1d104185d7a11d26e02b3d6a360931c
+-- @bsb-hash sha256:396ac6a890af431950462b29330485a03439d382a2f05cf47d83ad32c03d5791
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -630,6 +630,55 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_observation_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_observation_definition"(uuid) to authenticated, service_role;
+
+-- Restores an archived definition: new observations can use it again.
+create or replace function "better_supabase"."restore_observation_definition"(definition_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."observation_definitions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."observation_definitions" x where x."id" = restore_observation_definition.definition_id;
+  if not found then
+    raise exception 'observation definition not found' using errcode = 'P0002', hint = 'OBSERVATION_DEFINITION_NOT_FOUND';
+  end if;
+  if v_row."tenant_id" is null then
+    if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+      raise exception 'only the service role restores system definitions' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
+    end if;
+  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'observations.manage'), false)) then
+    raise exception 'not allowed to manage observation definitions' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    update "better_supabase"."observation_definitions" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning x.* into v_row;
+    if v_row."tenant_id" is not null then
+    perform "better_supabase".emit_event('observation_definition.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'definitionId', v_row."id", 'key', v_row."key", 'title', v_row."title"), 'observation-definitions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/observations');
+  perform better_supabase.audit_event(
+    event_type => 'observation_definition.updated',
+    category => 'configuration',
+    target_type => 'observation_definition',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'Observation definition restored',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'definitionId', v_row."id", 'key', v_row."key", 'title', v_row."title")
+  );
+  end if;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'system', v_row."tenant_id" is null, 'key', v_row."key", 'title', v_row."title", 'valueType', v_row."value_type", 'unit', v_row."unit", 'codeSystem', v_row."code_system", 'code', v_row."code", 'components', coalesce(v_row."components", '[]'::jsonb), 'decimals', v_row."decimals", 'validLow', v_row."valid_low", 'validHigh', v_row."valid_high", 'referenceLow', v_row."reference_low", 'referenceHigh', v_row."reference_high", 'criticalLow', v_row."critical_low", 'criticalHigh', v_row."critical_high", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_observation_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_observation_definition"(uuid) to authenticated, service_role;
 
 -- Records one observation of a record by its definition key. value is a
 -- number, true or false, a string, or an object of components; details
@@ -2105,6 +2154,15 @@ set search_path = ''
 as $$ select "better_supabase"."archive_observation_definition"($1) $$;
 revoke execute on function "api"."archive_observation_definition"(uuid) from public, anon;
 grant execute on function "api"."archive_observation_definition"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_observation_definition"(definition_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_observation_definition"($1) $$;
+revoke execute on function "api"."restore_observation_definition"(uuid) from public, anon;
+grant execute on function "api"."restore_observation_definition"(uuid) to authenticated, service_role;
 
 create or replace function "api"."record_observation"(tenant uuid, subject_type text, subject_id text, definition_key text, value jsonb, observed_at timestamptz default null, details jsonb default null)
 returns jsonb

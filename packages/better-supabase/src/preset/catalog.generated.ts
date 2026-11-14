@@ -22848,6 +22848,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "case_kind.created",
           "case_kind.updated",
           "case_kind.archived",
+          "case_kind.restored",
           "case.created",
           "case.updated",
           "case.root_cause_recorded",
@@ -24547,6 +24548,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "lims_method.created",
           "lims_method.updated",
           "lims_method.archived",
+          "lims_method.restored",
           "lims_sample.registered",
           "lims_sample.completed",
           "lims_sample.released",
@@ -33221,6 +33223,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "company.created",
           "company.updated",
           "company.archived",
+          "company.restored",
           "company.merged",
           "company.person_linked",
           "company.person_unlinked",
@@ -33228,6 +33231,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "person.created",
           "person.updated",
           "person.archived",
+          "person.restored",
           "person.merged",
           "person.supplier_status_changed"
         ]

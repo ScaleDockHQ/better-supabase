@@ -2498,11 +2498,13 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "company.merged",
         "company.person_linked",
         "company.person_unlinked",
+        "company.restored",
         "company.supplier_status_changed",
         "company.updated",
         "person.archived",
         "person.created",
         "person.merged",
+        "person.restored",
         "person.supplier_status_changed",
         "person.updated"
       ],
@@ -4427,6 +4429,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "case_action.deleted",
         "case_kind.archived",
         "case_kind.created",
+        "case_kind.restored",
         "case_kind.updated"
       ],
       "subpath": "better-supabase/blocks/cases",
@@ -4873,6 +4876,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "lims_method.archived",
         "lims_method.created",
+        "lims_method.restored",
         "lims_method.updated",
         "lims_result.flagged",
         "lims_result.recorded",

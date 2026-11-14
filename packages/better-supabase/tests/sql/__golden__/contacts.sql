@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:96e48acdf3952e05de883a40ca38bafa3842268b5531dab78366aebedb3b1fcf
+-- @bsb-hash sha256:7a144c673e7bdad1d63e1054594d152ee8f74e17196405bc75cdce3c0e8101e4
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -502,11 +502,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."companies" x where x."id" = archive_company.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."companies" x where x."id" = archive_company.id;
   if v_tenant is null then
     return false;
   end if;
@@ -520,6 +521,8 @@ begin
     raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
   end;
   if archive_company.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -539,11 +542,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."people" x where x."id" = archive_person.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."people" x where x."id" = archive_person.id;
   if v_tenant is null then
     return false;
   end if;
@@ -557,6 +561,8 @@ begin
     raise exception 'another person has this email' using errcode = '23505', hint = 'PARTY_EMAIL_TAKEN';
   end;
   if archive_person.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -1928,7 +1934,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:71b8c69f628b314bb4b1fe2915520602761c972b96834368c7a7961d03c6a7bd
+-- @bsb-hash sha256:6c976b53284abc693625962077ef81b0f7f5c85ad4adb005633b2fdd76bc0c93
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2439,11 +2445,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."companies" x where x."id" = archive_company.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."companies" x where x."id" = archive_company.id;
   if v_tenant is null then
     return false;
   end if;
@@ -2458,6 +2465,8 @@ begin
   end;
   if archive_company.archived then
     perform "better_supabase".emit_event('company.archived', jsonb_build_object('organizationId', v_tenant, 'companyId', archive_company.id, 'name', v_name), 'companies/' || archive_company.id::text, (v_tenant::text)::text, null, 'better-supabase/contacts');
+  elsif v_was is not null then
+    perform "better_supabase".emit_event('company.restored', jsonb_build_object('organizationId', v_tenant, 'companyId', archive_company.id, 'name', v_name), 'companies/' || archive_company.id::text, (v_tenant::text)::text, null, 'better-supabase/contacts');
   end if;
   return true;
 end;
@@ -2476,11 +2485,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."people" x where x."id" = archive_person.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."people" x where x."id" = archive_person.id;
   if v_tenant is null then
     return false;
   end if;
@@ -2495,6 +2505,8 @@ begin
   end;
   if archive_person.archived then
     perform "better_supabase".emit_event('person.archived', jsonb_build_object('organizationId', v_tenant, 'personId', archive_person.id, 'name', v_name), 'persons/' || archive_person.id::text, (v_tenant::text)::text, null, 'better-supabase/contacts');
+  elsif v_was is not null then
+    perform "better_supabase".emit_event('person.restored', jsonb_build_object('organizationId', v_tenant, 'personId', archive_person.id, 'name', v_name), 'persons/' || archive_person.id::text, (v_tenant::text)::text, null, 'better-supabase/contacts');
   end if;
   return true;
 end;
@@ -4015,7 +4027,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:91d652a547193987f9889e6402aafeb6814a510efeaacc5cede264b4294a2261
+-- @bsb-hash sha256:2b011698b33d29dafeff439f1e8ea729931fa13595483d0c3c6771b694bbb3d8
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4521,11 +4533,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "app_private"."companies" x where x."id" = archive_company.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "app_private"."companies" x where x."id" = archive_company.id;
   if v_tenant is null then
     return false;
   end if;
@@ -4539,6 +4552,8 @@ begin
     raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
   end;
   if archive_company.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -4558,11 +4573,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "app_private"."people" x where x."id" = archive_person.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "app_private"."people" x where x."id" = archive_person.id;
   if v_tenant is null then
     return false;
   end if;
@@ -4576,6 +4592,8 @@ begin
     raise exception 'another person has this email' using errcode = '23505', hint = 'PARTY_EMAIL_TAKEN';
   end;
   if archive_person.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -5947,7 +5965,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:b83970c08c31d74ae9f08f4d9d3a920628b2b1ccfd592d95aa4a48e4abdf18ec
+-- @bsb-hash sha256:e0152ff2cafc98070183855c3f7699704450cd85caa4aa2140b49a3516edc507
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6448,11 +6466,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."companies" x where x."id" = archive_company.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."companies" x where x."id" = archive_company.id;
   if v_tenant is null then
     return false;
   end if;
@@ -6466,6 +6485,8 @@ begin
     raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
   end;
   if archive_company.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -6485,11 +6506,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."people" x where x."id" = archive_person.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."people" x where x."id" = archive_person.id;
   if v_tenant is null then
     return false;
   end if;
@@ -6503,6 +6525,8 @@ begin
     raise exception 'another person has this email' using errcode = '23505', hint = 'PARTY_EMAIL_TAKEN';
   end;
   if archive_person.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -8249,7 +8273,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:cc8f026694da02f16722fb6e3136ad4b6130fa87778f6d9926854fee2ad93461
+-- @bsb-hash sha256:b2fa28d4fe6713805dbddede6e81c3d86c339f30451b531456dd9711e7621675
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8733,11 +8757,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."companies" x where x."id" = archive_company.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."companies" x where x."id" = archive_company.id;
   if v_tenant is null then
     return false;
   end if;
@@ -8751,6 +8776,8 @@ begin
     raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
   end;
   if archive_company.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -8770,11 +8797,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."name" into v_tenant, v_name from "better_supabase"."people" x where x."id" = archive_person.id;
+  select x."tenant_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."people" x where x."id" = archive_person.id;
   if v_tenant is null then
     return false;
   end if;
@@ -8788,6 +8816,8 @@ begin
     raise exception 'another person has this email' using errcode = '23505', hint = 'PARTY_EMAIL_TAKEN';
   end;
   if archive_person.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -10159,7 +10189,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:549705bc448dd0d70e066ce6ffcb3a54a9d81a0b79361efd9192be4a53737f51
+-- @bsb-hash sha256:9a5d83ede10fa084d942eb98fad2391cbdeeca35e3ee7a481ffb7e6bd9184052
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10660,11 +10690,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."org_id", x."name" into v_tenant, v_name from "better_supabase"."companies" x where x."id" = archive_company.id;
+  select x."org_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."companies" x where x."id" = archive_company.id;
   if v_tenant is null then
     return false;
   end if;
@@ -10678,6 +10709,8 @@ begin
     raise exception 'another company has this domain' using errcode = '23505', hint = 'PARTY_DOMAIN_TAKEN';
   end;
   if archive_company.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -10697,11 +10730,12 @@ as $$
 declare
   v_tenant uuid;
   v_name text;
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."org_id", x."name" into v_tenant, v_name from "better_supabase"."people" x where x."id" = archive_person.id;
+  select x."org_id", x."name", x."archived_at" into v_tenant, v_name, v_was from "better_supabase"."people" x where x."id" = archive_person.id;
   if v_tenant is null then
     return false;
   end if;
@@ -10715,6 +10749,8 @@ begin
     raise exception 'another person has this email' using errcode = '23505', hint = 'PARTY_EMAIL_TAKEN';
   end;
   if archive_person.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
