@@ -31,7 +31,11 @@ const BASE_DAY = Date.UTC(2026, 0, 5);
 
 const DAY = 86_400_000;
 
-function seedValue(key: string, field: Field, index: number): EntitySeedValue {
+export function seedValue(
+  key: string,
+  field: Field,
+  index: number,
+): EntitySeedValue {
   const kind = kindOf(field);
 
   switch (kind) {

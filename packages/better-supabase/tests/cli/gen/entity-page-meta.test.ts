@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   entityPageMessageKeys,
   entityPageSeedRows,
+  seedValue,
 } from "../../../src/cli/gen/entity-page-meta.ts";
 import {
   emitEntityPages,
@@ -142,5 +143,85 @@ describe("manifest output", () => {
 
   it("writes no file when there are no pages", () => {
     expect(emitEntityPages(config([]), "better-supabase")).toStrictEqual([]);
+  });
+});
+
+describe("pages without every part", () => {
+  const bare = defineEntityPage({
+    entity: "risks.risk",
+    route: "/risks",
+    area: "governance",
+    seed: {},
+  });
+
+  const files = emit([bare]);
+  const nav = [...files].find(([path]) => path.endsWith("navigation.ts"))?.[1];
+
+  const manifest = [...files].find(([path]) =>
+    path.endsWith("routes.manifest.ts"),
+  )?.[1];
+
+  it("leaves the record link and title key undefined", () => {
+    expect(nav).toContain("recordHref: undefined,");
+    expect(nav).toContain("titleKey: undefined,");
+    expect(nav).not.toContain("import {");
+  });
+
+  it("leaves the detail route undefined in the manifest", () => {
+    expect(manifest).toContain("detail: undefined,");
+    expect(manifest).not.toContain("import {");
+  });
+
+  it("seeds ten rows and the demo tier by default", () => {
+    const seed = [...files].find(([path]) => path.endsWith("seed.ts"))?.[1];
+
+    expect(seed).toContain('tiers: ["demo"]');
+    expect(seed?.match(/^ {4}\{/gm)).toHaveLength(10);
+  });
+
+  it("trims a trailing slash from the routes", () => {
+    const slash = defineEntityPage({
+      entity: "risks.risk",
+      route: "/risks/",
+      area: "governance",
+    });
+
+    expect(
+      [...emit([slash])].find(([path]) => path.endsWith("navigation.ts"))?.[1],
+    ).toContain('href: "/risks"');
+  });
+});
+
+describe("seedValue", () => {
+  const field = (spec: Record<string, unknown>) =>
+    spec as unknown as Parameters<typeof seedValue>[1];
+
+  it("fills each kind from its bounds", () => {
+    expect(seedValue("n", field({ kind: "integer" }), 3)).toBe(3);
+    expect(
+      seedValue("n", field({ kind: "integer", minimum: 5, maximum: 6 }), 9),
+    ).toBe(6);
+    expect(seedValue("b", field({ kind: "boolean" }), 1)).toBe(false);
+    expect(seedValue("b", field({ kind: "boolean" }), 2)).toBe(true);
+    expect(seedValue("e", field({ kind: "enum", values: ["a", "b"] }), 3)).toBe(
+      "b",
+    );
+    expect(seedValue("d", field({ kind: "date" }), 1)).toBe("2026-01-06");
+    expect(seedValue("t", field({ kind: "datetime" }), 0)).toBe(
+      "2026-01-05T00:00:00.000Z",
+    );
+    expect(seedValue("u", field({ kind: "uuid" }), 0)).toBe(
+      "00000000-0000-4000-8000-000000000001",
+    );
+    expect(seedValue("j", field({ kind: "json" }), 0)).toBeNull();
+  });
+
+  it("names a text value and respects its length", () => {
+    expect(seedValue("nextReviewOn", field({ kind: "string" }), 0)).toBe(
+      "Next review on 1",
+    );
+    expect(seedValue("title", field({ kind: "string", maxLength: 3 }), 0)).toBe(
+      "Tit",
+    );
   });
 });
