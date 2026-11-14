@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:07842557f26dcc779a3593ade7b5a1148868bd15416f8520064b0c571d458d56
+-- @bsb-hash sha256:cf5c47c1ab7585b87fef5e468c7777e9b53d1b97c030b60b8f29b0eb1b6431f9
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -760,10 +760,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."deals";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."deals" x where x."id" = archive_deal.deal;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
@@ -773,6 +775,8 @@ begin
     return false;
   end if;
   if archive_deal.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -1067,7 +1071,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:5100a8ba5017e55b77950249e47673f14f7d18da5f66147f515059ba666b988f
+-- @bsb-hash sha256:14f3d429be723f84fd3053c6de0803fb13a5fd0bd088f89e1906416b52fd2652
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1855,10 +1859,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."deals";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."deals" x where x."id" = archive_deal.deal;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
@@ -1869,6 +1875,8 @@ begin
   end if;
   if archive_deal.archived then
     perform "better_supabase".emit_event('deal.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'dealId', v_row."id", 'subjectType', 'deal', 'subjectId', v_row."id"::text, 'name', v_row."name"), 'deals/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/deals');
+  elsif v_was is not null then
+    perform "better_supabase".emit_event('deal.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'dealId', v_row."id", 'subjectType', 'deal', 'subjectId', v_row."id"::text, 'name', v_row."name"), 'deals/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/deals');
   end if;
   return true;
 end;
@@ -2166,7 +2174,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:78492aa85fba2071d48063cd852f9749483399795e26b35313214019753839b8
+-- @bsb-hash sha256:85d749929f064f0dbc0dc8b2017cef7c94ab421ba248a9bad37d404786fc0a9b
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2930,10 +2938,12 @@ set search_path = ''
 as $$
 declare
   v_row "app_private"."deals";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "app_private"."deals" x where x."id" = archive_deal.deal;
   update "app_private"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
@@ -2943,6 +2953,8 @@ begin
     return false;
   end if;
   if archive_deal.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -3237,7 +3249,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:b08038f7e5ad8de0ca90216d6f0bab341e8365f46810185768653baf1cf1f2c0
+-- @bsb-hash sha256:648c970f9bd8a8b50a5b31957229dad8d7482e9c846304b68c3472d97127f640
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3996,10 +4008,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."deals";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."deals" x where x."id" = archive_deal.deal;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
@@ -4009,6 +4023,8 @@ begin
     return false;
   end if;
   if archive_deal.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -4428,7 +4444,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:58fafb237bcf75e7e8a2a7f45da4c3909dc22f6377b555fabc2921f973dba106
+-- @bsb-hash sha256:f06e5a52c91360bd29a4267b0a1315639e3b686825a1f09d1c601435f1ba8942
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5178,10 +5194,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."deals";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."deals" x where x."id" = archive_deal.deal;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
@@ -5191,6 +5209,8 @@ begin
     return false;
   end if;
   if archive_deal.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -5485,7 +5505,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:58895534f47145f569f860a064afc6d66267a58db249419a0c3fbf03097b8025
+-- @bsb-hash sha256:8c2e7c845943489988ca1bce3b73c24b95cd4f4dabae4a84f3a44e9459bf4451
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6244,10 +6264,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."deals";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."deals" x where x."id" = archive_deal.deal;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."org_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."org_id", 'deals.manage'), false)
@@ -6257,6 +6279,8 @@ begin
     return false;
   end if;
   if archive_deal.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;

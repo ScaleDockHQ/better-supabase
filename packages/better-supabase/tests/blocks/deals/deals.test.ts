@@ -250,6 +250,11 @@ describe("deals block", () => {
       ).total,
     ).toEqual(eur(121n));
     expect(await deals.archive({ dealId: "d1" }).orThrow()).toBe(true);
+    expect(await deals.restore("d1").orThrow()).toBe(true);
+    expect(t.calls).toContainEqual([
+      "archive_deal",
+      { deal: "d1", archived: false },
+    ]);
     expect(await deals.remove("d1").orThrow()).toBe(true);
     expect(t.calls.slice(0, 2).map(([, args]) => args)).toEqual([
       { deal: "d1", outcome: "won", reason: null },

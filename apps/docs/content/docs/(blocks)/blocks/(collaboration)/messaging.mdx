@@ -269,10 +269,14 @@ which writes `hooks/use-messaging.ts` into the app.
 | `scheduleQueue` | `"messaging"` | The jobs queue for scheduled messages                      |
 | `notify`        | `true`        | `false` sends no message notifications                     |
 
+`archive({ conversationId })` makes a conversation read-only and
+`restore(conversationId)` brings it back; a restore records
+`conversation.restored`.
+
 ## Events
 
 The block writes `conversation.created`, `conversation.archived`,
-`conversation.member_added`, `conversation.member_removed`, `message.sent`,
+`conversation.restored`, `conversation.member_added`, `conversation.member_removed`, `message.sent`,
 `message.updated`, `message.deleted`, `message.pinned` and `message.resolved`
 to the [outbox](/docs/blocks/outbox). Their payloads name the subject with
 `subjectType` and `subjectId`; see [Events](/docs/extending/events).

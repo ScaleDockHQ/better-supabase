@@ -758,7 +758,9 @@ set search_path = ''
 as $$
 declare
   v_row ${t("items")};
+  v_was timestamptz;
 begin
+  select x.${w("archivedAt")} into v_was from ${t("items")} x where x.${w("id")} = archive_task.task;
   update ${t("items")} x set ${w("archivedAt")} = case when archive_task.archived then coalesce(x.${w("archivedAt")}, now()) end
   where x.${w("id")} = archive_task.task and ${editable("x")}
   returning * into v_row;
@@ -767,6 +769,8 @@ begin
   end if;
   if archive_task.archived then
     ${record("task.archived", "v_row")}
+  elsif v_was is not null then
+    ${record("task.restored", "v_row")}
   end if;
   return true;
 end;
@@ -785,7 +789,10 @@ as $$
 declare
   v_row ${t("items")};
   v_ids uuid[] := '{}';
+  v_was uuid[];
 begin
+  select coalesce(array_agg(x.${w("id")}), '{}') into v_was from ${t("items")} x
+  where x.${w("id")} = any (coalesce(archive_tasks.ids, '{}')) and x.${w("archivedAt")} is not null;
   for v_row in
     with changed as (
       update ${t("items")} x set ${w("archivedAt")} = case when archive_tasks.archived then coalesce(x.${w("archivedAt")}, now()) end
@@ -797,6 +804,8 @@ begin
     v_ids := array_append(v_ids, v_row.${w("id")});
     if archive_tasks.archived then
       ${record("task.archived", "v_row")}
+    elsif v_row.${w("id")} = any (v_was) then
+      ${record("task.restored", "v_row")}
     end if;
   end loop;
   return jsonb_build_object(

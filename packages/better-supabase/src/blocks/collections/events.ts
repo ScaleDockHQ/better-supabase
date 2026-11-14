@@ -11,6 +11,7 @@ import { defineEvents, event } from "../../core/event-map.ts";
 export type CollectionsEvents = {
   readonly "collection.created": CollectionEventData;
   readonly "collection.archived": CollectionEventData;
+  readonly "collection.restored": CollectionEventData;
   readonly "collection.entry_added": CollectionEntryEventData;
   readonly "collection.entry_removed": CollectionEntryEventData;
   readonly "saved_item.reminded": SavedItemEventData;
@@ -20,6 +21,7 @@ export type CollectionsEvents = {
 export const collectionsEvents: Events<CollectionsEvents> = defineEvents({
   "collection.created": event<CollectionEventData>(),
   "collection.archived": event<CollectionEventData>(),
+  "collection.restored": event<CollectionEventData>(),
   "collection.entry_added": event<CollectionEntryEventData>(),
   "collection.entry_removed": event<CollectionEntryEventData>(),
   "saved_item.reminded": event<SavedItemEventData>(),

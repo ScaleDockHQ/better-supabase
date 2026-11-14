@@ -816,6 +816,9 @@ export function createSupabaseWorld(
   return {
     ...base,
     analytics: createAnalytics(pool),
+    // Every delivery carries the HMAC that createQueueHandler checks before the
+    // runtime sees it, so the runtime's loopback key check has nothing to add.
+    queueAuthMode: "skip",
     queue,
     queueBatch,
     createQueueHandler,

@@ -152,6 +152,7 @@ describe("createMessaging", () => {
     expect(await messaging.archive({ conversationId: "c1" }).orThrow()).toBe(
       true,
     );
+    expect(await messaging.restore("c1").orThrow()).toBe(true);
 
     const [summary] = await messaging
       .conversations({ kinds: ["subject"], limit: 5 })

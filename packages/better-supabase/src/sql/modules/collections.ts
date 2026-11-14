@@ -49,6 +49,10 @@ const EVENTS: BlockSqlEvents<CollectionsEvents> = {
     subject: "collections",
     payload: ["organizationId", "collectionId", "subjectType", "name"],
   },
+  "collection.restored": {
+    subject: "collections",
+    payload: ["organizationId", "collectionId", "subjectType", "name"],
+  },
   "collection.entry_added": { subject: "collections", payload: [...ENTRY] },
   "collection.entry_removed": { subject: "collections", payload: [...ENTRY] },
   "saved_item.reminded": {

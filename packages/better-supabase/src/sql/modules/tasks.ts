@@ -79,6 +79,7 @@ const EVENTS: BlockSqlEvents<TasksEvents> = {
   },
   "task.reopened": { subject: "tasks", payload: [...ITEM] },
   "task.archived": { subject: "tasks", payload: [...ITEM] },
+  "task.restored": { subject: "tasks", payload: [...ITEM] },
   "task.deleted": { subject: "tasks", payload: [...ITEM] },
 };
 

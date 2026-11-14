@@ -430,7 +430,9 @@ const { invite, inviting, sent, clear } = useInvitations({
 
 `setRole(userId, role)` shows the new role at once and puts the old one
 back when `update_member_role` refuses it; `pending` lists the members with
-a write in flight. `remove(userId)` removes a member and loads the list
+a write in flight. `setRoles({ userIds, role })` gives many members one role in one
+`update_member_roles` call, puts back the roles of the members it refused and
+returns `{ succeeded, failed }`. `remove(userId)` removes a member and loads the list
 again. `invite({ email, role })` keeps the result in `sent` until `clear()`,
 so a dialog can show the accept link from `sent.token`, and `revoke(id)`
 revokes an open invitation.

@@ -42,6 +42,7 @@ const EVENTS: BlockSqlEvents<DealsEvents> = {
   },
   "deal.reopened": { subject: "deals", payload: [...DEAL] },
   "deal.archived": { subject: "deals", payload: [...DEAL] },
+  "deal.restored": { subject: "deals", payload: [...DEAL] },
   "deal.deleted": { subject: "deals", payload: [...DEAL] },
 };
 

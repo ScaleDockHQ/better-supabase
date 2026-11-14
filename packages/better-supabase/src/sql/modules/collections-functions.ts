@@ -263,6 +263,14 @@ begin
       tenant: `v_row.${co("tenant")}::text`,
       audit: false,
     })}
+  elsif not coalesce(archive_collection.archived, true) and v_row.${co("archivedAt")} is not null then
+    ${ctx.record({
+      type: "collection.restored",
+      payload: `jsonb_build_object('organizationId', v_row.${co("tenant")}, 'collectionId', v_row.${co("id")}, 'subjectType', v_row.${co("subjectType")}, 'name', v_row.${co("name")})`,
+      subject: `'collections/' || v_row.${co("id")}::text`,
+      tenant: `v_row.${co("tenant")}::text`,
+      audit: false,
+    })}
   end if;
   return true;
 end;

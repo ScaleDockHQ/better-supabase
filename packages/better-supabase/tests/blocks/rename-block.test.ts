@@ -139,6 +139,7 @@ describe("renameBlock", () => {
         "task.closed",
         "task.reopened",
         "task.archived",
+        "task.restored",
         "task.deleted",
       ],
     });

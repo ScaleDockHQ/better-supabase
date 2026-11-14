@@ -488,6 +488,8 @@ export interface Accounting<F extends object = Record<never, never>>
     accountId: string;
     archived?: boolean | undefined;
   }): AsyncResult<AccountingAccount>;
+  /** Brings an archived account back so entries post to it again. */
+  restoreAccount(accountId: string): AsyncResult<AccountingAccount>;
   /** Maps a role to an account, or clears it with `null`; returns every role. */
   setAccountRole(input: {
     organizationId: string;
@@ -701,6 +703,12 @@ export function createAccounting<
       call(
         "archive_accounting_account",
         { account_id: accountId, archived },
+        (value) => accountOf(value, "archive_accounting_account"),
+      ),
+    restoreAccount: (accountId) =>
+      call(
+        "archive_accounting_account",
+        { account_id: accountId, archived: false },
         (value) => accountOf(value, "archive_accounting_account"),
       ),
     setAccountRole: ({ organizationId, role, accountId }) =>
