@@ -6,6 +6,12 @@ export {
 } from "./field-history.ts";
 
 export {
+  historyTabs,
+  type HistoryTab,
+  type HistoryTabBlock,
+} from "./history-tabs.ts";
+
+export {
   extendBlock,
   withBlockHooks,
   wrapTransport,

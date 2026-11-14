@@ -4,8 +4,10 @@ import type { AnyBlock } from "../../src/blocks/define-block.ts";
 
 import { defineBlock } from "../../src/blocks/define-block.ts";
 import {
+  ENTITY_ERASES,
   ENTITY_METHODS,
   ENTITY_MUTABILITIES,
+  ENTITY_PARTITION_EVERY,
 } from "../../src/blocks/entity-surface.ts";
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
 import { EMIT_GAPS } from "./emit-gaps.ts";
@@ -112,5 +114,82 @@ describe("the entity surface of a manifest", () => {
     );
 
     expect(declared.toSorted()).toStrictEqual([...EMIT_GAPS].toSorted());
+  });
+
+  it("names the subject column of every entity with personal data", () => {
+    const wrong: string[] = [];
+
+    for (const block of BLOCK_MANIFESTS) {
+      for (const [key, surface] of entriesOf(block)) {
+        const columns = surface.personalData ?? [];
+
+        if (
+          surface.personalData !== undefined &&
+          (columns.length === 0 || surface.subjectColumn === undefined)
+        ) {
+          wrong.push(`${block.name}.${key}`);
+        }
+      }
+    }
+
+    expect(wrong).toStrictEqual([]);
+  });
+
+  it("never lets an erasure delete the rows of an append-only entity", () => {
+    const wrong: string[] = [];
+
+    for (const block of BLOCK_MANIFESTS) {
+      for (const [key, surface] of entriesOf(block)) {
+        if (surface.erase !== undefined) {
+          expect(ENTITY_ERASES, `${block.name}.${key}`).toContain(
+            surface.erase,
+          );
+        }
+
+        if (
+          surface.personalData !== undefined &&
+          surface.mutability === "append-only" &&
+          (surface.erase ?? "delete") === "delete"
+        ) {
+          wrong.push(`${block.name}.${key}`);
+        }
+      }
+    }
+
+    expect(wrong).toStrictEqual([]);
+  });
+
+  it("declares a valid partition and a retention class where it names one", () => {
+    for (const block of BLOCK_MANIFESTS) {
+      for (const [key, surface] of entriesOf(block)) {
+        const at = `${block.name}.${key}`;
+
+        if (surface.partition !== undefined) {
+          expect(surface.partition.by, at).toMatch(/^[a-z][A-Za-z0-9]*$/);
+          expect(ENTITY_PARTITION_EVERY, at).toContain(surface.partition.every);
+        }
+
+        if (surface.retention !== undefined) {
+          expect(surface.retention, at).toMatch(/^[a-z][a-z0-9_]*$/);
+        }
+
+        if (surface.legalHold) {
+          expect(surface.retention !== undefined || surface.personalData, at)
+            .toBeTruthy();
+        }
+      }
+    }
+  });
+
+  it("keeps history only on entities that are not append-only", () => {
+    for (const block of BLOCK_MANIFESTS) {
+      for (const [key, surface] of entriesOf(block)) {
+        if (surface.history) {
+          expect(surface.mutability, `${block.name}.${key}`).not.toBe(
+            "append-only",
+          );
+        }
+      }
+    }
   });
 });

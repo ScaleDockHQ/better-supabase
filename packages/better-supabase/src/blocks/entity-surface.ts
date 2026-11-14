@@ -38,6 +38,44 @@ export const ENTITY_METHODS: readonly EntityMethod[] = [
 ];
 
 /**
+ * What an erasure request does to the rows of an entity that holds personal
+ * data: `delete` removes them, `anonymize` blanks the `personalData` columns
+ * and keeps the row (for rows an audit trail or a ledger points at), and `keep`
+ * leaves them because a legal duty requires the record (ADR 0899).
+ */
+export type EntityErase = "delete" | "anonymize" | "keep";
+
+/** Every `EntityErase`, for checks. */
+export const ENTITY_ERASES: readonly EntityErase[] = [
+  "delete",
+  "anonymize",
+  "keep",
+];
+
+/** How often a partitioned entity table starts a new partition. */
+export type EntityPartitionEvery = "month" | "quarter" | "year";
+
+/** Every `EntityPartitionEvery`, for checks. */
+export const ENTITY_PARTITION_EVERY: readonly EntityPartitionEvery[] = [
+  "month",
+  "quarter",
+  "year",
+];
+
+/**
+ * The archive policy of an entity table that grows without bound (ADR 0900):
+ * the column the table is partitioned by, how long each partition spans, and
+ * what happens to a partition once it is past its retention class.
+ */
+export interface EntityPartition {
+  /** The timestamp column the table is partitioned by, as the client names it. */
+  readonly by: string;
+  readonly every: EntityPartitionEvery;
+  /** `detach` keeps an old partition as a table, `drop` removes it. */
+  readonly archive?: "detach" | "drop";
+}
+
+/**
  * One entity's declared surface (ADR 0689). Every field is optional so a block
  * can declare what it knows today; later lanes read these fields to generate
  * pages, permission keys and checks.
@@ -68,8 +106,32 @@ export interface EntitySurface {
   readonly recordAccess?: "team";
   /** The columns that hold personal data. */
   readonly personalData?: readonly string[];
-  /** The retention class the entity's rows follow. */
+  /**
+   * The column that names the person a row is about, as the client names it.
+   * `subjectAccessPlan` reads it with `personalData` (ADR 0899).
+   */
+  readonly subjectColumn?: string;
+  /**
+   * What an erasure does to the entity's rows. Absent means `delete` for an
+   * entity with `personalData`; an append-only entity must say `anonymize` or
+   * `keep` so an erasure never breaks the audit trail (ADR 0899).
+   */
+  readonly erase?: EntityErase;
+  /**
+   * The retention class the entity's rows follow: a kind of the `data-lifecycle`
+   * retention policies (`audit`, `outbox`, `trash`) or the app's own (ADR 0901).
+   */
   readonly retention?: string;
+  /** `true` when a legal hold on the retention class stops the entity's purge. */
+  readonly legalHold?: boolean;
+  /**
+   * The column history of the entity, kept by the `field-history` block, so a
+   * page shows a history tab by declaration (ADR 0902). `true` for every
+   * column, or the columns whose changes are kept.
+   */
+  readonly history?: boolean | readonly string[];
+  /** The archive policy of a table that grows without bound. */
+  readonly partition?: EntityPartition;
   /** `true` when the entity's changes reach clients through realtime. */
   readonly realtime?: boolean;
   /** `true` when the entity is available offline. */

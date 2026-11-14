@@ -1022,11 +1022,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane O1
 
 - Scope: Personal data, retention, history tabs, partition
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-o1`
 - PR: none yet
 - Findings: EX-1310, EX-1311, EX-1323, EX-1325
 - Log: 2026-11-12, planned.
+- Log: 2026-11-14, lane O1 started from main (aa43c1d009) in `../bsb-audit-o1`. One PR: `subjectColumn`, `erase`, `legalHold`, `history` and `partition` on the entity surface, `subjectAccessPlan`, `subjectAccessRequest` and `historyTabs`, declarations on `consent`, `data_subject_request` and `field_history`, ADRs 0899 to 0902. No SQL change, so no migration and no pgTAP test; the SQL erase executor per entity stays open (EX-1310).
 
 ### Lane O2
 

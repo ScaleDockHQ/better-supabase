@@ -576,6 +576,41 @@ receipt, once (Article 12(3)). A second extension fails with `DSAR_EXTENDED`.
 `DSAR_FORBIDDEN`, `DSAR_NOT_FOUND`, `DSAR_INVALID`, `DSAR_CLOSED`,
 `DSAR_UNVERIFIED`, `DSAR_EXTENDED` and `DSAR_HELD`.
 
+## Plan subject access and erasure
+
+Entities declare their personal data in the block manifest, so one call lists
+what an access or erasure request covers across blocks. `subjectAccessPlan`
+reads `personalData`, `subjectColumn`, `erase`, `retention` and `legalHold`;
+`subjectAccessRequest` opens the data subject request and returns it with the
+plan.
+
+```ts
+import { consentsBlock } from "better-supabase/blocks/consents";
+import {
+  dataLifecycleBlock,
+  subjectAccessRequest,
+} from "better-supabase/blocks/data-lifecycle";
+import { fieldHistoryBlock } from "better-supabase/blocks/field-history";
+
+const { data } = await subjectAccessRequest(lifecycle, {
+  organizationId,
+  kind: "erasure",
+  requester: "ada@example.com",
+  subject: { type: "contact", id: contactId },
+  blocks: [consentsBlock, dataLifecycleBlock, fieldHistoryBlock],
+}).orThrow();
+
+// Rows to remove, rows to blank, rows a legal duty keeps.
+const { delete: remove, anonymize, keep } = data.plan.erasure;
+```
+
+An erasure never deletes the rows of an append-only entity: `field_history` and
+`consent` declare `anonymize`, and `data_subject_request` declares `keep`. An
+entity that declares `personalData` without a `subjectColumn`, or an append-only
+one that would be deleted, appears in `plan.gaps`. The plan does not run the
+erasure; your purge job reads `plan.erasure`, and a legal hold still makes
+`fulfilDataSubjectRequest` refuse.
+
 ## Events
 
 With the outbox installed, the module writes these events with the tenant as
