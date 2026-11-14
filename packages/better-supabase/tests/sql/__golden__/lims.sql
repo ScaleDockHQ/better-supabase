@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:17a4fac36ea6752b68fd4ecd636990aa7648266bb466cded85bd1e554135e8e6
+-- @bsb-hash sha256:6301bdc9ac1ccd892bd4e117773bcba8b91a93aec19f60ff390c7eb66acc5bfa
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -763,6 +763,28 @@ $$;
 revoke execute on function "better_supabase"."instrument_status"(uuid, uuid, date) from public, anon;
 grant execute on function "better_supabase"."instrument_status"(uuid, uuid, date) to authenticated, service_role;
 
+-- The instruments (asset ids) that may be used on a day: the holders of
+-- options.instrumentQualification, or an empty array without the option. The
+-- list that a result form offers, in one call instead of one instrument_status
+-- per asset.
+create or replace function "better_supabase"."list_qualified_instruments"(tenant uuid, on_date date default current_date)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_qualified_instruments.tenant is not null and coalesce(better_supabase.can('tenant', list_qualified_instruments.tenant, 'lims.read'), false))) then
+    raise exception 'not allowed to read instruments' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  return '[]'::jsonb;
+end;
+$$;
+revoke execute on function "better_supabase"."list_qualified_instruments"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."list_qualified_instruments"(uuid, date) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -832,7 +854,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:850c6be6e8996494212b58fa436c9346dbfc88da21f187ef6908df90753438c1
+-- @bsb-hash sha256:ed1339b3763bfcef9b032e8d1f853e69a765542213c52704e1d51f578d0dbf08
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1689,6 +1711,28 @@ $$;
 revoke execute on function "better_supabase"."instrument_status"(uuid, uuid, date) from public, anon;
 grant execute on function "better_supabase"."instrument_status"(uuid, uuid, date) to authenticated, service_role;
 
+-- The instruments (asset ids) that may be used on a day: the holders of
+-- options.instrumentQualification, or an empty array without the option. The
+-- list that a result form offers, in one call instead of one instrument_status
+-- per asset.
+create or replace function "better_supabase"."list_qualified_instruments"(tenant uuid, on_date date default current_date)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_qualified_instruments.tenant is not null and coalesce(better_supabase.can('tenant', list_qualified_instruments.tenant, 'lims.read'), false))) then
+    raise exception 'not allowed to read instruments' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  return '[]'::jsonb;
+end;
+$$;
+revoke execute on function "better_supabase"."list_qualified_instruments"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."list_qualified_instruments"(uuid, date) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1763,7 +1807,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:3d787c370662cfa62da24c6635e2f38de63f08fe8e0de7e86ff1fb2c477284d1
+-- @bsb-hash sha256:3f8eac74fc5be439fb618cf20ff4468d514150ed623347a12ab14fc3d6a14c00
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2530,6 +2574,28 @@ $$;
 revoke execute on function "app_private"."instrument_status"(uuid, uuid, date) from public, anon;
 grant execute on function "app_private"."instrument_status"(uuid, uuid, date) to authenticated, service_role;
 
+-- The instruments (asset ids) that may be used on a day: the holders of
+-- options.instrumentQualification, or an empty array without the option. The
+-- list that a result form offers, in one call instead of one instrument_status
+-- per asset.
+create or replace function "app_private"."list_qualified_instruments"(tenant uuid, on_date date default current_date)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_qualified_instruments.tenant is not null and coalesce(better_supabase.can('tenant', list_qualified_instruments.tenant, 'lims.read'), false))) then
+    raise exception 'not allowed to read instruments' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  return '[]'::jsonb;
+end;
+$$;
+revoke execute on function "app_private"."list_qualified_instruments"(uuid, date) from public, anon;
+grant execute on function "app_private"."list_qualified_instruments"(uuid, date) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2599,7 +2665,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:431b3b783f18d609df44f0f14e84c5de1eae4bafea29f477d38edbff12f7f753
+-- @bsb-hash sha256:467e728ef389e7dd6c30a097af2a7b2c3a6557d2a6981b0fb34d39b0e692c7d5
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3361,6 +3427,28 @@ $$;
 revoke execute on function "better_supabase"."instrument_status"(uuid, uuid, date) from public, anon;
 grant execute on function "better_supabase"."instrument_status"(uuid, uuid, date) to authenticated, service_role;
 
+-- The instruments (asset ids) that may be used on a day: the holders of
+-- options.instrumentQualification, or an empty array without the option. The
+-- list that a result form offers, in one call instead of one instrument_status
+-- per asset.
+create or replace function "better_supabase"."list_qualified_instruments"(tenant uuid, on_date date default current_date)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_qualified_instruments.tenant is not null and coalesce(better_supabase.can('tenant', list_qualified_instruments.tenant, 'lims.read'), false))) then
+    raise exception 'not allowed to read instruments' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  return '[]'::jsonb;
+end;
+$$;
+revoke execute on function "better_supabase"."list_qualified_instruments"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."list_qualified_instruments"(uuid, date) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3520,6 +3608,16 @@ as $$ select "better_supabase"."instrument_status"($1, $2, $3) $$;
 revoke execute on function "api"."instrument_status"(uuid, uuid, date) from public, anon;
 grant execute on function "api"."instrument_status"(uuid, uuid, date) to authenticated, service_role;
 
+create or replace function "api"."list_qualified_instruments"(tenant uuid, on_date date default current_date)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_qualified_instruments"($1, $2) $$;
+revoke execute on function "api"."list_qualified_instruments"(uuid, date) from public, anon;
+grant execute on function "api"."list_qualified_instruments"(uuid, date) to authenticated, service_role;
+
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block-data lims
@@ -3537,7 +3635,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:7b638372d2c1ade755dd02aa654d94a933a54c6a0f0b67602b5c1dfff5ca519b
+-- @bsb-hash sha256:35eb0f377a07f487cce9659a6dbfb313af36f566918513f4c758625e90d731c3
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4293,6 +4391,28 @@ $$;
 revoke execute on function "better_supabase"."instrument_status"(uuid, uuid, date) from public, anon;
 grant execute on function "better_supabase"."instrument_status"(uuid, uuid, date) to authenticated, service_role;
 
+-- The instruments (asset ids) that may be used on a day: the holders of
+-- options.instrumentQualification, or an empty array without the option. The
+-- list that a result form offers, in one call instead of one instrument_status
+-- per asset.
+create or replace function "better_supabase"."list_qualified_instruments"(tenant uuid, on_date date default current_date)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_qualified_instruments.tenant is not null and coalesce(better_supabase.can('tenant', list_qualified_instruments.tenant, 'lims.read'), false))) then
+    raise exception 'not allowed to read instruments' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  return '[]'::jsonb;
+end;
+$$;
+revoke execute on function "better_supabase"."list_qualified_instruments"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."list_qualified_instruments"(uuid, date) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4362,7 +4482,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:c816fbf88ad510826d2d74f6f4d0133c56d55e1b19265b9ef83e2c459fad9000
+-- @bsb-hash sha256:23299d5c08e71354ee93ca325196497da228542878f9415f451800102fa46ed4
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5123,6 +5243,28 @@ end;
 $$;
 revoke execute on function "better_supabase"."instrument_status"(uuid, uuid, date) from public, anon;
 grant execute on function "better_supabase"."instrument_status"(uuid, uuid, date) to authenticated, service_role;
+
+-- The instruments (asset ids) that may be used on a day: the holders of
+-- options.instrumentQualification, or an empty array without the option. The
+-- list that a result form offers, in one call instead of one instrument_status
+-- per asset.
+create or replace function "better_supabase"."list_qualified_instruments"(tenant uuid, on_date date default current_date)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_qualified_instruments.tenant is not null and coalesce(better_supabase.can('tenant', list_qualified_instruments.tenant, 'lims.read'), false))) then
+    raise exception 'not allowed to read instruments' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  return '[]'::jsonb;
+end;
+$$;
+revoke execute on function "better_supabase"."list_qualified_instruments"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."list_qualified_instruments"(uuid, date) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

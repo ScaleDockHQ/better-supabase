@@ -24,6 +24,16 @@ describe("accounting revenue recognition", () => {
     expect(off).not.toContain("accounting_recognition_close");
   });
 
+  it("lists every schedule of the tenant behind accounting.read", () => {
+    const on = accounting(true);
+
+    expect(on).toContain("list_revenue_recognition_schedules");
+    expect(on).toContain("not allowed to read revenue recognition");
+    expect(accounting(false)).not.toContain(
+      "list_revenue_recognition_schedules",
+    );
+  });
+
   it("always creates the tables so the option can be turned on later", () => {
     expect(accounting(false)).toContain("accounting_recognition_rows");
   });

@@ -109,6 +109,11 @@ export async function RfqDetail({ id, tab }: { id: string; tab: string }) {
       : [];
 
   const locations = lookups.kind === "ok" ? lookups.data.locations : [];
+  const variants = lookups.kind === "ok" ? lookups.data.variants : [];
+
+  const variantLabels = new Map(
+    variants.map((variant) => [variant.id, `${variant.sku} ${variant.title}`]),
+  );
 
   const live = rfq.status === "open" || rfq.status === "closed";
 
@@ -476,6 +481,17 @@ export async function RfqDetail({ id, tab }: { id: string; tab: string }) {
                       required: true,
                     },
                     {
+                      name: "variantId",
+                      label: t(
+                        "Product variant (needed to award into a purchase order)",
+                      ),
+                      kind: "select",
+                      options: variants.map((variant) => ({
+                        value: variant.id,
+                        label: `${variant.sku} ${variant.title}`,
+                      })),
+                    },
+                    {
                       name: "quantity",
                       label: t("Quantity"),
                       kind: "number",
@@ -486,12 +502,13 @@ export async function RfqDetail({ id, tab }: { id: string; tab: string }) {
                 />
               ) : undefined
             }
-            head={[t("Line"), t("Description"), t("Quantity")]}
+            head={[t("Line"), t("Description"), t("Variant"), t("Quantity")]}
             rows={rfq.lines.map((line) => ({
               key: line.id,
               cells: [
                 String(line.ordinal),
                 line.description,
+                variantLabels.get(line.variantId ?? "") ?? "",
                 `${line.quantity}${line.unit ? ` ${line.unit}` : ""}`,
               ],
             }))}

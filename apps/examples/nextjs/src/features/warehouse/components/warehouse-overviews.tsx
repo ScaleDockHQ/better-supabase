@@ -22,8 +22,11 @@ import { trimmed } from "@/lib/form-input";
 import type { CountPlanRow } from "../warehouse-queries";
 
 import {
+  createAllocation,
   createCountPlan,
+  createPickList,
   createPickWave,
+  receiveOrder,
   savePutawayRule,
 } from "../warehouse-actions";
 import {
@@ -31,6 +34,8 @@ import {
   loadLookups,
   loadPickLists,
   loadPutawayRules,
+  loadReceipts,
+  loadReceivableOrders,
   loadSlotting,
   loadWaves,
 } from "../warehouse-queries";
@@ -238,10 +243,12 @@ export async function WaveOverview({ query }: { query: BlockListQuery }) {
 export async function PutawayOverview({ query }: { query: BlockListQuery }) {
   await requirePermission("warehouse.read");
 
-  const [t, loaded, lookup] = await Promise.all([
+  const [t, loaded, lookup, receipts, fmtDate] = await Promise.all([
     getExtracted("warehouse"),
     settle(loadPutawayRules),
     names(),
+    settle(loadReceipts),
+    dateFormatter(),
   ]);
 
   const firstLocation = lookup.options?.locations[0];
@@ -323,6 +330,53 @@ export async function PutawayOverview({ query }: { query: BlockListQuery }) {
           "A rule sends incoming stock of a variant to a bin, the lowest priority number first.",
         )}
       />
+      {receipts.kind === "ok" ? (
+        <DetailTable
+          title={t("Goods receipts")}
+          description={
+            receipts.data.latest
+              ? t("Where the stock of the latest receipt, {order}, goes.", {
+                  order: receipts.data.latest.receipt.order,
+                })
+              : t("Receive a purchase order to get bins suggested.")
+          }
+          head={[t("Variant"), t("Quantity"), t("Suggested bins")]}
+          rows={(receipts.data.latest?.suggestions ?? []).map((row) => ({
+            key: row.variantId,
+            cells: [
+              lookup.variants.get(row.variantId) ?? row.variantId.slice(0, 8),
+              trimmed(row.quantity),
+              row.bins === ""
+                ? t("No bin has room")
+                : Number(row.unassigned) > 0
+                  ? t("{bins}, {left} without a bin", {
+                      bins: row.bins,
+                      left: trimmed(row.unassigned),
+                    })
+                  : row.bins,
+            ],
+          }))}
+          emptyTitle={t("No goods receipts yet")}
+          emptyDescription={t(
+            "Receiving a purchase order writes a goods receipt, and its putaway shows here.",
+          )}
+        />
+      ) : null}
+      {receipts.kind === "ok" && receipts.data.receipts.length > 1 ? (
+        <DetailTable
+          title={t("Recent receipts")}
+          head={[t("Order"), t("Location"), t("Received")]}
+          rows={receipts.data.receipts.map((row) => ({
+            key: row.id,
+            cells: [
+              row.order,
+              lookup.locations.get(row.locationId) ?? "–",
+              fmtDate(row.receivedAt),
+            ],
+          }))}
+          emptyTitle={t("No goods receipts yet")}
+        />
+      ) : null}
       {slotting?.kind === "ok" && firstLocation ? (
         <DetailTable
           title={t("Slotting suggestions for {location}", {
@@ -565,6 +619,147 @@ export async function CreateCountPlanDialog() {
           label: t("Variance limit (percent)"),
           kind: "decimal",
           defaultValue: "5",
+        },
+      ]}
+    />
+  );
+}
+
+// skeleton: renders from props and translations, so nothing of its own suspends
+export async function CreateAllocationDialog() {
+  const [t, lookup] = await Promise.all([getExtracted("warehouse"), names()]);
+
+  return (
+    <ActionDialog
+      action={createAllocation}
+      title={t("Allocate stock")}
+      description={t(
+        "Holds stock of a variant for a document line. What isn't available waits on backorder.",
+      )}
+      trigger={t("Allocate stock")}
+      submitLabel={t("Allocate")}
+      successMessage={t("Stock allocated")}
+      variant="outline"
+      fields={[
+        {
+          name: "variantId",
+          label: t("Variant"),
+          kind: "select",
+          required: true,
+          options: (lookup.options?.variants ?? []).map((row) => ({
+            value: row.id,
+            label: `${row.sku} ${row.title}`,
+          })),
+        },
+        {
+          name: "locationId",
+          label: t("Location"),
+          kind: "select",
+          required: true,
+          options: (lookup.options?.locations ?? []).map((row) => ({
+            value: row.id,
+            label: row.name,
+          })),
+        },
+        {
+          name: "quantity",
+          label: t("Quantity"),
+          kind: "decimal",
+          required: true,
+          defaultValue: "1",
+        },
+        {
+          name: "documentType",
+          label: t("Document type"),
+          kind: "text",
+          required: true,
+          defaultValue: "order",
+        },
+        {
+          name: "documentId",
+          label: t("Document id"),
+          kind: "text",
+          required: true,
+          placeholder: "00000000-0000-0000-0000-000000000000",
+        },
+      ]}
+    />
+  );
+}
+
+// skeleton: renders from props and translations, so nothing of its own suspends
+export async function CreatePickListDialog() {
+  const [t, lookup] = await Promise.all([getExtracted("warehouse"), names()]);
+
+  return (
+    <ActionDialog
+      action={createPickList}
+      title={t("New pick list")}
+      description={t(
+        "A pick list is made from the open allocations of one document at one location.",
+      )}
+      trigger={t("New pick list")}
+      submitLabel={t("Create pick list")}
+      successMessage={t("Pick list created")}
+      redirectTo="/warehouse/{id}"
+      fields={[
+        {
+          name: "locationId",
+          label: t("Location"),
+          kind: "select",
+          required: true,
+          options: (lookup.options?.locations ?? []).map((row) => ({
+            value: row.id,
+            label: row.name,
+          })),
+        },
+        {
+          name: "documentType",
+          label: t("Document type"),
+          kind: "text",
+          required: true,
+          defaultValue: "order",
+        },
+        {
+          name: "documentId",
+          label: t("Document id"),
+          kind: "text",
+          required: true,
+          placeholder: "00000000-0000-0000-0000-000000000000",
+        },
+      ]}
+    />
+  );
+}
+
+// skeleton: renders from props and translations, so nothing of its own suspends
+export async function ReceiveOrderDialog() {
+  const [t, orders] = await Promise.all([
+    getExtracted("warehouse"),
+    settle(loadReceivableOrders),
+  ]);
+
+  return (
+    <ActionDialog
+      action={receiveOrder}
+      title={t("Receive a purchase order")}
+      description={t(
+        "Receives every unit the order still owes into one goods receipt.",
+      )}
+      trigger={t("Receive order")}
+      submitLabel={t("Receive")}
+      successMessage={t("Order received")}
+      variant="outline"
+      fields={[
+        {
+          name: "purchaseOrderId",
+          label: t("Purchase order"),
+          kind: "select",
+          required: true,
+          options: (orders.kind === "ok" ? orders.data : []).map((row) => ({
+            value: row.id,
+            label: row.number,
+          })),
         },
       ]}
     />

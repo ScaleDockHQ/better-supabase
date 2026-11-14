@@ -206,6 +206,13 @@ export interface Lims {
     assetId: string;
     on?: Temporal.PlainDate | undefined;
   }): AsyncResultType<LimsInstrumentStatus>;
+  /**
+   * The asset ids that may be used on a day (default today): the holders of
+   * `options.instrumentQualification`, or none without the option.
+   */
+  listQualifiedInstruments(options?: {
+    on?: Temporal.PlainDate | undefined;
+  }): AsyncResultType<readonly string[]>;
 }
 
 /** Options for {@link createLims}. */
@@ -432,6 +439,22 @@ export function createLims(options: LimsOptions): Lims {
               qualified: row["qualified"] === true,
             };
           },
+        ),
+      ),
+    listQualifiedInstruments: (input) =>
+      tenant().andThen((organizationId) =>
+        call(
+          "list_qualified_instruments",
+          {
+            tenant: organizationId,
+            ...(input?.on === undefined
+              ? {}
+              : { on_date: input.on.toString() }),
+          },
+          (value) =>
+            Array.isArray(value)
+              ? value.filter((id): id is string => typeof id === "string")
+              : [],
         ),
       ),
   };

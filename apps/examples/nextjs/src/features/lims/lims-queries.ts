@@ -178,13 +178,8 @@ export async function loadInstruments(): Promise<
     [tenant],
   );
 
-  const checked = await Promise.all(
-    assets.map(async (asset) => {
-      const status = await db.lims.instrumentStatus({ assetId: asset.id });
+  const qualified = await db.lims.listQualifiedInstruments().orThrow();
+  const ids = new Set(qualified);
 
-      return status.ok && status.data.qualified ? [asset] : [];
-    }),
-  );
-
-  return checked.flat();
+  return assets.filter((asset) => ids.has(asset.id));
 }

@@ -91,6 +91,15 @@ const status = await lims.instrumentStatus(balanceAssetId).orThrow();
 // { instrumentId, required: true, qualified: true }
 ```
 
+`listQualifiedInstruments` returns the asset ids that hold the qualification on
+a day (today by default), so a result form offers the usable instruments in one
+call. Without the option it returns an empty list.
+
+```ts
+const usable = await lims.listQualifiedInstruments().orThrow();
+// ["0a5c...", "7be1..."]
+```
+
 ## Release
 
 `completeSample` ends testing. `releaseSample` needs `lims.manage` and refuses

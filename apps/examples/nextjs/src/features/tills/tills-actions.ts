@@ -1,9 +1,11 @@
 "use server";
 
-import { ok } from "better-supabase";
+import { err, invalidInput, ok } from "better-supabase";
+import { parseMt940 } from "better-supabase/blocks/banking";
 import { parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
+import { BANKING_TAG } from "@/features/banking/banking-cache";
 import { Decimal, Id, Optional, given } from "@/lib/form-input";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
@@ -223,6 +225,80 @@ export const depositCash = bsb.action(
     }
 
     await refreshCaller(auth, TILLS_CACHE_TAGS);
+
+    return ok(true);
+  },
+);
+
+/**
+ * Imports an MT940 statement into a bank account so a deposit has a transaction
+ * to match. Importing the same file twice adds nothing (EX-1113).
+ */
+export const importDepositStatement = bsb.action(
+  {
+    input: v.object({
+      accountId: Id,
+      statement: v.pipe(v.string(), v.trim(), v.minLength(1)),
+    }),
+    requireTenant: true,
+    permission: "banking.import",
+  },
+  async ({ accountId, statement }, { db, auth }) => {
+    let parsed: ReturnType<typeof parseMt940>;
+
+    try {
+      parsed = parseMt940(statement);
+    } catch (error) {
+      return err(
+        invalidInput("The statement is not MT940.", [
+          {
+            path: ["statement"],
+            code: "STATEMENT_INVALID",
+            message:
+              error instanceof Error
+                ? error.message
+                : "Paste an MT940 customer statement.",
+          },
+        ]),
+      );
+    }
+
+    let added = 0;
+
+    for (const part of parsed) {
+      const imported = await db.banking.importStatement({
+        accountId,
+        statement: part,
+      });
+
+      if (!imported.ok) {
+        return imported;
+      }
+
+      added += imported.data.imported;
+    }
+
+    await refreshCaller(auth, [...TILLS_CACHE_TAGS, BANKING_TAG]);
+
+    return ok({ imported: added });
+  },
+);
+
+/** Matches a pending deposit to the bank transaction that shows it. */
+export const reconcileDeposit = bsb.action(
+  {
+    input: v.object({ depositId: Id, bankTransactionId: Id }),
+    requireTenant: true,
+    permission: "tills.manage",
+  },
+  async (input, { db, auth }) => {
+    const reconciled = await db.tills.reconcileDeposit(input);
+
+    if (!reconciled.ok) {
+      return reconciled;
+    }
+
+    await refreshCaller(auth, [...TILLS_CACHE_TAGS, BANKING_TAG]);
 
     return ok(true);
   },

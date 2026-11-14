@@ -19,8 +19,14 @@ import {
   requirePermission,
 } from "@/features/sales/components/overview-support";
 
-import { closeSession, depositCash, recordMovement } from "../tills-actions";
-import { loadSession } from "../tills-queries";
+import {
+  closeSession,
+  depositCash,
+  importDepositStatement,
+  reconcileDeposit,
+  recordMovement,
+} from "../tills-actions";
+import { loadBankTargets, loadSession } from "../tills-queries";
 
 export function SessionDetailSkeleton() {
   return <Skeleton className="h-96 rounded-xl" aria-busy="true" />;
@@ -31,16 +37,19 @@ export function SessionDetailSkeleton() {
 export async function SessionDetail({ id, tab }: { id: string; tab: string }) {
   await requirePermission("tills.read");
 
-  const [t, loaded, fmtDate, fmtMoney, canWrite, canManage] = await Promise.all(
-    [
+  const [t, loaded, fmtDate, fmtMoney, canWrite, canManage, canImport, bank] =
+    await Promise.all([
       getExtracted("tills"),
       settle(() => loadSession(id)),
       dateFormatter(),
       moneyFormatter(),
       holds("tills.write"),
       holds("tills.manage"),
-    ],
-  );
+      holds("banking.import"),
+      tab === "deposits" ? settle(loadBankTargets) : undefined,
+    ]);
+
+  const targets = bank?.kind === "ok" ? bank.data : undefined;
 
   if (loaded.kind === "no-organization") {
     return null;
@@ -187,7 +196,46 @@ export async function SessionDetail({ id, tab }: { id: string; tab: string }) {
           description={t(
             "Cash taken to the bank. A deposit is reconciled when it matches a bank transaction.",
           )}
-          head={[t("Amount"), t("Date"), t("Reference"), t("Status")]}
+          action={
+            canImport && targets && targets.accounts.length > 0 ? (
+              <ActionDialog
+                action={importDepositStatement}
+                title={t("Import bank statement")}
+                description={t(
+                  "Paste an MT940 statement. A transaction that was imported before is skipped.",
+                )}
+                trigger={t("Import statement")}
+                submitLabel={t("Import")}
+                successMessage={t("Statement imported")}
+                variant="outline"
+                fields={[
+                  {
+                    name: "accountId",
+                    label: t("Bank account"),
+                    kind: "select",
+                    required: true,
+                    options: targets.accounts.map((account) => ({
+                      value: account.id,
+                      label: account.name,
+                    })),
+                  },
+                  {
+                    name: "statement",
+                    label: t("MT940 statement"),
+                    kind: "textarea",
+                    required: true,
+                  },
+                ]}
+              />
+            ) : undefined
+          }
+          head={[
+            t("Amount"),
+            t("Date"),
+            t("Reference"),
+            t("Status"),
+            t("Bank transaction"),
+          ]}
           rows={shift.deposits.map((deposit) => ({
             key: deposit.id,
             cells: [
@@ -206,6 +254,38 @@ export async function SessionDetail({ id, tab }: { id: string; tab: string }) {
                   ? t("Reconciled")
                   : t("Pending")}
               </Badge>,
+              canManage && deposit.status === "pending" && targets ? (
+                <ActionDialog
+                  key="match"
+                  action={reconcileDeposit}
+                  title={t("Match to a bank transaction")}
+                  description={t(
+                    "Only unmatched transactions for the same amount are offered. Import a statement first when the list is empty.",
+                  )}
+                  trigger={t("Match")}
+                  submitLabel={t("Match deposit")}
+                  successMessage={t("Deposit matched")}
+                  variant="outline"
+                  hidden={{ depositId: deposit.id }}
+                  fields={[
+                    {
+                      name: "bankTransactionId",
+                      label: t("Bank transaction"),
+                      kind: "select",
+                      required: true,
+                      options: targets.transactions
+                        .filter(
+                          (row) =>
+                            row.amount.amount === deposit.amount.amount &&
+                            row.amount.currency === deposit.amount.currency,
+                        )
+                        .map((row) => ({ value: row.id, label: row.label })),
+                    },
+                  ]}
+                />
+              ) : (
+                "–"
+              ),
             ],
           }))}
           emptyTitle={t("No deposits")}

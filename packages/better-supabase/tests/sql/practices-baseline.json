@@ -293,7 +293,7 @@
     "security-definer-functions": 36
   },
   "lims": {
-    "security-definer-functions": 66
+    "security-definer-functions": 72
   },
   "mail-sync": {
     "security-definer-functions": 80
