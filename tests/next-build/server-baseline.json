@@ -15,7 +15,7 @@
     "brotli": 344514
   },
   "/.well-known/workflow/v1/flow/route": {
-    "raw": 5326300,
+    "raw": 5327658,
     "gzip": 1337923,
     "brotli": 1101655
   },
@@ -1490,7 +1490,7 @@
     "brotli": 296548
   },
   "/api/customers/records/route": {
-    "raw": 1436434,
+    "raw": 1437008,
     "gzip": 444442,
     "brotli": 381645
   },
@@ -1770,7 +1770,7 @@
     "brotli": 1216836
   },
   "/api/workflows/hooks/[token]/route": {
-    "raw": 3241214,
+    "raw": 3242527,
     "gzip": 992711,
     "brotli": 840525
   },
