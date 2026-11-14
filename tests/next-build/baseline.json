@@ -920,7 +920,7 @@
     "brotli": 351219
   },
   "/[locale]/(app)/settings/members/page": {
-    "raw": 1556844,
+    "raw": 1557600,
     "gzip": 495561,
     "brotli": 433448
   },
