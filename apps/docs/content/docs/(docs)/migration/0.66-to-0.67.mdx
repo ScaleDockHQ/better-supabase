@@ -26,6 +26,7 @@ the
 | [Notification avatars](#notification-avatars) | Pass a function to `avatars`                                   |
 | [Session status](#session-status)             | None; a 403 that is not Auth's JSON now reads as `unknown`     |
 | [eve 1.0](#eve-10)                            | Upgrade eve, rename hook events and `credentialOwner`          |
+| [Workflow 5.5](#workflow-55)                  | Upgrade the `workflow-sdk` SQL module, then deploy             |
 | [Team purge](#team-purge)                     | Rename `teams.delete`, `team.deleted` and `permissions.delete` |
 
 ## Supabase peers
@@ -74,36 +75,36 @@ accepts `>=1.15.11 <3`.
 Every other range keeps its upper bound and starts at the tested release. The
 Supabase packages are in [Supabase peers](#supabase-peers).
 
-| Package                                                   | 0.67 accepts                              |
-| --------------------------------------------------------- | ----------------------------------------- |
-| `next`, `@next/playwright`                                | `>=16.4.6 <17`                            |
-| `react`                                                   | `^19.3.1`                                 |
-| `svelte`, `vue`, `solid-js`                               | `^5.57.3`, `^3.5.45`, `^1.9.19`           |
-| `astro`                                                   | `>=7.4.11 <8`                             |
-| `@solidjs/start`                                          | `>=2.2.2 <3`                              |
-| `@tanstack/react-start`                                   | `>=1.169.5 <2`                            |
-| `hono`, `elysia`                                          | `>=4.13.18 <5`, `>=1.4.32 <2`             |
-| `express`, `fastify`, `koa`                               | `>=5.3.0 <6`, `>=5.12.8 <6`, `>=3.3.0 <4` |
-| `ai`                                                      | `>=7.0.171 <8`                            |
-| `@ai-sdk/react`, `@ai-sdk/mcp`, `@ai-sdk/workflow`        | `>=4.0.175`, `>=2.0.98`, `>=2.0.103`      |
-| `@ai-sdk/anthropic`, `@ai-sdk/sandbox-vercel`             | `>=4.0.103 <5`, `>=1.0.182 <2`            |
-| `chat`, `@chat-adapter/catalog`, `@chat-adapter/whatsapp` | `>=4.44.0 <5`                             |
-| `@orpc/server`                                            | `>=2.0.0-beta.50 <3`                      |
-| `@modelcontextprotocol/server`                            | `>=2.4.0 <3`                              |
-| `@tanstack/query-core`                                    | `^5.107.1`                                |
-| `@json-render/core`                                       | `>=0.22.0 <1`                             |
-| `nuqs`, `pg`                                              | `>=2.10.3 <3`, `>=8.23.1 <9`              |
-| `zod`, `valibot`                                          | `>=4.6.7 <5`, `>=1.5.0 <2`                |
-| `yjs`, `fast-xml-parser`                                  | `>=13.6.33 <14`, `>=5.12.0 <6`            |
-| `better-result`, `temporal-polyfill`                      | `>=3.0.1 <4`, `>=1.0.8`                   |
-| `@openfeature/server-sdk`, `flags`                        | `>=1.23.0 <2`, `>=4.4.0 <5`               |
-| `@opentelemetry/api`                                      | `>=1.9.1 <2`                              |
-| `workflow`                                                | `>=5.4.0 <6`                              |
-| `@workflow/world`, `@workflow/world-postgres`             | `>=5.1.0 <5.2`, `>=5.1.1 <5.2`            |
-| `eve`                                                     | `>=1.0.0-rc.0 <2`, see [eve 1.0](#eve-10) |
-| `@vercel/connect`                                         | `>=2.5.2 <3`                              |
-| `@vercel/queue`                                           | `>=0.11.0 <0.12`                          |
-| `@vercel/sandbox`                                         | `>=4.0.0 <5`                              |
+| Package                                                   | 0.67 accepts                                     |
+| --------------------------------------------------------- | ------------------------------------------------ |
+| `next`, `@next/playwright`                                | `>=16.4.6 <17`                                   |
+| `react`                                                   | `^19.3.1`                                        |
+| `svelte`, `vue`, `solid-js`                               | `^5.57.3`, `^3.5.45`, `^1.9.19`                  |
+| `astro`                                                   | `>=7.4.11 <8`                                    |
+| `@solidjs/start`                                          | `>=2.2.2 <3`                                     |
+| `@tanstack/react-start`                                   | `>=1.169.5 <2`                                   |
+| `hono`, `elysia`                                          | `>=4.13.18 <5`, `>=1.4.32 <2`                    |
+| `express`, `fastify`, `koa`                               | `>=5.3.0 <6`, `>=5.12.8 <6`, `>=3.3.0 <4`        |
+| `ai`                                                      | `>=7.0.171 <8`                                   |
+| `@ai-sdk/react`, `@ai-sdk/mcp`, `@ai-sdk/workflow`        | `>=4.0.175`, `>=2.0.98`, `>=2.0.103`             |
+| `@ai-sdk/anthropic`, `@ai-sdk/sandbox-vercel`             | `>=4.0.103 <5`, `>=1.0.182 <2`                   |
+| `chat`, `@chat-adapter/catalog`, `@chat-adapter/whatsapp` | `>=4.44.0 <5`                                    |
+| `@orpc/server`                                            | `>=2.0.0-beta.50 <3`                             |
+| `@modelcontextprotocol/server`                            | `>=2.4.0 <3`                                     |
+| `@tanstack/query-core`                                    | `^5.107.1`                                       |
+| `@json-render/core`                                       | `>=0.22.0 <1`                                    |
+| `nuqs`, `pg`                                              | `>=2.10.3 <3`, `>=8.23.1 <9`                     |
+| `zod`, `valibot`                                          | `>=4.6.7 <5`, `>=1.5.0 <2`                       |
+| `yjs`, `fast-xml-parser`                                  | `>=13.6.33 <14`, `>=5.12.0 <6`                   |
+| `better-result`, `temporal-polyfill`                      | `>=3.0.1 <4`, `>=1.0.8`                          |
+| `@openfeature/server-sdk`, `flags`                        | `>=1.23.0 <2`, `>=4.4.0 <5`                      |
+| `@opentelemetry/api`                                      | `>=1.9.1 <2`                                     |
+| `workflow`                                                | `>=5.5.0 <6`                                     |
+| `@workflow/world`, `@workflow/world-postgres`             | `>=5.2.0 <5.3`, see [Workflow 5.5](#workflow-55) |
+| `eve`                                                     | `>=1.0.0-rc.13 <2`, see [eve 1.0](#eve-10)       |
+| `@vercel/connect`, `@vercel/functions`                    | `>=2.7.0 <3`, `>=3.11.1 <4`                      |
+| `@vercel/queue`                                           | `>=0.11.0 <0.12`                                 |
+| `@vercel/sandbox`                                         | `>=4.0.0 <5`                                     |
 
 `@vercel/sandbox` 4 talks to `api.vercel.com` over undici 8 and needs Node
 22.19 or later; better-supabase already needs Node 24. `@vercel/queue` is a
@@ -211,8 +212,8 @@ type.
 
 ## eve 1.0
 
-`better-supabase/eve` follows eve 1.0 and accepts `eve` `>=1.0.0-rc.0 <2`
-(ADR 1022). Upgrade eve first with eve's own
+`better-supabase/eve` follows eve 1.0 and accepts `eve` `>=1.0.0-rc.13 <2`
+(ADRs 1022 and 1023). Upgrade eve first with eve's own
 [upgrade guide](https://eve.dev/docs/guides/upgrade), then change these:
 
 | Before                                                                  | After                                                                |
@@ -236,3 +237,26 @@ Schema, such as a plain Valibot schema: wrap it in `toStandardJsonSchema` from
 `@valibot/to-json-schema` when you pass it to `supabaseTool`. `queueScheduleProvider` and `queueDynamicSchedules` are new:
 they store eve's dynamic schedules in the queue block's drain scheduler (see
 [eve on Supabase](/docs/eve#dynamic-schedules)).
+
+eve 1.0.0-rc.13 marks `content.completed`'s `runId` optional: a part the turn
+wrote without a model run has none, and `scope.turnId` names its turn.
+`persistSessions` stores such a part like any other. A hook of yours that
+reads `event.data.runId` needs a fallback.
+
+## Workflow 5.5
+
+`better-supabase/workflow-sdk/world` speaks the `@workflow/world` 5.2
+protocol, so it needs `workflow` 5.5 and `@workflow/world` and
+`@workflow/world-postgres` 5.2 (ADR 1023):
+
+```bash
+pnpm add workflow@5.5.0 @workflow/world@5.2.0 @workflow/world-postgres@5.2.0
+pnpm better-supabase upgrade
+```
+
+Apply the migration `upgrade` writes before you deploy: `workflow-sdk`
+version 5 adds the `workflow.workflow_job_lock_holders` table. eve
+1.0.0-rc.13 bundles Workflow 5.5 and moves with it. Runs started on
+`workflow` 5.4 keep running, and new runs stay on spec version 8 unless
+`WORKFLOW_SPEC_VERSION=9` is set (see
+[Rolling out 5.2](/docs/blocks/workflow-sdk#rolling-out-52)).
