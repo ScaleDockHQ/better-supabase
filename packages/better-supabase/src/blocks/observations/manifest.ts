@@ -31,7 +31,7 @@ export const observationsBlock: BlockOf<
     observation: {
       mutability: "state-machine",
       emits: { create: true },
-      offline: true,
+      offline: { scope: "readers", systemRows: "definitions" },
     },
     observation_definition: {
       mutability: "editable",

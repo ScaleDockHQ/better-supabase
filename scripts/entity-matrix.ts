@@ -112,7 +112,7 @@ export function entityMatrix(): string {
     list(surface.facets),
     searchOf(surface),
     flag(surface.realtime),
-    flag(surface.offline),
+    flag(surface.offline !== undefined && surface.offline !== false),
     flag(surface.versioned),
   ]);
 
