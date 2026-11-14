@@ -1,6 +1,6 @@
 {
   "(proxy)": {
-    "raw": 1217053,
+    "raw": 1218490,
     "gzip": 362689,
     "brotli": 292793
   },
@@ -10,9 +10,9 @@
     "brotli": 227616
   },
   "/.well-known/vercel/flags/route": {
-    "raw": 1232015,
-    "gzip": 393156,
-    "brotli": 343516
+    "raw": 1233845,
+    "gzip": 394277,
+    "brotli": 344514
   },
   "/.well-known/workflow/v1/flow/route": {
     "raw": 5326300,
@@ -1265,8 +1265,8 @@
     "brotli": 123076
   },
   "/[locale]/(auth)/invite/[token]/page": {
-    "raw": 1524603,
-    "gzip": 482072,
+    "raw": 1526329,
+    "gzip": 483923,
     "brotli": 408765
   },
   "/[locale]/(auth)/login/page": {
@@ -1275,8 +1275,8 @@
     "brotli": 354749
   },
   "/[locale]/(auth)/mfa/page": {
-    "raw": 1442412,
-    "gzip": 456736,
+    "raw": 1444138,
+    "gzip": 458516,
     "brotli": 386531
   },
   "/[locale]/(auth)/oauth/consent/page": {
@@ -1285,13 +1285,13 @@
     "brotli": 123137
   },
   "/[locale]/(auth)/pricing/[code]/page": {
-    "raw": 1504717,
-    "gzip": 475718,
+    "raw": 1506443,
+    "gzip": 477498,
     "brotli": 403295
   },
   "/[locale]/(auth)/reset-password/page": {
-    "raw": 1442480,
-    "gzip": 456748,
+    "raw": 1444206,
+    "gzip": 458531,
     "brotli": 386545
   },
   "/[locale]/(auth)/send/[token]/page": {
@@ -1305,8 +1305,8 @@
     "brotli": 738357
   },
   "/[locale]/(auth)/signup/page": {
-    "raw": 1448428,
-    "gzip": 459646,
+    "raw": 1450154,
+    "gzip": 461427,
     "brotli": 389056
   },
   "/[locale]/(auth)/waitlist/page": {
@@ -1390,9 +1390,9 @@
     "brotli": 291753
   },
   "/api/audit/export/route": {
-    "raw": 1168015,
-    "gzip": 373443,
-    "brotli": 325997
+    "raw": 1169845,
+    "gzip": 374568,
+    "brotli": 326967
   },
   "/api/auth/callback/route": {
     "raw": 1061529,
@@ -1420,37 +1420,37 @@
     "brotli": 290978
   },
   "/api/chat/[id]/participants/route": {
-    "raw": 1906445,
+    "raw": 1908275,
     "gzip": 579346,
     "brotli": 501734
   },
   "/api/chat/[id]/stop/route": {
-    "raw": 1905925,
+    "raw": 1907755,
     "gzip": 579198,
     "brotli": 501596
   },
   "/api/chat/[id]/stream/route": {
-    "raw": 1905952,
+    "raw": 1907782,
     "gzip": 579208,
     "brotli": 501594
   },
   "/api/chat/durable/[id]/stop/route": {
-    "raw": 3557028,
+    "raw": 3558861,
     "gzip": 1082546,
     "brotli": 918650
   },
   "/api/chat/durable/[id]/stream/route": {
-    "raw": 3557176,
+    "raw": 3559009,
     "gzip": 1082621,
     "brotli": 918712
   },
   "/api/chat/durable/route": {
-    "raw": 3557131,
+    "raw": 3558964,
     "gzip": 1082613,
     "brotli": 918667
   },
   "/api/chat/route": {
-    "raw": 1905876,
+    "raw": 1907706,
     "gzip": 579186,
     "brotli": 501577
   },
@@ -1550,8 +1550,8 @@
     "brotli": 663244
   },
   "/api/inbox/tick/route": {
-    "raw": 1422967,
-    "gzip": 452898,
+    "raw": 1424760,
+    "gzip": 454085,
     "brotli": 395018
   },
   "/api/incoming-webhooks/list/route": {
@@ -1755,8 +1755,8 @@
     "brotli": 692355
   },
   "/api/webhooks/channels/[adapter]/route": {
-    "raw": 1403270,
-    "gzip": 445663,
+    "raw": 1405063,
+    "gzip": 446849,
     "brotli": 388479
   },
   "/api/webhooks/inbox/route": {
