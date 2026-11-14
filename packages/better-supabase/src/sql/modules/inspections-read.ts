@@ -1,6 +1,11 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  filterFirst,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { userGrant } from "../shared.ts";
 import { inspectionsSql } from "./inspections-sql.ts";
 
@@ -44,14 +49,14 @@ export function inspectionReads(ctx: BlockSqlContext): string {
       `(v_all or exists (
           select 1 from ${members} y where y.${m("inspection")} = x.${i("id")} and y.${m("user")} = auth.uid()
         ))`,
-      `(not v_filters ? 'programId' or x.${i("program")} = (v_filters ->> 'programId')::uuid)`,
-      `(not v_filters ? 'kind' or x.${i("kind")} = v_filters ->> 'kind')`,
-      `(not v_filters ? 'status' or x.${i("status")} = v_filters ->> 'status')`,
-      `(not v_filters ? 'leadId' or x.${i("lead")} = (v_filters ->> 'leadId')::uuid)`,
-      `(not v_filters ? 'from' or x.${i("plannedStart")} >= (v_filters ->> 'from')::date)`,
-      `(not v_filters ? 'to' or x.${i("plannedStart")} <= (v_filters ->> 'to')::date)`,
-      `(not v_filters ? 'auditeeType' or x.${i("auditeeType")} = v_filters ->> 'auditeeType')`,
-      `(not v_filters ? 'auditeeId' or x.${i("auditeeId")} = v_filters ->> 'auditeeId')`,
+      filterAny("programId", `x.${i("program")}`, "uuid"),
+      filterAny("kind", `x.${i("kind")}`),
+      filterAny("status", `x.${i("status")}`),
+      filterAny("leadId", `x.${i("lead")}`, "uuid"),
+      `(${filterFirst("from")} is null or x.${i("plannedStart")} >= ${filterFirst("from")}::date)`,
+      `(${filterFirst("to")} is null or x.${i("plannedStart")} <= ${filterFirst("to")}::date)`,
+      filterAny("auditeeType", `x.${i("auditeeType")}`),
+      filterAny("auditeeId", `x.${i("auditeeId")}`),
       `(v_search is null or ${search})`,
     ],
     keys: [
@@ -63,6 +68,22 @@ export function inspectionReads(ctx: BlockSqlContext): string {
       { expr: `x.${i("sequence")}`, dir: "desc", type: "bigint" },
       { expr: `x.${i("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      plannedStart: [
+        {
+          expr: `coalesce(x.${i("plannedStart")}, '-infinity'::date)`,
+          dir: "desc",
+          type: "date",
+        },
+        { expr: `x.${i("sequence")}`, dir: "desc", type: "bigint" },
+        { expr: `x.${i("id")}`, dir: "asc", type: "uuid" },
+      ],
+      number: [
+        { expr: `x.${i("sequence")}`, dir: "desc", type: "bigint" },
+        { expr: `x.${i("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${i("status")}`, kind: `x.${i("kind")}` },
     rowJson: q.inspectionJson("x"),
     invalid: q.invalid,
   } as const;
@@ -112,8 +133,9 @@ $$;
 ${userGrant(`${fn("get_inspection")}(uuid)`)}
 
 -- The organization's inspections, the latest planned first. filters is
--- { programId, kind, status, leadId, from, to (on the planned start),
--- auditeeType, auditeeId, search, limit, after, offset, paged, total, totalCap }. Without inspections.read
+-- { programId, kind, status, leadId, auditeeType, auditeeId (each a value or a
+-- list of them), from, to (on the planned start), search, sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap } (ADR 0749). Without inspections.read
 -- the caller sees only the inspections they are a member of.
 create or replace function ${fn("list_inspections")}(tenant ${idType}, filters jsonb default '{}'::jsonb)
 returns jsonb

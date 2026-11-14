@@ -9,13 +9,16 @@ import { damBlock } from "../../src/blocks/dam/manifest.ts";
 import { domainsBlock } from "../../src/blocks/domains/manifest.ts";
 import { formsBlock } from "../../src/blocks/forms/manifest.ts";
 import { importsBlock } from "../../src/blocks/imports/manifest.ts";
+import { inspectionsBlock } from "../../src/blocks/inspections/manifest.ts";
 import { legalEntitiesBlock } from "../../src/blocks/legal-entities/manifest.ts";
 import { limsBlock } from "../../src/blocks/lims/manifest.ts";
 import { maintenanceBlock } from "../../src/blocks/maintenance/manifest.ts";
+import { meetingsBlock } from "../../src/blocks/meetings/manifest.ts";
 import { rfqsBlock } from "../../src/blocks/rfqs/manifest.ts";
 import { risksBlock } from "../../src/blocks/risks/manifest.ts";
 import { tillsBlock } from "../../src/blocks/tills/manifest.ts";
 import { warehouseBlock } from "../../src/blocks/warehouse/manifest.ts";
+import { warrantyBlock } from "../../src/blocks/warranty/manifest.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
@@ -29,13 +32,16 @@ const BLOCKS = [
   domainsBlock,
   formsBlock,
   importsBlock,
+  inspectionsBlock,
   legalEntitiesBlock,
   limsBlock,
   maintenanceBlock,
+  meetingsBlock,
   rfqsBlock,
   risksBlock,
   tillsBlock,
   warehouseBlock,
+  warrantyBlock,
 ];
 
 const RENDERED = renderBlocks(
@@ -93,6 +99,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(18);
+    expect(CASES).toHaveLength(21);
   });
 });

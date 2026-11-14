@@ -156,3 +156,53 @@ bump is one commit series:
   A scale test takes 10 s on one runner and 5 min on another, with the same code. The Schema job therefore runs the
   stack's own `pg_prove` against `SUPABASE_DB_URL` and does not go through `supabase test db`. Do not rerun the job
   for it or edit a test for it.
+
+## Dev loop and local stack
+
+- Start the example with `pnpm dev:example` from a persistent shell. It builds
+  the example's dependencies through Turbo, then runs `next dev` on this
+  shell's own output, because Turbo's pipe closes with its session and a
+  server writing to it loops on `EPIPE` (EX-309, EX-704). A shell that ends
+  (a one-shot tool call) also ends `portless run` and its server (EX-107,
+  EX-214, EX-316); run it as a background job of a shell that stays open.
+- The dev scripts run `dotenv -o`, so `.env.development.local` and `.env.local`
+  at the root override variables a shell exported earlier (EX-819). Never copy
+  an env file between worktrees; `node scripts/worktree-setup.ts` copies the
+  main checkout's files without the stack keys, and `pnpm env:local` writes the
+  stack's keys, `WORKFLOW_TARGET_WORLD` and `SUPABASE_JWKS` into the root file
+  and the example's copy (EX-056, EX-207, EX-1021).
+- `worktree-setup` also copies the git-ignored `supabase/signing_keys.json`, so
+  `SUPABASE_JWKS` matches the keys the stack signs with. With `--db` it first
+  stops the stacks of merged branches (`pnpm supabase:prune --apply`), because
+  macOS allows 32 SysV segments (`kern.sysv.shmmni`) and each native stack holds
+  some (EX-106, EX-430, EX-902). `pnpm supabase:prune --segments` shows the
+  count; the data of a stopped stack stays.
+- `portless run` prefixes a linked worktree's branch, so the URL is
+  `https://<branch>.example.localhost` there and `https://example.localhost` in
+  the main checkout; read it with `pnpm exec portless get example` (EX-051).
+- When another worktree's `portless` run drops the route and the URL answers
+  `No app registered` (EX-505, EX-605, EX-820, EX-903), start the server on a
+  fixed port and register it: `PORTLESS_URL=<url> PORT=<port> HOST=localhost
+  pnpm -C apps/examples/nextjs exec next dev -p <port>` and
+  `pnpm exec portless alias <name> <port>`. Without those three variables the
+  locale rewrite proxies to `https://localhost` and fails with `EPROTO`
+  (EX-512). `portless run` refuses a name that has an alias until
+  `portless alias --remove <name>` runs (EX-316, EX-820).
+- After a branch switch under a running `next dev`, a route can fail with
+  `module factory is not available`, and a Turbopack state marked `stale` or an
+  orphaned server survives (EX-313, EX-903). Stop the server and start it again.
+  The cause is in Next.js, so these two stay deferred.
+- `syncStepLibrary` runs once at start-up: restart the dev server after
+  `supabase db reset` (EX-208).
+- `next dev` keeps the previous copy of a route in a hidden Activity, so a
+  `data-testid` can match twice; select the visible one (EX-1020).
+- Cursor's browser tabs are shared between workers. Use a private browser with
+  `agent-browser --session <name>` (EX-511). A native date input cannot be
+  typed into: set its value in the page with `eval` and dispatch `input` and
+  `change` events (EX-606).
+- The `shadcn` MCP does not see the ReUI registry from the repository root; run
+  the `shadcn` CLI in `apps/examples/nextjs` (EX-050).
+- The Playwright specs leave their timings in
+  `apps/examples/nextjs/perf-results/example-perf`, outside the `test-results/`
+  folder Playwright clears at the start of a run, so `pnpm example:perf-report`
+  keeps its numbers. Run the specs with `--workers=1` for timing (EX-1507).

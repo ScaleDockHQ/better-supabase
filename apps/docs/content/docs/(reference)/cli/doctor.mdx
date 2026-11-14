@@ -2461,7 +2461,8 @@ the host and port for a URL, and a SHA-256 fingerprint for a key. Unset the
 variable, or start the app with `better-supabase dev run -- <cmd>`, which sets the
 stack's values over the shell's. An exported `SUPABASE_JWKS` is reported too:
 the server prefers those inline keys over `SUPABASE_JWKS_URL`, so keys from a
-hosted project reject every token the local stack signs. Doctor only checks
+hosted project reject every token the local stack signs. Keys the stack's
+JWKS URL serves too (what `pnpm env:local` writes) are accepted. Doctor only checks
 this when the shell exports a `SUPABASE_*` variable and the local stack is
 running.
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:fe4442d8c55f3ce442efdba6d7a9ba2568b54036a41cefcf966e5389c4b7d192
+-- @bsb-hash sha256:b96b57c27cab08618f5da34901b13c20734992c63e6c014d20d7b1d540649645
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -953,9 +953,10 @@ $$;
 revoke execute on function "better_supabase"."get_meeting"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_meeting"(uuid) to authenticated, service_role;
 
--- The organization's meetings, the latest first. filters is { kind, status,
--- from, to (on the start time), attendeeId, search, limit, after, offset, paged,
--- total, totalCap }. Without
+-- The organization's meetings, the latest first. filters is { kind, status (each
+-- a value or a list of them), from, to (on the start time), attendeeId, search,
+-- sort, direction, facet, count, limit, after, offset, paged, total, totalCap }
+-- (ADR 0749). Without
 -- meetings.read the caller sees only the meetings they attend.
 create or replace function "better_supabase"."list_meetings"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -977,6 +978,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_meetings.tenant is not null and coalesce(better_supabase.can('tenant', list_meetings.tenant, 'meetings.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -988,7 +994,62 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('kind', 'status') then
+      raise exception 'facet is one of kind, status' using errcode = '22023', hint = 'MEETING_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'kind' then (x."kind")::text when 'status' then (x."status")::text end) as v
+      from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('startsAt', 'title') then
+    raise exception 'sort is one of startsAt, title' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -1003,12 +1064,41 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -1016,6 +1106,123 @@ begin
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."starts_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."title") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."title") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -1026,12 +1233,12 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1
@@ -1146,7 +1353,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:55a9e10645dc113f77e35a82e89cd7945dab33f0bb2fd6123474459eee9a450e
+-- @bsb-hash sha256:f61a2d97fce08e2f77ab239aa7d20fb6a988c8fce58b506a1aac4d7f2d13b75a
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2176,9 +2383,10 @@ $$;
 revoke execute on function "better_supabase"."get_meeting"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_meeting"(uuid) to authenticated, service_role;
 
--- The organization's meetings, the latest first. filters is { kind, status,
--- from, to (on the start time), attendeeId, search, limit, after, offset, paged,
--- total, totalCap }. Without
+-- The organization's meetings, the latest first. filters is { kind, status (each
+-- a value or a list of them), from, to (on the start time), attendeeId, search,
+-- sort, direction, facet, count, limit, after, offset, paged, total, totalCap }
+-- (ADR 0749). Without
 -- meetings.read the caller sees only the meetings they attend.
 create or replace function "better_supabase"."list_meetings"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -2200,6 +2408,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_meetings.tenant is not null and coalesce(better_supabase.can('tenant', list_meetings.tenant, 'meetings.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -2211,7 +2424,62 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('kind', 'status') then
+      raise exception 'facet is one of kind, status' using errcode = '22023', hint = 'MEETING_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'kind' then (x."kind")::text when 'status' then (x."status")::text end) as v
+      from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('startsAt', 'title') then
+    raise exception 'sort is one of startsAt, title' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -2226,12 +2494,41 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -2239,6 +2536,123 @@ begin
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."starts_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."title") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."title") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -2249,12 +2663,12 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1
@@ -2419,7 +2833,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:aaee4840e15b3a75685bdf7c0ecbe0a681aeff2dc6e281dba93cbde5cfa965d8
+-- @bsb-hash sha256:acc641cc09fe523e43175802e77e8c0544a37b87ca535bd37eb5b18e5f96faa0
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3376,9 +3790,10 @@ $$;
 revoke execute on function "app_private"."get_meeting"(uuid) from public, anon;
 grant execute on function "app_private"."get_meeting"(uuid) to authenticated, service_role;
 
--- The organization's meetings, the latest first. filters is { kind, status,
--- from, to (on the start time), attendeeId, search, limit, after, offset, paged,
--- total, totalCap }. Without
+-- The organization's meetings, the latest first. filters is { kind, status (each
+-- a value or a list of them), from, to (on the start time), attendeeId, search,
+-- sort, direction, facet, count, limit, after, offset, paged, total, totalCap }
+-- (ADR 0749). Without
 -- meetings.read the caller sees only the meetings they attend.
 create or replace function "app_private"."list_meetings"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -3400,6 +3815,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_meetings.tenant is not null and coalesce(better_supabase.can('tenant', list_meetings.tenant, 'meetings.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -3411,7 +3831,62 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('kind', 'status') then
+      raise exception 'facet is one of kind, status' using errcode = '22023', hint = 'MEETING_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'kind' then (x."kind")::text when 'status' then (x."status")::text end) as v
+      from "app_private"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('startsAt', 'title') then
+    raise exception 'sort is one of startsAt, title' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -3426,12 +3901,41 @@ begin
         and (v_all or exists (
           select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -3439,6 +3943,123 @@ begin
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."starts_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."title") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."title") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -3449,12 +4070,12 @@ begin
         and (v_all or exists (
           select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "app_private"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1
@@ -3569,7 +4190,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:051b53c5b92bf3c13d9a634b44c247b17d52ce74e3d5d46952c0bf6773367959
+-- @bsb-hash sha256:904263ac2854cdd1069b3b11dfdd0eedbd13a50221ef060fec09dd3dcd604b26
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4521,9 +5142,10 @@ $$;
 revoke execute on function "better_supabase"."get_meeting"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_meeting"(uuid) to authenticated, service_role;
 
--- The organization's meetings, the latest first. filters is { kind, status,
--- from, to (on the start time), attendeeId, search, limit, after, offset, paged,
--- total, totalCap }. Without
+-- The organization's meetings, the latest first. filters is { kind, status (each
+-- a value or a list of them), from, to (on the start time), attendeeId, search,
+-- sort, direction, facet, count, limit, after, offset, paged, total, totalCap }
+-- (ADR 0749). Without
 -- meetings.read the caller sees only the meetings they attend.
 create or replace function "better_supabase"."list_meetings"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -4545,6 +5167,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_meetings.tenant is not null and coalesce(better_supabase.can('tenant', list_meetings.tenant, 'meetings.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -4556,7 +5183,62 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('kind', 'status') then
+      raise exception 'facet is one of kind, status' using errcode = '22023', hint = 'MEETING_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'kind' then (x."kind")::text when 'status' then (x."status")::text end) as v
+      from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('startsAt', 'title') then
+    raise exception 'sort is one of startsAt, title' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -4571,12 +5253,41 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -4584,6 +5295,123 @@ begin
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."starts_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."title") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."title") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -4594,12 +5422,12 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1
@@ -4872,7 +5700,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:360e8ce0730b1997cbd5cbc2529c15f7154cd4d84a746d092432d82f02740c26
+-- @bsb-hash sha256:a424b29b9c8bd7c210af3026b65f60b851f06bac57766bafc623fb7bd2b0458c
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5804,9 +6632,10 @@ $$;
 revoke execute on function "better_supabase"."get_meeting"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_meeting"(uuid) to authenticated, service_role;
 
--- The organization's meetings, the latest first. filters is { kind, status,
--- from, to (on the start time), attendeeId, search, limit, after, offset, paged,
--- total, totalCap }. Without
+-- The organization's meetings, the latest first. filters is { kind, status (each
+-- a value or a list of them), from, to (on the start time), attendeeId, search,
+-- sort, direction, facet, count, limit, after, offset, paged, total, totalCap }
+-- (ADR 0749). Without
 -- meetings.read the caller sees only the meetings they attend.
 create or replace function "better_supabase"."list_meetings"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -5828,6 +6657,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_meetings.tenant is not null and coalesce(better_supabase.can('tenant', list_meetings.tenant, 'meetings.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -5839,7 +6673,62 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('kind', 'status') then
+      raise exception 'facet is one of kind, status' using errcode = '22023', hint = 'MEETING_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'kind' then (x."kind")::text when 'status' then (x."status")::text end) as v
+      from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('startsAt', 'title') then
+    raise exception 'sort is one of startsAt, title' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -5854,12 +6743,41 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -5867,6 +6785,123 @@ begin
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."starts_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."title") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."tenant_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."title") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -5877,12 +6912,12 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1
@@ -5997,7 +7032,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:541bf4ff44b23129192d099b975983ec6ec70ea0ae5e77ada2d702cc697af166
+-- @bsb-hash sha256:6c76bd4beca84630de44c4f9fa4dd8fa83a657c18e55bf2f0a2d0e86a4f285ca
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6949,9 +7984,10 @@ $$;
 revoke execute on function "better_supabase"."get_meeting"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_meeting"(uuid) to authenticated, service_role;
 
--- The organization's meetings, the latest first. filters is { kind, status,
--- from, to (on the start time), attendeeId, search, limit, after, offset, paged,
--- total, totalCap }. Without
+-- The organization's meetings, the latest first. filters is { kind, status (each
+-- a value or a list of them), from, to (on the start time), attendeeId, search,
+-- sort, direction, facet, count, limit, after, offset, paged, total, totalCap }
+-- (ADR 0749). Without
 -- meetings.read the caller sees only the meetings they attend.
 create or replace function "better_supabase"."list_meetings"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb
@@ -6973,6 +8009,11 @@ declare
   v_more boolean;
   v_next jsonb;
   v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_meetings.tenant is not null and coalesce(better_supabase.can('tenant', list_meetings.tenant, 'meetings.read'), false)));
 begin
   if jsonb_typeof(v_filters) <> 'object' then
@@ -6984,7 +8025,62 @@ begin
   if v_filters ? 'after' and v_filters ? 'offset' then
     raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
-  if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+  if v_facet is not null then
+    if v_facet not in ('kind', 'status') then
+      raise exception 'facet is one of kind, status' using errcode = '22023', hint = 'MEETING_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'kind' then (x."kind")::text when 'status' then (x."status")::text end) as v
+      from "better_supabase"."meetings" x
+      where x."org_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."meetings" x
+      where x."org_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('startsAt', 'title') then
+    raise exception 'sort is one of startsAt, title' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
     raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
@@ -6999,12 +8095,41 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."org_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
         and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
@@ -7012,6 +8137,123 @@ begin
       limit v_limit + 1 offset v_offset
     ) x
   ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."org_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."starts_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startsAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."starts_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."org_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (x."starts_at" <= (v_after ->> 0)::timestamptz and ((x."starts_at" < (v_after ->> 0)::timestamptz) or (x."starts_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."starts_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."org_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."title") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MEETING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'kind', x."kind", 'title', x."title", 'location', x."location", 'startsAt', x."starts_at", 'endsAt', x."ends_at", 'status', x."status", 'startedAt', x."started_at", 'heldAt', x."held_at", 'summary', x."summary", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."meetings" x
+      where x."org_id" = list_meetings.tenant
+        and (v_all or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
+        ))
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
+        ))
+        and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."title") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
   if not v_paged then
     return v_items;
   end if;
@@ -7022,12 +8264,12 @@ begin
         and (v_all or exists (
           select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = auth.uid()
         ))
-        and (not v_filters ? 'kind' or x."kind" = v_filters ->> 'kind')
-        and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'from' or x."starts_at" >= (v_filters ->> 'from')::timestamptz)
-        and (not v_filters ? 'to' or x."starts_at" <= (v_filters ->> 'to')::timestamptz)
-        and (not v_filters ? 'attendeeId' or exists (
-          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = (v_filters ->> 'attendeeId')::uuid
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '') is null or x."starts_at" >= nullif(coalesce(v_filters #>> '{from,0}', v_filters ->> 'from'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '') is null or x."starts_at" <= nullif(coalesce(v_filters #>> '{to,0}', v_filters ->> 'to'), '')::timestamptz)
+        and (nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '') is null or exists (
+          select 1 from "better_supabase"."meeting_attendees" y where y."meeting_id" = x."id" and y."user_id" = nullif(coalesce(v_filters #>> '{attendeeId,0}', v_filters ->> 'attendeeId'), '')::uuid
         ))
         and (v_search is null or x."title" ilike v_search or x."location" ilike v_search or x."summary" ilike v_search)
       limit v_total_cap + 1

@@ -3,6 +3,7 @@ import type { MeetingsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { meetingsEvents } from "./events.ts";
+import { meetingListSurface } from "./lists.ts";
 import { createMeetings } from "./meetings.ts";
 import { meetingsSqlOptions } from "./options.ts";
 import {
@@ -31,6 +32,7 @@ export const meetingsBlock: BlockOf<
   category: "collaboration",
   entities: {
     meeting: {
+      ...meetingListSurface,
       mutability: "editable",
       emits: { create: true, update: true, delete: true },
     },

@@ -58,6 +58,11 @@ export type StackEnvCheck =
   | {
       readonly shell: Readonly<Record<string, string | undefined>>;
       readonly values: Readonly<Record<string, string>>;
+      /**
+       * The `kid` of every key the stack's JWKS URL serves; `undefined` when
+       * the shell exports no `SUPABASE_JWKS` or the endpoint can't be read.
+       */
+      readonly stackKeyIds?: readonly string[];
     }
   | { readonly skipped: string };
 
@@ -79,6 +84,58 @@ const exportsStackVariable = (
     ([name, value]) =>
       value !== undefined && value !== "" && STACK_VARIABLE.test(name),
   );
+
+const JWKS_TIMEOUT_MS = 5000;
+
+/** The `kid` of each key in a JWKS document (`{"keys":[...]}` or `[...]`). */
+function keyIds(document: unknown): string[] | undefined {
+  const keys =
+    typeof document === "object" && document !== null && "keys" in document
+      ? document.keys
+      : document;
+
+  if (!Array.isArray(keys) || keys.length === 0) {
+    return undefined;
+  }
+
+  const ids = keys.map((key: unknown) =>
+    typeof key === "object" &&
+    key !== null &&
+    "kid" in key &&
+    typeof key.kid === "string"
+      ? key.kid
+      : undefined,
+  );
+
+  return ids.every((id) => id !== undefined) ? ids : undefined;
+}
+
+/** The key ids the stack serves, or `undefined` when it can't be read. */
+async function fetchStackKeyIds(
+  url: string,
+  signal?: AbortSignal,
+): Promise<string[] | undefined> {
+  try {
+    const response = await fetch(url, {
+      signal: AbortSignal.any([
+        AbortSignal.timeout(JWKS_TIMEOUT_MS),
+        ...(signal ? [signal] : []),
+      ]),
+    });
+
+    return response.ok ? keyIds(await response.json()) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function inlineKeyIds(value: string): string[] | undefined {
+  try {
+    return keyIds(JSON.parse(value));
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Reads the running stack only when the shell exports a `SUPABASE_*` variable,
@@ -117,7 +174,13 @@ export async function loadStackEnvCheck(
       }
     }
 
-    return { shell, values };
+    const inline = shell["SUPABASE_JWKS"];
+    const jwksUrl = values["SUPABASE_JWKS_URL"];
+
+    const stackKeyIds =
+      inline && jwksUrl ? await fetchStackKeyIds(jwksUrl, signal) : undefined;
+
+    return stackKeyIds ? { shell, values, stackKeyIds } : { shell, values };
   } catch (cause) {
     return { skipped: errorText(cause) };
   }
@@ -202,10 +265,19 @@ export const ENV_RULES: readonly Rule[] = [
       );
 
       // SUPABASE_JWKS wins over SUPABASE_JWKS_URL, so inline keys from a
-      // hosted project reject every token the local stack signs.
+      // hosted project reject every token the local stack signs. `env:local`
+      // writes the stack's own public keys there, which is fine.
       const inlineKeys = stackEnv.shell["SUPABASE_JWKS"];
 
-      return inlineKeys === undefined || inlineKeys === ""
+      const inlineIds =
+        inlineKeys === undefined ? undefined : inlineKeyIds(inlineKeys);
+
+      const servedByStack =
+        inlineIds !== undefined &&
+        stackEnv.stackKeyIds !== undefined &&
+        inlineIds.every((id) => stackEnv.stackKeyIds?.includes(id));
+
+      return inlineKeys === undefined || inlineKeys === "" || servedByStack
         ? stale
         : [
             ...stale,

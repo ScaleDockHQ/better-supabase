@@ -3,6 +3,7 @@ import type { WarrantyEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { warrantyEvents } from "./events.ts";
+import { warrantyClaimListSurface } from "./lists.ts";
 import { createWarranty } from "./warranty.ts";
 
 /** The `warranty` block's manifest (ADR 0029). */
@@ -18,7 +19,11 @@ export const warrantyBlock: BlockOf<
   recipes: [],
   category: "work",
   entities: {
-    warranty_claim: { mutability: "state-machine", emits: { create: true } },
+    warranty_claim: {
+      ...warrantyClaimListSurface,
+      mutability: "state-machine",
+      emits: { create: true },
+    },
   },
   concerns: ["lifecycle", "search"],
   description:

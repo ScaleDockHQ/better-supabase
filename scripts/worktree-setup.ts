@@ -6,16 +6,33 @@
  */
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { copyFile, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import process from "node:process";
 
 // Runs before `pnpm install`, so it imports only Node built-ins.
 
-const ENV_FILES = [".env.local", ".env.development.local"];
+// The example app loads its own copy of the development file before the root
+// one, so a worktree needs both (EX-1021).
+const ENV_FILES = [
+  ".env.local",
+  ".env.development.local",
+  "apps/examples/nextjs/.env.development.local",
+];
 
+// git-ignored, and `dev keys` would mint a different pair than the one the
+// copied `SUPABASE_JWKS` holds.
+const SIGNING_KEYS = "supabase/signing_keys.json";
+
+// The workflow world is not a stack key, but `pnpm env:local` did not write it
+// and a run without it starts and never writes a row (EX-207).
+const WORKFLOW_WORLD =
+  "WORKFLOW_TARGET_WORLD=better-supabase/workflow-sdk/world";
+
+// `SUPABASE_JWKS` stays: it holds the public half of the signing keys that
+// the worktree copies, so it is the same in every checkout.
 const STACK_KEY =
-  /^(?:export\s+)?(?:(?:NEXT_PUBLIC_)?SUPABASE_\w*|WORKFLOW_POSTGRES_URL|DATABASE_URL|NEXT_PUBLIC_SITE_URL|DOCS_ORIGIN)\s*=/;
+  /^(?:export\s+)?(?:(?:NEXT_PUBLIC_)?SUPABASE_(?!JWKS\s*=)\w*|WORKFLOW_POSTGRES_URL|DATABASE_URL|NEXT_PUBLIC_SITE_URL|DOCS_ORIGIN)\s*=/;
 
 /**
  * The env file without the keys that belong to another checkout's stack or
@@ -26,6 +43,12 @@ export const stripStackKeys = (text: string): string =>
     .split("\n")
     .filter((line) => !STACK_KEY.test(line.trimStart()))
     .join("\n");
+
+/** The env file with `WORKFLOW_TARGET_WORLD` set, keeping a value it has. */
+export const withWorkflowWorld = (text: string): string =>
+  /^\s*(?:export\s+)?WORKFLOW_TARGET_WORLD\s*=/m.test(text)
+    ? text
+    : `${text.endsWith("\n") || text === "" ? text : `${text}\n`}${WORKFLOW_WORLD}\n`;
 
 /** The main checkout: the first entry `git worktree list --porcelain` prints. */
 export const mainWorktree = (porcelain: string): string | undefined =>
@@ -84,14 +107,40 @@ async function copyEnvFiles(cwd: string): Promise<void> {
       continue;
     }
 
-    await writeFile(target, kept);
+    await writeFile(
+      target,
+      file.startsWith("apps/") ? withWorkflowWorld(kept) : kept,
+    );
 
     console.log(`Copied ${file} without the main stack's keys`);
   }
 }
 
+async function copySigningKeys(cwd: string): Promise<void> {
+  const root = mainWorktree(
+    execFileSync("git", ["worktree", "list", "--porcelain"], {
+      encoding: "utf-8",
+    }),
+  );
+
+  const target = join(cwd, SIGNING_KEYS);
+
+  if (
+    root === undefined ||
+    resolve(root) === cwd ||
+    existsSync(target) ||
+    !existsSync(join(root, SIGNING_KEYS))
+  ) {
+    return;
+  }
+
+  await copyFile(join(root, SIGNING_KEYS), target);
+
+  console.log(`Copied ${SIGNING_KEYS}`);
+}
+
 function startDatabase(cwd: string): void {
-  if (!existsSync(join(cwd, "supabase/signing_keys.json"))) {
+  if (!existsSync(join(cwd, SIGNING_KEYS))) {
     run("node", [
       "packages/better-supabase/src/cli/bin.ts",
       "dev",
@@ -99,6 +148,14 @@ function startDatabase(cwd: string): void {
       "--cwd",
       ".",
     ]);
+  }
+
+  // Each native stack holds SysV shared memory segments and macOS allows 32
+  // (EX-106, EX-430, EX-902), so stop the stacks of merged branches first.
+  try {
+    run("node", ["scripts/supabase-prune.ts", "--apply"]);
+  } catch {
+    console.log("Could not prune stale stacks; continuing.");
   }
 
   run("pnpm", ["supabase:start"]);
@@ -109,6 +166,7 @@ async function main(): Promise<void> {
 
   install();
   await copyEnvFiles(cwd);
+  await copySigningKeys(cwd);
 
   if (process.argv.includes("--db")) {
     startDatabase(cwd);
