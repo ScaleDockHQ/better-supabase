@@ -91,7 +91,10 @@ describe("subscribeEventTriggers", () => {
     await flush();
 
     expect(
-      onError.mock.calls.map(([error, type]) => [error.message, type]),
+      onError.mock.calls.map(([failure]) => [
+        failure.error.message,
+        failure.eventType,
+      ]),
     ).toEqual([
       ["no start", "a.b"],
       ["down", "a.b"],

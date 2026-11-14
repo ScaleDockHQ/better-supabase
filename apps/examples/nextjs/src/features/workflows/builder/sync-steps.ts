@@ -68,9 +68,9 @@ export function startEventTriggers(): void {
       }),
     }),
     {
-      onError: (error, type) => {
+      onError: ({ error, eventType }) => {
         console.warn(
-          `Event trigger for ${type} did not start: ${error.message}`,
+          `Event trigger for ${eventType} did not start: ${error.message}`,
         );
       },
     },

@@ -535,7 +535,8 @@ builder that has a `service` transport and a `start`:
 import { subscribeEventTriggers } from "better-supabase/blocks/workflow-editor";
 
 subscribeEventTriggers(betterSupabase, serviceBuilder, {
-  onError: (error, type) => console.warn(`${type}: ${error.message}`),
+  onError: ({ error, eventType }) =>
+    console.warn(`${eventType}: ${error.message}`),
 });
 ```
 

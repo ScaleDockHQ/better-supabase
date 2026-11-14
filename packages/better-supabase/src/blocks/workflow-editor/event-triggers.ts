@@ -6,7 +6,10 @@ import { dbError } from "../../core/errors.ts";
 
 /** Where `subscribeEventTriggers` reports a start that failed. */
 export interface EventTriggerOptions {
-  readonly onError?: (error: DbError, eventType: string) => void;
+  readonly onError?: (failure: {
+    readonly error: DbError;
+    readonly eventType: string;
+  }) => void;
 }
 
 /**
@@ -28,7 +31,7 @@ export function subscribeEventTriggers(
   return betterSupabase.events.on("block", (event) => {
     const report = (error: DbError): void => {
       try {
-        options.onError?.(error, event.type);
+        options.onError?.({ error, eventType: event.type });
       } catch {
         // The reporter is an observer too.
       }
