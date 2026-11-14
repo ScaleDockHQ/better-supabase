@@ -121,7 +121,6 @@ export default defineConfig({
       // list_pledges and list_shipments signatures for one `filters jsonb`
       // argument (BS235, four findings); the client sends the new form.
       ignore: ["BS235", "BS243", "BS244"],
-      baseline: "doctor-baseline.json",
     },
   },
   auth: {
