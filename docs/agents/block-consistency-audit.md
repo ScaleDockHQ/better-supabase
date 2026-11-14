@@ -1044,7 +1044,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 
 ### Lane M4
 
-- Scope: Example on generated output, app list helpers removed
+- Scope: Example nav, risk register, seed and checks on generated output
 - Status: merged
 - Branch: `feat/audit-lane-m4`
 - PR: [#963](https://github.com/ScaleDockHQ/better-supabase/pull/963)
