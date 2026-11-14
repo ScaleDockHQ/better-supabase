@@ -3015,6 +3015,25 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  "export": {
+                    "type": "object",
+                    "properties": {
+                      "filename": {
+                        "type": "string"
+                      },
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "maxRows": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "additionalProperties": false
                   }
                 },
                 "required": ["apiVersion", "entity", "route"],

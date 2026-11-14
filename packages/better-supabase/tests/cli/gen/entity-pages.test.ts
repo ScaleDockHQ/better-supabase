@@ -142,6 +142,40 @@ describe("entityPageIndexes", () => {
     expect(sql?.match(/create index/g)).toHaveLength(5);
   });
 
+  it("writes an export route only for a page that sets export", () => {
+    const plain = emitEntityPages(config(), "better-supabase");
+
+    expect(plain.some((file) => file.path.includes("/export/"))).toBe(false);
+
+    const files = emitEntityPages(
+      config([
+        defineEntityPage({
+          entity: "risks.risk",
+          route: "/risks",
+          columns: ["title", "status"],
+          export: { filename: "risk register.csv", maxRows: 5000 },
+        }),
+      ]),
+      "better-supabase",
+    );
+
+    const route = files.find((file) =>
+      file.path.endsWith("api/risks/export/route.ts"),
+    );
+
+    expect(route?.contents).toContain(
+      'import { exportResponse } from "better-supabase/blocks";',
+    );
+
+    expect(route?.contents).toContain("risksList.parse(");
+    expect(route?.contents).toContain("(options) => db.risks.page(options)");
+    expect(route?.contents).toContain('"risk register.csv"');
+
+    expect(route?.contents).toContain(
+      '{ ...query.value, columns: ["title", "status"], maxRows: 5000 }',
+    );
+  });
+
   it("writes nothing without pages", () => {
     expect(
       entityPageIndexSql(resolveConfig({ blocks: { risks: {} } }, "/project")),
@@ -249,12 +283,13 @@ describe("emitEntityPages", () => {
       "forms",
       "seed",
       "navigation",
+      "export-route",
       "manifest",
     ]);
 
     expect(
       ENTITY_PAGE_OUTPUTS.map((output) => output.apiVersion),
-    ).toStrictEqual([1, 1, 1, 1, 1, 1, 1, 1, 1]);
+    ).toStrictEqual([1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
   });
 
   it("writes nothing without pages", () => {

@@ -265,6 +265,8 @@ export interface EntityRouteEntry {
   readonly api: string;
   /** The detail route (`<route>/:id`), when the page has sections. */
   readonly detail: string | undefined;
+  /** The route of the CSV download, when the page sets `export` (ADR 0880). */
+  readonly export?: string;
   /** The message keys of the page: one per column, facet and form field. */
   readonly messageKeys: readonly string[];
 }
