@@ -2,6 +2,7 @@ import type { CredentialRef } from "../credentials/provider.ts";
 import type { BlockTenantOptions } from "./block-tenant.ts";
 import type { BlockTransport } from "./block-transport.ts";
 import type { DbError, ErrorMapper } from "./errors.ts";
+import type { PageSort, SortReport } from "./page-sort.ts";
 import type { Result } from "./result.ts";
 
 import { fromPgError } from "../postgres/pg-error.ts";
@@ -13,6 +14,10 @@ import { temporal } from "./temporal-required.ts";
 import { provideTemporal } from "./temporal.ts";
 
 export { portOf } from "./port.ts";
+
+export { MAX_PAGE_SORTS, sortsOf } from "./page-sort.ts";
+
+export type { PageSort, SortReport } from "./page-sort.ts";
 
 /** The `temporal` option every block creator takes. */
 export interface BlockTemporalOptions {
@@ -231,18 +236,29 @@ export interface ListPage<Item> {
   readonly nextCursor: readonly string[] | null;
   readonly total?: number;
   readonly totalCapped?: boolean;
+  /**
+   * Which of the requested sorts the page was ordered by (ADR 0896). Present
+   * when the read asked for a sort. A block whose `page` reads one sort lists
+   * the first in `applied` and the rest in `ignored`, so a list of sorts that
+   * the block cannot honor is never dropped silently.
+   */
+  readonly sorted?: SortReport;
 }
 
 /**
- * The options every block's `page` takes (ADR 0690): free text, one sort,
- * filters whose values are lists, a keyset cursor and a page size. A filter
- * with several values matches any of them.
+ * The options every block's `page` takes (ADR 0690): free text, a sort or a
+ * list of sorts (ADR 0896), filters whose values are lists, a keyset cursor and
+ * a page size. A filter with several values matches any of them.
  */
 export interface PageOptions {
   /** Free text matched against the entity's searchable columns. */
   readonly q?: string;
-  /** A sortable column from the entity's `sorts`, and its direction. */
-  readonly sort?: { readonly by: string; readonly direction?: "asc" | "desc" };
+  /**
+   * A sortable column from the entity's `sorts` and its direction, or a list of
+   * them (at most `MAX_PAGE_SORTS`, no column twice). A block whose `page`
+   * reads one sort orders by the first term; `ListPage.sorted` says so.
+   */
+  readonly sort?: PageSort | readonly PageSort[];
   /** Column to the values it may hold (any of them matches). */
   readonly filters?: Readonly<Record<string, readonly string[]>>;
   /** The previous page's `nextCursor`. */

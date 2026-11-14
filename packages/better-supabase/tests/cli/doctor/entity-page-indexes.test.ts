@@ -53,7 +53,11 @@ function withRisks(...indexes: CatalogTable["indexes"]): Snapshot {
   return fromCatalog(copy);
 }
 
-const context = (snapshot: Snapshot, pages = true): DoctorContext => ({
+const context = (
+  snapshot: Snapshot,
+  pages = true,
+  sortLists?: readonly (readonly string[])[],
+): DoctorContext => ({
   config: resolveConfig(
     {
       blocks: { memberships: {}, permissions: {}, risks: {} },
@@ -62,7 +66,11 @@ const context = (snapshot: Snapshot, pages = true): DoctorContext => ({
             gen: {
               entityPages: {
                 pages: [
-                  defineEntityPage({ entity: "risks.risk", route: "/risks" }),
+                  defineEntityPage({
+                    entity: "risks.risk",
+                    route: "/risks",
+                    ...(sortLists === undefined ? {} : { sortLists }),
+                  }),
                 ],
               },
             },
@@ -138,6 +146,47 @@ describe("BS636 entity page indexes", () => {
     expect(findings.map((finding) => finding.target)).toStrictEqual([
       "better_supabase.risks:facet:category",
     ]);
+  });
+
+  it("asks for a composite index for a declared multi-column sort", async () => {
+    const lists = [["residualScore", "number"]];
+
+    const findings = await run(context(withRisks(...COVERING), true, lists));
+
+    expect(findings.map((finding) => finding.target)).toStrictEqual([
+      "better_supabase.risks:sort-list:residualScore+number",
+    ]);
+    expect(findings[0]?.message).toContain(
+      "offers the multi-column sort residualScore+number",
+    );
+    expect(findings[0]?.message).toContain(
+      "starts with residual_score, number after tenant_id",
+    );
+  });
+
+  it("accepts a composite index that starts with the columns in order, not a reversed one", async () => {
+    const lists = [["residualScore", "number"]];
+
+    const ordered = index("risks_score_number", [
+      "tenant_id",
+      "residual_score",
+      "number",
+      "id",
+    ]);
+
+    const reversed = index("risks_number_score", [
+      "tenant_id",
+      "number",
+      "residual_score",
+      "id",
+    ]);
+
+    expect(
+      await run(context(withRisks(...COVERING, ordered), true, lists)),
+    ).toStrictEqual([]);
+    expect(
+      await run(context(withRisks(...COVERING, reversed), true, lists)),
+    ).toHaveLength(1);
   });
 
   it("does nothing without pages or without the table", async () => {

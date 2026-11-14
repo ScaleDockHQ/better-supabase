@@ -29,6 +29,7 @@ interface EntityPageInput {
   methods?:
     | { page?: string | undefined; facets?: string | undefined }
     | undefined;
+  sortLists?: string[][] | undefined;
   list?:
     | { pageSize?: number | undefined; maxPageSize?: number | undefined }
     | undefined;
@@ -93,6 +94,7 @@ export const entityPageSchema: v.GenericSchema<EntityPageInput> =
         facets: v.optional(v.pipe(v.string(), v.regex(/^[A-Za-z_$][\w$]*$/))),
       }),
     ),
+    sortLists: v.optional(v.array(v.array(v.string()))),
     list: v.optional(
       v.strictObject({
         pageSize: v.optional(positive),

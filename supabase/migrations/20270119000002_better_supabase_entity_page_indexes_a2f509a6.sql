@@ -10,6 +10,7 @@ create index if not exists "risks_tenant_id_number_id_page_idx" on "better_supab
 create index if not exists "risks_tenant_id_next_review_on_id_page_idx" on "better_supabase"."risks" ("tenant_id", "next_review_on", "id");
 create index if not exists "risks_tenant_id_status_page_idx" on "better_supabase"."risks" ("tenant_id", "status");
 create index if not exists "risks_tenant_id_category_page_idx" on "better_supabase"."risks" ("tenant_id", "category");
+create index if not exists "risks_tenant_id_residual_score_number_id_page_idx" on "better_supabase"."risks" ("tenant_id", "residual_score", "number", "id");
 create index if not exists "work_orders_tenant_id_created_at_id_page_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at", "id");
 create index if not exists "work_orders_tenant_id_starts_at_id_page_idx" on "better_supabase"."work_orders" ("tenant_id", "starts_at", "id");
 create index if not exists "work_orders_tenant_id_title_id_page_idx" on "better_supabase"."work_orders" ("tenant_id", "title", "id");
@@ -27,9 +28,3 @@ create index if not exists "incidents_tenant_id_started_at_id_page_idx" on "bett
 create index if not exists "incidents_tenant_id_severity_id_page_idx" on "better_supabase"."incidents" ("tenant_id", "severity", "id");
 create index if not exists "incidents_tenant_id_status_page_idx" on "better_supabase"."incidents" ("tenant_id", "status");
 create index if not exists "incidents_tenant_id_severity_page_idx" on "better_supabase"."incidents" ("tenant_id", "severity");
-create index if not exists "customers_organization_id_name_id_page_idx" on "public"."customers" ("organization_id", "name", "id");
-create index if not exists "customers_organization_id_created_at_id_page_idx" on "public"."customers" ("organization_id", "created_at", "id");
-create index if not exists "customers_organization_id_status_page_idx" on "public"."customers" ("organization_id", "status");
-create index if not exists "customers_name_trgm_idx" on "public"."customers" using gin ("name" extensions.gin_trgm_ops);
-create index if not exists "inbox_conversations_tenant_id_last_message_at_id_page_idx" on "better_supabase"."inbox_conversations" ("tenant_id", "last_message_at", "id");
-create index if not exists "inbox_conversations_tenant_id_status_page_idx" on "better_supabase"."inbox_conversations" ("tenant_id", "status");

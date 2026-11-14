@@ -5,6 +5,7 @@ import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 import type { EntityPage } from "../../list/index.ts";
 import type { PresetCatalogManifest } from "../../preset/index.ts";
 
+import { MAX_PAGE_SORTS } from "../../blocks/index.ts";
 import { blockEntities } from "../../config/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import { resolveBlock } from "../../sql/index.ts";
@@ -82,7 +83,7 @@ export interface EntityPageIndex {
   readonly method: "btree" | "gin";
   /** The sort, facet or search entry the index serves. */
   readonly serves: string;
-  readonly kind: "sort" | "facet" | "search";
+  readonly kind: "sort" | "sort-list" | "facet" | "search";
 }
 
 const lastSegment = (route: string): string =>
@@ -225,6 +226,20 @@ export function resolveEntityPages(
     }
 
     seen.add(entry.name);
+
+    for (const keys of entry.page.sortLists ?? []) {
+      const unknown = keys.find((key) => !entry.surface.sorts.includes(key));
+
+      if (
+        keys.length < 2 ||
+        keys.length > MAX_PAGE_SORTS ||
+        unknown !== undefined
+      ) {
+        throw invalid(
+          `${entry.page.entity}: sortLists entry [${keys.join(", ")}] needs 2 to ${String(MAX_PAGE_SORTS)} keys from the entity's sorts (${entry.surface.sorts.join(", ") || "none"}).`,
+        );
+      }
+    }
   }
 
   return resolved;
@@ -235,9 +250,11 @@ const camel = (name: string): string =>
 
 /**
  * The indexes a page's list needs: a btree on `(tenant, column, id)` for each
- * sort and `(tenant, column)` for each facet that is a column of the table, and
- * a trigram index for each searched column. A name that is not a column of the
- * table (a derived sort, a facet over a join) has no index here.
+ * sort and `(tenant, column)` for each facet that is a column of the table, a
+ * btree on `(tenant, a, b, id)` for each declared multi-column sort
+ * (`sortLists`), and a trigram index for each searched column. A name that is
+ * not a column of the table (a derived sort, a facet over a join) has no index
+ * here.
  */
 export function entityPageIndexes(
   resolved: ResolvedEntityPage,
@@ -284,6 +301,24 @@ export function entityPageIndexes(
 
     if (column !== undefined) {
       add("facet", facet, column, [...lead, column], "btree");
+    }
+  }
+
+  for (const keys of resolved.page.sortLists ?? []) {
+    const columns = keys.map(columnOf);
+    const [leading] = columns;
+
+    if (
+      leading !== undefined &&
+      columns.every((column): column is string => column !== undefined)
+    ) {
+      add(
+        "sort-list",
+        keys.join("+"),
+        leading,
+        [...lead, ...columns, "id"],
+        "btree",
+      );
     }
   }
 
@@ -656,7 +691,7 @@ const SCALE_TEST: EntityPageOutput = {
 
     return context.pages.flatMap((entry): GeneratedFile[] => {
       const indexes = entityPageIndexes(entry).filter(
-        (index) => index.kind !== "search",
+        (index) => index.kind === "sort" || index.kind === "facet",
       );
 
       const { table } = entry;

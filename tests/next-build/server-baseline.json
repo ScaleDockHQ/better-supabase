@@ -825,12 +825,12 @@
     "brotli": 788777
   },
   "/[locale]/(app)/risks/[id]/page": {
-    "raw": 3107009,
+    "raw": 3108081,
     "gzip": 945950,
     "brotli": 786668
   },
   "/[locale]/(app)/risks/page": {
-    "raw": 3112203,
+    "raw": 3113275,
     "gzip": 947164,
     "brotli": 787677
   },
@@ -1270,7 +1270,7 @@
     "brotli": 123076
   },
   "/[locale]/(auth)/invite/[token]/page": {
-    "raw": 1526329,
+    "raw": 1526949,
     "gzip": 483923,
     "brotli": 408765
   },
@@ -1280,7 +1280,7 @@
     "brotli": 354749
   },
   "/[locale]/(auth)/mfa/page": {
-    "raw": 1444138,
+    "raw": 1444758,
     "gzip": 458516,
     "brotli": 386531
   },
@@ -1290,12 +1290,12 @@
     "brotli": 123137
   },
   "/[locale]/(auth)/pricing/[code]/page": {
-    "raw": 1506443,
+    "raw": 1507063,
     "gzip": 477498,
     "brotli": 403506
   },
   "/[locale]/(auth)/reset-password/page": {
-    "raw": 1444206,
+    "raw": 1444826,
     "gzip": 458531,
     "brotli": 386545
   },
@@ -1310,7 +1310,7 @@
     "brotli": 738357
   },
   "/[locale]/(auth)/signup/page": {
-    "raw": 1450154,
+    "raw": 1450774,
     "gzip": 461427,
     "brotli": 389056
   },
@@ -1470,7 +1470,7 @@
     "brotli": 692240
   },
   "/api/commissions/list/route": {
-    "raw": 2587137,
+    "raw": 2588177,
     "gzip": 783062,
     "brotli": 664854
   },
@@ -1500,7 +1500,7 @@
     "brotli": 296548
   },
   "/api/customers/records/route": {
-    "raw": 1437027,
+    "raw": 1437616,
     "gzip": 444442,
     "brotli": 381645
   },
@@ -1562,10 +1562,10 @@
   "/api/inbox/tick/route": {
     "raw": 1424760,
     "gzip": 454085,
-    "brotli": 395031
+    "brotli": 396133
   },
   "/api/incidents/list/route": {
-    "raw": 2587519,
+    "raw": 2588278,
     "gzip": 783759,
     "brotli": 665332
   },
@@ -1725,7 +1725,7 @@
     "brotli": 302497
   },
   "/api/referrals/list/route": {
-    "raw": 2587104,
+    "raw": 2588144,
     "gzip": 783048,
     "brotli": 664848
   },
@@ -1740,7 +1740,7 @@
     "brotli": 693210
   },
   "/api/risks/register/route": {
-    "raw": 2707532,
+    "raw": 2708609,
     "gzip": 818144,
     "brotli": 695671
   },
@@ -1800,7 +1800,7 @@
     "brotli": 751521
   },
   "/api/work-orders/list/route": {
-    "raw": 2587175,
+    "raw": 2588215,
     "gzip": 783097,
     "brotli": 664899
   },

@@ -493,13 +493,17 @@ each declared facet with their counts, and `count(options)` returns
 `{ value, exact }`. They take the same options, so a page and the counts beside
 it always describe the same rows.
 
-| Option    | What it does                                                                                                |
-| --------- | ----------------------------------------------------------------------------------------------------------- |
-| `q`       | Free text over the entity's search columns; an entity without `search` returns `invalid_input`              |
-| `sort`    | `{ by, direction? }`, where `by` is one of the entity's `sorts`; the entity's own order when left out       |
-| `filters` | Column to a list of values; a row matches any of a filter's values, and an empty list leaves the filter off |
-| `after`   | The previous page's `nextCursor`; it is valid only for the sort it came from                                |
-| `limit`   | The most rows to return; each list documents its default and cap                                            |
+| Option    | What it does                                                                                                                                                                                                                          |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `q`       | Free text over the entity's search columns; an entity without `search` returns `invalid_input`                                                                                                                                        |
+| `sort`    | `{ by, direction? }`, where `by` is one of the entity's `sorts`, or a list of up to three; the entity's own order when left out. A block that reads one sort orders by the first term and lists the rest in `ListPage.sorted.ignored` |
+| `filters` | Column to a list of values; a row matches any of a filter's values, and an empty list leaves the filter off                                                                                                                           |
+| `after`   | The previous page's `nextCursor`; it is valid only for the sort it came from                                                                                                                                                          |
+| `limit`   | The most rows to return; each list documents its default and cap                                                                                                                                                                      |
+
+`PageSort`, `SortReport`, `sortsOf` and `MAX_PAGE_SORTS` come from the same entry. A `page` you
+write yourself reads `sortsOf(options.sort)`, and sets `sorted` on the page it returns when it
+reads fewer terms than it was given ([Sort by several columns](/docs/platform/list#sort-by-several-columns)).
 
 `ListPage`, `PageOptions`, `FacetOptions`, `FacetResult`, `Count` and
 `EntityList` are exported from `better-supabase/blocks`. `facets` and `count`

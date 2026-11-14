@@ -33,7 +33,11 @@ function queryOf(options: PageOptions) {
     facets: { status: options.filters?.["status"] ?? [] },
   };
 
-  const sort = options.sort?.by;
+  // The customer list sorts by one column, so the first term of a list is the one it applies.
+  const first =
+    options.sort && "by" in options.sort ? options.sort : options.sort?.[0];
+
+  const sort = first?.by;
   const [after] = options.after ?? [];
 
   if (options.q !== undefined) {

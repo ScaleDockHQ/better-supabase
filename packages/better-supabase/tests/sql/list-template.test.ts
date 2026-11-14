@@ -7,6 +7,7 @@ import {
   filterFirst,
   filterFlag,
   filterSet,
+  keysetPredicate,
   listBody,
   listDeclare,
 } from "../../src/sql/list-template.ts";
@@ -123,5 +124,48 @@ describe("list filters", () => {
     expect(filterFlag("mine")).toContain("= 'true'");
     expect(filterFirst("due")).toContain("v_filters #>> '{due,0}'");
     expect(filterFirst("due")).toContain("v_filters ->> 'due'");
+  });
+});
+
+describe("multi-key keyset (ADR 0896)", () => {
+  it("compares a cursor of a multi-column sort key by key, in the order of the keys", () => {
+    const predicate = keysetPredicate(
+      [
+        { expr: "x.status", dir: "asc", type: "text" },
+        { expr: "x.due_on", dir: "desc", type: "date" },
+        { expr: "x.id", dir: "asc", type: "uuid" },
+      ],
+      "v_after",
+    );
+
+    expect(predicate).toContain("x.status >= (v_after ->> 0)::text");
+    expect(predicate).toContain(
+      "(x.status > (v_after ->> 0)::text) or (x.status = (v_after ->> 0)::text and x.due_on < (v_after ->> 1)::date)",
+    );
+    expect(predicate).toContain(
+      "x.status = (v_after ->> 0)::text and x.due_on = (v_after ->> 1)::date and x.id > (v_after ->> 2)::uuid",
+    );
+  });
+
+  it("compares keys that sort one way as a row, which a composite index seeks into", () => {
+    expect(
+      keysetPredicate(
+        [
+          { expr: "x.status", dir: "asc", type: "text" },
+          { expr: "x.due_on", dir: "asc", type: "date" },
+          { expr: "x.id", dir: "asc", type: "uuid" },
+        ],
+        "v_after",
+      ),
+    ).toBe(
+      "(v_after is null or (x.status, x.due_on, x.id) > ((v_after ->> 0)::text, (v_after ->> 1)::date, (v_after ->> 2)::uuid))",
+    );
+  });
+
+  it("checks the cursor width per named sort, so a sort list cannot change it", () => {
+    const sql = listBody(EXTENDED);
+
+    expect(sql.match(/jsonb_array_length\(v_after\) <> 2/g)).toHaveLength(4);
+    expect(sql).not.toContain("v_sorts");
   });
 });
