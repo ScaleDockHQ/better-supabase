@@ -39,8 +39,8 @@ import {
   toInstant,
 } from "../shared.ts";
 import { dohResolver } from "../sso/sso.ts";
-import { domainProviderOf } from "./provider.ts";
 import { hostnameListSurface } from "./lists.ts";
+import { domainProviderOf } from "./provider.ts";
 
 /** The DNS record that proves a custom domain belongs to the organization. */
 export interface HostnameRecord {
