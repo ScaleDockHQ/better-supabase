@@ -21,7 +21,16 @@ export const fieldHistoryBlock: BlockOf<
   create: createFieldHistory,
   category: "database",
   entities: {
-    field_history: { mutability: "append-only", emits: { create: false } },
+    field_history: {
+      mutability: "append-only",
+      emits: { create: false },
+      personalData: ["before", "after", "changedBy"],
+      subjectColumn: "subjectId",
+      erase: "anonymize",
+      retention: "audit",
+      legalHold: true,
+      partition: { by: "changedAt", every: "month", archive: "detach" },
+    },
   },
   description:
     "The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.",

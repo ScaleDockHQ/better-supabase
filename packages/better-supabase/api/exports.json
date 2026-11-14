@@ -2875,8 +2875,10 @@
       "defineCompositeReadSet",
       "defineEvents",
       "defineTransportMiddleware",
+      "ENTITY_ERASES",
       "ENTITY_METHODS",
       "ENTITY_MUTABILITIES",
+      "ENTITY_PARTITION_EVERY",
       "entityNames",
       "entitySchema",
       "envBlockOptions",
@@ -2962,6 +2964,7 @@
       "CursorPageOptions",
       "DbTransportOptions",
       "DbTransportSource",
+      "EntityErase",
       "EntityFieldSpecs",
       "EntityList",
       "EntityListSurface",
@@ -2969,6 +2972,8 @@
       "EntityMutability",
       "EntityNames",
       "EntityNoun",
+      "EntityPartition",
+      "EntityPartitionEvery",
       "EntityRename",
       "EntitySchema",
       "EntitySchemas",
@@ -4544,7 +4549,9 @@
       "dbTransport",
       "RESTORE_SOURCE",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "subjectAccessPlan",
+      "subjectAccessRequest"
     ],
     "types": [
       "BlockTransport",
@@ -4584,6 +4591,13 @@
       "RetentionPolicy",
       "RetentionScope",
       "StorageEntry",
+      "SubjectAccessBlock",
+      "SubjectAccessGap",
+      "SubjectAccessPlan",
+      "SubjectAccessPlanOptions",
+      "SubjectAccessRequestInput",
+      "SubjectAccessRequestResult",
+      "SubjectAccessStep",
       "UnrevokedCredential"
     ]
   },
@@ -6115,6 +6129,7 @@
       "dbTransport",
       "extendBlock",
       "fieldHistoryBlock",
+      "historyTabs",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -6127,6 +6142,8 @@
       "FieldChange",
       "FieldHistory",
       "FieldHistoryOptions",
+      "HistoryTab",
+      "HistoryTabBlock",
       "RpcClient"
     ]
   },

@@ -19,7 +19,19 @@ export const consentsBlock: BlockOf<
   create: createConsents,
   category: "admin",
   entities: {
-    consent: { mutability: "state-machine", emits: { create: false } },
+    consent: {
+      mutability: "state-machine",
+      emits: { create: false },
+      personalData: [
+        "givenByContact",
+        "givenByUser",
+        "withdrawnReason",
+        "signature",
+      ],
+      subjectColumn: "subjectId",
+      erase: "anonymize",
+      legalHold: true,
+    },
     consent_purpose: {
       mutability: "editable",
       emits: { create: true, update: true },
