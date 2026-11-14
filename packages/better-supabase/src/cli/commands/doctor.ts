@@ -428,6 +428,7 @@ export async function runDoctor(
     nextConfig,
     install,
     ignoredEnvFiles,
+    vercelConfig,
   ] = await Promise.all([
     options.snapshot ??
       loadSnapshot(config, env, source, pg, opened.open).catch(
@@ -480,6 +481,7 @@ export async function runDoctor(
     rules.some((rule) => rule.code === "BS502")
       ? gitIgnored(config.root, ENV_FILES, env)
       : undefined,
+    readText(config.root, "vercel.json"),
   ]).catch(async (cause: unknown) => {
     await opened.close();
     throw cause;
@@ -515,6 +517,7 @@ export async function runDoctor(
     ...(localStacks ? { localStacks } : {}),
     ...(nextConfig ? { nextConfig } : {}),
     vercel,
+    ...(vercelConfig ? { vercelConfig } : {}),
     ...(live.advisors ? { advisors: live.advisors } : {}),
     ...(live.database ? { database: live.database } : {}),
     ...(stats ? { stats } : {}),

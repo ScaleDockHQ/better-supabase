@@ -2533,6 +2533,19 @@ Import `blockConfig` from `blocks.config.ts`, which holds data only. When the
 browser needs a few block clients, list those instances in `gen.clientBlocks`
 and import `clientBlocks` from `blocks.client.ts`.
 
+### BS512
+
+**Warning: queue schedule wiring misfires.** The clock that drives the queue
+misses or doubles runs. `vercel.json` still calls a path from `crons`: move it
+to `schedules` as a path target with `"requestMethod": "GET"`, which sends the
+same `CRON_SECRET` bearer, and remove the `crons` entry, since a path in both
+runs twice. A schedule targets a private function whose `functions` entry has
+no `schedule/v1beta` trigger, so Vercel never calls it. Or
+`blocks.queue.options.httpTick` is on, but no schema file creates `pg_net`, or
+no SQL file stores the `jobs_tick_url` and `jobs_tick_token` Vault secrets that
+`better_supabase.http_tick()` reads. Secrets set from the dashboard are
+invisible to this static check; ignore that finding when you set them there.
+
 ### BS506
 
 **Warning: server and browser Supabase URLs differ.** An env file sets
