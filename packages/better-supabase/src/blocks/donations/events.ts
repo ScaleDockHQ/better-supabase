@@ -42,6 +42,16 @@ export interface DonationReceiptEventData {
   readonly currency: string;
 }
 
+/**
+ * `donation_fund.archived` and `donation_fund.restored`: a fund left or came
+ * back to new gifts.
+ */
+export interface DonationFundEventData {
+  readonly organizationId: string;
+  readonly id: string;
+  readonly key: string;
+}
+
 /** The events of the `donations` block: type to data. */
 export type DonationsEvents = {
   readonly "donation.received": DonationEventData;
@@ -51,6 +61,8 @@ export type DonationsEvents = {
   readonly "pledge.updated": PledgeEventData;
   readonly "donation_receipt.issued": DonationReceiptEventData;
   readonly "donation_receipt.voided": DonationReceiptEventData;
+  readonly "donation_fund.archived": DonationFundEventData;
+  readonly "donation_fund.restored": DonationFundEventData;
 };
 
 /** The `donations` block's event types, for its manifest and `onBlockEvent`. */
@@ -62,4 +74,6 @@ export const donationsEvents: Events<DonationsEvents> = defineEvents({
   "pledge.updated": event<PledgeEventData>(),
   "donation_receipt.issued": event<DonationReceiptEventData>(),
   "donation_receipt.voided": event<DonationReceiptEventData>(),
+  "donation_fund.archived": event<DonationFundEventData>(),
+  "donation_fund.restored": event<DonationFundEventData>(),
 });

@@ -898,7 +898,7 @@ export interface BlockNameRegistry {
       readonly "receipts": "id" | "tenant" | "donorType" | "donorId" | "sequence" | "number" | "kind" | "year" | "amount" | "currency" | "issuedAt" | "voidedAt" | "voidReason";
       readonly "donations": "id" | "tenant" | "donorType" | "donorId" | "fund" | "pledge" | "periodStart" | "amount" | "currency" | "receivedOn" | "method" | "status" | "provider" | "paymentReference" | "transaction" | "refundTransaction" | "receipt" | "note" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "archive_donation_fund" | "create_pledge" | "donation_settle" | "due_pledge_installments" | "get_gift" | "issue_gift_receipt" | "issue_yearly_receipt" | "list_donation_funds" | "list_donation_receipts" | "list_gifts" | "list_pledges" | "open_gift" | "record_gift" | "record_gift_payment" | "save_donation_fund" | "update_pledge" | "void_donation_receipt" | "yearly_giving_summary";
+    readonly functions: "archive_donation_fund" | "create_pledge" | "donation_settle" | "due_pledge_installments" | "get_gift" | "issue_gift_receipt" | "issue_yearly_receipt" | "list_donation_funds" | "list_donation_receipts" | "list_gifts" | "list_pledges" | "open_gift" | "record_gift" | "record_gift_payment" | "restore_donation_fund" | "save_donation_fund" | "update_pledge" | "void_donation_receipt" | "yearly_giving_summary";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1002,7 +1002,7 @@ export interface BlockNameRegistry {
       readonly "lines": "id" | "tenant" | "report" | "category" | "spentOn" | "description" | "merchant" | "amount" | "dimensions" | "createdAt" | "updatedAt";
       readonly "expenses": "id" | "tenant" | "user" | "employee" | "category" | "spentOn" | "description" | "merchant" | "amount" | "currency" | "status" | "submittedAt" | "approvedAt" | "rejectedAt" | "decidedBy" | "decidedAt" | "decisionNote" | "reimbursedAt" | "reimbursedBy" | "reimbursement" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
+    readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "restore_expense_category" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
     readonly actions: "read" | "submit" | "approve" | "manage" | "create" | "update" | "delete" | "reimburse" | "categories" | "withdraw" | "deleteSubmitted";
     readonly hooks: never;
     readonly entities: {
@@ -1401,7 +1401,7 @@ export interface BlockNameRegistry {
       readonly "requests": "id" | "tenant" | "user" | "employee" | "type" | "startsOn" | "endsOn" | "partial" | "startPart" | "endPart" | "amount" | "note" | "approval" | "approvedAt" | "cancelledAt" | "cancelledBy" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
       readonly "balances": "id" | "tenant" | "user" | "employee" | "type" | "kind" | "amount" | "effectiveOn" | "expiresOn" | "request" | "note" | "key" | "createdBy" | "createdAt";
     };
-    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "leave_available" | "leave_balances" | "leave_close_range" | "leave_is_mine" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_range_close_blockers" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "request_leave" | "save_leave_type" | "split_leave_request" | "update_leave_request";
+    readonly functions: "accrue_leave" | "adjust_leave_balance" | "approve_leave_request" | "archive_leave_type" | "cancel_leave_request" | "close_leave_year" | "decide_leave_request" | "leave_available" | "leave_balances" | "leave_close_range" | "leave_is_mine" | "leave_ledger_entries" | "leave_post" | "leave_posted" | "leave_range_close_blockers" | "leave_working_days" | "list_leave_requests" | "list_leave_types" | "request_leave" | "restore_leave_type" | "save_leave_type" | "split_leave_request" | "update_leave_request";
     readonly actions: "request" | "read" | "approve" | "manage" | "readConfidential" | "reapprove";
     readonly hooks: "before_leave_request" | "after_leave_request";
     readonly entities: {
@@ -1911,7 +1911,7 @@ export interface BlockNameRegistry {
       readonly "requirements": "id" | "tenant" | "type" | "targetType" | "targetValue" | "createdAt";
       readonly "qualifications": "id" | "tenant" | "type" | "holderType" | "holderId" | "grantedOn" | "expiresOn" | "revokedAt" | "revokeReason" | "evidenceAttachment" | "evidenceNote" | "source" | "sourceId" | "grantedBy" | "notifiedStatus" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_qualification_requirement" | "archive_qualification_type" | "grant_qualification" | "list_qualification_requirements" | "list_qualification_types" | "notify_expiring_qualifications" | "qualification_gaps" | "qualifications_of" | "qualified_holders" | "remove_qualification_requirement" | "revoke_qualification" | "save_qualification_type";
+    readonly functions: "add_qualification_requirement" | "archive_qualification_type" | "grant_qualification" | "list_qualification_requirements" | "list_qualification_types" | "notify_expiring_qualifications" | "qualification_gaps" | "qualifications_of" | "qualified_holders" | "remove_qualification_requirement" | "restore_qualification_type" | "revoke_qualification" | "save_qualification_type";
     readonly actions: "read" | "grant" | "manage";
     readonly hooks: "before_qualification_type_save" | "after_qualification_type_save" | "before_qualification_grant" | "after_qualification_grant" | "before_qualification_revoke" | "after_qualification_revoke";
     readonly entities: {

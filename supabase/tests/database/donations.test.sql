@@ -4,7 +4,7 @@
 -- tracks a pledge and issues numbered receipts. The member (…00a2) reads
 -- nothing.
 begin;
-select plan(20);
+select plan(22);
 
 select set_config(
   'request.jwt.claims',
@@ -16,6 +16,17 @@ set local role authenticated;
 select set_config('test.fund', better_supabase.save_donation_fund(
   '00000000-0000-4000-8000-000000000001', 'roof', 'New roof', kind => 'campaign', goal => 1000000, currency => 'EUR'
 ) ->> 'id', true);
+
+select isnt(
+  better_supabase.archive_donation_fund(current_setting('test.fund')::uuid) ->> 'archivedAt',
+  null,
+  'archiving a fund sets archivedAt'
+);
+select is(
+  better_supabase.restore_donation_fund(current_setting('test.fund')::uuid) ->> 'archivedAt',
+  null,
+  'restoring a fund clears archivedAt'
+);
 
 select set_config('test.gift', better_supabase.record_gift(
   '00000000-0000-4000-8000-000000000001', 'customer', '00000000-0000-4000-8000-00000000a001', 25000, 'EUR',

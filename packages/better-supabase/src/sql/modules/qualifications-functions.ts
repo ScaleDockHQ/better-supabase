@@ -382,6 +382,36 @@ end;
 $$;
 ${userGrant(`${fn("archive_qualification_type")}(uuid)`)}
 
+-- Restores an archived type: it takes new holdings and joins the gap report
+-- again.
+create or replace function ${fn("restore_qualification_type")}(type_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${types}%rowtype;
+begin
+  select * into v_row from ${types} x where x.${t("id")} = restore_qualification_type.type_id;
+  if not found then
+    ${typeNotFound}
+  end if;
+  if not ${allowed(`v_row.${t("tenant")}`, manage)} then
+    ${forbidden("not allowed to manage qualifications")}
+  end if;
+  if v_row.${t("archivedAt")} is not null then
+    update ${types} x set ${t("archivedAt")} = null${touch("types")}
+    where x.${t("id")} = v_row.${t("id")}
+    returning x.* into v_row;
+    ${typeRecord("qualification_type.restored", "v_row", `jsonb_build_object('organizationId', v_row.${t("tenant")}, 'qualificationTypeId', v_row.${t("id")}, 'key', v_row.${t("key")})`, "Qualification type restored")}
+  end if;
+  return ${typeJson(ctx, "v_row")};
+end;
+$$;
+${userGrant(`${fn("restore_qualification_type")}(uuid)`)}
+
 create or replace function ${fn("list_qualification_types")}(tenant ${idType}, include_archived boolean default false)
 returns jsonb
 language sql

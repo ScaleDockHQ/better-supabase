@@ -47,6 +47,10 @@ const EVENTS: BlockSqlEvents<QualificationsEvents> = {
     subject: "qualification-types",
     payload: ["organizationId", "qualificationTypeId", "key"],
   },
+  "qualification_type.restored": {
+    subject: "qualification-types",
+    payload: ["organizationId", "qualificationTypeId", "key"],
+  },
   "qualification.granted": {
     subject: "qualifications",
     payload: [...HOLDING, "grantedOn", "expiresOn", "source"],

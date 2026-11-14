@@ -969,11 +969,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane I
 
 - Scope: Archive, restore and purge everywhere
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-i`
 - PR: none yet
 - Findings: EX-1206, EX-1207, EX-1230 (verb adoption)
 - Log: 2026-11-12, planned.
+- Log: 2026-11-14, started from main in `../bsb-audit-i`. Scale measured: 251 block folders, 94 files mention archive. Category PRs are not yet split; none opened.
 
 ### Lane L
 
@@ -1029,7 +1030,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Findings: EX-1310, EX-1311, EX-1323, EX-1325
 - Log: 2026-11-12, planned.
 - Log: 2026-11-14, lane O1 started from main (aa43c1d009) in `../bsb-audit-o1`. One PR: `subjectColumn`, `erase`, `legalHold`, `history` and `partition` on the entity surface, `subjectAccessPlan`, `subjectAccessRequest` and `historyTabs`, declarations on `consent`, `data_subject_request` and `field_history`, ADRs 0899 to 0902. No SQL change, so no migration and no pgTAP test; the SQL erase executor per entity stays open (EX-1310).
-- Log: 2026-11-14, lane O1b started from main (9b29fb14e1) in `../bsb-audit-o1b`: `erase_data_subject` and `executeErasure` (EX-1310), migration `20270115100000` (the slot 20261222 sorts before the newest migration on main), pgTAP `data_lifecycle_erasure.test.sql`, ADR 0903. [#948](https://github.com/ScaleDockHQ/better-supabase/pull/948).
+- Log: 2026-11-14, lane O1b started from main (9b29fb14e1) in `../bsb-audit-o1b`: `erase_data_subject` and `executeErasure` (EX-1310), migration `20270116100000` (the slot 20261222 sorts before the newest migration on main), pgTAP `data_lifecycle_erasure.test.sql`, ADR 0903. [#948](https://github.com/ScaleDockHQ/better-supabase/pull/948).
 
 ### Lane O2
 

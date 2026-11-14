@@ -57,7 +57,7 @@ const rows = useLeave({ limit: 50 });
 
 ## Types
 
-`saveType` creates a type, or updates the one with the same `key`. A type counts in `days` (the default) or `hours`, is paid or not, and is tracked against a balance unless `tracked: false` (sick leave, for example, often isn't). `allowance` is what `accrue` grants when it names no amount, and `carryoverMax` caps what `closePeriod` carries into the next year. `archiveType` hides a type from new requests and keeps its history, and `types` lists the active ones (`archived: true` for all).
+`saveType` creates a type, or updates the one with the same `key`. A type counts in `days` (the default) or `hours`, is paid or not, and is tracked against a balance unless `tracked: false` (sick leave, for example, often isn't). `allowance` is what `accrue` grants when it names no amount, and `carryoverMax` caps what `closePeriod` carries into the next year. `archiveType` hides a type from new requests and keeps its history, `restoreType` makes it available again (both record `leave_type.archived` and `leave_type.restored`), and `types` lists the active ones (`archived: true` for all).
 
 ## Requests
 
