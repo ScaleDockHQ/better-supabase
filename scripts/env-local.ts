@@ -6,8 +6,10 @@
  * worktree.
  */
 import { execFileSync } from "node:child_process";
-import { access, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import * as v from "valibot";
+
+import { publicJwks } from "./public-jwks.ts";
 
 const Stack = v.looseObject({
   API_URL: v.pipe(v.string(), v.url()),
@@ -63,6 +65,13 @@ const stack = parse(Stack, status);
 const details = engine && supabase("status", "--output-format", "json");
 const runtime = details ? parse(Runtime, details).runtime : "legacy";
 
+// The server verifies tokens from these keys without a request to the Auth
+// server. A stack started without the file has no inline keys.
+const jwks = await readFile("supabase/signing_keys.json", "utf-8").then(
+  (text) => publicJwks(text),
+  () => undefined,
+);
+
 const lines = [
   "# Written by pnpm env:local from supabase status. Do not commit.",
   `NEXT_PUBLIC_SITE_URL=${portlessUrl("www")}`,
@@ -75,6 +84,9 @@ const lines = [
   `NEXT_PUBLIC_SUPABASE_URL=${stack.API_URL}`,
   `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${stack.PUBLISHABLE_KEY}`,
   `WORKFLOW_POSTGRES_URL=${stack.DB_URL}`,
+  // Without the world a workflow run starts and never writes a row (EX-207).
+  "WORKFLOW_TARGET_WORLD=better-supabase/workflow-sdk/world",
+  ...(jwks === undefined ? [] : [`SUPABASE_JWKS=${jwks}`]),
   "",
 ];
 

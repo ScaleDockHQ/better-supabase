@@ -1,6 +1,11 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  filterFirst,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { userGrant } from "../shared.ts";
 import { managed, meetingsSql } from "./meetings-sql.ts";
 
@@ -50,12 +55,12 @@ export function meetingReads(ctx: BlockSqlContext): string {
       `(v_all or exists (
           select 1 from ${attendees} y where y.${a("meeting")} = x.${m("id")} and y.${a("user")} = auth.uid()
         ))`,
-      `(not v_filters ? 'kind' or x.${m("kind")} = v_filters ->> 'kind')`,
-      `(not v_filters ? 'status' or x.${m("status")} = v_filters ->> 'status')`,
-      `(not v_filters ? 'from' or x.${m("startsAt")} >= (v_filters ->> 'from')::timestamptz)`,
-      `(not v_filters ? 'to' or x.${m("startsAt")} <= (v_filters ->> 'to')::timestamptz)`,
-      `(not v_filters ? 'attendeeId' or exists (
-          select 1 from ${attendees} y where y.${a("meeting")} = x.${m("id")} and y.${a("user")} = (v_filters ->> 'attendeeId')::uuid
+      filterAny("kind", `x.${m("kind")}`),
+      filterAny("status", `x.${m("status")}`),
+      `(${filterFirst("from")} is null or x.${m("startsAt")} >= ${filterFirst("from")}::timestamptz)`,
+      `(${filterFirst("to")} is null or x.${m("startsAt")} <= ${filterFirst("to")}::timestamptz)`,
+      `(${filterFirst("attendeeId")} is null or exists (
+          select 1 from ${attendees} y where y.${a("meeting")} = x.${m("id")} and y.${a("user")} = ${filterFirst("attendeeId")}::uuid
         ))`,
       `(v_search is null or ${search})`,
     ],
@@ -63,6 +68,17 @@ export function meetingReads(ctx: BlockSqlContext): string {
       { expr: `x.${m("startsAt")}`, dir: "desc", type: "timestamptz" },
       { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      startsAt: [
+        { expr: `x.${m("startsAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
+      ],
+      title: [
+        { expr: `lower(x.${m("title")})`, dir: "asc", type: "text" },
+        { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { kind: `x.${m("kind")}`, status: `x.${m("status")}` },
     rowJson: q.meetingJson("x"),
     invalid: q.invalid,
   } as const;
@@ -110,9 +126,10 @@ end;
 $$;
 ${userGrant(`${fn("get_meeting")}(uuid)`)}
 
--- The organization's meetings, the latest first. filters is { kind, status,
--- from, to (on the start time), attendeeId, search, limit, after, offset, paged,
--- total, totalCap }. Without
+-- The organization's meetings, the latest first. filters is { kind, status (each
+-- a value or a list of them), from, to (on the start time), attendeeId, search,
+-- sort, direction, facet, count, limit, after, offset, paged, total, totalCap }
+-- (ADR 0749). Without
 -- meetings.read the caller sees only the meetings they attend.
 create or replace function ${fn("list_meetings")}(tenant ${idType}, filters jsonb default '{}'::jsonb)
 returns jsonb

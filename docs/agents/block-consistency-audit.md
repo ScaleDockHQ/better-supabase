@@ -312,7 +312,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | comments                  | collaboration | comment                    | append-only   | -                      | create, delete         | -                                        | -                      | -           | -        | -       | -         |
 | guests                    | collaboration | guest                      | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | guests                    | collaboration | guest_grant                | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
-| meetings                  | collaboration | meeting                    | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| meetings                  | collaboration | meeting                    | editable      | create, update, delete | -                      | startsAt, title                          | kind, status           | y           | -        | -       | -         |
 | meetings                  | collaboration | meeting_attendee           | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
 | meetings                  | collaboration | meeting_agenda_item        | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
 | meetings                  | collaboration | meeting_decision           | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -582,7 +582,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | incidents                 | work          | status_component           | editable      | update                 | delete                 | -                                        | -                      | -           | -        | -       | -         |
 | incidents                 | work          | incident_postmortem        | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
 | incidents                 | work          | status_page                | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
-| inspections               | work          | inspection                 | editable      | update                 | create                 | -                                        | -                      | -           | -        | -       | -         |
+| inspections               | work          | inspection                 | editable      | update                 | create                 | plannedStart, number                     | status, kind           | y           | -        | -       | -         |
 | inspections               | work          | inspection_program         | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | inspections               | work          | inspection_finding         | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
 | inspections               | work          | inspection_member          | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -613,7 +613,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | tasks                     | work          | iteration                  | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
 | tasks                     | work          | checklist_item             | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
 | undo                      | work          | undo                       | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
-| warranty                  | work          | warranty_claim             | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| warranty                  | work          | warranty_claim             | state-machine | create                 | -                      | createdAt, amount                        | status                 | -           | -        | -       | -         |
 
 <!-- entity-matrix:end -->
 
@@ -866,11 +866,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G2
 
 - Scope: List contract rollout: work and collaboration
-- Status: planned
+- Status: PR open
 - Branch: `feat/audit-g2`
-- PR: none yet
+- PR: [#921](https://github.com/ScaleDockHQ/better-supabase/pull/921)
 - Findings: EX-1200 to EX-1205, EX-1215, EX-200, EX-204, EX-901
 - Log: 2026-11-12, planned.
+  2026-11-13, lane G2 started from main (7f4bcbfdf7) in `../bsb-audit-g2`.
+  2026-11-13, PR #921: `inspections`, `meetings` and `warranty` take the contract (ADR 0759), `warranty` gains `get`, migration 20261216060002. The other work and collaboration blocks page by their own `before`, `after` or `cursor` shapes (or not at all), so each needs a cursor change; they follow in later G2 PRs and the findings stay partly fixed until then.
 
 ### Lane G3
 
@@ -1055,11 +1057,11 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X1
 
 - Scope: Dev loop and local stack: open bugs and tooling rows (repo tooling, no changeset)
-- Status: planned
+- Status: in progress
 - Branch: `feat/findings-x1`
 - PR: none yet
 - Findings: EX-309, EX-704, EX-313, EX-318, EX-819, EX-903, EX-430, EX-315, EX-108, EX-050, EX-051, EX-056, EX-1021, EX-505, EX-511, EX-512, EX-605, EX-606, EX-820, EX-207, EX-208, EX-214, EX-316, EX-107, EX-106, EX-902, EX-1507, EX-310, EX-1020
-- Log: 2026-11-14, planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start).
+- Log: 2026-11-14, planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start). 2026-11-14, lane X1 started from main (f6e7d2b78d) in `../bsb-findings-x1`. Fixed in code: `dev:example` script, `dotenv -o`, `tsc --incremental false`, `worktree-setup` (signing keys, app env, workflow world, prune), `env:local` (`WORKFLOW_TARGET_WORLD`, `SUPABASE_JWKS`), `perf-results/`. Documented in tooling.md. EX-313, EX-903, EX-1020 and EX-310 stay deferred, so the lane is not `merged`.
 
 ### Lane X2
 
