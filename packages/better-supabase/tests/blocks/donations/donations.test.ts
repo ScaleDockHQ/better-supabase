@@ -232,6 +232,7 @@ describe("createDonations", () => {
     const { calls, transport } = router({
       save_donation_fund: () => FUND,
       archive_donation_fund: () => plain,
+      restore_donation_fund: () => plain,
       list_donation_funds: () => [FUND, plain],
     });
 
@@ -251,6 +252,7 @@ describe("createDonations", () => {
     await donations.saveFund({ key: "general", name: "General" }).orThrow();
 
     const archived = await donations.archiveFund(FUND_ID).orThrow();
+    await donations.restoreFund(FUND_ID).orThrow();
     await donations.funds({ includeArchived: true }).orThrow();
     const listed = await donations.funds().orThrow();
 
@@ -292,6 +294,7 @@ describe("createDonations", () => {
         },
       ],
       ["archive_donation_fund", { fund_id: FUND_ID }],
+      ["restore_donation_fund", { fund_id: FUND_ID }],
       ["list_donation_funds", { tenant: "org-1", include_archived: true }],
       ["list_donation_funds", { tenant: "org-1", include_archived: false }],
     ]);

@@ -3,7 +3,7 @@
 -- (…a2) reads their own gaps but can't grant, and the Globex owner (…a3)
 -- sees none of it. Run with `supabase test db`.
 begin;
-select plan(17);
+select plan(19);
 
 select is(
   (select count(*) from pg_catalog.pg_tables
@@ -31,6 +31,17 @@ insert into ids values ('forklift', (better_supabase.save_qualification_type(
   valid_for_months => 12) ->> 'id')::uuid);
 insert into ids values ('rule', (better_supabase.add_qualification_requirement(
   (select id from ids where name = 'forklift'), 'role', 'member') ->> 'id')::uuid);
+
+select isnt(
+  better_supabase.archive_qualification_type((select id from ids where name = 'forklift')) ->> 'archivedAt',
+  null,
+  'archiving a qualification type sets archivedAt'
+);
+select is(
+  better_supabase.restore_qualification_type((select id from ids where name = 'forklift')) ->> 'archivedAt',
+  null,
+  'restoring a qualification type clears archivedAt'
+);
 
 select is(
   (better_supabase.qualification_gaps('00000000-0000-4000-8000-000000000001', 'member',

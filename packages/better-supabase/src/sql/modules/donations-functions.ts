@@ -122,6 +122,20 @@ export function donationsFunctions(ctx: BlockSqlContext): string {
   const raised = (row: string): string =>
     `case when ${row}.${f("currency")} is null then null else coalesce((select sum(g.${d("amount")}) from ${donations} g where g.${d("fund")} = ${row}.${f("id")} and g.${d("status")} = 'posted' and g.${d("currency")} = ${row}.${f("currency")}), 0)::text end`;
 
+  const fundRecord = (type: string, summary: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', v_row.${f("tenant")}, 'id', v_row.${f("id")}, 'key', v_row.${f("key")})`,
+      subject: `'donation-funds/' || v_row.${f("id")}::text`,
+      tenant: `v_row.${f("tenant")}`,
+      audit: {
+        category: "data",
+        targetType: "donation_fund",
+        recordId: `v_row.${f("id")}::text`,
+        summary: `'${summary}'`,
+      },
+    });
+
   const fundJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${f("id")}, 'organizationId', ${row}.${f("tenant")}, 'key', ${row}.${f("key")}, 'name', ${row}.${f("name")}, 'kind', ${row}.${f("kind")}, 'goal', ${or("funds", row, "goal")}::text, 'currency', ${row}.${f("currency")}, 'raised', ${raised(row)}, 'startsOn', ${or("funds", row, "startsOn")}, 'endsOn', ${or("funds", row, "endsOn")}, 'archivedAt', ${row}.${f("archivedAt")}, 'createdAt', ${row}.${f("createdAt")}, 'updatedAt', ${row}.${f("updatedAt")})`;
 
@@ -326,10 +340,33 @@ begin
   update ${funds} x set ${f("archivedAt")} = coalesce(x.${f("archivedAt")}, now()), ${f("updatedAt")} = now()
     where x.${f("id")} = v_row.${f("id")}
     returning * into v_row;
+  ${fundRecord("donation_fund.archived", "archived a fund")}
   return ${fundJson("v_row")};
 end;
 $$;
 ${userGrant(`${fn("archive_donation_fund")}(uuid)`)}
+
+create or replace function ${fn("restore_donation_fund")}(fund_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${funds}%rowtype;
+begin
+  select * into v_row from ${funds} x where x.${f("id")} = restore_donation_fund.fund_id for update;
+  if not found or not ${can(`v_row.${f("tenant")}`, manage)} then
+    ${fail("DONATION_FUND_NOT_FOUND", "no such fund you can manage", "P0002")}
+  end if;
+  update ${funds} x set ${f("archivedAt")} = null, ${f("updatedAt")} = now()
+    where x.${f("id")} = v_row.${f("id")}
+    returning * into v_row;
+  ${fundRecord("donation_fund.restored", "restored a fund")}
+  return ${fundJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("restore_donation_fund")}(uuid)`)}
 
 -- Funds and campaigns with what they raised: posted gifts in the goal's
 -- currency.

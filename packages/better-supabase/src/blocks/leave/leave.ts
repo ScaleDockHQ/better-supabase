@@ -328,6 +328,8 @@ export interface Leave<F extends object = Record<never, never>> {
   }): AsyncResult<LeaveType>;
   /** Needs `leave.manage`. */
   archiveType(typeId: string): AsyncResult<LeaveType>;
+  /** Makes an archived type available to new requests again. */
+  restoreType(typeId: string): AsyncResult<LeaveType>;
   types(
     input: { organizationId: string } & { readonly archived?: boolean },
   ): AsyncResult<readonly LeaveType[]>;
@@ -655,6 +657,10 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
     archiveType: (typeId) =>
       call("archive_leave_type", { type_id: typeId }, (value) =>
         typeOf(value, "archive_leave_type"),
+      ),
+    restoreType: (typeId) =>
+      call("restore_leave_type", { type_id: typeId }, (value) =>
+        typeOf(value, "restore_leave_type"),
       ),
     types: ({ organizationId, ...list }) =>
       call(

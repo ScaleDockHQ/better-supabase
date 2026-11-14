@@ -28,6 +28,8 @@ const ADJUSTED_PAYLOAD = [
   "period",
 ] as const;
 
+const TYPE_PAYLOAD = ["organizationId", "id", "name"] as const;
+
 const EVENTS: BlockSqlEvents<LeaveEvents> = {
   "leave_request.requested": {
     subject: "leave-requests",
@@ -57,6 +59,8 @@ const EVENTS: BlockSqlEvents<LeaveEvents> = {
     subject: "leave-ledger-entries",
     payload: ADJUSTED_PAYLOAD,
   },
+  "leave_type.archived": { subject: "leave-types", payload: TYPE_PAYLOAD },
+  "leave_type.restored": { subject: "leave-types", payload: TYPE_PAYLOAD },
 };
 
 export const LEAVE_NAMES: BlockSqlNames = {
