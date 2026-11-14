@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:ba05c288fac2ff13229140be580b3d67118a3e6013308817fb83133b9f994510
+-- @bsb-hash sha256:536681388170a1b4e85490b53370daaca978854cdb01ab37b812ce98b8aa96e3
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -496,7 +496,7 @@ begin
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
   if v_pipeline_archived is not null then
-    raise exception 'restore the pipeline first' using errcode = '55000', hint = 'PIPELINE_ARCHIVED';
+    raise exception 'the pipeline of this stage is archived; restore the pipeline first' using errcode = '55000', hint = 'PIPELINE_NOT_FOUND';
   end if;
   update "better_supabase"."pipeline_stages" x set "archived_at" = null, "updated_at" = now() where x."id" = restore_pipeline_stage.stage;
   null;
