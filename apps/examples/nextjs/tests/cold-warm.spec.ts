@@ -16,7 +16,7 @@ import {
 // hit (warm), and a client navigation to it from the dashboard. Run this spec
 // first against a freshly started server, or the first hit is already warm.
 // The ceilings are generous on purpose; tighten them from the measured numbers
-// in test-results/example-perf/cold-warm.json.
+// in perf-results/example-perf/cold-warm.json.
 
 const CEILING_MS = { cold: 10_000, warm: 3000, client: 2000 } as const;
 

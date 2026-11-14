@@ -1054,11 +1054,11 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X1
 
 - Scope: Dev loop and local stack: open bugs and tooling rows (repo tooling, no changeset)
-- Status: planned
+- Status: in progress
 - Branch: `feat/findings-x1`
 - PR: none yet
 - Findings: EX-309, EX-704, EX-313, EX-318, EX-819, EX-903, EX-430, EX-315, EX-108, EX-050, EX-051, EX-056, EX-1021, EX-505, EX-511, EX-512, EX-605, EX-606, EX-820, EX-207, EX-208, EX-214, EX-316, EX-107, EX-106, EX-902, EX-1507, EX-310, EX-1020
-- Log: 2026-11-14, planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start).
+- Log: 2026-11-14, planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start). 2026-11-14, lane X1 started from main (f6e7d2b78d) in `../bsb-findings-x1`. Fixed in code: `dev:example` script, `dotenv -o`, `tsc --incremental false`, `worktree-setup` (signing keys, app env, workflow world, prune), `env:local` (`WORKFLOW_TARGET_WORLD`, `SUPABASE_JWKS`), `perf-results/`. Documented in tooling.md. EX-313, EX-903, EX-1020 and EX-310 stay deferred, so the lane is not `merged`.
 
 ### Lane X2
 

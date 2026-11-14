@@ -5,4 +5,5 @@
 
 # Playwright
 /test-results/
+/perf-results/
 /playwright-report/

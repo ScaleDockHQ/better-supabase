@@ -10,7 +10,7 @@ import { openableRoutes, recordPerf, signIn } from "./support/example-session";
 
 // One database budget per route, from the route manifest: a document render
 // makes at most `maxCalls` calls in `maxWaves` waves. The measured numbers go
-// to test-results/example-perf/budgets.json for `pnpm example:perf-report`.
+// to perf-results/example-perf/budgets.json for `pnpm example:perf-report`.
 // Needs the production build with the testing API and the debug route.
 
 test.beforeEach(async ({ page }) => {
