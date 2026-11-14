@@ -416,7 +416,7 @@
     "row-triggers": 1
   },
   "queue": {
-    "security-definer-functions": 100
+    "security-definer-functions": 105
   },
   "quotes": {
     "security-definer-functions": 139,
