@@ -4,6 +4,7 @@ import type { DeadlinesEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDeadlines } from "./deadlines.ts";
 import { deadlinesEvents } from "./events.ts";
+import { deadlineListSurface } from "./lists.ts";
 
 /** The `deadlines` block's manifest. */
 export const deadlinesBlock: BlockOf<
@@ -20,6 +21,7 @@ export const deadlinesBlock: BlockOf<
   category: "work",
   entities: {
     deadline: {
+      ...deadlineListSurface,
       mutability: "state-machine",
       permissions: {
         read: "deadlines.read",

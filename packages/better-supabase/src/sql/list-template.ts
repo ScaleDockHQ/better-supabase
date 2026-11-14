@@ -79,6 +79,41 @@ export function filterAny(
   return `(not ${filterSet(key, filters)} or ${expr} = any((${filterValues(key, filters)})::${type}[]))`;
 }
 
+const UUID_PATTERN =
+  "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+
+/**
+ * Whether a list filter holds a value that is not a uuid (or, with `allowed`,
+ * not one of those values). A scalar is a list of one; a missing filter holds
+ * none.
+ */
+export function filterHasInvalid(
+  key: string,
+  allowed?: readonly string[],
+  filters = "v_filters",
+): string {
+  const value = `${filters} -> '${key}'`;
+
+  const test =
+    allowed === undefined
+      ? `s !~ '${UUID_PATTERN}'`
+      : `s not in (${allowed.map((name) => `'${name}'`).join(", ")})`;
+
+  return `exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(${value}) = 'array' then ${value} when jsonb_typeof(${value}) in ('string', 'number') then jsonb_build_array(${value}) else '[]'::jsonb end) s where ${test})`;
+}
+
+/**
+ * The `ilike` pattern for the `search` filter: the trimmed text with `%`, `_`
+ * and `\` escaped, or null when there is no text. Assign it to a `v_search`
+ * variable and test columns against it.
+ */
+export function searchPattern(filters = "v_filters"): string {
+  const text = `trim(${filters} ->> 'search')`;
+
+  return `case when nullif(${text}, '') is null then null
+    else '%' || replace(replace(replace(${text}, '\\', '\\\\'), '%', '\\%'), '_', '\\_') || '%' end`;
+}
+
 /** The first value of a list filter as text (a scalar is its own first value). */
 export function filterFirst(key: string, filters = "v_filters"): string {
   return `nullif(coalesce(${filters} #>> '{${key},0}', ${filters} ->> '${key}'), '')`;

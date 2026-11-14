@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:dfa63142cc1be0e7ce279063167a685c391f7b862e63e8d5f0ea617dd674b079
+-- @bsb-hash sha256:e23c51275278e84d6552245bbec9041b688a962ca40c3d1530e343858e552287
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1691,6 +1691,304 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_deadlines"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_deadlines"(uuid, jsonb) to authenticated, service_role;
+
+-- An organization's deadlines as a keyset page (ADR 0749, 0949), soonest first.
+-- Security invoker, as list_deadlines is. filters is { subjectType, subjectId,
+-- groupKey, period, state, result, provisional (each a value or a list of
+-- them), dueBefore (a date), sort, direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_deadlines"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_deadlines.filters, '{}'::jsonb);
+  v_before date;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', page_deadlines.tenant, 'deadlines.read'), false))) then
+    raise exception 'not allowed to read deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(v_filters) <> 'object' then
+    raise exception 'filters must be an object' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end if;
+  begin
+    v_before := nullif(coalesce(v_filters #>> '{dueBefore,0}', v_filters ->> 'dueBefore'), '')::date;
+  exception when others then
+    raise exception 'dueBefore must be a date' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('state', 'result', 'groupKey') then
+      raise exception 'facet is one of state, result, groupKey' using errcode = '22023', hint = 'DEADLINE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'state' then (z."state"::text)::text when 'result' then (z."result"::text)::text when 'groupKey' then (z."group_key")::text end) as v
+      from "better_supabase"."deadlines" z
+      where z."tenant_id" = page_deadlines.tenant
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or z."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or z."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'groupKey' is not null and jsonb_typeof(v_filters -> 'groupKey') <> 'null' and not (jsonb_typeof(v_filters -> 'groupKey') = 'array' and jsonb_array_length(v_filters -> 'groupKey') = 0)) or z."group_key" = any((case when jsonb_typeof(v_filters -> 'groupKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'groupKey')) else array[v_filters ->> 'groupKey'] end)::text[]))
+        and (not (v_filters -> 'period' is not null and jsonb_typeof(v_filters -> 'period') <> 'null' and not (jsonb_typeof(v_filters -> 'period') = 'array' and jsonb_array_length(v_filters -> 'period') = 0)) or z."period" = any((case when jsonb_typeof(v_filters -> 'period') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'period')) else array[v_filters ->> 'period'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or z."state"::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
+        and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
+        and (v_before is null or z."due_on" < v_before)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."deadlines" z
+      where z."tenant_id" = page_deadlines.tenant
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or z."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or z."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'groupKey' is not null and jsonb_typeof(v_filters -> 'groupKey') <> 'null' and not (jsonb_typeof(v_filters -> 'groupKey') = 'array' and jsonb_array_length(v_filters -> 'groupKey') = 0)) or z."group_key" = any((case when jsonb_typeof(v_filters -> 'groupKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'groupKey')) else array[v_filters ->> 'groupKey'] end)::text[]))
+        and (not (v_filters -> 'period' is not null and jsonb_typeof(v_filters -> 'period') <> 'null' and not (jsonb_typeof(v_filters -> 'period') = 'array' and jsonb_array_length(v_filters -> 'period') = 0)) or z."period" = any((case when jsonb_typeof(v_filters -> 'period') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'period')) else array[v_filters ->> 'period'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or z."state"::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
+        and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
+        and (v_before is null or z."due_on" < v_before)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('dueOn', 'createdAt') then
+    raise exception 'sort is one of dueOn, createdAt' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', z."id", 'organizationId', z."tenant_id", 'subjectType', z."subject_type", 'subjectId', z."subject_id", 'jurisdiction', z."jurisdiction", 'kind', z."kind", 'groupKey', z."group_key", 'ruleKey', z."rule_key", 'period', z."period", 'ruleVersionId', z."rule_version_id", 'ruleVersion', (select x."version" from "better_supabase"."deadline_rule_versions" x where x."id" = z."rule_version_id"), 'facts', z."facts", 'result', z."result", 'dueOn', z."due_on", 'provisional', z."provisional", 'missing', to_jsonb(z."missing"), 'exception', z."exception", 'review', z."review", 'basis', z."basis", 'deadline', z."deadline", 'citation', z."citation", 'asOf', z."as_of", 'state', z."state", 'satisfiedAt', z."satisfied_at", 'satisfiedBy', z."satisfied_by", 'satisfiedAction', z."satisfied_action", 'computedAt', z."computed_at", 'createdAt', z."created_at") as j, jsonb_build_array((coalesce(z."due_on", 'infinity'::date))::text, (z."created_at")::text, (z."id")::text) as k
+    from (
+      select * from "better_supabase"."deadlines" z
+      where z."tenant_id" = page_deadlines.tenant
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or z."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or z."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'groupKey' is not null and jsonb_typeof(v_filters -> 'groupKey') <> 'null' and not (jsonb_typeof(v_filters -> 'groupKey') = 'array' and jsonb_array_length(v_filters -> 'groupKey') = 0)) or z."group_key" = any((case when jsonb_typeof(v_filters -> 'groupKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'groupKey')) else array[v_filters ->> 'groupKey'] end)::text[]))
+        and (not (v_filters -> 'period' is not null and jsonb_typeof(v_filters -> 'period') <> 'null' and not (jsonb_typeof(v_filters -> 'period') = 'array' and jsonb_array_length(v_filters -> 'period') = 0)) or z."period" = any((case when jsonb_typeof(v_filters -> 'period') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'period')) else array[v_filters ->> 'period'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or z."state"::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
+        and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
+        and (v_before is null or z."due_on" < v_before)
+        and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
+      limit v_limit + 1 offset v_offset
+    ) z
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', z."id", 'organizationId', z."tenant_id", 'subjectType', z."subject_type", 'subjectId', z."subject_id", 'jurisdiction', z."jurisdiction", 'kind', z."kind", 'groupKey', z."group_key", 'ruleKey', z."rule_key", 'period', z."period", 'ruleVersionId', z."rule_version_id", 'ruleVersion', (select x."version" from "better_supabase"."deadline_rule_versions" x where x."id" = z."rule_version_id"), 'facts', z."facts", 'result', z."result", 'dueOn', z."due_on", 'provisional', z."provisional", 'missing', to_jsonb(z."missing"), 'exception', z."exception", 'review', z."review", 'basis', z."basis", 'deadline', z."deadline", 'citation', z."citation", 'asOf', z."as_of", 'state', z."state", 'satisfiedAt', z."satisfied_at", 'satisfiedBy', z."satisfied_by", 'satisfiedAction', z."satisfied_action", 'computedAt', z."computed_at", 'createdAt', z."created_at") as j, jsonb_build_array((coalesce(z."due_on", 'infinity'::date))::text, (z."created_at")::text, (z."id")::text) as k
+    from (
+      select * from "better_supabase"."deadlines" z
+      where z."tenant_id" = page_deadlines.tenant
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or z."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or z."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'groupKey' is not null and jsonb_typeof(v_filters -> 'groupKey') <> 'null' and not (jsonb_typeof(v_filters -> 'groupKey') = 'array' and jsonb_array_length(v_filters -> 'groupKey') = 0)) or z."group_key" = any((case when jsonb_typeof(v_filters -> 'groupKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'groupKey')) else array[v_filters ->> 'groupKey'] end)::text[]))
+        and (not (v_filters -> 'period' is not null and jsonb_typeof(v_filters -> 'period') <> 'null' and not (jsonb_typeof(v_filters -> 'period') = 'array' and jsonb_array_length(v_filters -> 'period') = 0)) or z."period" = any((case when jsonb_typeof(v_filters -> 'period') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'period')) else array[v_filters ->> 'period'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or z."state"::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
+        and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
+        and (v_before is null or z."due_on" < v_before)
+        and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
+      limit v_limit + 1 offset v_offset
+    ) z
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', z."id", 'organizationId', z."tenant_id", 'subjectType', z."subject_type", 'subjectId', z."subject_id", 'jurisdiction', z."jurisdiction", 'kind', z."kind", 'groupKey', z."group_key", 'ruleKey', z."rule_key", 'period', z."period", 'ruleVersionId', z."rule_version_id", 'ruleVersion', (select x."version" from "better_supabase"."deadline_rule_versions" x where x."id" = z."rule_version_id"), 'facts', z."facts", 'result', z."result", 'dueOn', z."due_on", 'provisional', z."provisional", 'missing', to_jsonb(z."missing"), 'exception', z."exception", 'review', z."review", 'basis', z."basis", 'deadline', z."deadline", 'citation', z."citation", 'asOf', z."as_of", 'state', z."state", 'satisfiedAt', z."satisfied_at", 'satisfiedBy', z."satisfied_by", 'satisfiedAction', z."satisfied_action", 'computedAt', z."computed_at", 'createdAt', z."created_at") as j, jsonb_build_array((coalesce(z."due_on", 'infinity'::date))::text, (z."created_at")::text, (z."id")::text) as k
+    from (
+      select * from "better_supabase"."deadlines" z
+      where z."tenant_id" = page_deadlines.tenant
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or z."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or z."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'groupKey' is not null and jsonb_typeof(v_filters -> 'groupKey') <> 'null' and not (jsonb_typeof(v_filters -> 'groupKey') = 'array' and jsonb_array_length(v_filters -> 'groupKey') = 0)) or z."group_key" = any((case when jsonb_typeof(v_filters -> 'groupKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'groupKey')) else array[v_filters ->> 'groupKey'] end)::text[]))
+        and (not (v_filters -> 'period' is not null and jsonb_typeof(v_filters -> 'period') <> 'null' and not (jsonb_typeof(v_filters -> 'period') = 'array' and jsonb_array_length(v_filters -> 'period') = 0)) or z."period" = any((case when jsonb_typeof(v_filters -> 'period') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'period')) else array[v_filters ->> 'period'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or z."state"::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
+        and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
+        and (v_before is null or z."due_on" < v_before)
+        and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
+      limit v_limit + 1 offset v_offset
+    ) z
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', z."id", 'organizationId', z."tenant_id", 'subjectType', z."subject_type", 'subjectId', z."subject_id", 'jurisdiction', z."jurisdiction", 'kind', z."kind", 'groupKey', z."group_key", 'ruleKey', z."rule_key", 'period', z."period", 'ruleVersionId', z."rule_version_id", 'ruleVersion', (select x."version" from "better_supabase"."deadline_rule_versions" x where x."id" = z."rule_version_id"), 'facts', z."facts", 'result', z."result", 'dueOn', z."due_on", 'provisional', z."provisional", 'missing', to_jsonb(z."missing"), 'exception', z."exception", 'review', z."review", 'basis', z."basis", 'deadline', z."deadline", 'citation', z."citation", 'asOf', z."as_of", 'state', z."state", 'satisfiedAt', z."satisfied_at", 'satisfiedBy', z."satisfied_by", 'satisfiedAction', z."satisfied_action", 'computedAt', z."computed_at", 'createdAt', z."created_at") as j, jsonb_build_array((coalesce(z."due_on", 'infinity'::date))::text, (z."created_at")::text, (z."id")::text) as k
+    from (
+      select * from "better_supabase"."deadlines" z
+      where z."tenant_id" = page_deadlines.tenant
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or z."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or z."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'groupKey' is not null and jsonb_typeof(v_filters -> 'groupKey') <> 'null' and not (jsonb_typeof(v_filters -> 'groupKey') = 'array' and jsonb_array_length(v_filters -> 'groupKey') = 0)) or z."group_key" = any((case when jsonb_typeof(v_filters -> 'groupKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'groupKey')) else array[v_filters ->> 'groupKey'] end)::text[]))
+        and (not (v_filters -> 'period' is not null and jsonb_typeof(v_filters -> 'period') <> 'null' and not (jsonb_typeof(v_filters -> 'period') = 'array' and jsonb_array_length(v_filters -> 'period') = 0)) or z."period" = any((case when jsonb_typeof(v_filters -> 'period') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'period')) else array[v_filters ->> 'period'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or z."state"::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
+        and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
+        and (v_before is null or z."due_on" < v_before)
+        and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
+      order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
+      limit v_limit + 1 offset v_offset
+    ) z
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', z."id", 'organizationId', z."tenant_id", 'subjectType', z."subject_type", 'subjectId', z."subject_id", 'jurisdiction', z."jurisdiction", 'kind', z."kind", 'groupKey', z."group_key", 'ruleKey', z."rule_key", 'period', z."period", 'ruleVersionId', z."rule_version_id", 'ruleVersion', (select x."version" from "better_supabase"."deadline_rule_versions" x where x."id" = z."rule_version_id"), 'facts', z."facts", 'result', z."result", 'dueOn', z."due_on", 'provisional', z."provisional", 'missing', to_jsonb(z."missing"), 'exception', z."exception", 'review', z."review", 'basis', z."basis", 'deadline', z."deadline", 'citation', z."citation", 'asOf', z."as_of", 'state', z."state", 'satisfiedAt', z."satisfied_at", 'satisfiedBy', z."satisfied_by", 'satisfiedAction', z."satisfied_action", 'computedAt', z."computed_at", 'createdAt', z."created_at") as j, jsonb_build_array((z."created_at")::text, (z."id")::text) as k
+    from (
+      select * from "better_supabase"."deadlines" z
+      where z."tenant_id" = page_deadlines.tenant
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or z."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or z."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'groupKey' is not null and jsonb_typeof(v_filters -> 'groupKey') <> 'null' and not (jsonb_typeof(v_filters -> 'groupKey') = 'array' and jsonb_array_length(v_filters -> 'groupKey') = 0)) or z."group_key" = any((case when jsonb_typeof(v_filters -> 'groupKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'groupKey')) else array[v_filters ->> 'groupKey'] end)::text[]))
+        and (not (v_filters -> 'period' is not null and jsonb_typeof(v_filters -> 'period') <> 'null' and not (jsonb_typeof(v_filters -> 'period') = 'array' and jsonb_array_length(v_filters -> 'period') = 0)) or z."period" = any((case when jsonb_typeof(v_filters -> 'period') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'period')) else array[v_filters ->> 'period'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or z."state"::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
+        and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
+        and (v_before is null or z."due_on" < v_before)
+        and (v_after is null or (z."created_at" >= (v_after ->> 0)::timestamptz and ((z."created_at" > (v_after ->> 0)::timestamptz) or (z."created_at" = (v_after ->> 0)::timestamptz and z."id" < (v_after ->> 1)::uuid))))
+      order by z."created_at" asc, z."id" desc
+      limit v_limit + 1 offset v_offset
+    ) z
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DEADLINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', z."id", 'organizationId', z."tenant_id", 'subjectType', z."subject_type", 'subjectId', z."subject_id", 'jurisdiction', z."jurisdiction", 'kind', z."kind", 'groupKey', z."group_key", 'ruleKey', z."rule_key", 'period', z."period", 'ruleVersionId', z."rule_version_id", 'ruleVersion', (select x."version" from "better_supabase"."deadline_rule_versions" x where x."id" = z."rule_version_id"), 'facts', z."facts", 'result', z."result", 'dueOn', z."due_on", 'provisional', z."provisional", 'missing', to_jsonb(z."missing"), 'exception', z."exception", 'review', z."review", 'basis', z."basis", 'deadline', z."deadline", 'citation', z."citation", 'asOf', z."as_of", 'state', z."state", 'satisfiedAt', z."satisfied_at", 'satisfiedBy', z."satisfied_by", 'satisfiedAction', z."satisfied_action", 'computedAt', z."computed_at", 'createdAt', z."created_at") as j, jsonb_build_array((z."created_at")::text, (z."id")::text) as k
+    from (
+      select * from "better_supabase"."deadlines" z
+      where z."tenant_id" = page_deadlines.tenant
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or z."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or z."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'groupKey' is not null and jsonb_typeof(v_filters -> 'groupKey') <> 'null' and not (jsonb_typeof(v_filters -> 'groupKey') = 'array' and jsonb_array_length(v_filters -> 'groupKey') = 0)) or z."group_key" = any((case when jsonb_typeof(v_filters -> 'groupKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'groupKey')) else array[v_filters ->> 'groupKey'] end)::text[]))
+        and (not (v_filters -> 'period' is not null and jsonb_typeof(v_filters -> 'period') <> 'null' and not (jsonb_typeof(v_filters -> 'period') = 'array' and jsonb_array_length(v_filters -> 'period') = 0)) or z."period" = any((case when jsonb_typeof(v_filters -> 'period') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'period')) else array[v_filters ->> 'period'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or z."state"::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
+        and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
+        and (v_before is null or z."due_on" < v_before)
+        and (v_after is null or (z."created_at", z."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by z."created_at" desc, z."id" desc
+      limit v_limit + 1 offset v_offset
+    ) z
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."deadlines" z
+      where z."tenant_id" = page_deadlines.tenant
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or z."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or z."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'groupKey' is not null and jsonb_typeof(v_filters -> 'groupKey') <> 'null' and not (jsonb_typeof(v_filters -> 'groupKey') = 'array' and jsonb_array_length(v_filters -> 'groupKey') = 0)) or z."group_key" = any((case when jsonb_typeof(v_filters -> 'groupKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'groupKey')) else array[v_filters ->> 'groupKey'] end)::text[]))
+        and (not (v_filters -> 'period' is not null and jsonb_typeof(v_filters -> 'period') <> 'null' and not (jsonb_typeof(v_filters -> 'period') = 'array' and jsonb_array_length(v_filters -> 'period') = 0)) or z."period" = any((case when jsonb_typeof(v_filters -> 'period') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'period')) else array[v_filters ->> 'period'] end)::text[]))
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or z."state"::text = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
+        and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
+        and (v_before is null or z."due_on" < v_before)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_deadlines"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_deadlines"(uuid, jsonb) to authenticated, service_role;
+
+-- One deadline by id. Security invoker: the read policy decides what it sees.
+create or replace function "better_supabase"."get_deadline"(deadline_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."deadlines";
+begin
+  select * into v_row from "better_supabase"."deadlines" x where x."id" = get_deadline.deadline_id;
+  if not found then
+    raise exception 'no such deadline' using errcode = 'P0002', hint = 'DEADLINE_NOT_FOUND';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'jurisdiction', v_row."jurisdiction", 'kind', v_row."kind", 'groupKey', v_row."group_key", 'ruleKey', v_row."rule_key", 'period', v_row."period", 'ruleVersionId', v_row."rule_version_id", 'ruleVersion', (select x."version" from "better_supabase"."deadline_rule_versions" x where x."id" = v_row."rule_version_id"), 'facts', v_row."facts", 'result', v_row."result", 'dueOn', v_row."due_on", 'provisional', v_row."provisional", 'missing', to_jsonb(v_row."missing"), 'exception', v_row."exception", 'review', v_row."review", 'basis', v_row."basis", 'deadline', v_row."deadline", 'citation', v_row."citation", 'asOf', v_row."as_of", 'state', v_row."state", 'satisfiedAt', v_row."satisfied_at", 'satisfiedBy', v_row."satisfied_by", 'satisfiedAction', v_row."satisfied_action", 'computedAt', v_row."computed_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_deadline"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_deadline"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

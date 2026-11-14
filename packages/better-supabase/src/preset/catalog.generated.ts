@@ -14017,6 +14017,25 @@ export const PRESET_CATALOG: PresetCatalog = {
           "approval_policy.updated",
           "approval_policy.deleted"
         ]
+      },
+      "entityLists": {
+        "approval": {
+          "sorts": [
+            "createdAt",
+            "action"
+          ],
+          "facets": [
+            "status",
+            "subjectType"
+          ],
+          "filters": [
+            "status",
+            "subjectType",
+            "subjectId",
+            "action",
+            "assigned"
+          ]
+        }
       }
     },
     {
@@ -16878,6 +16897,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "asset.depreciated",
           "asset.disposed"
         ]
+      },
+      "entityLists": {
+        "asset": {
+          "sorts": [
+            "createdAt",
+            "name"
+          ],
+          "facets": [
+            "status",
+            "kind"
+          ],
+          "filters": [
+            "kind",
+            "status",
+            "assigneeType",
+            "assigneeId",
+            "locationId",
+            "includeSublocations"
+          ],
+          "search": true
+        }
       }
     },
     {
@@ -17255,6 +17295,20 @@ export const PRESET_CATALOG: PresetCatalog = {
           "guest_grant.created",
           "guest_grant.revoked"
         ]
+      },
+      "entityLists": {
+        "guest": {
+          "sorts": [
+            "createdAt",
+            "email"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status"
+          ]
+        }
       }
     },
     {
@@ -18943,6 +18997,30 @@ export const PRESET_CATALOG: PresetCatalog = {
           "work_order.part_used",
           "dispatch_route.planned"
         ]
+      },
+      "entityLists": {
+        "work_order": {
+          "sorts": [
+            "createdAt",
+            "startsAt",
+            "title"
+          ],
+          "facets": [
+            "status",
+            "priority"
+          ],
+          "filters": [
+            "status",
+            "priority",
+            "technicianId",
+            "assetId",
+            "subjectType",
+            "subjectId",
+            "from",
+            "until"
+          ],
+          "search": true
+        }
       }
     },
     {
@@ -20581,6 +20659,24 @@ export const PRESET_CATALOG: PresetCatalog = {
           "incident_filing.submitted",
           "status_component.changed"
         ]
+      },
+      "entityLists": {
+        "incident": {
+          "sorts": [
+            "startedAt",
+            "severity"
+          ],
+          "facets": [
+            "status",
+            "severity"
+          ],
+          "filters": [
+            "status",
+            "severity",
+            "componentId"
+          ],
+          "search": true
+        }
       }
     },
     {
@@ -22771,7 +22867,30 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "notifyDueEffectiveness()",
           "description": "Reports the cases whose effectiveness check date has come."
         }
-      ]
+      ],
+      "entityLists": {
+        "case": {
+          "sorts": [
+            "createdAt",
+            "dueOn"
+          ],
+          "facets": [
+            "status",
+            "severity",
+            "source"
+          ],
+          "filters": [
+            "kind",
+            "status",
+            "severity",
+            "source",
+            "owner",
+            "stage",
+            "overdue"
+          ],
+          "search": true
+        }
+      }
     },
     {
       "name": "inspections",
@@ -25626,6 +25745,29 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "deadlines.read",
           "update": "deadlines.write",
           "manage": "deadlines.manage"
+        }
+      },
+      "entityLists": {
+        "deadline": {
+          "sorts": [
+            "dueOn",
+            "createdAt"
+          ],
+          "facets": [
+            "state",
+            "result",
+            "groupKey"
+          ],
+          "filters": [
+            "subjectType",
+            "subjectId",
+            "groupKey",
+            "period",
+            "state",
+            "result",
+            "provisional",
+            "dueBefore"
+          ]
         }
       }
     },

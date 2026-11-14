@@ -4,6 +4,7 @@ import type { ApprovalsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createApprovals } from "./approvals.ts";
 import { approvalsEvents } from "./events.ts";
+import { approvalListSurface } from "./lists.ts";
 import { approvalsSqlOptions } from "./options.ts";
 
 /** The `approvals` block's manifest (ADR 0029). */
@@ -19,7 +20,11 @@ export const approvalsBlock: BlockOf<
   create: createApprovals,
   category: "work",
   entities: {
-    approval: { mutability: "state-machine", emits: { create: false } },
+    approval: {
+      ...approvalListSurface,
+      mutability: "state-machine",
+      emits: { create: false },
+    },
   },
   concerns: ["lifecycle"],
   description:

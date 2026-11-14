@@ -122,6 +122,32 @@ canceled.
 dragged. A stage's outcome sets the case's status: `open`, `closed` or
 `canceled`.
 
+## Page through cases
+
+`list` pages by its own `cursor`. `page` is the full list contract
+(ADR 0749, 0949) and takes `sort`, `filters` whose values are lists, `q`,
+`after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Sorts are
+`createdAt` (the default, newest first) and `dueOn` (soonest first, cases with
+no date last). Filters are `kind` (case kind keys), `status`, `severity`,
+`source`, `owner`, `stage` and `overdue`, the facets are `status`, `severity`
+and `source`, and `q` searches the title, number, root cause and description.
+`overdue: ["true"]` keeps the open cases past their `dueOn`. The SQL function is
+`page_cases`, next to `list_cases`, which keeps its cursor.
+
+```ts
+const late = await cases
+  .page({
+    filters: { status: ["open"], overdue: ["true"], severity: ["high"] },
+    sort: { by: "dueOn" },
+  })
+  .orThrow();
+
+const facets = await cases.facets().orThrow();
+const total = await cases.count({ filters: { kind: ["complaint"] } }).orThrow();
+```
+
+A cursor belongs to the sort it came from.
+
 ## The close guard
 
 `blockers` returns what still stops a case from closing, in this order:

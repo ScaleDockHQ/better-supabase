@@ -3,16 +3,23 @@ import { describe, expect, it } from "vitest";
 import { accessRequestsBlock } from "../../src/blocks/access-requests/manifest.ts";
 import { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
 import { appraisalsBlock } from "../../src/blocks/appraisals/manifest.ts";
+import { approvalsBlock } from "../../src/blocks/approvals/manifest.ts";
+import { assetsBlock } from "../../src/blocks/assets/manifest.ts";
+import { casesBlock } from "../../src/blocks/cases/manifest.ts";
 import { commissionsBlock } from "../../src/blocks/commissions/manifest.ts";
 import { contentBlock } from "../../src/blocks/content/manifest.ts";
 import { coursesBlock } from "../../src/blocks/courses/manifest.ts";
 import { damBlock } from "../../src/blocks/dam/manifest.ts";
+import { deadlinesBlock } from "../../src/blocks/deadlines/manifest.ts";
+import { dispatchBlock } from "../../src/blocks/dispatch/manifest.ts";
 import { domainsBlock } from "../../src/blocks/domains/manifest.ts";
 import { donationsBlock } from "../../src/blocks/donations/manifest.ts";
 import { ePrescribingBlock } from "../../src/blocks/e-prescribing/manifest.ts";
 import { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts";
 import { formsBlock } from "../../src/blocks/forms/manifest.ts";
+import { guestsBlock } from "../../src/blocks/guests/manifest.ts";
 import { importsBlock } from "../../src/blocks/imports/manifest.ts";
+import { incidentsBlock } from "../../src/blocks/incidents/manifest.ts";
 import { inspectionsBlock } from "../../src/blocks/inspections/manifest.ts";
 import { leasesBlock } from "../../src/blocks/leases/manifest.ts";
 import { legalEntitiesBlock } from "../../src/blocks/legal-entities/manifest.ts";
@@ -35,6 +42,13 @@ import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
 const BLOCKS = [
+  approvalsBlock,
+  assetsBlock,
+  casesBlock,
+  deadlinesBlock,
+  dispatchBlock,
+  guestsBlock,
+  incidentsBlock,
   accessRequestsBlock,
   agentCheckoutBlock,
   appraisalsBlock,
@@ -123,6 +137,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(37);
+    expect(CASES).toHaveLength(44);
   });
 });
