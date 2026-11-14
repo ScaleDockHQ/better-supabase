@@ -995,7 +995,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Log: 2026-11-12, planned.
 - Log: 2026-11-14, started from main in `../bsb-audit-i`. Scale measured: 251 block folders, 94 files mention archive.
 - Log: 2026-11-14, slice 1 merged (#944, ADR 0839): restore for leave, qualifications, donations and expenses. Slice 2 merged (#949, ADR 0851): teams `delete` became `purge`.
-- Log: 2026-11-14, slice 3 (ADR 1023): `restore` and `restored` events for the blocks whose archive takes an `archived` flag (deals, tasks, messaging, channels, collections, accounting). Teams and legal entities already paired. Slices 4 (restore for blocks with none) and 5 (verb adoption) are next.
+- Log: 2026-11-14, slice 3 (ADR 1024): `restore` and `restored` events for the blocks whose archive takes an `archived` flag (deals, tasks, messaging, channels, collections, accounting). Teams and legal entities already paired. Slices 4 (restore for blocks with none) and 5 (verb adoption) are next.
 
 ### Lane L
 
