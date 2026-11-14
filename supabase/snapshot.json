@@ -287656,7 +287656,7 @@
         }
       },
       {
-        "id": 3002962,
+        "id": 3002963,
         "schema": "better_supabase",
         "name": "workflow_graph_permissions",
         "language": "sql",
@@ -287684,7 +287684,7 @@
         }
       },
       {
-        "id": 3002963,
+        "id": 3002964,
         "schema": "better_supabase",
         "name": "workflow_node_kinds_list",
         "language": "sql",
@@ -287705,7 +287705,7 @@
         }
       },
       {
-        "id": 3002964,
+        "id": 3002965,
         "schema": "better_supabase",
         "name": "workflow_node_runs_list",
         "language": "sql",
@@ -287733,7 +287733,7 @@
         }
       },
       {
-        "id": 3002965,
+        "id": 3002966,
         "schema": "better_supabase",
         "name": "workflow_open_hooks",
         "language": "sql",
@@ -287829,7 +287829,7 @@
         }
       },
       {
-        "id": 3002966,
+        "id": 3002967,
         "schema": "better_supabase",
         "name": "workflow_purge_runs",
         "language": "plpgsql",
@@ -287869,7 +287869,7 @@
         }
       },
       {
-        "id": 3002967,
+        "id": 3002968,
         "schema": "better_supabase",
         "name": "workflow_release_run_key",
         "language": "sql",
@@ -287897,7 +287897,7 @@
         }
       },
       {
-        "id": 3002968,
+        "id": 3002969,
         "schema": "better_supabase",
         "name": "workflow_run_get",
         "language": "sql",
@@ -287925,7 +287925,7 @@
         }
       },
       {
-        "id": 3002969,
+        "id": 3002970,
         "schema": "better_supabase",
         "name": "workflow_run_principal",
         "language": "plpgsql",
@@ -287959,7 +287959,7 @@
         }
       },
       {
-        "id": 3002970,
+        "id": 3002971,
         "schema": "better_supabase",
         "name": "workflow_runs_list",
         "language": "sql",
@@ -288029,7 +288029,7 @@
         }
       },
       {
-        "id": 3002971,
+        "id": 3002972,
         "schema": "better_supabase",
         "name": "workflow_schedules_list",
         "language": "sql",
@@ -288057,7 +288057,7 @@
         }
       },
       {
-        "id": 3002972,
+        "id": 3002973,
         "schema": "better_supabase",
         "name": "workflow_set_run_key",
         "language": "sql",
@@ -288091,7 +288091,7 @@
         }
       },
       {
-        "id": 3002973,
+        "id": 3002974,
         "schema": "better_supabase",
         "name": "workflow_start_target",
         "language": "plpgsql",
@@ -288125,7 +288125,7 @@
         }
       },
       {
-        "id": 3002974,
+        "id": 3002975,
         "schema": "better_supabase",
         "name": "workflow_steps_list",
         "language": "sql",
@@ -288146,7 +288146,7 @@
         }
       },
       {
-        "id": 3002975,
+        "id": 3002976,
         "schema": "better_supabase",
         "name": "workflow_subject_start_target",
         "language": "plpgsql",
@@ -288192,7 +288192,7 @@
         }
       },
       {
-        "id": 3002976,
+        "id": 3002977,
         "schema": "better_supabase",
         "name": "workflow_triggers_list",
         "language": "sql",
@@ -288220,7 +288220,7 @@
         }
       },
       {
-        "id": 3002977,
+        "id": 3002978,
         "schema": "better_supabase",
         "name": "workflow_version_get",
         "language": "sql",
@@ -288248,7 +288248,7 @@
         }
       },
       {
-        "id": 3002978,
+        "id": 3002979,
         "schema": "better_supabase",
         "name": "workflow_versions_list",
         "language": "sql",
@@ -288276,7 +288276,7 @@
         }
       },
       {
-        "id": 3002979,
+        "id": 3002980,
         "schema": "better_supabase",
         "name": "workflow_webhook_target",
         "language": "sql",
@@ -288304,7 +288304,7 @@
         }
       },
       {
-        "id": 3002980,
+        "id": 3002981,
         "schema": "better_supabase",
         "name": "write_knowledge_chunks",
         "language": "plpgsql",
@@ -288344,7 +288344,7 @@
         }
       },
       {
-        "id": 3002981,
+        "id": 3002982,
         "schema": "better_supabase",
         "name": "write_off_invoice",
         "language": "plpgsql",
@@ -288384,7 +288384,7 @@
         }
       },
       {
-        "id": 3002982,
+        "id": 3002983,
         "schema": "better_supabase",
         "name": "yearly_giving_summary",
         "language": "plpgsql",
@@ -288430,7 +288430,7 @@
         }
       },
       {
-        "id": 3002983,
+        "id": 3002984,
         "schema": "public",
         "name": "app_table_set",
         "language": "plpgsql",
@@ -288476,7 +288476,7 @@
         }
       },
       {
-        "id": 3002984,
+        "id": 3002985,
         "schema": "public",
         "name": "client_notes_reveal",
         "language": "sql",
@@ -288525,7 +288525,7 @@
         }
       },
       {
-        "id": 3002985,
+        "id": 3002986,
         "schema": "public",
         "name": "customer_note_counts",
         "language": "sql",
@@ -288574,7 +288574,7 @@
         }
       },
       {
-        "id": 3002986,
+        "id": 3002987,
         "schema": "public",
         "name": "customers_by_status",
         "language": "sql",
@@ -288608,7 +288608,7 @@
         }
       },
       {
-        "id": 3002987,
+        "id": 3002988,
         "schema": "public",
         "name": "import_customer",
         "language": "plpgsql",
@@ -288648,7 +288648,7 @@
         }
       },
       {
-        "id": 3002988,
+        "id": 3002989,
         "schema": "public",
         "name": "import_customer_batch",
         "language": "plpgsql",
@@ -288682,7 +288682,7 @@
         }
       },
       {
-        "id": 3002989,
+        "id": 3002990,
         "schema": "public",
         "name": "import_customer_updated_at",
         "language": "sql",
@@ -288710,7 +288710,7 @@
         }
       },
       {
-        "id": 3002990,
+        "id": 3002991,
         "schema": "public",
         "name": "island_counts",
         "language": "sql",
@@ -288738,7 +288738,7 @@
         }
       },
       {
-        "id": 3002991,
+        "id": 3002992,
         "schema": "public",
         "name": "my_organizations",
         "language": "sql",
@@ -288826,7 +288826,7 @@
         }
       },
       {
-        "id": 3002992,
+        "id": 3002993,
         "schema": "public",
         "name": "my_profile",
         "language": "plpgsql",
@@ -288883,7 +288883,7 @@
         }
       },
       {
-        "id": 3002993,
+        "id": 3002994,
         "schema": "public",
         "name": "organization_invitations",
         "language": "sql",
@@ -288953,7 +288953,7 @@
         }
       },
       {
-        "id": 3002994,
+        "id": 3002995,
         "schema": "public",
         "name": "organization_members",
         "language": "sql",
@@ -289030,7 +289030,7 @@
         }
       },
       {
-        "id": 3002995,
+        "id": 3002996,
         "schema": "public",
         "name": "rs_finance_overview",
         "language": "sql",
@@ -289058,7 +289058,7 @@
         }
       },
       {
-        "id": 3002996,
+        "id": 3002997,
         "schema": "public",
         "name": "rs_pipeline_overview",
         "language": "sql",
@@ -289086,7 +289086,7 @@
         }
       },
       {
-        "id": 3002997,
+        "id": 3002998,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -289114,7 +289114,7 @@
         }
       },
       {
-        "id": 3002998,
+        "id": 3002999,
         "schema": "public",
         "name": "search_notes",
         "language": "plpgsql",
@@ -289148,7 +289148,7 @@
         }
       },
       {
-        "id": 3002999,
+        "id": 3003000,
         "schema": "public",
         "name": "search_notes_scores",
         "language": "plpgsql",
@@ -289196,7 +289196,7 @@
         }
       },
       {
-        "id": 3003000,
+        "id": 3003001,
         "schema": "public",
         "name": "set_my_avatar_path",
         "language": "plpgsql",
@@ -289224,7 +289224,7 @@
         }
       },
       {
-        "id": 3003001,
+        "id": 3003002,
         "schema": "public",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -289252,7 +289252,7 @@
         }
       },
       {
-        "id": 3003002,
+        "id": 3003003,
         "schema": "public",
         "name": "work_bulk_state",
         "language": "plpgsql",
