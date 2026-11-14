@@ -2,7 +2,6 @@ import type { BlockOf } from "../define-block.ts";
 import type { ActivitiesEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
-import { OFFLINE_RULES } from "../offline-rules.ts";
 import { createActivities } from "./activities.ts";
 import { activitiesEvents } from "./events.ts";
 import { activitiesSqlOptions } from "./options.ts";
@@ -28,7 +27,15 @@ export const activitiesBlock: BlockOf<
   entities: {
     activity: {
       mutability: "editable",
-      offline: OFFLINE_RULES.activities,
+      offline: {
+        scope: "readers",
+        // Progress notes that are open to the whole team.
+        where: [
+          { column: "type", equals: "note" },
+          { column: "audience", equals: "team", optional: true },
+          { column: "restricted_roles", isNull: true, optional: true },
+        ],
+      },
       emits: { create: true, update: true, delete: true },
     },
   },

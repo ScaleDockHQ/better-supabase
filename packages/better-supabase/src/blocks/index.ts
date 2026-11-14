@@ -234,8 +234,6 @@ export type {
   EntitySurface,
 } from "./entity-surface.ts";
 
-export { OFFLINE_RULES } from "./offline-rules.ts";
-
 export { entityFlagHooks } from "./entity-flags.ts";
 
 export type { EntityFlagCheck } from "./entity-flags.ts";

@@ -2,7 +2,6 @@ import type { BlockOf } from "../define-block.ts";
 import type { AttachmentsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
-import { OFFLINE_RULES } from "../offline-rules.ts";
 import { createAttachments } from "./attachments.ts";
 import { attachmentsEvents } from "./events.ts";
 import { attachmentsSqlOptions } from "./options.ts";
@@ -31,7 +30,7 @@ export const attachmentsBlock: BlockOf<
   entities: {
     attachment: {
       mutability: "state-machine",
-      offline: OFFLINE_RULES.attachments,
+      offline: { scope: "tenant" },
       emits: { create: false, delete: false },
     },
   },

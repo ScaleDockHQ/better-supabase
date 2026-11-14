@@ -10,8 +10,8 @@ import {
   ENTITY_OFFLINE_SCOPES,
   ENTITY_PARTITION_EVERY,
 } from "../../src/blocks/entity-surface.ts";
-import { OFFLINE_RULES } from "../../src/blocks/offline-rules.ts";
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
+import { OFFLINE_RULES } from "../../src/cli/powersync/offline-rules.ts";
 import {
   offlineOf,
   POWERSYNC_BLOCKS,
@@ -244,7 +244,9 @@ describe("the entity surface of a manifest", () => {
     );
 
     for (const [name, offline] of declared) {
-      expect(offline).toBe(OFFLINE_RULES[name as keyof typeof OFFLINE_RULES]);
+      expect(offline).toStrictEqual(
+        OFFLINE_RULES[name as keyof typeof OFFLINE_RULES],
+      );
     }
   });
 });

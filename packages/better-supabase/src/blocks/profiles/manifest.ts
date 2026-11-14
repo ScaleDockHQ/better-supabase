@@ -1,7 +1,6 @@
 import type { BlockOf } from "../define-block.ts";
 
 import { defineBlock } from "../define-block.ts";
-import { OFFLINE_RULES } from "../offline-rules.ts";
 import { profilesSqlOptions } from "./options.ts";
 import { createProfiles } from "./profiles.ts";
 
@@ -14,7 +13,7 @@ export const profilesBlock: BlockOf<"profiles", typeof createProfiles> =
     create: createProfiles,
     category: "tenancy",
     entities: {
-      profile: { mutability: "read-only", offline: OFFLINE_RULES.profiles },
+      profile: { mutability: "read-only", offline: { scope: "self" } },
     },
     description:
       "A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.",

@@ -2,7 +2,6 @@ import type { BlockOf } from "../define-block.ts";
 import type { MedicationsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
-import { OFFLINE_RULES } from "../offline-rules.ts";
 import { medicationsEvents } from "./events.ts";
 import { createMedications } from "./medications.ts";
 import { medicationsSqlOptions } from "./options.ts";
@@ -32,7 +31,7 @@ export const medicationsBlock: BlockOf<
     medication: {
       mutability: "editable",
       emits: { update: false },
-      offline: OFFLINE_RULES.medications,
+      offline: { scope: "readers", systemRows: "definitions" },
     },
     medication_order: {
       mutability: "editable",

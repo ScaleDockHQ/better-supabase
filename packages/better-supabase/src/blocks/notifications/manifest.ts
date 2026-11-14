@@ -2,7 +2,6 @@ import type { BlockOf } from "../define-block.ts";
 import type { NotificationsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
-import { OFFLINE_RULES } from "../offline-rules.ts";
 import { notificationsEvents } from "./events.ts";
 import { createNotifications } from "./notifications.ts";
 import { notificationsSqlOptions } from "./options.ts";
@@ -27,7 +26,7 @@ export const notificationsBlock: BlockOf<
     notification: {
       mutability: "state-machine",
       emits: { create: true },
-      offline: OFFLINE_RULES.notifications,
+      offline: { scope: "user" },
     },
   },
   description:

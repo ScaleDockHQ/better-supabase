@@ -5,9 +5,9 @@ import type {
 import type { BlockSqlFile } from "../../sql/index.ts";
 import type { Projection } from "./projection.ts";
 
-import { OFFLINE_RULES } from "../../blocks/index.ts";
 import { SPEC_PINS } from "../../index.ts";
 import { addedColumnTypes, declaredColumnTypes } from "../../sql/index.ts";
+import { OFFLINE_RULES } from "./offline-rules.ts";
 
 /** The blocks `gen.powersync` can sync. */
 export const POWERSYNC_BLOCKS = [
