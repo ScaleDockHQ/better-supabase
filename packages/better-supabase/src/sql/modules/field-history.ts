@@ -32,7 +32,15 @@ const NAMES: BlockSqlNames = {
     changes: {
       name: "field_changes",
       app: {},
-      lifecycle: { tenant: "tenant", export: true },
+      lifecycle: {
+        tenant: "tenant",
+        export: true,
+        erase: {
+          mode: "anonymize",
+          personal: ["before", "after", "changedBy"],
+          retention: "audit",
+        },
+      },
       columns: {
         id: "id",
         tenant: "tenant_id",

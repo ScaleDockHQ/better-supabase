@@ -247,7 +247,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 
 | Category      | Blocks | Entities | editable | append-only | state-machine | read-only |
 | ------------- | ------ | -------- | -------- | ----------- | ------------- | --------- |
-| admin         | 7      | 14       | 5        | 1           | 7             | 1         |
+| admin         | 7      | 15       | 5        | 1           | 7             | 2         |
 | ai            | 12     | 13       | 5        | 3           | 1             | 4         |
 | automation    | 11     | 11       | 3        | 2           | 1             | 5         |
 | collaboration | 13     | 21       | 7        | 5           | 8             | 1         |
@@ -272,6 +272,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | compliance                | admin         | evidence_task              | editable      | -                      | update                 | -                                        | -                        | -           | -        | -       | -         |
 | compliance                | admin         | compliance_policy          | editable      | -                      | update                 | -                                        | -                        | -           | -        | -       | -         |
 | consents                  | admin         | consent                    | state-machine | -                      | create                 | -                                        | -                        | -           | -        | -       | -         |
+| consents                  | admin         | consent_signal             | read-only     | -                      | -                      | -                                        | -                        | -           | -        | -       | -         |
 | consents                  | admin         | consent_purpose            | editable      | create, update         | -                      | -                                        | -                        | -           | -        | -       | -         |
 | data-lifecycle            | admin         | data_export                | state-machine | -                      | create                 | -                                        | -                        | -           | -        | -       | -         |
 | data-lifecycle            | admin         | organization               | state-machine | -                      | -                      | -                                        | -                        | -           | -        | -       | -         |
@@ -923,10 +924,10 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Scope: Shared page, facets and count for the remaining work and collaboration lists
 - Status: PR open
 - Branch: `feat/audit-g7`
-- PR: none yet
+- PR: [#950](https://github.com/ScaleDockHQ/better-supabase/pull/950)
 - Findings: EX-1200 to EX-1205, EX-1215
 - Log: 2026-11-14, lane G7 started from main in `../bsb-audit-g7`.
-  2026-11-14, ADR 0951: `guest`, `work_order`, `incident`, `approval`, `asset`, `case` and `deadline` page, facet and count through sibling `page_*` functions (migration 20270116070007); `guests` and `deadlines` gain `get`. Deferred with reasons in ADR 0951: `tasks`, `posts`, `comments`, approvals `tenantless`, the child and lookup lists, and the ADR 0779 blocks that need a row mapper.
+  2026-11-14, ADR 0951: `guest`, `work_order`, `incident`, `approval`, `asset`, `case` and `deadline` page, facet and count through sibling `page_*` functions (migration 20270117070007); `guests` and `deadlines` gain `get`. Deferred with reasons in ADR 0951: `tasks`, `posts`, `comments`, approvals `tenantless`, the child and lookup lists, and the ADR 0779 blocks that need a row mapper.
 
 ### Lane H
 
@@ -1033,21 +1034,22 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane O1
 
 - Scope: Personal data, retention, history tabs, partition
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-o1`
-- PR: [#943](https://github.com/ScaleDockHQ/better-supabase/pull/943)
+- PR: [#943](https://github.com/ScaleDockHQ/better-supabase/pull/943), [#948](https://github.com/ScaleDockHQ/better-supabase/pull/948)
 - Findings: EX-1310, EX-1311, EX-1323, EX-1325
 - Log: 2026-11-12, planned.
 - Log: 2026-11-14, lane O1 started from main (aa43c1d009) in `../bsb-audit-o1`. One PR: `subjectColumn`, `erase`, `legalHold`, `history` and `partition` on the entity surface, `subjectAccessPlan`, `subjectAccessRequest` and `historyTabs`, declarations on `consent`, `data_subject_request` and `field_history`, ADRs 0899 to 0902. No SQL change, so no migration and no pgTAP test; the SQL erase executor per entity stays open (EX-1310).
+- Log: 2026-11-14, lane O1b started from main (9b29fb14e1) in `../bsb-audit-o1b`: `erase_data_subject` and `executeErasure` (EX-1310), migration `20270116100000` (the slot 20261222 sorts before the newest migration on main), pgTAP `data_lifecycle_erasure.test.sql`, ADR 0903. [#948](https://github.com/ScaleDockHQ/better-supabase/pull/948).
 
 ### Lane O2
 
 - Scope: Plan limits, quota, method meters
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-o2`
-- PR: none yet
+- PR: #947 (single PR, not stacked)
 - Findings: EX-1312, EX-1313, EX-1314
-- Log: 2026-11-12, planned.
+- Log: 2026-11-12, planned. 2026-11-14, in progress: manifest `limits` and `meters`, `meter` port, `BlockQuota` and quota-name test, ADR 0909 (PR #947). EX-1313 found one `quota` option, so no rename.
 
 ### Lane O3
 
