@@ -239,6 +239,8 @@ export interface Shifts<F extends object = Record<never, never>> {
   }): AsyncResult<ShiftTemplate>;
   /** Needs `shifts.write`. Its shifts stay. */
   archiveTemplate(templateId: string): AsyncResult<ShiftTemplate>;
+  /** Needs `shifts.write`. Shifts can be planned from the template again. */
+  restoreTemplate(templateId: string): AsyncResult<ShiftTemplate>;
   /** By name. */
   templates(
     input: { organizationId: string } & { readonly includeArchived?: boolean },
@@ -617,6 +619,12 @@ export function createShifts<
         "archive_shift_template",
         { template_id: templateId },
         one("archive_shift_template", templateOf),
+      ),
+    restoreTemplate: (templateId) =>
+      call(
+        "restore_shift_template",
+        { template_id: templateId },
+        one("restore_shift_template", templateOf),
       ),
     templates: ({ organizationId, ...list }) =>
       call(

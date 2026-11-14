@@ -445,6 +445,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "archive_shift_template", args: ["uuid"], returns: "jsonb" },
+    { name: "restore_shift_template", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_shift_templates",
       args: ["{id}", "boolean"],

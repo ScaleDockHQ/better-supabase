@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:6301bdc9ac1ccd892bd4e117773bcba8b91a93aec19f60ff390c7eb66acc5bfa
+-- @bsb-hash sha256:15dc0e95ef22b398ea85d0a29e1b01986d47e4e30a47550f60e41ebd472e2507
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -187,6 +187,38 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_lims_method"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_lims_method"(uuid) to authenticated, service_role;
+
+-- Restores an archived method: results can name it again.
+create or replace function "better_supabase"."restore_lims_method"(method_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."lims_methods";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."lims_methods" x where x."id" = restore_lims_method.method_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.read'), false))) then
+    raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.manage'), false))) then
+    raise exception 'not allowed to restore test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    update "better_supabase"."lims_methods" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id" returning * into v_row;
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_lims_method"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_lims_method"(uuid) to authenticated, service_role;
 
 -- The organization's test methods by key; archived ones only with
 -- include_archived.
@@ -854,7 +886,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:ed1339b3763bfcef9b032e8d1f853e69a765542213c52704e1d51f578d0dbf08
+-- @bsb-hash sha256:d9c0495833c364bc3994ea5f0bb802d415087058ae76d270da93b54d2fe5a939
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1044,6 +1076,38 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_lims_method"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_lims_method"(uuid) to authenticated, service_role;
+
+-- Restores an archived method: results can name it again.
+create or replace function "better_supabase"."restore_lims_method"(method_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."lims_methods";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."lims_methods" x where x."id" = restore_lims_method.method_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.read'), false))) then
+    raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.manage'), false))) then
+    raise exception 'not allowed to restore test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    update "better_supabase"."lims_methods" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id" returning * into v_row;
+    perform "better_supabase".emit_event('lims_method.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key"), 'lims-methods/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/lims');
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_lims_method"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_lims_method"(uuid) to authenticated, service_role;
 
 -- The organization's test methods by key; archived ones only with
 -- include_archived.
@@ -1807,7 +1871,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:3f8eac74fc5be439fb618cf20ff4468d514150ed623347a12ab14fc3d6a14c00
+-- @bsb-hash sha256:ef237048f323870667a5462ee36479a400565221d576bd915e4b075c6b834191
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1998,6 +2062,38 @@ end;
 $$;
 revoke execute on function "app_private"."archive_lims_method"(uuid) from public, anon;
 grant execute on function "app_private"."archive_lims_method"(uuid) to authenticated, service_role;
+
+-- Restores an archived method: results can name it again.
+create or replace function "app_private"."restore_lims_method"(method_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."lims_methods";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."lims_methods" x where x."id" = restore_lims_method.method_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.read'), false))) then
+    raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.manage'), false))) then
+    raise exception 'not allowed to restore test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    update "app_private"."lims_methods" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id" returning * into v_row;
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."restore_lims_method"(uuid) from public, anon;
+grant execute on function "app_private"."restore_lims_method"(uuid) to authenticated, service_role;
 
 -- The organization's test methods by key; archived ones only with
 -- include_archived.
@@ -2665,7 +2761,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:467e728ef389e7dd6c30a097af2a7b2c3a6557d2a6981b0fb34d39b0e692c7d5
+-- @bsb-hash sha256:f40ca852ce8f94d870fac5685b7be890a0b28ba6d50a9d52f3dbaaa9aeedb4d3
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2851,6 +2947,38 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_lims_method"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_lims_method"(uuid) to authenticated, service_role;
+
+-- Restores an archived method: results can name it again.
+create or replace function "better_supabase"."restore_lims_method"(method_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."lims_methods";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."lims_methods" x where x."id" = restore_lims_method.method_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.read'), false))) then
+    raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.manage'), false))) then
+    raise exception 'not allowed to restore test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    update "better_supabase"."lims_methods" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id" returning * into v_row;
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_lims_method"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_lims_method"(uuid) to authenticated, service_role;
 
 -- The organization's test methods by key; archived ones only with
 -- include_archived.
@@ -3523,6 +3651,15 @@ as $$ select "better_supabase"."archive_lims_method"($1) $$;
 revoke execute on function "api"."archive_lims_method"(uuid) from public, anon;
 grant execute on function "api"."archive_lims_method"(uuid) to authenticated, service_role;
 
+create or replace function "api"."restore_lims_method"(method_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_lims_method"($1) $$;
+revoke execute on function "api"."restore_lims_method"(uuid) from public, anon;
+grant execute on function "api"."restore_lims_method"(uuid) to authenticated, service_role;
+
 create or replace function "api"."list_lims_methods"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
@@ -3635,7 +3772,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:35eb0f377a07f487cce9659a6dbfb313af36f566918513f4c758625e90d731c3
+-- @bsb-hash sha256:829e28602959193ab518b5fc3b5d55be539fa01062fe8806105c330d97dd723a
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3815,6 +3952,38 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_lims_method"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_lims_method"(uuid) to authenticated, service_role;
+
+-- Restores an archived method: results can name it again.
+create or replace function "better_supabase"."restore_lims_method"(method_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."lims_methods";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."lims_methods" x where x."id" = restore_lims_method.method_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.read'), false))) then
+    raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.manage'), false))) then
+    raise exception 'not allowed to restore test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    update "better_supabase"."lims_methods" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id" returning * into v_row;
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_lims_method"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_lims_method"(uuid) to authenticated, service_role;
 
 -- The organization's test methods by key; archived ones only with
 -- include_archived.
@@ -4482,7 +4651,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_165_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:23299d5c08e71354ee93ca325196497da228542878f9415f451800102fa46ed4
+-- @bsb-hash sha256:2b04da80d55c80c5410263e3e155cd72677d2a15e4a36da3dd6d33bf2ed2cf16
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4668,6 +4837,38 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_lims_method"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_lims_method"(uuid) to authenticated, service_role;
+
+-- Restores an archived method: results can name it again.
+create or replace function "better_supabase"."restore_lims_method"(method_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."lims_methods";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."lims_methods" x where x."id" = restore_lims_method.method_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'lims.read'), false))) then
+    raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'lims.manage'), false))) then
+    raise exception 'not allowed to restore test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    update "better_supabase"."lims_methods" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id" returning * into v_row;
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_lims_method"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_lims_method"(uuid) to authenticated, service_role;
 
 -- The organization's test methods by key; archived ones only with
 -- include_archived.

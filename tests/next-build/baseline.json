@@ -907,7 +907,7 @@
   "/[locale]/(app)/settings/marketplace/[resource]/page": {
     "raw": 1278540,
     "gzip": 405600,
-    "brotli": 354097
+    "brotli": 355150
   },
   "/[locale]/(app)/settings/marketplace/page": {
     "raw": 1278540,
