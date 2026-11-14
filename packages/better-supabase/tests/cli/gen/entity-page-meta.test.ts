@@ -42,8 +42,14 @@ const emit = (pages = [risks]) =>
 describe("ENTITY_PAGE_OUTPUTS", () => {
   it("appends seed, navigation and manifest after forms", () => {
     expect(
-      ENTITY_PAGE_OUTPUTS.map((output) => output.id).slice(-4),
-    ).toStrictEqual(["forms", "seed", "navigation", "manifest"]);
+      ENTITY_PAGE_OUTPUTS.map((output) => output.id).slice(-5),
+    ).toStrictEqual([
+      "forms",
+      "seed",
+      "navigation",
+      "export-route",
+      "manifest",
+    ]);
   });
 });
 
@@ -131,6 +137,26 @@ describe("manifest output", () => {
     expect(file).toContain('api: "/api/risks/list"');
     expect(file).toContain('"risks.columns.title"');
     expect(file).toContain('"risks.facets.status"');
+  });
+
+  it("lists the export route of a page that sets export", () => {
+    const exporting = defineEntityPage({
+      entity: "risks.risk",
+      route: "/risks",
+      export: {},
+    });
+
+    const file = [...emit([exporting])].find(([path]) =>
+      path.endsWith("routes.manifest.ts"),
+    )?.[1];
+
+    expect(file).toContain('export: "/api/risks/export",');
+
+    const plain = [...emit()].find(([path]) =>
+      path.endsWith("routes.manifest.ts"),
+    )?.[1];
+
+    expect(plain).not.toContain("export:");
   });
 
   it("names columns, facets, sections and form fields as keys", () => {
