@@ -1788,5 +1788,10 @@
     "raw": 182438,
     "gzip": 60789,
     "brotli": 54202
+  },
+  "/api/invitations/list/route": {
+    "raw": 2713240,
+    "gzip": 821978,
+    "brotli": 697632
   }
 }
