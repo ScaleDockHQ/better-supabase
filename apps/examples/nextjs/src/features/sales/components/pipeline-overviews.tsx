@@ -54,110 +54,118 @@ export async function DealOverview({ query }: { query: BlockListQuery }) {
     .filter((stage) => stage.category === "open")
     .map((stage) => ({ value: stage.id, label: stage.name }));
 
-  const action =
+  // The create dialog sits above the table so `?new=1` opens it with rows too.
+  const createDeal =
     data && canWrite ? (
-      <CreateDealDialog
-        pipelineId={data.pipeline.id}
-        stages={openStages}
-        openFromUrl
-      />
-    ) : data === undefined && canManage ? (
-      <CreatePipelineButton />
-    ) : undefined;
+      <div className="flex justify-end">
+        <CreateDealDialog
+          pipelineId={data.pipeline.id}
+          stages={openStages}
+          openFromUrl
+        />
+      </div>
+    ) : null;
+
+  const action =
+    data === undefined && canManage ? <CreatePipelineButton /> : undefined;
 
   return (
-    <BlockOverview
-      loaded={
-        loaded.kind === "ok"
-          ? { kind: "ok", data: loaded.data?.deals ?? [] }
-          : loaded
-      }
-      query={query}
-      spec={{
-        search: (deal: DealRow) =>
-          `${deal.identifier} ${deal.name} ${deal.nextStep ?? ""}`,
-        facet: (deal) => deal.stageId,
-        defaultSort: "closing",
-        sorts: {
-          closing: (a, b) => a.closeOn.localeCompare(b.closeOn),
-          amount: (a, b) =>
-            Number(b.amount.amount - a.amount.amount) ||
-            a.name.localeCompare(b.name),
-          stale: (a, b) => b.daysInStage - a.daysInStage,
-          name: (a, b) => a.name.localeCompare(b.name),
-        },
-      }}
-      toRow={(deal) => ({
-        id: deal.id,
-        identifier: deal.identifier,
-        name: deal.name,
-        stage: deal.stage,
-        amount: fmtMoney(deal.amount),
-        closeOn: fmtDate(deal.closeOn),
-        probability: deal.probability === null ? null : `${deal.probability}%`,
-        daysInStage: deal.daysInStage,
-        health: deal.rotting ? "rotting" : "ok",
-        nextStep: deal.nextStep,
-      })}
-      columns={[
-        {
-          key: "identifier",
-          header: t("Deal"),
-          kind: "link",
-          href: "/crm/deals/{id}",
-          size: 110,
-        },
-        { key: "name", header: t("Name"), kind: "text", size: 260 },
-        { key: "stage", header: t("Stage"), kind: "badge", size: 150 },
-        { key: "amount", header: t("Amount"), kind: "number", size: 130 },
-        {
-          key: "closeOn",
-          header: t("Expected close"),
-          kind: "muted",
-          size: 140,
-        },
-        {
-          key: "probability",
-          header: t("Probability"),
-          kind: "number",
-          size: 110,
-        },
-        {
-          key: "daysInStage",
-          header: t("Days in stage"),
-          kind: "number",
-          size: 120,
-        },
-        {
-          key: "health",
-          header: t("Health"),
-          kind: "badge",
-          size: 110,
-          labels: { rotting: t("Rotting"), ok: t("On track") },
-          tones: { rotting: "warning-light", ok: "success-light" },
-        },
-        { key: "nextStep", header: t("Next step"), kind: "muted", size: 220 },
-      ]}
-      facet={{ key: "stage", label: t("Stage"), values: stageLabels }}
-      sorts={[
-        { value: "closing", label: t("Closing soonest") },
-        { value: "amount", label: t("Largest amount") },
-        { value: "stale", label: t("Longest in stage") },
-        { value: "name", label: t("Name") },
-      ]}
-      searchLabel={t("Search deals")}
-      errorTitle={t("The deals didn't load")}
-      emptyIcon={<HandshakeIcon />}
-      emptyTitle={
-        data === undefined ? t("No pipeline yet") : t("No deals found")
-      }
-      emptyDescription={
-        data === undefined
-          ? t("Start with six stages, from qualified to closed won or lost.")
-          : t("Add a deal, or change the filters.")
-      }
-      emptyAction={action}
-    />
+    <>
+      {createDeal}
+      <BlockOverview
+        loaded={
+          loaded.kind === "ok"
+            ? { kind: "ok", data: loaded.data?.deals ?? [] }
+            : loaded
+        }
+        query={query}
+        spec={{
+          search: (deal: DealRow) =>
+            `${deal.identifier} ${deal.name} ${deal.nextStep ?? ""}`,
+          facet: (deal) => deal.stageId,
+          defaultSort: "closing",
+          sorts: {
+            closing: (a, b) => a.closeOn.localeCompare(b.closeOn),
+            amount: (a, b) =>
+              Number(b.amount.amount - a.amount.amount) ||
+              a.name.localeCompare(b.name),
+            stale: (a, b) => b.daysInStage - a.daysInStage,
+            name: (a, b) => a.name.localeCompare(b.name),
+          },
+        }}
+        toRow={(deal) => ({
+          id: deal.id,
+          identifier: deal.identifier,
+          name: deal.name,
+          stage: deal.stage,
+          amount: fmtMoney(deal.amount),
+          closeOn: fmtDate(deal.closeOn),
+          probability:
+            deal.probability === null ? null : `${deal.probability}%`,
+          daysInStage: deal.daysInStage,
+          health: deal.rotting ? "rotting" : "ok",
+          nextStep: deal.nextStep,
+        })}
+        columns={[
+          {
+            key: "identifier",
+            header: t("Deal"),
+            kind: "link",
+            href: "/crm/deals/{id}",
+            size: 110,
+          },
+          { key: "name", header: t("Name"), kind: "text", size: 260 },
+          { key: "stage", header: t("Stage"), kind: "badge", size: 150 },
+          { key: "amount", header: t("Amount"), kind: "number", size: 130 },
+          {
+            key: "closeOn",
+            header: t("Expected close"),
+            kind: "muted",
+            size: 140,
+          },
+          {
+            key: "probability",
+            header: t("Probability"),
+            kind: "number",
+            size: 110,
+          },
+          {
+            key: "daysInStage",
+            header: t("Days in stage"),
+            kind: "number",
+            size: 120,
+          },
+          {
+            key: "health",
+            header: t("Health"),
+            kind: "badge",
+            size: 110,
+            labels: { rotting: t("Rotting"), ok: t("On track") },
+            tones: { rotting: "warning-light", ok: "success-light" },
+          },
+          { key: "nextStep", header: t("Next step"), kind: "muted", size: 220 },
+        ]}
+        facet={{ key: "stage", label: t("Stage"), values: stageLabels }}
+        sorts={[
+          { value: "closing", label: t("Closing soonest") },
+          { value: "amount", label: t("Largest amount") },
+          { value: "stale", label: t("Longest in stage") },
+          { value: "name", label: t("Name") },
+        ]}
+        searchLabel={t("Search deals")}
+        errorTitle={t("The deals didn't load")}
+        emptyIcon={<HandshakeIcon />}
+        emptyTitle={
+          data === undefined ? t("No pipeline yet") : t("No deals found")
+        }
+        emptyDescription={
+          data === undefined
+            ? t("Start with six stages, from qualified to closed won or lost.")
+            : t("Add a deal, or change the filters.")
+        }
+        emptyAction={action}
+      />
+    </>
   );
 }
 

@@ -2,7 +2,6 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { usageRangeOf } from "@/features/ai-usage/ai-usage-queries";
 import { loadUsageRange } from "@/features/ai-usage/ai-usage-search-params";
 import {
   UsageOverview,
@@ -27,7 +26,7 @@ export default function AiUsagePage({
       />
       <Suspense fallback={<UsageOverviewSkeleton />}>
         {loadUsageRange(searchParams).then(({ range }) => (
-          <UsageOverview range={usageRangeOf(range)} />
+          <UsageOverview range={range} />
         ))}
       </Suspense>
     </>

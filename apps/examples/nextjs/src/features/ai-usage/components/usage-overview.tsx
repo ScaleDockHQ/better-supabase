@@ -13,15 +13,20 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import type { UsageRange } from "../ai-usage-queries";
-
-import { getAiUsage, USAGE_RANGES, USAGE_WINDOW } from "../ai-usage-queries";
+import {
+  getAiUsage,
+  USAGE_RANGES,
+  USAGE_WINDOW,
+  usageRangeOf,
+} from "../ai-usage-queries";
 import { ClearCacheButton } from "./clear-cache-button";
 import { ModelSpendTable } from "./model-spend-table";
 import { SpendChartLazy } from "./spend-chart-lazy";
 
 /** Render inside `<Suspense>`: KPIs, spend per day and the ledger per model. */
-export async function UsageOverview({ range }: { range: UsageRange }) {
+export async function UsageOverview({ range: rangeParam }: { range: string }) {
+  const range = usageRangeOf(rangeParam);
+
   const [usage, permissions, t, format] = await Promise.all([
     getAiUsage(range),
     getPermissions(),

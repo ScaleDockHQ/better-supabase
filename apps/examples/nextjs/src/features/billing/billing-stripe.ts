@@ -19,7 +19,7 @@ let pool: ReturnType<typeof createPostgres> | undefined;
  * (`better_supabase.*` is not on the Data API). `undefined` without
  * `DATABASE_URL` or `WORKFLOW_POSTGRES_URL`.
  */
-function connection() {
+function databaseUrl() {
   const connectionString = env.DATABASE_URL ?? env.WORKFLOW_POSTGRES_URL;
 
   if (!connectionString) {
@@ -40,7 +40,7 @@ let billing: Billing | undefined;
  * are set.
  */
 export function stripeInbox(): StripeInbox | undefined {
-  const postgres = connection();
+  const postgres = databaseUrl();
 
   if (!postgres || !env.STRIPE_WEBHOOK_SECRET) {
     return;
@@ -61,7 +61,7 @@ export function stripeInbox(): StripeInbox | undefined {
  * database connection are set.
  */
 export function stripeBilling(): Billing | undefined {
-  const postgres = connection();
+  const postgres = databaseUrl();
 
   if (!postgres || !env.STRIPE_SECRET_KEY) {
     return;
