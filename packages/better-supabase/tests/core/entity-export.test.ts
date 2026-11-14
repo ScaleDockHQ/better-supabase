@@ -148,4 +148,17 @@ describe("exportCsv", () => {
     expect(text).toContain("=SUM(A1)");
     expect(text).not.toContain("'=SUM(A1)");
   });
+
+  it("ends when a page has more rows but no cursor", async () => {
+    const page = () =>
+      AsyncResult.ok({ items: [{ id: "1" }], hasMore: true, nextCursor: null });
+
+    expect(await read(exportCsv(page))).toBe("id\r\n1\r\n");
+  });
+
+  it("accepts exactly the row cap when no page follows", async () => {
+    const text = await read(exportCsv(pager(), { maxRows: 5, pageSize: 5 }));
+
+    expect(text.trimEnd().split("\r\n")).toHaveLength(6);
+  });
 });

@@ -297,4 +297,68 @@ describe("common bulk and jobs", () => {
     });
     expect(job?.result).toMatchObject({ succeeded: ["a", "b"] });
   });
+
+  const runRow = (status: string) => ({
+    id: "run-1",
+    organizationId: ORG,
+    subjectType: "task",
+    action: "trash.trash",
+    status,
+    position: 1,
+    total: 3,
+    succeeded: 1,
+    failed: 0,
+    createdAt: "2026-11-14T10:00:00Z",
+    finishedAt: null,
+    results: [{ id: "a", ok: true }],
+  });
+
+  it("reads an unknown job as null", async () => {
+    const bulk = createBulkActions({
+      transport: transport({ bulk_run: null }),
+    });
+
+    expect(await bulk.jobs.get("nope").orThrow()).toBeNull();
+  });
+
+  it("reads a running job without a result", async () => {
+    const bulk = createBulkActions({
+      transport: transport({ bulk_run: runRow("running") }),
+    });
+
+    const job = await bulk.jobs.get("run-1").orThrow();
+
+    expect(job).toMatchObject({ status: "running", done: false, result: null });
+  });
+
+  it("reads a failed job with its error", async () => {
+    const bulk = createBulkActions({
+      transport: transport({ bulk_run: runRow("failed") }),
+    });
+
+    const job = await bulk.jobs.get("run-1").orThrow();
+
+    expect(job).toMatchObject({ status: "failed", done: true });
+    expect(job?.error).not.toBeNull();
+  });
+
+  it("passes the arguments and takes the limit of the call", async () => {
+    const fake = transport({
+      bulk_apply: { total: 1, succeeded: 1, failed: 0, results: [] },
+    });
+
+    const bulk = createBulkActions({ transport: fake, limit: 1 });
+
+    await bulk
+      .bulk(["a", "b"], "tags.set", {
+        organizationId: ORG,
+        subjectType: "task",
+        args: { add: ["x"] },
+        limit: 5,
+        atomic: true,
+      })
+      .orThrow();
+
+    expect(fake.calls[0]?.args).toMatchObject({ args: { add: ["x"] } });
+  });
 });
