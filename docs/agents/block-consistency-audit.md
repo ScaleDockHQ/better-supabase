@@ -1045,9 +1045,9 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M4
 
 - Scope: Example on generated output, app list helpers removed
-- Status: PR open
+- Status: merged
 - Branch: `feat/audit-lane-m4`
-- PR: none yet
+- PR: [#963](https://github.com/ScaleDockHQ/better-supabase/pull/963)
 - Findings: EX-1268, EX-034, EX-1001, EX-1327
 - Log: 2026-11-12, planned.
 - Log: 2026-11-14, lane M4 started from main (614cf1ff16) in `../bsb-audit-M4`. One PR, ADR 0889, migration `20270117120013` (a slot of 20261221 sorts before main's newest, so the generated index migration takes the next number). The example declares `risks`, `commissions`, `referrals` and `work-orders` beside `periods`; five nav items read `<name>Nav`; the risk register reads its state through the generated `risksList` and offers its three sorts (EX-1001); `pnpm db:seed:pages` seeds the work orders; `check:example-coverage` checks the map against `entityRoutes`; `check:empty-translations` fails on an empty `msgstr` (EX-1268); `tests/risks-register.spec.ts` covers the sort and an unfinished filter rule (EX-034 closed). `customers` (an app table), the inbox (no list surface) and `incidents` (`organizationId` per call) cannot be declared with the current generator. EX-1327 waits for an axe dependency. The other rows move to lane M5.
@@ -1084,11 +1084,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane O3
 
 - Scope: Offline, public events, impersonation actor, flags, invitations
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-o3`
-- PR: #952, #956, #958
+- PR: #952, #956, #958, #965, #971
 - Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329, EX-510
-- Log: 2026-11-12, planned. 2026-11-14, all three PRs merged, the lane stays in progress until the partial rows close: PR #952 (1318+1320, offline declaration and public events), PR #956 (1321+510, acting member and impersonation in the example), PR #958 (1328+1329, entity flags and the invitation list). EX-1318 stays partial (stream queries are hand-written) and EX-1329 stays partial (no SQL list function).
+- Log: 2026-11-12, planned. 2026-11-14, merged: PR #952 (1318+1320, offline declaration and public events), PR #956 (1321+510, acting member and impersonation in the example), PR #958 (1328+1329, entity flags and the in-memory invitation list), PR #965 (1329, `page_organization_invitations` and the generated invitation page), PR #971 (1318, the offline rules in the manifest, ADR 0926). EX-1318 stays deferred (needs: a join declaration on `offline`) for the notification, membership and attachment streams. The example's `support` store keeps `pg` in the server bundles (`createPostgres` is imported statically, and `supportSessions` takes its store synchronously), so the next-build server baselines stay at the measured values (needs: a lazy store option on `supportSessions`).
 
 ### Lane P
 

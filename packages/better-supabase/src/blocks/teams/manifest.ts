@@ -18,7 +18,7 @@ export const teamsBlock: BlockOf<"teams", typeof createTeams, TeamsEvents> =
     entities: {
       team: {
         mutability: "editable",
-        offline: true,
+        offline: { scope: "tenant" },
         emits: { create: true, update: true, purge: true },
       },
     },

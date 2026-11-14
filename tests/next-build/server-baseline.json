@@ -1782,7 +1782,7 @@
   "/api/webhooks/channels/[adapter]/route": {
     "raw": 1405063,
     "gzip": 446849,
-    "brotli": 388494
+    "brotli": 389458
   },
   "/api/webhooks/inbox/route": {
     "raw": 2923578,
