@@ -231,18 +231,53 @@ export interface ListPage<Item> {
   readonly nextCursor: readonly string[] | null;
   readonly total?: number;
   readonly totalCapped?: boolean;
+  /**
+   * Which of the requested sorts the page was ordered by (ADR 0896). Present
+   * when the read asked for a sort. A block whose `page` reads one sort lists
+   * the first in `applied` and the rest in `ignored`, so a list of sorts that
+   * the block cannot honor is never dropped silently.
+   */
+  readonly sorted?: SortReport;
+}
+
+/** One term of a sort: a column from the entity's `sorts` and its direction. */
+export interface PageSort {
+  readonly by: string;
+  readonly direction?: "asc" | "desc";
+}
+
+/** What a page did with the sorts it was asked for (ADR 0896). */
+export interface SortReport {
+  readonly applied: readonly PageSort[];
+  readonly ignored: readonly PageSort[];
+}
+
+/** The most terms a list of sorts may hold. */
+export const MAX_PAGE_SORTS = 3;
+
+/** The terms of `sort` as a list: none, the one sort, or the list as given. */
+export function sortsOf(sort: PageOptions["sort"]): readonly PageSort[] {
+  if (sort === undefined) {
+    return [];
+  }
+
+  return "by" in sort ? [sort] : sort;
 }
 
 /**
- * The options every block's `page` takes (ADR 0690): free text, one sort,
- * filters whose values are lists, a keyset cursor and a page size. A filter
- * with several values matches any of them.
+ * The options every block's `page` takes (ADR 0690): free text, a sort or a
+ * list of sorts (ADR 0896), filters whose values are lists, a keyset cursor and
+ * a page size. A filter with several values matches any of them.
  */
 export interface PageOptions {
   /** Free text matched against the entity's searchable columns. */
   readonly q?: string;
-  /** A sortable column from the entity's `sorts`, and its direction. */
-  readonly sort?: { readonly by: string; readonly direction?: "asc" | "desc" };
+  /**
+   * A sortable column from the entity's `sorts` and its direction, or a list of
+   * them (at most `MAX_PAGE_SORTS`, no column twice). A block whose `page`
+   * reads one sort orders by the first term; `ListPage.sorted` says so.
+   */
+  readonly sort?: PageSort | readonly PageSort[];
   /** Column to the values it may hold (any of them matches). */
   readonly filters?: Readonly<Record<string, readonly string[]>>;
   /** The previous page's `nextCursor`. */

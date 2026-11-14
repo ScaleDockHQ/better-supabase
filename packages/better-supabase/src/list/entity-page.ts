@@ -4,10 +4,12 @@ import type {
   FacetResult,
   ListPage,
   PageOptions,
+  PageSort,
 } from "../core/block-helpers.ts";
 import type { EntityListSurface } from "../core/entity-list.ts";
 import type { DbError, ValidationIssue } from "../core/errors.ts";
 
+import { MAX_PAGE_SORTS, sortsOf } from "../core/block-helpers.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { decodeFilterQuery } from "./filter-query.ts";
 
@@ -88,6 +90,14 @@ export interface EntityPage {
    * here instead of a block manifest.
    */
   readonly app?: EntityAppSource;
+  /**
+   * The multi-column sorts the page offers, each a list of keys from the
+   * entity's `sorts` (`[["status", "due_date"]]`). `gen` writes one composite
+   * btree index per list, `(tenant, a, b, id)`, and doctor rule BS636 asks for
+   * it (ADR 0896). A sort the list does not name still works; it just has no
+   * matching index.
+   */
+  readonly sortLists?: readonly (readonly string[])[];
   /** The list's paging; the entity documents its own default and cap. */
   readonly list?: {
     /** The `limit` a request gets without one. */
@@ -216,8 +226,9 @@ export interface EntityListQuery {
   readonly entity: string;
   readonly surface: EntityListSurface;
   /**
-   * Reads `q`, `sort` (`key` or `key:asc|desc`), `limit`, repeated `after`
-   * values and one parameter per declared filter (`status=open,closed`).
+   * Reads `q`, `sort` (`key` or `key:asc|desc`, or a comma list of them for a
+   * multi-column sort), `limit`, repeated `after` values and one parameter per
+   * declared filter (`status=open,closed`).
    */
   parse(input: EntityListSearchParams | undefined): EntityListParse;
   /**
@@ -264,6 +275,10 @@ function isPlain(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isSortTerm(value: unknown): boolean {
+  return isPlain(value) && typeof value["by"] === "string";
+}
+
 function isStrings(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((v) => typeof v === "string");
 }
@@ -289,14 +304,26 @@ export function defineEntityListQuery(
       issues.push({ message: `${options.entity} has no search.`, path: ["q"] });
     }
 
-    if (
-      candidate.sort !== undefined &&
-      !(surface.sorts ?? []).includes(candidate.sort.by)
-    ) {
+    const sorts = sortsOf(candidate.sort);
+
+    for (const sort of sorts) {
+      if (!(surface.sorts ?? []).includes(sort.by)) {
+        issues.push({
+          message: `Sort by ${sort.by} is not declared; use ${listOf(surface.sorts)}.`,
+          path: ["sort"],
+        });
+      }
+    }
+
+    if (sorts.length > MAX_PAGE_SORTS) {
       issues.push({
-        message: `Sort by ${candidate.sort.by} is not declared; use ${listOf(surface.sorts)}.`,
+        message: `Sort by at most ${String(MAX_PAGE_SORTS)} columns.`,
         path: ["sort"],
       });
+    }
+
+    if (new Set(sorts.map((sort) => sort.by)).size !== sorts.length) {
+      issues.push({ message: "Sort by each column once.", path: ["sort"] });
     }
 
     for (const key of Object.keys(candidate.filters ?? {})) {
@@ -403,14 +430,13 @@ export function defineEntityListQuery(
     const source = input ?? new URLSearchParams();
     const issues: ValidationIssue[] = [];
     const [q] = valuesOf(source, "q");
-    const [sortText] = valuesOf(source, "sort");
     const [limitText] = valuesOf(source, "limit");
     const after = valuesOf(source, "after");
 
-    let sort: PageOptions["sort"];
+    const terms: PageSort[] = [];
 
-    if (sortText !== undefined) {
-      const [by = "", direction] = sortText.split(":");
+    for (const text of valuesOf(source, "sort")) {
+      const [by = "", direction] = text.split(":");
 
       if (direction !== undefined && !DIRECTIONS.has(direction)) {
         issues.push({
@@ -418,14 +444,17 @@ export function defineEntityListQuery(
           path: ["sort"],
         });
       } else {
-        sort = {
+        terms.push({
           by,
           ...(direction === undefined
             ? {}
             : { direction: direction === "asc" ? "asc" : "desc" }),
-        };
+        });
       }
     }
+
+    // One term stays the single form, so callers that read `sort.by` keep working.
+    const sort: PageOptions["sort"] = terms.length > 1 ? terms : terms[0];
 
     const filters: Record<string, readonly string[]> = {};
 
@@ -495,9 +524,12 @@ export function defineEntityListQuery(
 
         if (
           sort !== undefined &&
-          !(isPlain(sort) && typeof sort["by"] === "string")
+          !(isSortTerm(sort) || (Array.isArray(sort) && sort.every(isSortTerm)))
         ) {
-          issues.push({ message: "sort needs a `by`.", path: ["sort"] });
+          issues.push({
+            message: "sort needs a `by`, or a list of them.",
+            path: ["sort"],
+          });
         }
 
         if (
@@ -550,12 +582,18 @@ export function defineEntityListQuery(
         params.set("q", page.q);
       }
 
-      if (page.sort !== undefined) {
+      const sorts = sortsOf(page.sort);
+
+      if (sorts.length > 0) {
         params.set(
           "sort",
-          page.sort.direction === undefined
-            ? page.sort.by
-            : `${page.sort.by}:${page.sort.direction}`,
+          sorts
+            .map((sort) =>
+              sort.direction === undefined
+                ? sort.by
+                : `${sort.by}:${sort.direction}`,
+            )
+            .join(","),
         );
       }
 

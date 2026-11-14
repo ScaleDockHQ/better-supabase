@@ -10,6 +10,7 @@ create index "risks_tenant_id_number_id_page_idx" on "better_supabase"."risks" (
 create index "risks_tenant_id_next_review_on_id_page_idx" on "better_supabase"."risks" ("tenant_id", "next_review_on", "id");
 create index "risks_tenant_id_status_page_idx" on "better_supabase"."risks" ("tenant_id", "status");
 create index "risks_tenant_id_category_page_idx" on "better_supabase"."risks" ("tenant_id", "category");
+create index "risks_tenant_id_residual_score_number_id_page_idx" on "better_supabase"."risks" ("tenant_id", "residual_score", "number", "id");
 create index "work_orders_tenant_id_created_at_id_page_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at", "id");
 create index "work_orders_tenant_id_starts_at_id_page_idx" on "better_supabase"."work_orders" ("tenant_id", "starts_at", "id");
 create index "work_orders_tenant_id_title_id_page_idx" on "better_supabase"."work_orders" ("tenant_id", "title", "id");

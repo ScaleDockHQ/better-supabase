@@ -172,7 +172,11 @@ export type {
   FacetValue,
   ListPage,
   PageOptions,
+  PageSort,
+  SortReport,
 } from "./shared.ts";
+
+export { MAX_PAGE_SORTS, sortsOf } from "./shared.ts";
 
 export {
   BULK_LIMIT,

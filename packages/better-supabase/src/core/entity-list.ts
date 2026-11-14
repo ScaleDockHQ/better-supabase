@@ -9,7 +9,14 @@ import type { ExportOptions } from "./entity-export.ts";
 import type { Result } from "./result.ts";
 import type { BlockTenant } from "./tenant-source.ts";
 
-import { pageRowsOf, recordOf, recordsOf, textOf } from "./block-helpers.ts";
+import {
+  MAX_PAGE_SORTS,
+  pageRowsOf,
+  recordOf,
+  recordsOf,
+  sortsOf,
+  textOf,
+} from "./block-helpers.ts";
 import { requireTenant } from "./block-tenant.ts";
 import { exportCsv } from "./entity-export.ts";
 import { dbError } from "./errors.ts";
@@ -144,6 +151,36 @@ const listOf = (names: readonly string[] | undefined): string =>
   names === undefined || names.length === 0 ? "none" : names.join(", ");
 
 /**
+ * What is wrong with a list of sorts: an undeclared column, a column twice, or
+ * more than `MAX_PAGE_SORTS` terms. Undefined when the list is fine.
+ */
+export function sortIssue(
+  entity: string,
+  surface: EntityListSurface,
+  sorts: readonly { readonly by: string }[],
+): string | undefined {
+  const undeclared = sorts.find(
+    (sort) => !(surface.sorts ?? []).includes(sort.by),
+  );
+
+  if (undeclared !== undefined) {
+    return `${entity} sorts by ${listOf(surface.sorts)}, not "${undeclared.by}"`;
+  }
+
+  if (sorts.length > MAX_PAGE_SORTS) {
+    return `${entity} sorts by at most ${String(MAX_PAGE_SORTS)} columns`;
+  }
+
+  const twice = sorts.find(
+    (sort, at) => sorts.findIndex((other) => other.by === sort.by) !== at,
+  );
+
+  return twice === undefined
+    ? undefined
+    : `${entity} sorts by "${twice.by}" twice`;
+}
+
+/**
  * The filters object the SQL list function reads for `options`, or an
  * `invalid_input` error for a sort, filter or `q` the entity does not declare.
  */
@@ -154,17 +191,23 @@ export function listFilters(
   const { entity, surface } = spec;
   const filters: Record<string, unknown> = { ...spec.base };
 
-  if (options.sort !== undefined) {
-    if (!(surface.sorts ?? []).includes(options.sort.by)) {
-      return invalid(
-        `${entity} sorts by ${listOf(surface.sorts)}, not "${options.sort.by}"`,
-      );
+  const sorts = sortsOf(options.sort);
+
+  const [first] = sorts;
+
+  if (first !== undefined) {
+    const refused = sortIssue(entity, surface, sorts);
+
+    if (refused !== undefined) {
+      return invalid(refused);
     }
 
-    filters["sort"] = options.sort.by;
+    // The SQL list function reads one sort, so it gets the first term. The
+    // page reports the rest as ignored (ADR 0896).
+    filters["sort"] = first.by;
 
-    if (options.sort.direction !== undefined) {
-      filters["direction"] = options.sort.direction;
+    if (first.direction !== undefined) {
+      filters["direction"] = first.direction;
     }
   }
 
@@ -259,8 +302,15 @@ export function entityList<Item>(
       { paged: true },
       (value) => {
         const page = pageRowsOf(value, fn);
+        const [applied, ...ignored] = sortsOf(options.sort);
 
-        return { ...page, items: page.items.map((row) => spec.rowOf(row, fn)) };
+        return {
+          ...page,
+          items: page.items.map((row) => spec.rowOf(row, fn)),
+          ...(applied === undefined
+            ? {}
+            : { sorted: { applied: [applied], ignored } }),
+        };
       },
     );
 

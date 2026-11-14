@@ -29,6 +29,26 @@ function leads(
   });
 }
 
+/**
+ * Whether a btree index starts with `columns` in order, after the tenant column
+ * when it has one. A multi-column sort seeks into it only in that order.
+ */
+function covers(
+  table: CatalogTable,
+  columns: readonly string[],
+  tenant: string | undefined,
+): boolean {
+  const wanted = tenant === undefined ? columns : [tenant, ...columns];
+
+  return table.indexes.some(
+    (index) =>
+      (index.method ?? "btree") === "btree" &&
+      !index.partial &&
+      index.columns.length >= wanted.length &&
+      wanted.every((column, at) => index.columns[at] === column),
+  );
+}
+
 function check(context: DoctorContext): FindingInput[] {
   if (
     context.config.gen.entityPages === undefined ||
@@ -48,6 +68,23 @@ function check(context: DoctorContext): FindingInput[] {
 
       if (table === undefined) {
         return [];
+      }
+
+      if (index.kind === "sort-list") {
+        const sorted = index.columns.slice(
+          index.table.tenant === undefined ? 0 : 1,
+          -1,
+        );
+
+        return covers(table, sorted, index.table.tenant)
+          ? []
+          : [
+              {
+                message: `${entry.page.entity} offers the multi-column sort ${index.serves}, but ${qualified(table)} has no btree index that starts with ${sorted.join(", ")}${index.table.tenant === undefined ? "" : ` after ${index.table.tenant}`}. Run \`better-supabase gen\` to write the index, or add it in the schema file.`,
+                target: `${qualified(table)}:${index.kind}:${index.serves}`,
+                object: tableObject(table),
+              },
+            ];
       }
 
       if (leads(table, index.column, index.table.tenant, index.method)) {
@@ -74,9 +111,10 @@ export const ENTITY_PAGE_INDEX_RULES: readonly Rule[] = [
   {
     code: "BS636",
     severity: "warning",
-    title: "An entity page's list has no index for a sort, facet or search",
+    title:
+      "An entity page's list has no index for a sort, multi-column sort, facet or search",
     description:
-      "A page declared in `gen.entityPages` lists its entity by the sorts, facets and searched columns its block manifest declares. Each one that is a column of the entity's table needs a btree index that starts with the column (after the tenant column), or a GIN trigram index for a searched column. Without it the page sorts or groups the tenant's rows on every request. `gen` writes the indexes in a migration (`_better_supabase_entity_page_indexes.sql`); run it, or add the index to the schema file.",
+      "A page declared in `gen.entityPages` lists its entity by the sorts, facets and searched columns its block manifest declares. Each one that is a column of the entity's table needs a btree index that starts with the column (after the tenant column), or a GIN trigram index for a searched column. A multi-column sort the page declares in `sortLists` needs a btree index that starts with its columns in order. Without it the page sorts or groups the tenant's rows on every request. `gen` writes the indexes in a migration (`_better_supabase_entity_page_indexes.sql`); run it, or add the index to the schema file.",
     check,
   },
 ];

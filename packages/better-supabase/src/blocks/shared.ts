@@ -54,8 +54,12 @@ export type {
   FacetValue,
   ListPage,
   PageOptions,
+  PageSort,
+  SortReport,
   TransitionActor,
 } from "../core/block-helpers.ts";
+
+export { MAX_PAGE_SORTS, sortsOf } from "../core/block-helpers.ts";
 
 export type {
   CountOptions,
