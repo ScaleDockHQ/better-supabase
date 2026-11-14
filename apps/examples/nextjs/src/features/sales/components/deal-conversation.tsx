@@ -50,7 +50,7 @@ export async function DealConversation({
           <EmptyTitle>{t("No conversation yet")}</EmptyTitle>
           <EmptyDescription>
             {t(
-              "A thread shows here once a contact on this deal writes to the inbox.",
+              "A thread shows here once a person linked to this deal writes to the inbox.",
             )}
           </EmptyDescription>
         </EmptyHeader>

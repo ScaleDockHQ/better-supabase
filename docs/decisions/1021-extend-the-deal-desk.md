@@ -22,8 +22,10 @@ and reports how many deals were assigned and refused.
 The deal page gets a Conversation tab for callers with `inbox.read`. It renders
 the inbox `ConversationPanel`, so a reply or an assignment on the deal desk lands
 in the unibox queue. The deals block lists deals by a person and has no read for a
-deal's contacts, so `loadDealConversations` takes the contacts of the newest 50
-conversations and keeps those whose deals include this one.
+deal's contacts, so `loadDealConversations` reads the people on the deal's
+relations binding in one call and keeps the newest 50 conversations whose
+contact is one of them. A per-contact `deals.list` loop was the first version;
+doctor rule BS634 reported it as an N+1.
 
 ## Alternatives considered
 
@@ -33,7 +35,8 @@ library change outside this lane.
 
 ## Consequences
 
-The conversation lookup makes one `deals.list` call per distinct contact in the
-window, cached per organization and tagged for the inbox, CRM and sales. A buyer
-whose conversations are older than the newest 50 does not show. Revisit when the
-deals block reads a deal's contacts.
+The conversation lookup makes two reads, the conversations and the relations,
+cached per organization and tagged for the inbox, CRM and sales. A buyer shows
+once someone links their person record on the Related tab, and a buyer whose
+conversations are older than the newest 50 does not show. Revisit when the deals
+block reads a deal's contacts.
