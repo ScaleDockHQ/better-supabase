@@ -986,7 +986,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M1
 
 - Scope: defineEntityPage, list query, route, index
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-m1`
 - PR: none yet
 - Findings: EX-1260, EX-1261, EX-1265, EX-1270, EX-001 to EX-003, EX-012, EX-014, EX-410, EX-607
