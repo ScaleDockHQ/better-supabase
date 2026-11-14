@@ -156,6 +156,22 @@ export interface EntitySurface {
   /** The plan limit the entity's count is held to. */
   readonly limit?: string;
   /**
+   * `bulk(ids, action)` on the entity (ADR 0854): the most ids one call takes,
+   * and the actions it accepts. `limit` defaults to 500.
+   */
+  readonly bulk?: {
+    readonly limit?: number;
+    readonly actions?: readonly string[];
+  };
+  /**
+   * `export(options)` on the entity (ADR 0855): the CSV streams the rows of
+   * `page` under the same filters. `columns` fixes the header and `maxRows`
+   * caps the file.
+   */
+  readonly export?:
+    | true
+    | { readonly columns?: readonly string[]; readonly maxRows?: number };
+  /**
    * Whether each method records an event. `false` marks a mutating method that
    * records none; the conformance test keeps the list of those from growing.
    */

@@ -26,6 +26,7 @@ export const quotesBlock: BlockOf<
   create: createQuotes,
   record: quotesBinding,
   category: "crm",
+  importTarget: ["quote"],
   entities: {
     quote: {
       mutability: "editable",

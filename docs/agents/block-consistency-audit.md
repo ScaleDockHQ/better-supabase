@@ -1000,11 +1000,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane L
 
 - Scope: Bulk, export, import target and job shape
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-l`
-- PR: none yet
-- Findings: EX-1209, EX-1210, EX-1211, EX-1324, EX-515 (check #917's set checks first)
+- PR: pending (one PR, no stack)
+- Findings: EX-1209, EX-1210, EX-1211, EX-1324, EX-515, EX-515 (check #917's set checks first)
 - Log: 2026-11-12, planned.
+  2026-11-14, lane L started from main (aa43c1d009) in `../bsb-audit-l`.
+  2026-11-14, ADRs 0852 to 0856: `bulk` and the limit (`src/core/bulk.ts`), `exportCsv` and `entityList().export`, manifest `importTarget` on 14 blocks, `createJobs` with `bulk` and `import` sources, and `update_member_roles` (migration `20270117120012`, pgTAP `organizations_member_roles`). EX-1211 fixed; EX-1209, EX-1210, EX-1324 and EX-515 partly fixed, the rest moves with the category lanes and the example.
 
 ### Lane M1
 

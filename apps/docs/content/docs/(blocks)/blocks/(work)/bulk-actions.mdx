@@ -131,6 +131,28 @@ run otherwise; it resolves to `{ mode: "now", ...result }` or
 `{ mode: "background", id, total, topic }`. Pass the module's `limit` to
 `createBulkActions` when you changed it.
 
+## One call for every list
+
+`bulk(ids, action, { organizationId, subjectType, args? })` is the call to put
+behind a bulk bar. It runs the action on the distinct ids (at most the block's
+`limit`, 500 by default) and returns the same shape every bulk call in the
+library returns:
+
+```ts
+const report = await bulk
+  .bulk(ids, "trash.trash", { organizationId, subjectType: "task" })
+  .orThrow();
+
+report.succeeded; // ["a", "b"]
+report.failed; // [{ id: "c", error: DbError }]
+```
+
+A row the database refuses lands in `failed` with its hint, for example
+`TAG_SUBJECT_FORBIDDEN`, and never stops the others. More ids than the limit
+fail the whole call with `BULK_TOO_MANY` before any row runs; start a
+background run for those. `run` keeps the per-row `results` and the `atomic`
+option for callers that need them.
+
 ## Background runs
 
 `start` stores the run in `bulk_runs` and enqueues a job on the queue
@@ -162,6 +184,11 @@ the user who started it can read it. A finished run records
 | `BULK_TOO_MANY`       | More rows than the limit, or than 100,000 in a run |
 | `BULK_NO_JOBS`        | A background run without the jobs module           |
 | `BULK_RUN_NOT_FOUND`  | `bulk_step` for a run that doesn't exist           |
+
+`startJob` takes the input of `start` and returns `{ jobId }`, and `bulk.jobs`
+is the `bulk` source of `createJobs`, so `jobs.get("bulk:<run id>")` reads the
+run as the common `JobResult`: `status`, `progress`, `result` (the
+`{ succeeded, failed }` report once the run ended), `error` and `done`.
 
 The SQL functions are `bulk_apply`, `start_bulk`, `bulk_run` and
 `bulk_step` (service role only).

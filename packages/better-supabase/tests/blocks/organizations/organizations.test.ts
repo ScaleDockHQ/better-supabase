@@ -936,3 +936,43 @@ describe("switch under sql.tenantColumn", () => {
     ).toMatchObject({ ok: true, data: { organizationId: "org-1" } });
   });
 });
+
+describe("updateMemberRoles", () => {
+  it("changes many roles in one call and reports each failure", async () => {
+    const { transport, calls } = fake({
+      update_member_roles: {
+        succeeded: ["u-1"],
+        failed: [
+          {
+            id: "u-2",
+            code: "ORGANIZATION_ROLE_CEILING",
+            message: "Above you",
+          },
+        ],
+      },
+    });
+
+    const organizations = createOrganizations({ transport });
+
+    const report = await organizations
+      .updateMemberRoles({
+        organizationId: "org-1",
+        userIds: ["u-1", "u-2"],
+        role: "admin",
+      })
+      .orThrow();
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.fn).toBe("update_member_roles");
+    expect(calls[0]?.args).toEqual({
+      organization: "org-1",
+      members: ["u-1", "u-2"],
+      role: "admin",
+    });
+    expect(report.succeeded).toEqual(["u-1"]);
+    expect(report.failed[0]).toMatchObject({
+      id: "u-2",
+      error: { kind: "raised", hint: "ORGANIZATION_ROLE_CEILING" },
+    });
+  });
+});

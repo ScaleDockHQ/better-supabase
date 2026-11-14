@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:3cab0debdfcb870158a67ac2713a858690f0e790a4130b4ef1d8d15b07d2b8bb
+-- @bsb-hash sha256:b62562bf7ad71e945d75529293ef9728280e704aabec9751d6e53430e05cb538
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -509,6 +509,41 @@ begin
 end;
 $$;
 
+-- The role change for many members in one call (ADR 0853). It runs as the
+-- caller: update_member_role is the security definer and does the checking,
+-- once per distinct member in its own subtransaction, so every check and event
+-- of the single call still runs. Returns { succeeded: [id], failed: [{ id,
+-- code, message }] }; more than 500 members fail with BULK_TOO_MANY.
+create or replace function "better_supabase"."update_member_roles"(organization uuid, members uuid[], role text)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  one uuid;
+  succeeded jsonb := '[]'::jsonb;
+  failed jsonb := '[]'::jsonb;
+  failure_hint text;
+  failure_message text;
+begin
+  if coalesce(cardinality(members), 0) > 500 then
+    raise exception 'A bulk call takes at most 500 members' using errcode = '22023', hint = 'BULK_TOO_MANY';
+  end if;
+  for one in select distinct m from unnest(members) m loop
+    begin
+      perform "better_supabase"."update_member_role"(organization, one, role);
+      succeeded := succeeded || to_jsonb(one::text);
+    exception when others then
+      get stacked diagnostics failure_hint = pg_exception_hint, failure_message = message_text;
+      failed := failed || jsonb_build_object('id', one::text, 'code', failure_hint, 'message', failure_message);
+    end;
+  end loop;
+  return jsonb_build_object('succeeded', succeeded, 'failed', failed);
+end;
+$$;
+
 -- Makes organization the caller's active organization (blocks.permissions.activeTenant).
 create or replace function "better_supabase"."switch_organization"(organization uuid)
 returns jsonb
@@ -657,6 +692,8 @@ revoke execute on function "better_supabase"."delete_organization"(uuid) from pu
 grant execute on function "better_supabase"."delete_organization"(uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."update_member_role"(uuid, uuid, text) from public, anon;
 grant execute on function "better_supabase"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) from public, anon;
+grant execute on function "better_supabase"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
 revoke execute on function "better_supabase"."remove_member"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."remove_member"(uuid, uuid) to authenticated, service_role;
 revoke execute on function "better_supabase"."leave_organization"(uuid) from public, anon;
@@ -860,6 +897,15 @@ set search_path = ''
 as $$ select "better_supabase"."update_member_role"($1, $2, $3) $$;
 revoke execute on function "api"."update_member_role"(uuid, uuid, text) from public, anon;
 grant execute on function "api"."update_member_role"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."update_member_roles"(organization uuid, members uuid[], role text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."update_member_roles"($1, $2, $3) $$;
+revoke execute on function "api"."update_member_roles"(uuid, uuid[], text) from public, anon;
+grant execute on function "api"."update_member_roles"(uuid, uuid[], text) to authenticated, service_role;
 
 create or replace function "api"."remove_member"(organization uuid, member uuid)
 returns boolean

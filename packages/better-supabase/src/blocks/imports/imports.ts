@@ -12,12 +12,15 @@ import type {
   RequiredTenantOption,
 } from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { JobSource } from "../../core/jobs.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { ImportChunks } from "./chunks.ts";
 import type { ImportBatchReply, ImportItem } from "./define-import.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { entityList, tenantOrOption } from "../../core/entity-list.ts";
+import { dbError } from "../../core/errors.ts";
+import { jobResultOf } from "../../core/jobs.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
@@ -183,6 +186,8 @@ export interface ImportRunResult {
 }
 
 export interface Imports {
+  /** The `import` kind of `createJobs`: a run as a `JobResult` (ADR 0852). */
+  readonly jobs: JobSource;
   /**
    * Runs a whole import in one call, for the service role: `runs.start`,
    * `markRunning`, one `upsertBatch` per `batchSize` items of each entity in
@@ -405,7 +410,52 @@ export function createImports(options: ImportsOptions): Imports {
     id: textOf(recordOf(value, fn)["id"]),
   });
 
+  const jobs: JobSource = {
+    get: (id) =>
+      AsyncResult.from(async () => {
+        const run = await call("get_import_run", { id }, (value) =>
+          runOf(value, "get_import_run"),
+        );
+
+        if (!run.ok) {
+          return run;
+        }
+
+        const found = run.data;
+        const counts = Object.values(found.counts);
+
+        const total = counts.reduce(
+          (sum, c) => sum + c.inserted + c.updated + c.unchanged + c.conflicted,
+          0,
+        );
+
+        const status = found.status === "canceled" ? "failed" : found.status;
+
+        return ok(
+          jobResultOf("import", found.id, {
+            status,
+            progress: { done: total, total },
+            ...(found.status === "completed"
+              ? { result: { counts: found.counts, errors: found.errors } }
+              : {}),
+            ...(status === "failed"
+              ? {
+                  error: dbError(
+                    "raised",
+                    found.status === "canceled"
+                      ? "The import was canceled"
+                      : "The import failed",
+                    { hint: "IMPORT_RUN_FAILED" },
+                  ),
+                }
+              : {}),
+          }),
+        );
+      }),
+  };
+
   const client: Imports = {
+    jobs,
     run: ({
       organizationId,
       source,

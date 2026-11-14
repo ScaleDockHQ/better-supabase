@@ -208,3 +208,71 @@ describe("entityList with a per-call organization (ADR 0939)", () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+describe("entityList export", () => {
+  it("streams the rows of page under the same filters", async () => {
+    const { list, calls } = listOf((args) => {
+      const filters = args["filters"] as Record<string, unknown>;
+      const after = filters["after"] as string[] | undefined;
+
+      return after === undefined
+        ? {
+            items: [{ id: "1" }, { id: "2" }],
+            hasMore: true,
+            nextCursor: ["2"],
+          }
+        : { items: [{ id: "3" }], hasMore: false, nextCursor: null };
+    });
+
+    let text = "";
+
+    for await (const chunk of list.export({
+      filters: { status: ["open"] },
+      pageSize: 2,
+    })) {
+      text += chunk;
+    }
+
+    expect(text).toBe("id\r\n1\r\n2\r\n3\r\n");
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({
+      tenant: "org-1",
+      filters: { status: ["open"], paged: true, limit: 2 },
+    });
+  });
+
+  it("sends the per-call organization id on every page", async () => {
+    const tenants: unknown[] = [];
+
+    const call: BlockCall = (_fn, args, then) => {
+      tenants.push(args["tenant"]);
+
+      return AsyncResult.from(async () =>
+        ok(
+          await then({
+            items: [{ id: "1" }],
+            hasMore: false,
+            nextCursor: null,
+          }),
+        ),
+      );
+    };
+
+    const list = entityList<{ id: string }, { organizationId?: string }>({
+      ...SPEC,
+      call,
+      tenant: tenantOrOption("block-org"),
+      fn: "list_things",
+      rowOf: (row) => ({ id: String(row["id"]) }),
+    });
+
+    let text = "";
+
+    for await (const chunk of list.export({ organizationId: "call-org" })) {
+      text += chunk;
+    }
+
+    expect(text).toBe("id\r\n1\r\n");
+    expect(tenants).toEqual(["call-org"]);
+  });
+});
