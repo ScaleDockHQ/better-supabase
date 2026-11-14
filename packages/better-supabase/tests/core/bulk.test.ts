@@ -94,4 +94,14 @@ describe("bulk", () => {
       hint: "TAG_SUBJECT_FORBIDDEN",
     });
   });
+
+  it("reports a failed row without error details", () => {
+    const report = bulkReportOf([{ id: "x", ok: false, error: null }]);
+
+    expect(report.failed[0]?.error).toMatchObject({
+      kind: "raised",
+      message: "The action failed",
+    });
+    expect(report.failed[0]?.error.hint).toBeUndefined();
+  });
 });
