@@ -154,7 +154,7 @@ const listOf = (names: readonly string[] | undefined): string =>
  * What is wrong with a list of sorts: an undeclared column, a column twice, or
  * more than `MAX_PAGE_SORTS` terms. Undefined when the list is fine.
  */
-export function sortIssue(
+function sortIssue(
   entity: string,
   surface: EntityListSurface,
   sorts: readonly { readonly by: string }[],

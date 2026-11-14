@@ -5,8 +5,8 @@ import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 import type { EntityPage } from "../../list/index.ts";
 import type { PresetCatalogManifest } from "../../preset/index.ts";
 
+import { MAX_PAGE_SORTS } from "../../blocks/index.ts";
 import { blockEntities } from "../../config/index.ts";
-import { MAX_PAGE_SORTS } from "../../core/block-helpers.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";
 import { resolveBlock } from "../../sql/index.ts";
 import { CliError } from "../core/errors.ts";

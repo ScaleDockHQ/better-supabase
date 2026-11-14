@@ -120,7 +120,12 @@ describe.each(CASES)("list surface client of $label", (spec) => {
       })
       .orThrow();
 
-    expect(page).toEqual({ items: [], hasMore: true, nextCursor: ["a", "b"] });
+    expect(page).toEqual({
+      items: [],
+      hasMore: true,
+      nextCursor: ["a", "b"],
+      sorted: { applied: [{ by: spec.sort, direction: "asc" }], ignored: [] },
+    });
 
     expect(transport.calls).toEqual([
       [
