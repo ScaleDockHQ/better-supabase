@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
--- @bsb-block attachments@9 managed
--- @bsb-hash sha256:1dd2ffb49e13f5c19802462d472535383a4d2d598bc98b20ff49e7f03160738b
+-- @bsb-block attachments@10 managed
+-- @bsb-hash sha256:830f8c577f3948ef37235fb2152c1a53f94db8673fb2fa4a36ef08936c291bdc
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -671,7 +671,8 @@ $$;
 -- Marks the upload done once the object exists, taking its size and type
 -- from Storage, and writes attachment.uploaded for the scan job.
 -- Without requireScan the file is clean right away.
-create or replace function "better_supabase"."confirm_attachment"(id uuid)
+-- For a file in another store (Vercel Blob), only the service role may pass object.
+create or replace function "better_supabase"."confirm_attachment"(id uuid, object jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -694,7 +695,26 @@ begin
   select o.metadata into v_meta from storage.objects o
   where o.bucket_id = v_row."bucket" and o.name = (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end);
   if not found then
-    raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    if confirm_attachment.object is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+      raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    end if;
+    if (case when jsonb_typeof(confirm_attachment.object -> 'size') = 'number'
+        then (confirm_attachment.object ->> 'size')::numeric < 0
+          or (confirm_attachment.object ->> 'size')::numeric <> trunc((confirm_attachment.object ->> 'size')::numeric)
+        else true end)
+      or coalesce(confirm_attachment.object ->> 'mimetype', '') !~ '^[^/[:space:]]+/[^[:space:]]+$' then
+      raise exception 'object needs a whole size of 0 or more and a MIME type' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_INVALID';
+    end if;
+    v_meta := jsonb_build_object('size', confirm_attachment.object -> 'size', 'mimetype', lower(confirm_attachment.object ->> 'mimetype'));
+    if exists (
+      select 1 from storage.buckets b
+      where b.id = v_row."bucket"
+        and ((b.file_size_limit is not null and (v_meta ->> 'size')::bigint > b.file_size_limit)
+          or (coalesce(cardinality(b.allowed_mime_types), 0) > 0
+            and not exists (select 1 from unnest(b.allowed_mime_types) m where v_meta ->> 'mimetype' like replace(lower(m), '*', '%'))))
+    ) then
+      raise exception 'The file breaks the size limit or MIME types of its bucket' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_REFUSED';
+    end if;
   end if;
   update "better_supabase"."attachments" a set
     "uploaded_at" = now(),
@@ -1284,13 +1304,13 @@ grant execute on function "better_supabase"."object_clean"(text, text) to authen
 grant execute on function "better_supabase"."object_scan"(text, text) to service_role;
 grant execute on function "better_supabase"."set_object_scan"(text, text, text, text) to service_role;
 revoke execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) from public, anon;
-revoke execute on function "better_supabase"."confirm_attachment"(uuid) from public, anon;
+revoke execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_attachments"(uuid, text, text) from public, anon;
 revoke execute on function "better_supabase"."get_attachment"(uuid) from public, anon;
 revoke execute on function "better_supabase"."delete_attachment"(uuid) from public, anon;
 grant execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) to authenticated, service_role;
-grant execute on function "better_supabase"."confirm_attachment"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
@@ -1543,14 +1563,14 @@ as $$ select "better_supabase"."create_attachment"($1, $2, $3, $4, $5, $6, $7, $
 revoke execute on function "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) from public, anon;
 grant execute on function "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) to authenticated, service_role;
 
-create or replace function "api"."confirm_attachment"(id uuid)
+create or replace function "api"."confirm_attachment"(id uuid, object jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."confirm_attachment"($1) $$;
-revoke execute on function "api"."confirm_attachment"(uuid) from public, anon;
-grant execute on function "api"."confirm_attachment"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."confirm_attachment"($1, $2) $$;
+revoke execute on function "api"."confirm_attachment"(uuid, jsonb) from public, anon;
+grant execute on function "api"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."set_attachment_status"(id uuid, status text, detail text default null, sha256 text default null)
 returns jsonb

@@ -1,6 +1,7 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { EventSink } from "../../events/index.ts";
+import type { FileStore } from "../../storage/file-store.ts";
 import type {
   Attachment,
   AttachmentStorage,
@@ -10,10 +11,10 @@ import type { BlockTemporalOptions } from "../shared.ts";
 import type { DrivePreviews } from "./drive.ts";
 
 import { portOf } from "../../core/block-helpers.ts";
-import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { eventTypeOf } from "../../events/cloud-event.ts";
-import { attachmentOf, stored } from "../attachments/attachments.ts";
+import { attachmentOf } from "../attachments/attachments.ts";
+import { hinted, requiredFiles } from "../attachments/files.ts";
 import { applyTemporal, blockCall, isRecord, optionalText } from "../shared.ts";
 import { nodeOf, previewsOf } from "./parse.ts";
 
@@ -71,8 +72,13 @@ export interface DrivePreviewsOptions extends BlockTemporalOptions {
    * `service_role` only.
    */
   readonly transport: BlockTransport;
-  /** A service-role `supabase.storage`, to read files and store pages. */
-  readonly storage: AttachmentStorage;
+  /**
+   * A service-role `supabase.storage`, to read files and store pages. Needs one
+   * of `storage` and `files`.
+   */
+  readonly storage?: AttachmentStorage;
+  /** The file store the drive uses, when it isn't Supabase Storage. */
+  readonly files?: FileStore;
   readonly renderer: PreviewRenderer;
   readonly schema?: string;
   /** Default 20. */
@@ -128,6 +134,7 @@ export function createDrivePreviews(
   applyTemporal(options);
   const renderer = previewRendererOf(options.renderer);
   const call = blockCall(options.transport, options.schema);
+  const files = requiredFiles("createDrivePreviews", options);
   const maxPages = options.maxPages ?? 20;
   const subjectType = options.subjectType ?? "drive_node";
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
@@ -157,28 +164,15 @@ export function createDrivePreviews(
     bucket: string,
     folder: string,
     pages: readonly PreviewPage[],
-  ): AsyncResult<number> => {
-    const bucketStore = options.storage.from(bucket);
-    const upload = bucketStore.upload?.bind(bucketStore);
-
-    if (upload === undefined) {
-      return AsyncResult.err(
-        dbError(
-          "invalid_request",
-          "createDrivePreviews needs a storage client that uploads",
-          { hint: "DRIVE_STORAGE_CLIENT" },
-        ),
-      );
-    }
-
-    return AsyncResult.from(async () => {
+  ): AsyncResult<number> =>
+    AsyncResult.from(async () => {
       for (const [index, page] of pages.entries()) {
-        const uploaded = await stored(
-          upload(`${folder}/${String(index + 1)}`, page.body, {
+        const uploaded = await files
+          .put(bucket, `${folder}/${String(index + 1)}`, page.body, {
             contentType: page.contentType,
             upsert: true,
-          }),
-        );
+          })
+          .mapError(hinted("DRIVE_STORAGE_CLIENT"));
 
         if (!uploaded.ok) {
           return uploaded;
@@ -187,7 +181,6 @@ export function createDrivePreviews(
 
       return ok(pages.length);
     });
-  };
 
   const render = ({
     nodeId,
@@ -215,27 +208,27 @@ export function createDrivePreviews(
         return call("drive_previews", { node: nodeId }, (value) =>
           previewsOf(value, "drive_previews"),
         ).andThen((current) =>
-          stored(
-            options.storage.from(attachment.bucket).download(attachment.path),
-          ).andThen(async (file) => {
-            const pages = await renderer.render(file, {
-              name: node.name,
-              mimeType: attachment.mimeType,
-              maxPages,
-              ...(signal === undefined ? {} : { signal }),
-            });
+          files
+            .get(attachment.bucket, attachment.path)
+            .andThen(async (file) => {
+              const pages = await renderer.render(file, {
+                name: node.name,
+                mimeType: attachment.mimeType,
+                maxPages,
+                ...(signal === undefined ? {} : { signal }),
+              });
 
-            if (pages === undefined) {
-              return ok(undefined);
-            }
+              if (pages === undefined) {
+                return ok(undefined);
+              }
 
-            const kept = pages.slice(0, maxPages);
-            const saved = await store(current.bucket, current.prefix, kept);
+              const kept = pages.slice(0, maxPages);
+              const saved = await store(current.bucket, current.prefix, kept);
 
-            return saved.ok
-              ? record(nodeId, attachmentId, saved.data)
-              : err(saved.error);
-          }),
+              return saved.ok
+                ? record(nodeId, attachmentId, saved.data)
+                : err(saved.error);
+            }),
         );
       });
     });

@@ -122,6 +122,12 @@ export { testScheduleProvider } from "./kits/schedule-provider.ts";
 
 export { testSupportSessionStore } from "./kits/support-session-store.ts";
 
+export { testDomainProvider } from "./kits/domain-provider.ts";
+
+export { testKeyProvider } from "./kits/key-provider.ts";
+
+export { testFileStore } from "./kits/file-store.ts";
+
 export {
   PROBE_INITIAL,
   testControllerBinding,
@@ -205,6 +211,15 @@ export type { TestQueueProviderOptions } from "./kits/queue-provider.ts";
 export type { TestScheduleProviderOptions } from "./kits/schedule-provider.ts";
 
 export type { TestSupportSessionStoreOptions } from "./kits/support-session-store.ts";
+
+export type { TestDomainProviderOptions } from "./kits/domain-provider.ts";
+
+export type {
+  KeyProviderSample,
+  TestKeyProviderOptions,
+} from "./kits/key-provider.ts";
+
+export type { TestFileStoreOptions } from "./kits/file-store.ts";
 
 export {
   testAiTaskRunner,

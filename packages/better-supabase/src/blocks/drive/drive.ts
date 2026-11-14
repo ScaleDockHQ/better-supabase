@@ -5,6 +5,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { FileStore } from "../../storage/file-store.ts";
 import type { AccessRequests } from "../access-requests/access-requests.ts";
 import type { ApprovalStatus } from "../approvals/approvals.ts";
 import type {
@@ -13,6 +14,7 @@ import type {
   Attachments,
   AttachmentStorage,
 } from "../attachments/attachments.ts";
+import type { UploadTicket } from "../attachments/files.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { DriveLifecycle } from "./changes.ts";
 import type { DriveDocument, DriveDocuments } from "./documents.ts";
@@ -28,7 +30,16 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
-import { attachmentOf, stored } from "../attachments/attachments.ts";
+import { attachmentOf } from "../attachments/attachments.ts";
+import {
+  blockFiles,
+  confirmInStore,
+  hinted,
+  notUploaded,
+  signUpload,
+  supabaseOf,
+  uploadTicket,
+} from "../attachments/files.ts";
 import {
   applyTemporal,
   blockCall,
@@ -84,8 +95,23 @@ export interface DriveOptions<
 > extends BlockTemporalOptions {
   /** The caller's transport (`rpcTransport(supabase)`), so grants apply. */
   readonly transport: BlockTransport;
-  /** The caller's `supabase.storage`, for upload URLs and removing purged files. */
+  /**
+   * The caller's `supabase.storage`, for upload URLs and removing purged files.
+   * The file store unless `files` names another; the upload claim needs it.
+   */
   readonly storage?: AttachmentStorage;
+  /**
+   * Where the bytes go: `vercelBlobStore(blob)` or another `FileStore`. Default
+   * `supabaseFileStore(storage)`. Pass the same store to the attachments block,
+   * which signs the downloads.
+   */
+  readonly files?: FileStore;
+  /**
+   * A service-role transport, for `commit` on a store Postgres can't see (any
+   * `files` but Supabase), which confirms the upload with the file's size and
+   * type from `files.head`. Default `transport`.
+   */
+  readonly service?: BlockTransport;
   /**
    * The `attachments` port: the attachments block over the same transport,
    * which downloads the files. `createBlocks` passes it.
@@ -331,11 +357,11 @@ export interface NewDriveFile<
 }
 
 /** A pending upload: PUT the bytes to `signedUrl`, then call `commit`. */
-export interface DriveUpload<F extends object = Record<never, never>> {
+export interface DriveUpload<
+  F extends object = Record<never, never>,
+> extends UploadTicket {
   readonly node: DriveNode<F>;
   readonly attachment: Attachment;
-  readonly signedUrl: string;
-  readonly token: string;
 }
 
 export interface DriveRevision {
@@ -605,9 +631,9 @@ export interface Drive<F extends object = Record<never, never>>
     },
   ): AsyncResult<DriveFileRequest>;
   /**
-   * Server only, on a client made with the service transport and storage: sends
-   * one file through a file request token, uploads it and commits it. Each call
-   * counts one use of the link.
+   * Server only, on a client made with the service transport and storage or
+   * files: sends one file through a file request token, uploads it and commits
+   * it. Each call counts one use of the link.
    */
   uploadToRequest(input: {
     token: string;
@@ -685,7 +711,7 @@ export interface Drive<F extends object = Record<never, never>>
   approvals(id: string): AsyncResult<readonly DriveApproval[]>;
   /**
    * Service role: deletes revisions' files no revision or node uses any more,
-   * and removes their objects through `storage`.
+   * and removes their objects from the file store.
    */
   prune(options?: {
     readonly maxObjects?: number;
@@ -709,7 +735,15 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
   );
 
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const storage = options.storage;
+
+  const service = blockCall(
+    options.service ?? options.transport,
+    options.schema,
+    options.mappers,
+  );
+
+  const files = blockFiles(options);
+  const supabase = supabaseOf(files);
   const attachments = options.attachments;
 
   const signed = (fn: string) => (value: unknown) => {
@@ -724,32 +758,70 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
   const withUploadUrl = (
     pending: () => AsyncResult<{ node: DriveNode; attachment: Attachment }>,
   ): AsyncResult<DriveUpload> => {
-    if (storage === undefined) {
+    if (files === undefined) {
       return AsyncResult.err(noStorage());
     }
 
     return pending().andThen(({ node, attachment }) =>
-      stored(
-        storage.from(attachment.bucket).createSignedUploadUrl(attachment.path),
-      ).map((url) => ({
+      signUpload(files, attachment, "DRIVE_STORAGE_CLIENT").map((url) => ({
         node,
         attachment,
-        signedUrl: url.signedUrl,
-        token: url.token,
+        ...uploadTicket(files, url),
       })),
     );
   };
 
   const claimed = (attachmentId: string): AsyncResult<unknown> =>
-    storage === undefined || !claimsUploads(storage)
+    supabase === undefined || !claimsUploads(supabase)
       ? AsyncResult.ok(undefined)
       : call("get_attachment", { id: attachmentId }, (value) =>
           isRecord(value) ? attachmentOf(value) : undefined,
         ).andThen((attachment) =>
           attachment === undefined || attachment.uploadedAt !== undefined
             ? AsyncResult.ok(undefined)
-            : claimUpload(storage, attachment, CLAIM_HINTS),
+            : claimUpload(supabase, attachment, CLAIM_HINTS),
         );
+
+  /**
+   * `drive_commit` checks the caller's grants before it confirms the upload;
+   * when only the confirm fails, because Storage has no object, the file is in
+   * another store and is confirmed from its `head` as the service role.
+   */
+  const committed = <T>(
+    attachmentId: string,
+    commit: () => AsyncResult<T>,
+  ): AsyncResult<T> =>
+    AsyncResult.from(async () => {
+      const first = await commit();
+
+      if (
+        first.ok ||
+        files === undefined ||
+        supabase !== undefined ||
+        !notUploaded(first.error)
+      ) {
+        return first;
+      }
+
+      const attachment = await service(
+        "get_attachment",
+        { id: attachmentId },
+        (value) => (isRecord(value) ? attachmentOf(value) : undefined),
+      );
+
+      if (!attachment.ok || attachment.data === undefined) {
+        return attachment.ok ? first : attachment;
+      }
+
+      const confirmed = await confirmInStore(
+        files,
+        service,
+        attachment.data,
+        "DRIVE_STORAGE_CLIENT",
+      );
+
+      return confirmed.ok ? commit() : confirmed;
+    });
 
   const page = (
     fn: string,
@@ -760,7 +832,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
   const client: Drive = {
     ...driveDocuments(call, nodeOf, nodesOf),
     ...driveLifecycle(call, nodeOf),
-    ...driveHelpers(call, () => built, storage),
+    ...driveHelpers(call, () => built, files),
     ...driveAccess({
       call,
       recordAccess: options.recordAccess,
@@ -891,7 +963,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         previewsOf(value, "drive_previews"),
       ),
     previewUrls: ({ id, ...urls }) => {
-      if (storage === undefined) {
+      if (files === undefined) {
         return AsyncResult.err(noStorage());
       }
 
@@ -899,17 +971,17 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         const signedUrls: string[] = [];
 
         for (const path of previews.paths) {
-          const url = await stored(
-            storage
-              .from(previews.bucket)
-              .createSignedUrl(path, urls.expiresIn ?? 3600),
-          );
+          const url = await files
+            .signedUrl(previews.bucket, path, {
+              expiresIn: urls.expiresIn ?? 3600,
+            })
+            .mapError(hinted("DRIVE_STORAGE_CLIENT"));
 
           if (!url.ok) {
             return url;
           }
 
-          signedUrls.push(url.data.signedUrl);
+          signedUrls.push(url.data);
         }
 
         return ok(signedUrls);
@@ -1016,12 +1088,16 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       ),
     commit: ({ id, attachmentId }) =>
       claimed(attachmentId).andThen(() =>
-        call("drive_commit", { node: id, attachment: attachmentId }, (value) =>
-          nodeOf(value, "drive_commit"),
+        committed(attachmentId, () =>
+          call(
+            "drive_commit",
+            { node: id, attachment: attachmentId },
+            (value) => nodeOf(value, "drive_commit"),
+          ),
         ),
       ),
     contribute: ({ organizationId, file }) => {
-      if (storage === undefined) {
+      if (files === undefined) {
         return AsyncResult.err(noStorage());
       }
 
@@ -1039,24 +1115,21 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         },
         (value) => contributionOf(value, "drive_create_file"),
       ).andThen(({ id, attachment }) =>
-        stored(
-          storage
-            .from(attachment.bucket)
-            .createSignedUploadUrl(attachment.path),
-        ).map((url) => ({
+        signUpload(files, attachment, "DRIVE_STORAGE_CLIENT").map((url) => ({
           id,
           attachment,
-          signedUrl: url.signedUrl,
-          token: url.token,
+          ...uploadTicket(files, url),
         })),
       );
     },
     commitContribution: ({ id, attachmentId }) =>
       claimed(attachmentId).andThen(() =>
-        call(
-          "drive_commit",
-          { node: id, attachment: attachmentId },
-          committedOf,
+        committed(attachmentId, () =>
+          call(
+            "drive_commit",
+            { node: id, attachment: attachmentId },
+            committedOf,
+          ),
         ),
       ),
     createFileRequest: ({ folderId, ...request }) =>
@@ -1075,7 +1148,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         },
       ),
     uploadToRequest: ({ token, file, options: upload }) => {
-      if (storage === undefined) {
+      if (files === undefined) {
         return AsyncResult.err(noStorage());
       }
 
@@ -1095,7 +1168,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           return ok({ passwordRequired: true });
         }
 
-        const sent = await putRequestFile(storage, pending.attachment, file);
+        const sent = await putRequestFile(files, pending.attachment, file);
 
         if (!sent.ok) {
           return sent;
@@ -1234,16 +1307,19 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         { max_objects: prune.maxObjects ?? null },
         objectsOf,
       ).andThen(async (objects) => {
-        if (storage === undefined || objects.length === 0) {
+        if (files === undefined || objects.length === 0) {
           return ok(objects);
         }
 
         const buckets = Map.groupBy(objects, (object) => object.bucket);
 
         for (const [bucket, inBucket] of buckets) {
-          const removed = await stored(
-            storage.from(bucket).remove(inBucket.map((object) => object.path)),
-          );
+          const removed = await files
+            .delete(
+              bucket,
+              inBucket.map((object) => object.path),
+            )
+            .mapError(hinted("DRIVE_STORAGE_CLIENT"));
 
           if (!removed.ok) {
             return removed;

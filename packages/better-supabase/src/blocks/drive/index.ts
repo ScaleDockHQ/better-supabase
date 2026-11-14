@@ -112,6 +112,21 @@ export {
 
 export type { BlockTransport } from "../../core/block-transport.ts";
 
+export {
+  type FileBody,
+  type FileHead,
+  type FileStore,
+  fileStoreOf,
+  type SignedUpload,
+  type SupabaseFileStore,
+  supabaseFileStore,
+  type VercelBlobModule,
+  vercelBlobStore,
+  type VercelBlobStoreOptions,
+} from "../../storage/file-store.ts";
+
+export type { UploadTicket } from "../attachments/files.ts";
+
 export { driveBlock } from "./manifest.ts";
 
 export { driveEvents } from "./events.ts";

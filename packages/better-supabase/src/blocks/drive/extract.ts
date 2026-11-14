@@ -1,13 +1,14 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { EventSink } from "../../events/index.ts";
+import type { FileStore } from "../../storage/file-store.ts";
 import type { AttachmentBucket } from "../attachments/attachments.ts";
 import type { Knowledge } from "../knowledge/knowledge.ts";
 import type { JobHandler } from "../queue/types.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
-import { stored } from "../attachments/attachments.ts";
+import { requiredFiles } from "../attachments/files.ts";
 import {
   blockCall,
   errorText,
@@ -95,10 +96,15 @@ export interface DriveTextOptions {
    * granted to `service_role` only.
    */
   readonly transport: BlockTransport;
-  /** A service-role `supabase.storage`, to read the files. */
-  readonly storage: {
+  /**
+   * A service-role `supabase.storage`, to read the files. Needs one of
+   * `storage` and `files`.
+   */
+  readonly storage?: {
     from(bucket: string): Pick<AttachmentBucket, "download">;
   };
+  /** The file store the drive uses, when it isn't Supabase Storage. */
+  readonly files?: FileStore;
   readonly extractor: TextExtractor;
   readonly schema?: string;
   /** Files larger than this are not read, and lose their text. Default 25 MB. */
@@ -187,6 +193,7 @@ const failed = (cause: unknown): DbError =>
 export function createDriveText(options: DriveTextOptions): DriveText {
   const extractor = textExtractorOf(options.extractor);
   const call = blockCall(options.transport, options.schema);
+  const files = requiredFiles("createDriveText", options);
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
   const subjectType = options.subjectType ?? "drive_node";
   const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES;
@@ -283,9 +290,7 @@ export function createDriveText(options: DriveTextOptions): DriveText {
         return store(source, undefined);
       }
 
-      return stored(
-        options.storage.from(source.bucket).download(source.path),
-      ).andThen(async (file) => {
+      return files.get(source.bucket, source.path).andThen(async (file) => {
         let text: string | undefined;
 
         try {

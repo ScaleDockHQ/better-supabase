@@ -843,6 +843,30 @@ instead; `{ transformations: true }` purges only the transformed variants. It
 needs the secret key, and self-hosted Storage needs a configured CDN purge
 endpoint.
 
+## File stores
+
+The `attachments` and `drive` blocks read and write bytes through a
+`FileStore`: `put`, `get`, `delete` and `signedUrl`, plus `head` and
+`signedUploadUrl`. `supabaseFileStore(supabase.storage)` is the default and
+calls the same Storage methods as before. `vercelBlobStore(blob)` keeps the
+bytes in Vercel Blob instead, typed structurally over
+`import * as blob from "@vercel/blob"` (an optional peer, `>=2.9.0 <3`), while
+the records and upload rules stay in Postgres. Both come from
+`better-supabase/storage`, and `fileStoreOf(store)` checks a store's
+`apiVersion`:
+
+```ts title="src/lib/files.ts"
+import * as blob from "@vercel/blob";
+import { vercelBlobStore } from "better-supabase/storage";
+
+export const files = vercelBlobStore(blob, { prefix: "app/" });
+```
+
+Pass it as `files` to the blocks; see
+[Files in Vercel Blob](/docs/blocks/attachments#files-in-vercel-blob) for the
+upload, the confirm step and what stays Supabase-only. `testFileStore` from
+`better-supabase/testing` runs the contract against a store of your own.
+
 ## Vector buckets
 
 `defineVectorBucket` declares a Storage vector bucket and its indexes. Storage

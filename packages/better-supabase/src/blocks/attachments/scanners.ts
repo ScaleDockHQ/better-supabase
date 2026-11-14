@@ -2,6 +2,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { EventSink } from "../../events/index.ts";
+import type { FileStore } from "../../storage/file-store.ts";
 import type { JobHandler } from "../queue/types.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type {
@@ -23,7 +24,8 @@ import {
   recordOf,
   textOf,
 } from "../shared.ts";
-import { attachmentOf, lookup, notFound, stored } from "./attachments.ts";
+import { attachmentOf, lookup, notFound } from "./attachments.ts";
+import { requiredFiles } from "./files.ts";
 
 /**
  * Waits for a scan from a job or an event. A scan whose target is gone (the
@@ -77,8 +79,13 @@ export interface AttachmentScannerOptions extends BlockTemporalOptions {
    * `service_role` only.
    */
   readonly transport: BlockTransport;
-  /** A service-role `supabase.storage`, to read pending files. */
-  readonly storage: AttachmentStorage;
+  /**
+   * A service-role `supabase.storage`, to read pending files. Needs one of
+   * `storage` and `files`.
+   */
+  readonly storage?: AttachmentStorage;
+  /** The file store the blocks use, when it isn't Supabase Storage. */
+  readonly files?: FileStore;
   readonly schema?: string;
   /**
    * Scans the file (ClamAV, a scanning API). A throw records `failed` and
@@ -127,6 +134,7 @@ export function createAttachmentScanner(
 ): AttachmentScanner {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
+  const files = requiredFiles("createAttachmentScanner", options);
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
 
   const record = (
@@ -167,28 +175,28 @@ export function createAttachmentScanner(
         );
       }
 
-      return stored(
-        options.storage.from(attachment.bucket).download(attachment.path),
-      ).andThen(async (file) => {
-        let verdict: ScanVerdict;
-        const sha256 = await sha256OfBlob(file);
+      return files
+        .get(attachment.bucket, attachment.path)
+        .andThen(async (file) => {
+          let verdict: ScanVerdict;
+          const sha256 = await sha256OfBlob(file);
 
-        try {
-          verdict = await options.scan(file, attachment, signal);
-        } catch (cause) {
-          const failed = await record(id, "failed", errorText(cause));
+          try {
+            verdict = await options.scan(file, attachment, signal);
+          } catch (cause) {
+            const failed = await record(id, "failed", errorText(cause));
 
-          return failed.ok
-            ? err(
-                dbError("raised", `The scan failed: ${errorText(cause)}`, {
-                  hint: "ATTACHMENT_SCAN_FAILED",
-                }),
-              )
-            : failed;
-        }
+            return failed.ok
+              ? err(
+                  dbError("raised", `The scan failed: ${errorText(cause)}`, {
+                    hint: "ATTACHMENT_SCAN_FAILED",
+                  }),
+                )
+              : failed;
+          }
 
-        return record(id, verdict.status, verdict.detail, sha256);
-      });
+          return record(id, verdict.status, verdict.detail, sha256);
+        });
     });
 
   return {
@@ -231,8 +239,13 @@ export interface ObjectScannerOptions extends BlockTemporalOptions {
    * only.
    */
   readonly transport: BlockTransport;
-  /** A service-role `supabase.storage`, to read the objects. */
-  readonly storage: AttachmentStorage;
+  /**
+   * A service-role `supabase.storage`, to read the objects. Needs one of
+   * `storage` and `files`.
+   */
+  readonly storage?: AttachmentStorage;
+  /** The file store the objects are in, when it isn't Supabase Storage. */
+  readonly files?: FileStore;
   readonly schema?: string;
   /** Scans the file. A throw records `failed` and rethrows. */
   readonly scan: (
@@ -301,6 +314,7 @@ export function createObjectScanner(
 ): ObjectScanner {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema);
+  const files = requiredFiles("createObjectScanner", options);
   const prefix = `${options.typePrefix ?? "dev.better-supabase"}.`;
 
   const record = (
@@ -327,32 +341,25 @@ export function createObjectScanner(
         return Promise.resolve(ok(current));
       }
 
-      return stored(options.storage.from(bucket).download(path)).andThen(
-        async (file) => {
-          let verdict: ScanVerdict;
+      return files.get(bucket, path).andThen(async (file) => {
+        let verdict: ScanVerdict;
 
-          try {
-            verdict = await options.scan(file, { bucket, path }, signal);
-          } catch (cause) {
-            const failed = await record(
-              bucket,
-              path,
-              "failed",
-              errorText(cause),
-            );
+        try {
+          verdict = await options.scan(file, { bucket, path }, signal);
+        } catch (cause) {
+          const failed = await record(bucket, path, "failed", errorText(cause));
 
-            return failed.ok
-              ? err(
-                  dbError("raised", `The scan failed: ${errorText(cause)}`, {
-                    hint: "ATTACHMENT_SCAN_FAILED",
-                  }),
-                )
-              : failed;
-          }
+          return failed.ok
+            ? err(
+                dbError("raised", `The scan failed: ${errorText(cause)}`, {
+                  hint: "ATTACHMENT_SCAN_FAILED",
+                }),
+              )
+            : failed;
+        }
 
-          return record(bucket, path, verdict.status, verdict.detail);
-        },
-      );
+        return record(bucket, path, verdict.status, verdict.detail);
+      });
     });
 
   return {

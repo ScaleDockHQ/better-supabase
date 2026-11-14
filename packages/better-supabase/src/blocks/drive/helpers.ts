@@ -1,5 +1,5 @@
 import type { BlockCall } from "../../core/block-helpers.ts";
-import type { AttachmentStorage } from "../attachments/attachments.ts";
+import type { FileStore } from "../../storage/file-store.ts";
 import type {
   Drive,
   DriveConflict,
@@ -85,7 +85,7 @@ export interface DriveHelpers<F extends object = Record<never, never>> {
   /**
    * Adds a file in one call: `upload`, the bytes to storage, then `commit`.
    * When storage refuses the bytes or the commit fails, the pending file is
-   * deleted again. Needs `storage` and a client whose storage has `upload`.
+   * deleted again. Needs `storage` with `upload`, or `files`.
    */
   put(input: {
     organizationId: string;
@@ -147,7 +147,7 @@ const principalKey = (principal: DrivePrincipal): string =>
 export function driveHelpers(
   call: BlockCall,
   self: () => Drive,
-  storage: AttachmentStorage | undefined,
+  files: FileStore | undefined,
 ): DriveHelpers {
   return {
     folder: ({ organizationId, nodeId = null, options }) =>
@@ -228,7 +228,7 @@ export function driveHelpers(
         const drive = self();
         const fileName = name ?? file.name;
 
-        if (storage === undefined) {
+        if (files === undefined) {
           return err(
             dbError("invalid_request", "createDrive needs storage for files", {
               hint: "DRIVE_STORAGE_CLIENT",
@@ -262,7 +262,7 @@ export function driveHelpers(
         }
 
         const stored = await putRequestFile(
-          storage,
+          files,
           pending.data.attachment,
           file,
         );
