@@ -722,7 +722,7 @@
   "/[locale]/(app)/people/encryption/page": {
     "raw": 3057110,
     "gzip": 931044,
-    "brotli": 775068
+    "brotli": 777230
   },
   "/[locale]/(app)/people/hiring/page": {
     "raw": 3062145,
@@ -1216,32 +1216,32 @@
   },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
     "raw": 5025110,
-    "gzip": 1517059,
+    "gzip": 1521184,
     "brotli": 1259773
   },
   "/[locale]/(app)/workflows/page": {
     "raw": 5029416,
-    "gzip": 1518758,
+    "gzip": 1522879,
     "brotli": 1261292
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
     "raw": 5029467,
-    "gzip": 1518959,
+    "gzip": 1523088,
     "brotli": 1261470
   },
   "/[locale]/(app)/workflows/runs/page": {
     "raw": 5028941,
-    "gzip": 1519112,
+    "gzip": 1523246,
     "brotli": 1261703
   },
   "/[locale]/(app)/workflows/templates/page": {
     "raw": 5022962,
-    "gzip": 1516016,
+    "gzip": 1520136,
     "brotli": 1258828
   },
   "/[locale]/(auth)/book/[token]/page": {
     "raw": 2866757,
-    "gzip": 866674,
+    "gzip": 869197,
     "brotli": 720876
   },
   "/[locale]/(auth)/forgot-password/page": {
@@ -1301,27 +1301,27 @@
   },
   "/[locale]/(public)/portal/page": {
     "raw": 2861740,
-    "gzip": 863974,
+    "gzip": 866498,
     "brotli": 718582
   },
   "/[locale]/(public)/status/[slug]/page": {
     "raw": 2866314,
-    "gzip": 865383,
+    "gzip": 867919,
     "brotli": 720086
   },
   "/[locale]/(public)/store/[org]/[product]/page": {
     "raw": 2869345,
-    "gzip": 867240,
+    "gzip": 869775,
     "brotli": 721663
   },
   "/[locale]/(public)/store/[org]/cart/page": {
     "raw": 2870320,
-    "gzip": 867477,
+    "gzip": 870013,
     "brotli": 721856
   },
   "/[locale]/(public)/store/[org]/page": {
     "raw": 2870512,
-    "gzip": 867724,
+    "gzip": 870261,
     "brotli": 722061
   },
   "/[locale]/[...rest]/page": {
@@ -1470,7 +1470,7 @@
     "brotli": 296143
   },
   "/api/customers/records/route": {
-    "raw": 1416202,
+    "raw": 1416827,
     "gzip": 436948,
     "brotli": 375402
   },
