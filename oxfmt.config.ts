@@ -36,6 +36,8 @@ const config: OxfmtConfig = defineConfig({
     "tests/types/**/blocks.config.ts",
     "apps/examples/**/lib/supabase/blocks.config.ts",
     "apps/examples/**/lib/supabase/blocks/*.ts",
+    "apps/examples/**/lib/supabase/pages/*.ts",
+    "apps/examples/**/app/api/*/list/route.ts",
     "apps/examples/**/lib/supabase/blocks.{core,shell}.ts",
     "tests/validation-*/src/blocks.config.ts",
     "tests/validation-*/src/wiring/*.blocks.config.ts",

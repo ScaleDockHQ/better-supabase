@@ -371555,6 +371555,31 @@
             "predicate": null
           },
           {
+            "name": "periods_tenant_id_ends_on_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "ends_on",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "periods_tenant_id_kind_page_idx",
+            "columns": [
+              "tenant_id",
+              "kind"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "periods_tenant_id_kind_starts_on_key",
             "columns": [
               "tenant_id",
@@ -371562,6 +371587,31 @@
               "starts_on"
             ],
             "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "periods_tenant_id_starts_on_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "starts_on",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "periods_tenant_id_status_page_idx",
+            "columns": [
+              "tenant_id",
+              "status"
+            ],
+            "unique": false,
             "primary": false,
             "partial": false,
             "method": "btree",

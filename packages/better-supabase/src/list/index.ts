@@ -53,3 +53,20 @@ export type {
   OpenApiParameter,
   ParserSpec,
 } from "./list-query.ts";
+
+export {
+  defineEntityListQuery,
+  defineEntityPage,
+  ENTITY_PAGE_API_VERSION,
+} from "./entity-page.ts";
+
+export type {
+  EntityListParse,
+  EntityListQuery,
+  EntityListQueryOptions,
+  EntityListReads,
+  EntityListResult,
+  EntityListSearchParams,
+  EntityPage,
+  EntityPageInput,
+} from "./entity-page.ts";
