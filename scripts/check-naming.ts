@@ -49,6 +49,8 @@ interface Naming {
   readonly eventVerbs: {
     readonly banned: Readonly<Record<string, string>>;
     readonly bannedSuffixes: Readonly<Record<string, string>>;
+    readonly bannedEnding: Readonly<Record<string, string>>;
+    readonly endingExceptions: readonly string[];
   };
   readonly allowlist: {
     readonly env: readonly string[];
@@ -307,9 +309,21 @@ function eventTypes(): readonly { file: string; type: string }[] {
   return found;
 }
 
-for (const { file, type } of eventTypes()) {
+const declaredTypes = eventTypes();
+
+for (const { file, type } of declaredTypes) {
   const verb = type.slice(type.indexOf(".") + 1);
   const use = naming.eventVerbs.banned[verb];
+  const ending = naming.eventVerbs.bannedEnding[verb];
+
+  if (
+    ending !== undefined &&
+    !naming.eventVerbs.endingExceptions.includes(type)
+  ) {
+    found.codes.push(
+      `${file} ${type}: "${verb}" ends a record with a verb ADR 1027 does not use, write ${ending}`,
+    );
+  }
 
   if (use !== undefined) {
     found.codes.push(
@@ -325,6 +339,14 @@ for (const { file, type } of eventTypes()) {
         `${file} ${type}: a verb ending in "${suffix}" is banned, end it in "${instead}"`,
       );
     }
+  }
+}
+
+for (const type of naming.eventVerbs.endingExceptions) {
+  if (!declaredTypes.some((each) => each.type === type)) {
+    found.codes.push(
+      `naming.json eventVerbs.endingExceptions lists ${type}, which no block declares any more: remove it`,
+    );
   }
 }
 
