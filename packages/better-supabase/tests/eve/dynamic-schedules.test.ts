@@ -6,7 +6,7 @@ import type {
   StoredSchedule,
 } from "../../src/blocks/queue/backends.ts";
 import type {
-  EveDynamicRunArgs,
+  EveDynamicRunParams,
   EveDynamicSchedules,
   EveScheduleAuthContext,
   EveScheduleJob,
@@ -574,7 +574,7 @@ const slack = { name: "slack" };
 function definition(
   overrides: {
     auth?: (ctx: EveScheduleAuthContext) => unknown;
-    run?: (args: EveDynamicRunArgs) => unknown;
+    run?: (args: EveDynamicRunParams) => unknown;
     preparePayload?: unknown;
   } = {},
 ) {
@@ -590,7 +590,7 @@ function definition(
 
   const run = vi.fn(
     overrides.run ??
-      (async ({ payload, to }: EveDynamicRunArgs) => {
+      (async ({ payload, to }: EveDynamicRunParams) => {
         const { task } = payload as { task: string };
         await to(slack as never, { channelId: "C1" } as never).send(
           `Do ${task}`,

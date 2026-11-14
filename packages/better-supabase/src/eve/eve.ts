@@ -50,7 +50,7 @@ export {
 } from "./dynamic-schedules.ts";
 
 export type {
-  EveDynamicRunArgs,
+  EveDynamicRunParams,
   EveDynamicSchedules,
   EveDynamicTargetHandle,
   EveScheduleAuthContext,
