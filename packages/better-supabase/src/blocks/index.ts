@@ -191,6 +191,13 @@ export type {
   EntitySurface,
 } from "./entity-surface.ts";
 
+export { webhookEventCatalog } from "./event-catalog.ts";
+
+export type {
+  WebhookCatalogEntry,
+  WebhookCatalogSource,
+} from "./event-catalog.ts";
+
 export { BLOCK_CONCERNS, blockLink } from "./composition.ts";
 
 export type { BlockConcern, BlockLink, BlockLinkKind } from "./composition.ts";

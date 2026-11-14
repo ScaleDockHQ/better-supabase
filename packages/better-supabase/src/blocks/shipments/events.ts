@@ -67,10 +67,16 @@ export type ShipmentsEvents = {
 
 /** The `shipments` block's event types, for its manifest and `onBlockEvent`. */
 export const shipmentsEvents: Events<ShipmentsEvents> = defineEvents({
-  "shipment.created": event<ShipmentCreatedEventData>(),
-  "shipment.labeled": event<ShipmentLabeledEventData>(),
-  "shipment.status_changed": event<ShipmentStatusChangedEventData>(),
-  "shipment.cancelled": event<ShipmentCancelledEventData>(),
-  "shipment.proof_recorded": event<ShipmentProofRecordedEventData>(),
-  "shipment.return_received": event<ShipmentReturnReceivedEventData>(),
+  "shipment.created": event<ShipmentCreatedEventData>({ public: true }),
+  "shipment.labeled": event<ShipmentLabeledEventData>({ public: true }),
+  "shipment.status_changed": event<ShipmentStatusChangedEventData>({
+    public: true,
+  }),
+  "shipment.cancelled": event<ShipmentCancelledEventData>({ public: true }),
+  "shipment.proof_recorded": event<ShipmentProofRecordedEventData>({
+    public: true,
+  }),
+  "shipment.return_received": event<ShipmentReturnReceivedEventData>({
+    public: true,
+  }),
 });

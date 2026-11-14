@@ -12,12 +12,23 @@ declare const EVENT_DATA: unique symbol;
 /** One event in `defineEvents`, carrying only its data type. */
 export interface EventSpec<T extends object> {
   readonly [EVENT_DATA]?: T;
+  /** `true` when the event is part of the block's public webhook catalog. */
+  readonly public?: boolean;
+}
+
+/** What `event` takes besides the data type. */
+export interface EventOptions {
+  /**
+   * `true` marks the event as one an app may expose to webhook subscribers (ADR
+   * 0919). `webhookEventCatalog` lists these.
+   */
+  readonly public?: boolean;
 }
 
 /** The event `type` and its data type `T`, for `defineEvents`. */
 /*#__NO_SIDE_EFFECTS__*/
-export function event<T extends object>(): EventSpec<T> {
-  return {};
+export function event<T extends object>(options?: EventOptions): EventSpec<T> {
+  return options?.public === true ? { public: true } : {};
 }
 
 /**
@@ -28,6 +39,8 @@ export function event<T extends object>(): EventSpec<T> {
 export interface Events<M extends EventMap = EventMap> {
   /** The event types, the keys of `M`. */
   readonly types: readonly string[];
+  /** The types marked `public`: the block's webhook event catalog. */
+  readonly public?: readonly string[];
   /** Carries `M` in the type only; always absent. */
   readonly "~map"?: M;
 }
@@ -46,7 +59,10 @@ type DataOf<S> = S extends EventSpec<infer T> ? T : never;
 export function defineEvents<
   const S extends Readonly<Record<string, EventSpec<object>>>,
 >(spec: S): Events<{ readonly [K in keyof S & string]: DataOf<S[K]> }> {
-  return { types: Object.keys(spec) };
+  const types = Object.keys(spec);
+  const published = types.filter((type) => spec[type]?.public === true);
+
+  return published.length === 0 ? { types } : { types, public: published };
 }
 
 type UnionToIntersection<U> = (
@@ -66,5 +82,9 @@ export type MergedEventMap<E extends readonly Events[]> = E extends readonly []
 export function mergeEvents<const E extends readonly Events[]>(
   ...events: E
 ): Events<MergedEventMap<E>> {
-  return { types: [...new Set(events.flatMap((each) => each.types))] };
+  const types = [...new Set(events.flatMap((each) => each.types))];
+
+  const published = [...new Set(events.flatMap((each) => each.public ?? []))];
+
+  return published.length === 0 ? { types } : { types, public: published };
 }
