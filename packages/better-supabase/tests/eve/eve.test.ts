@@ -218,6 +218,7 @@ describe("credentialAuth", () => {
       scopes: ["read"],
     });
 
+    expect(auth).toMatchObject({ principalType: "app" });
     expect("startAuthorization" in auth).toBe(false);
     expect(await auth.getToken(request())).toEqual({
       token: "app",
@@ -249,8 +250,8 @@ describe("credentialAuth", () => {
       interactive: false,
     });
 
-    expect(auth).toMatchObject({ credentialOwner: "user" });
-    expect("principalType" in auth).toBe(false);
+    expect(auth).toMatchObject({ principalType: "user" });
+    expect("startAuthorization" in auth).toBe(false);
     expect(await auth.getToken(request(connected))).toEqual({ token: "t1" });
     expect(p.getToken).toHaveBeenCalledWith(ref, {
       subject: { type: "user", id: USER, issuer: user.issuer },
@@ -774,40 +775,53 @@ function fakeChats(leaf: string | null = "m0") {
 }
 
 describe("persistSessions", () => {
-  const event = <T>(data: T) => ({ data });
+  const event = <T>(type: string, data: T, turnId?: string) => ({
+    type,
+    data,
+    ...(turnId === undefined ? {} : { scope: { turnId } }),
+  });
+
+  const text = (partId: string, value: string, phase: string) =>
+    event(
+      "content.completed",
+      { partId, runId: "r1", kind: "text", value, phase },
+      "t1",
+    );
 
   it("copies a turn into the chat tables", async () => {
     const { chats, calls } = fakeChats();
     const hooks = persistSessions({ chats, agentId: "a1", title: "Support" });
     const ctx = session(user);
     const chatId = await chatIdOf("sess_1");
-    await hooks["session.started"](event({}), ctx);
-    await hooks["turn.started"](event({ turnId: "t1", sequence: 0 }), ctx);
-    await hooks["message.received"](
-      event({ turnId: "t1", sequence: 1, message: "hello" }),
+    await hooks["session.started"](event("session.started", {}), ctx);
+    await hooks["turn.started"](
+      event("turn.started", { turnId: "t1" }, "t1"),
       ctx,
     );
-    await hooks["message.completed"](
-      event({
-        turnId: "t1",
-        sequence: 2,
-        stepIndex: 0,
-        message: "calling a tool",
-        finishReason: "tool-calls",
-      }),
+    await hooks["delivery.consumed"](
+      event(
+        "delivery.consumed",
+        {
+          deliveryId: "d1",
+          turnId: "t1",
+          parts: [
+            { kind: "text", text: "hello" },
+            { kind: "file", mediaType: "image/png" },
+          ],
+        },
+        "t1",
+      ),
       ctx,
     );
-    await hooks["message.completed"](
-      event({
-        turnId: "t1",
-        sequence: 3,
-        stepIndex: 1,
-        message: "hi",
-        finishReason: "stop",
-      }),
+    await hooks["content.completed"](
+      text("p1", "calling a tool", "narration"),
       ctx,
     );
-    await hooks["turn.completed"](event({ turnId: "t1", sequence: 4 }), ctx);
+    await hooks["content.completed"](text("p2", "hi", "reply"), ctx);
+    await hooks["turn.settled"](
+      event("turn.settled", { turnId: "t1", outcome: "completed" }, "t1"),
+      ctx,
+    );
 
     expect(calls[0]).toEqual({
       fn: "create",
@@ -825,7 +839,7 @@ describe("persistSessions", () => {
       {
         chatId,
         message: {
-          id: "t1:1",
+          id: "t1:d1",
           role: "user",
           parts: [{ type: "text", text: "hello" }],
         },
@@ -836,16 +850,12 @@ describe("persistSessions", () => {
       saved.map((call) => (call.args[0] as { message: unknown }).message),
     ).toEqual([
       {
-        id: "t1:0:2",
+        id: "t1:p1",
         role: "assistant",
         parts: [{ type: "text", text: "calling a tool" }],
         metadata: { interim: true },
       },
-      {
-        id: "t1:1:3",
-        role: "assistant",
-        parts: [{ type: "text", text: "hi" }],
-      },
+      { id: "t1:p2", role: "assistant", parts: [{ type: "text", text: "hi" }] },
     ]);
     const [first] = saved[0]!.args as [{ options: unknown }];
 
@@ -861,20 +871,26 @@ describe("persistSessions", () => {
     });
   });
 
-  it("releases failed and cancelled turns", async () => {
+  it("releases failed and cancelled turns and ignores unknown outcomes", async () => {
     const { chats, calls } = fakeChats();
     const hooks = persistSessions({ chats });
     const ctx = session(user);
-    await hooks["turn.failed"](
-      event({
+    await hooks["turn.settled"](
+      event("turn.settled", {
         turnId: "t2",
-        sequence: 0,
-        code: "MODEL_ERROR",
-        message: "boom",
+        outcome: "failed",
+        error: { code: "MODEL_ERROR", message: "boom" },
       }),
       ctx,
     );
-    await hooks["turn.cancelled"](event({ turnId: "t3", sequence: 0 }), ctx);
+    await hooks["turn.settled"](
+      event("turn.settled", { turnId: "t3", outcome: "cancelled" }),
+      ctx,
+    );
+    await hooks["turn.settled"](
+      event("turn.settled", { turnId: "t4", outcome: "paused" }),
+      ctx,
+    );
     expect(
       calls.map((call) => {
         const { status, error } = call.args[0] as {
@@ -890,47 +906,60 @@ describe("persistSessions", () => {
     ]);
   });
 
-  it("skips sessions without a user, empty messages and chats without a leaf", async () => {
+  it("skips sessions without a user, empty messages, other content and chats without a leaf", async () => {
     const { chats, calls } = fakeChats(null);
     const hooks = persistSessions({ chats });
     const anonymous = session(null);
-    await hooks["session.started"](event({}), anonymous);
-    await hooks["turn.started"](event({ turnId: "t", sequence: 0 }), anonymous);
-    await hooks["message.received"](
-      event({ turnId: "t", sequence: 1, message: "x" }),
+    await hooks["session.started"](event("session.started", {}), anonymous);
+    await hooks["turn.started"](
+      event("turn.started", { turnId: "t" }),
       anonymous,
     );
-    await hooks["message.completed"](
-      event({
+    await hooks["delivery.consumed"](
+      event("delivery.consumed", {
+        deliveryId: "d",
         turnId: "t",
-        sequence: 2,
-        stepIndex: 0,
-        message: "y",
-        finishReason: "stop",
+        parts: [{ kind: "text", text: "x" }],
       }),
       anonymous,
     );
-    await hooks["turn.completed"](
-      event({ turnId: "t", sequence: 3 }),
+    await hooks["content.completed"](text("p", "y", "reply"), anonymous);
+    await hooks["turn.settled"](
+      event("turn.settled", { turnId: "t", outcome: "completed" }),
       anonymous,
     );
     expect(calls).toEqual([]);
 
     const ctx = session(user);
-    await hooks["message.received"](
-      event({ turnId: "t", sequence: 1, message: "" }),
+    await hooks["delivery.consumed"](
+      event("delivery.consumed", { deliveryId: "d", turnId: "t", parts: [] }),
       ctx,
     );
-    await hooks["message.completed"](
-      event({
-        turnId: "t",
-        sequence: 2,
-        stepIndex: 0,
-        message: "y",
-        finishReason: "stop",
+    await hooks["content.completed"](
+      event(
+        "content.completed",
+        {
+          partId: "r",
+          runId: "r1",
+          kind: "reasoning",
+          value: "z",
+          phase: "reply",
+        },
+        "t1",
+      ),
+      ctx,
+    );
+    await hooks["content.completed"](
+      event("content.completed", {
+        partId: "q",
+        runId: "r1",
+        kind: "text",
+        value: "no turn",
+        phase: "reply",
       }),
       ctx,
     );
+    await hooks["content.completed"](text("p", "y", "reply"), ctx);
     expect(calls.map((call) => call.fn)).toEqual(["create", "get"]);
   });
 });

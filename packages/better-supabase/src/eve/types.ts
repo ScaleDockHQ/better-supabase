@@ -39,8 +39,10 @@ export type EveApprovalStatus =
   | "approved"
   | "denied"
   | "user-approval"
+  | { readonly type: "not-applicable" }
   | { readonly type: "approved"; readonly reason?: string }
-  | { readonly type: "denied"; readonly reason?: string };
+  | { readonly type: "denied"; readonly reason?: string }
+  | { readonly type: "user-approval" };
 
 /** The part of eve's `ApprovalContext` the policies here read. */
 export interface EveApprovalContext extends EveSessionContext {
@@ -58,13 +60,13 @@ export type EveApprovalPolicy = (
 export interface EveApprovalResponseContext {
   readonly request: {
     readonly callId: string;
-    readonly requestId: string;
+    readonly interactionId: string;
     readonly principal: EveSessionAuth | null;
     readonly toolName: string;
     readonly toolInput?: unknown;
   };
   readonly response: {
-    readonly decision: "approve" | "cancel";
+    readonly decision: "approve" | "deny";
     readonly principal: EveSessionAuth;
   };
   readonly session: { readonly id: string };

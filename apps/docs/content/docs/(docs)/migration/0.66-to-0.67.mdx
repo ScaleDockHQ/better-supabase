@@ -1,6 +1,6 @@
 ---
 title: From 0.66 to 0.67
-description: What to change when upgrading from better-supabase 0.66 to 0.67. Sessions and sign-in run on @supabase/ssr, the lite browser client is removed, every peer range starts at the release the tests run on, and the previous majors of SvelteKit, Nuxt, React Router, NestJS, Stripe, expo-server, undici, redis and PowerSync are no longer supported.
+description: What to change when upgrading from better-supabase 0.66 to 0.67. Sessions and sign-in run on @supabase/ssr, the lite browser client is removed, every peer range starts at the release the tests run on, the previous majors of SvelteKit, Nuxt, React Router, NestJS, Stripe, expo-server, undici, redis and PowerSync are no longer supported, and better-supabase/eve follows eve 1.0.
 ---
 
 0.67 calls Supabase only through its own clients: session cookies are read
@@ -25,6 +25,7 @@ the
 | [Sign-in flows](#sign-in-flows)               | Replace `passwordGrant`, and check the PKCE error code     |
 | [Notification avatars](#notification-avatars) | Pass a function to `avatars`                               |
 | [Session status](#session-status)             | None; a 403 that is not Auth's JSON now reads as `unknown` |
+| [eve 1.0](#eve-10)                            | Upgrade eve, rename hook events and `credentialOwner`      |
 
 ## Supabase peers
 
@@ -98,8 +99,8 @@ Supabase packages are in [Supabase peers](#supabase-peers).
 | `@opentelemetry/api`                                      | `>=1.9.1 <2`                              |
 | `workflow`                                                | `>=5.4.0 <6`                              |
 | `@workflow/world`, `@workflow/world-postgres`             | `>=5.1.0 <5.2`, `>=5.1.1 <5.2`            |
-| `eve`                                                     | `>=0.83.3 <1`                             |
-| `@vercel/connect`                                         | `>=2.5.0 <3`                              |
+| `eve`                                                     | `>=1.0.0-rc.0 <2`, see [eve 1.0](#eve-10) |
+| `@vercel/connect`                                         | `>=2.5.2 <3`                              |
 | `@vercel/queue`                                           | `>=0.11.0 <0.12`                          |
 | `@vercel/sandbox`                                         | `>=4.0.0 <5`                              |
 
@@ -186,3 +187,31 @@ avatars: (path) => users.getPublicUrl(path).data.publicUrl;
 `sessionStatus` now calls `auth.getUser`. A 403 whose body is not Auth's JSON
 (a proxy or firewall page) reads as `unknown` instead of `ended`, so it no
 longer signs the user out.
+
+## eve 1.0
+
+`better-supabase/eve` follows eve 1.0 and accepts `eve` `>=1.0.0-rc.0 <2`
+(ADR 1022). Upgrade eve first with eve's own
+[upgrade guide](https://eve.dev/docs/guides/upgrade), then change these:
+
+| Before                                                                  | After                                                                |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `persistSessions` handlers `message.received`, `message.completed`      | `delivery.consumed`, `content.completed`                             |
+| `persistSessions` handlers `turn.completed`, `turn.failed`, `cancelled` | `turn.settled`, with the outcome as the run's status                 |
+| `EveTokenAuthorization.credentialOwner`                                 | `principalType`, which `credentialAuth` and `openApiAuth` now return |
+| `EveApprovalResponseContext` `request.requestId`                        | `request.interactionId`                                              |
+| an approval answer `decision: "cancel"`                                 | `decision: "deny"`; `approvalPolicy` treats it as before             |
+| `EveApprovalStatus`                                                     | also `{ type: "not-applicable" }` and `{ type: "user-approval" }`    |
+| `EveMemoryTool.inputSchema: unknown`                                    | a JSON Schema object, as eve's `MemoryToolSet` requires              |
+
+`defineHook({ events: persistSessions(...) })` needs no change of its own, but
+any hook of yours that reads v26 event names stops firing; eve's guide maps
+them. Messages that `persistSessions` stores from now on have ids
+`<turnId>:<deliveryId>` and `<turnId>:<partId>`, so a turn that started
+before the upgrade and finishes after it can store its reply twice.
+
+`eve build` in 1.0 rejects a tool input schema it can't turn into JSON
+Schema, such as a plain Valibot schema: wrap it in `toStandardJsonSchema` from
+`@valibot/to-json-schema` when you pass it to `supabaseTool`. `queueScheduleProvider` and `queueDynamicSchedules` are new:
+they store eve's dynamic schedules in the queue block's drain scheduler (see
+[eve on Supabase](/docs/eve#dynamic-schedules)).

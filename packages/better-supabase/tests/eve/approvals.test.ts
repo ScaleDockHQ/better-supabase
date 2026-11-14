@@ -138,11 +138,11 @@ const requestCtx = (callId = "call_1"): EveApprovalContext => ({
 
 const responseCtx = (
   responder: EveSessionAuth,
-  decision: "approve" | "cancel",
+  decision: "approve" | "deny",
 ): EveApprovalResponseContext => ({
   request: {
     callId: "call_1",
-    requestId: "input_1",
+    interactionId: "input_1",
     principal: member(REQUESTER),
     toolName: "create_task",
   },
@@ -252,7 +252,7 @@ describe("approvalPolicy", () => {
 
     await first.policy.request(requestCtx());
     await expect(
-      first.respond(responseCtx(member(REQUESTER), "cancel")),
+      first.respond(responseCtx(member(REQUESTER), "deny")),
     ).resolves.toEqual({ status: "allowed" });
     expect(first.client.cancel).toHaveBeenCalledWith("req_1");
 
@@ -260,7 +260,7 @@ describe("approvalPolicy", () => {
 
     await second.policy.request(requestCtx());
     await expect(
-      second.respond(responseCtx(member(LEAD), "cancel")),
+      second.respond(responseCtx(member(LEAD), "deny")),
     ).resolves.toEqual({ status: "allowed" });
     expect(second.client.reject).toHaveBeenCalledWith({ id: "req_1" });
     expect(second.requests[0]?.status).toBe("rejected");
