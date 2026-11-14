@@ -32,13 +32,11 @@ export function OrganizationSwitcherLazy({
   return (
     <LazyOnIntent
       renderTrigger={(handlers) => (
-        <SidebarMenuButton
-          size="lg"
-          aria-label={t("Switch organization")}
-          aria-haspopup="menu"
-          {...handlers}
-        >
-          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
+        <SidebarMenuButton size="lg" aria-haspopup="menu" {...handlers}>
+          <div
+            aria-hidden="true"
+            className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground"
+          >
             {(active?.name ?? "?").slice(0, 1).toUpperCase()}
           </div>
           <div className="grid flex-1 text-left text-sm leading-tight">
@@ -52,6 +50,7 @@ export function OrganizationSwitcherLazy({
               {active ? active.plan : t("Create one to start")}
             </span>
           </div>
+          <span className="sr-only">{t("Switch organization")}</span>
           <ChevronsUpDownIcon className="ml-auto" />
         </SidebarMenuButton>
       )}

@@ -1050,6 +1050,16 @@ msgctxt "meetings.IWewHP"
 msgid "The organization's meetings, and the agenda, decisions and action items of the one you open."
 msgstr "De vergaderingen van de organisatie, met de agenda, besluiten en actiepunten van de vergadering die je opent."
 
+#: src/app/[locale]/(app)/members/invitations/page.tsx
+msgctxt "organization.HyiDcy"
+msgid "Invitations"
+msgstr ""
+
+#: src/app/[locale]/(app)/members/invitations/page.tsx
+msgctxt "organization.8RvpQc"
+msgid "The invitations that are still open, and when they expire."
+msgstr ""
+
 #: src/app/[locale]/(app)/metrics/[key]/page.tsx
 msgctxt "metrics.0_D7JO"
 msgid "All metrics"
@@ -18906,6 +18916,11 @@ msgid "Invitation revoked"
 msgstr "Uitnodiging ingetrokken"
 
 #: src/features/members/components/invitation-list.tsx
+msgctxt "organization.HsCLGj"
+msgid "Invitation sent again"
+msgstr ""
+
+#: src/features/members/components/invitation-list.tsx
 msgctxt "organization.HAhXzK"
 msgid "No open invitations."
 msgstr "Geen openstaande uitnodigingen."
@@ -18914,6 +18929,11 @@ msgstr "Geen openstaande uitnodigingen."
 msgctxt "organization._VQpyO"
 msgid "Expires {date}"
 msgstr "Verloopt op {date}"
+
+#: src/features/members/components/invitation-list.tsx
+msgctxt "organization.d6goN8"
+msgid "Resend invitation to {email}"
+msgstr ""
 
 #: src/features/members/components/invitation-list.tsx
 msgctxt "organization.Hvn8PP"
@@ -18971,11 +18991,13 @@ msgid "They join with the role you pick. You can't give a role above your own."
 msgstr "Ze worden lid met de rol die je kiest. Je kunt geen hogere rol geven dan je eigen rol."
 
 #: src/features/members/components/invite-member-dialog.tsx
+#: src/features/organization/components/invitations-grid.tsx
 msgctxt "organization.sy-pv5"
 msgid "Email"
 msgstr "E-mail"
 
 #: src/features/members/components/invite-member-dialog.tsx
+#: src/features/organization/components/invitations-grid.tsx
 msgctxt "organization.1ZgrhW"
 msgid "Role"
 msgstr "Rol"
@@ -20970,6 +20992,26 @@ msgctxt "invitation.j2QN5I"
 msgid "Accept invitation"
 msgstr "Uitnodiging accepteren"
 
+#: src/features/organization/components/invitations-grid.tsx
+msgctxt "organization.xhQMeQ"
+msgid "Expires"
+msgstr ""
+
+#: src/features/organization/components/invitations-grid.tsx
+msgctxt "organization.nS4TcP"
+msgid "No open invitations"
+msgstr ""
+
+#: src/features/organization/components/invitations-grid.tsx
+msgctxt "organization.vs8BNr"
+msgid "Invite people from the members page."
+msgstr ""
+
+#: src/features/organization/components/invitations-grid.tsx
+msgctxt "organization.1U0YVb"
+msgid "Open members"
+msgstr ""
+
 #: src/features/organization/components/leave-organization-button.tsx
 #: src/features/organization/components/organization-general.tsx
 msgctxt "organization.0Xqin6"
@@ -21038,12 +21080,6 @@ msgstr "Eigenaren dragen het eigendom over voordat ze kunnen vertrekken."
 
 #: src/features/organization/components/organization-switcher-lazy.tsx
 #: src/features/organization/components/organization-switcher-menu.tsx
-msgctxt "organization.0lmKIf"
-msgid "Switch organization"
-msgstr "Van organisatie wisselen"
-
-#: src/features/organization/components/organization-switcher-lazy.tsx
-#: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.5VHXqC"
 msgid "No organization"
 msgstr "Geen organisatie"
@@ -21053,6 +21089,12 @@ msgstr "Geen organisatie"
 msgctxt "organization.9ocI0I"
 msgid "Create one to start"
 msgstr "Maak er een om te beginnen"
+
+#: src/features/organization/components/organization-switcher-lazy.tsx
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.0lmKIf"
+msgid "Switch organization"
+msgstr "Van organisatie wisselen"
 
 #: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.qQ6ahH"
@@ -23930,10 +23972,20 @@ msgid "Description"
 msgstr "Omschrijving"
 
 #: src/features/rfqs/components/rfq-detail.tsx
+msgctxt "rfqs.iGYctG"
+msgid "Product variant (needed to award into a purchase order)"
+msgstr ""
+
+#: src/features/rfqs/components/rfq-detail.tsx
 #: src/features/rfqs/components/rfqs-overview.tsx
 msgctxt "rfqs.qVGRIE"
 msgid "Quantity"
 msgstr "Aantal"
+
+#: src/features/rfqs/components/rfq-detail.tsx
+msgctxt "rfqs.OK5-Fh"
+msgid "Variant"
+msgstr ""
 
 #: src/features/rfqs/components/rfq-detail.tsx
 msgctxt "rfqs.qdrWPP"
@@ -24045,6 +24097,11 @@ msgctxt "rfqs.-oxq2j"
 msgid "First line"
 msgstr "Eerste regel"
 
+#: src/features/rfqs/components/rfqs-overview.tsx
+msgctxt "rfqs.MMyA8e"
+msgid "Product variant of the first line"
+msgstr ""
+
 #: src/features/risks/components/risk-band-badge.tsx
 msgctxt "risks.3Q1Pj6"
 msgid "Not assessed"
@@ -24095,11 +24152,6 @@ msgstr "Restrisico"
 msgctxt "risks.ep8Oy7"
 msgid "Next review"
 msgstr "Volgende review"
-
-#: src/features/risks/components/risk-record-list.tsx
-msgctxt "risks.b-peaU"
-msgid "Residual score"
-msgstr "Restscore"
 
 #: src/features/risks/components/risk-detail.tsx
 msgctxt "risks.SzG9JL"
@@ -24240,6 +24292,11 @@ msgstr "Categorie"
 msgctxt "risks.tzMNF3"
 msgid "Status"
 msgstr "Status"
+
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.b-peaU"
+msgid "Residual score"
+msgstr "Restscore"
 
 #: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.Bi2plb"
@@ -25648,9 +25705,9 @@ msgid "No conversation yet"
 msgstr "Nog geen gesprek"
 
 #: src/features/sales/components/deal-conversation.tsx
-msgctxt "sales.EnlMvw"
+msgctxt "sales.7i-sSx"
 msgid "A thread shows here once a person linked to this deal writes to the inbox."
-msgstr "Een gesprek verschijnt hier zodra een aan deze deal gekoppelde persoon de inbox schrijft."
+msgstr ""
 
 #: src/features/sales/components/deal-conversation.tsx
 msgctxt "sales.1udzha"
@@ -29747,7 +29804,13 @@ msgctxt "support.iIenp6"
 msgid "End session"
 msgstr "Sessie beëindigen"
 
+#: src/features/support/components/exit-support-button.tsx
+msgctxt "support.m6fRpP"
+msgid "Exit session"
+msgstr ""
+
 #: src/features/support/components/request-support-dialog.tsx
+#: src/features/support/components/view-as-member-button.tsx
 msgctxt "support.bqgmwq"
 msgid "Request sent for approval"
 msgstr "Verzoek ter goedkeuring verstuurd"
@@ -29769,11 +29832,13 @@ msgstr "Gebruikers-id"
 
 #: src/features/support/components/request-support-dialog.tsx
 #: src/features/support/components/support-sessions.tsx
+#: src/features/support/components/view-as-member-button.tsx
 msgctxt "support.AkCxS_"
 msgid "Reason"
 msgstr "Reden"
 
 #: src/features/support/components/request-support-dialog.tsx
+#: src/features/support/components/view-as-member-button.tsx
 msgctxt "support.47FYwb"
 msgid "Cancel"
 msgstr "Annuleren"
@@ -29837,6 +29902,26 @@ msgstr "Actief"
 msgctxt "support.TP_cMX"
 msgid "Ended"
 msgstr "Beëindigd"
+
+#: src/features/support/components/view-as-member-button.tsx
+msgctxt "support.vjYD36"
+msgid "View as {name}"
+msgstr ""
+
+#: src/features/support/components/view-as-member-button.tsx
+msgctxt "support.x03dKs"
+msgid "Viewing as {name}"
+msgstr ""
+
+#: src/features/support/components/view-as-member-button.tsx
+msgctxt "support.ZJEsOx"
+msgid "The session is read-only, expires on its own and is recorded in the audit log. A second platform admin approves it first."
+msgstr ""
+
+#: src/features/support/components/view-as-member-button.tsx
+msgctxt "support.mrHAYh"
+msgid "View as member"
+msgstr ""
 
 #: src/features/teams/components/team-detail.tsx
 #: src/features/teams/components/teams-grid.tsx
@@ -30379,6 +30464,41 @@ msgid "Cash taken to the bank. A deposit is reconciled when it matches a bank tr
 msgstr "Contant geld naar de bank gebracht. Een storting is afgeletterd zodra ze overeenkomt met een banktransactie."
 
 #: src/features/tills/components/session-detail.tsx
+msgctxt "tills.BdEdkP"
+msgid "Import bank statement"
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.Y2etA4"
+msgid "Paste an MT940 statement. A transaction that was imported before is skipped."
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.C327TL"
+msgid "Import statement"
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.9XUYQt"
+msgid "Import"
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.W6kvm_"
+msgid "Statement imported"
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.gzcDlE"
+msgid "Bank account"
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.23pVyP"
+msgid "MT940 statement"
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
 msgctxt "tills._0TOL5"
 msgid "Amount"
 msgstr "Bedrag"
@@ -30395,6 +30515,11 @@ msgid "Status"
 msgstr "Status"
 
 #: src/features/tills/components/session-detail.tsx
+msgctxt "tills.sSgGIc"
+msgid "Bank transaction"
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
 msgctxt "tills.UM1wq9"
 msgid "Reconciled"
 msgstr "Afgestemd"
@@ -30403,6 +30528,31 @@ msgstr "Afgestemd"
 msgctxt "tills.eKEL_g"
 msgid "Pending"
 msgstr "In afwachting"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.RJN7lR"
+msgid "Match to a bank transaction"
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.aZrNvW"
+msgid "Only unmatched transactions for the same amount are offered. Import a statement first when the list is empty."
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.Qr9R5O"
+msgid "Match"
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.g4wM6c"
+msgid "Match deposit"
+msgstr ""
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.qDuSZR"
+msgid "Deposit matched"
+msgstr ""
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.A0aKBA"
@@ -31180,6 +31330,7 @@ msgid "Document"
 msgstr "Document"
 
 #: src/features/warehouse/components/warehouse-details.tsx
+#: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.87u3u3"
 msgid "Document id"
 msgstr "Document-id"
@@ -31596,6 +31747,66 @@ msgid "A rule sends incoming stock of a variant to a bin, the lowest priority nu
 msgstr "Een regel stuurt binnenkomende voorraad van een variant naar een bak, het laagste prioriteitsnummer eerst."
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.tynqPT"
+msgid "Goods receipts"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.yP_fmN"
+msgid "Where the stock of the latest receipt, {order}, goes."
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.yGHqc5"
+msgid "Receive a purchase order to get bins suggested."
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.qVGRIE"
+msgid "Quantity"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.sWXgz0"
+msgid "Suggested bins"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.Gclk-s"
+msgid "No bin has room"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.luOIxL"
+msgid "{bins}, {left} without a bin"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.LcpaXh"
+msgid "No goods receipts yet"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.epKp5E"
+msgid "Receiving a purchase order writes a goods receipt, and its putaway shows here."
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.AuLAmB"
+msgid "Recent receipts"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.XPruqs"
+msgid "Order"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.z_wUXE"
+msgid "Received"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.l_mTcL"
 msgid "Slotting suggestions for {location}"
 msgstr "Slotting-suggesties voor {location}"
@@ -31724,6 +31935,81 @@ msgstr "Telplan gemaakt"
 msgctxt "warehouse.NgYKsv"
 msgid "Variance limit (percent)"
 msgstr "Verschilgrens (procent)"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.YSeUhP"
+msgid "Allocate stock"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.k0ODYP"
+msgid "Holds stock of a variant for a document line. What isn't available waits on backorder."
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.8sQ5PM"
+msgid "Allocate"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.7tz77k"
+msgid "Stock allocated"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.so2_17"
+msgid "Document type"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.aKfSoz"
+msgid "New pick list"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.28PrXm"
+msgid "A pick list is made from the open allocations of one document at one location."
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.tV3Kfj"
+msgid "Create pick list"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.0tX0AH"
+msgid "Pick list created"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.-JrMhw"
+msgid "Receive a purchase order"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.xriBQf"
+msgid "Receives every unit the order still owes into one goods receipt."
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.BSkoeq"
+msgid "Receive order"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.ULXFfP"
+msgid "Receive"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.aLpNkM"
+msgid "Order received"
+msgstr ""
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.TE-SaB"
+msgid "Purchase order"
+msgstr ""
 
 #: src/features/warranty/components/claim-actions-bar.tsx
 #: src/features/warranty/components/decide-claim-dialog.tsx

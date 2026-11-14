@@ -19,11 +19,6 @@
   },
   "connection": {},
   "findings": [
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/assistant/activity/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/assistant/tasks/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/settings/jobs/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/shop/kitchen/board/page.tsx",
-    "instant-export apps/examples/nextjs/src/app/[locale]/(app)/shop/kitchen/page.tsx",
     "instant-export tests/init-fixture/nextjs/src/app/(app)/account/[section]/page.tsx",
     "instant-export tests/init-fixture/nextjs/src/app/(app)/page.tsx"
   ]

@@ -446,7 +446,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/assistant/activity",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -464,7 +464,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/assistant/tasks",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1769,7 +1769,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/jobs",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -2057,7 +2057,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/shop/kitchen/board",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -2066,7 +2066,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/shop/kitchen",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
