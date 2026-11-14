@@ -14,6 +14,8 @@ catalog:
   "@ai-sdk/react": 4.0.175
   "@ai-sdk/sandbox-vercel": 1.0.182
   "@ai-sdk/workflow": 2.0.103
+  # Released 2026-10-15, past minimumReleaseAge; the example runs axe over its declared pages.
+  "@axe-core/playwright": 4.14.0
   "@base-ui/react": 1.9.0
   "@changesets/assemble-release-plan": 7.0.0
   "@changesets/changelog-github": 1.0.1

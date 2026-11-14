@@ -374,6 +374,7 @@ function readsOf(entry: ResolvedEntityPage): {
   readonly imports: readonly string[];
   readonly context: string;
   readonly prelude: readonly string[];
+  readonly guard: readonly string[];
   readonly page: string;
   readonly facets: string;
   readonly extra: string;
@@ -382,11 +383,23 @@ function readsOf(entry: ResolvedEntityPage): {
 
   const extra = tenantOption === undefined ? "" : `{ ${tenantOption}: tenant }`;
 
+  // A caller without an active organization has no tenant to pass.
+  const guard =
+    tenantOption === undefined
+      ? []
+      : [
+          "  if (tenant === undefined) {",
+          '    return Response.json({ error: "no_organization" }, { status: 403 });',
+          "  }",
+          "",
+        ];
+
   if (app === undefined) {
     return {
       imports: [],
       context: tenantOption === undefined ? "{ db }" : "{ db, tenant }",
       prelude: [],
+      guard,
       page: `db.${entry.reads}.${methods?.page ?? "page"}`,
       facets: `db.${entry.reads}.${methods?.facets ?? "facets"}`,
       extra,
@@ -401,6 +414,7 @@ function readsOf(entry: ResolvedEntityPage): {
     ],
     context: tenantOption === undefined ? "{ db }" : "{ db, tenant }",
     prelude: [`  const ${reads} = ${reads}Of(db);`, ""],
+    guard,
     page: `${reads}.page`,
     facets: `${reads}.facets`,
     extra,
@@ -485,6 +499,11 @@ const LIST_ROUTE: EntityPageOutput = {
 
       const reads = readsOf(entry);
 
+      const withTenant =
+        reads.extra === ""
+          ? "options"
+          : `{ ...options, ${entry.page.tenantOption ?? ""}: tenant }`;
+
       return {
         path,
         contents: [
@@ -497,6 +516,7 @@ const LIST_ROUTE: EntityPageOutput = {
           "",
           `/** \`GET /api/${entry.name}/list\`: one page of \`${entry.page.entity}\` and the count of every facet. */`,
           `export const GET = bsb.route((request, ${reads.context}) => {`,
+          ...reads.guard,
           `  const query = ${list}.parse(request.nextUrl.searchParams);`,
           "",
           "  if (!query.ok) {",
@@ -506,11 +526,10 @@ const LIST_ROUTE: EntityPageOutput = {
           ...reads.prelude,
           `  return ${list}.run(`,
           "    {",
-          `      page: (options) => ${reads.page}(options),`,
-          `      facets: (options) => ${reads.facets}(options),`,
+          `      page: (options) => ${reads.page}(${withTenant}),`,
+          `      facets: (options) => ${reads.facets}(${withTenant}),`,
           "    },",
           "    query.value,",
-          ...(reads.extra === "" ? [] : [`    ${reads.extra},`]),
           "  );",
           "});",
           "",
@@ -589,6 +608,7 @@ const EXPORT_ROUTE: EntityPageOutput = {
             "",
             `/** \`GET /api/${entry.name}/export\`: \`${entry.page.entity}\` as CSV under the list's filters. */`,
             `export const GET = bsb.route((request, ${reads.context}) => {`,
+            ...reads.guard,
             `  const query = ${list}.parse(request.nextUrl.searchParams);`,
             "",
             "  if (!query.ok) {",

@@ -8,6 +8,10 @@ import {
 } from "@/features/community/components/post-board";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
+// Next.js validates in development that a navigation here paints without
+// waiting on uncached work; tests/instant-routes.spec.ts checks it in a build.
+export const instant = true;
+
 export default function CommunityPage() {
   const t = useExtracted("community");
 

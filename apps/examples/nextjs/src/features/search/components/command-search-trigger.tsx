@@ -18,13 +18,14 @@ export function CommandSearchTrigger(
     <Button
       variant="ghost"
       size="sm"
-      aria-label={t("Search")}
       aria-keyshortcuts="Meta+K Control+K"
       {...props}
     >
       <SearchIcon />
-      <span className="hidden sm:inline">{t("Search")}</span>
-      <Kbd className="hidden sm:inline-flex">⌘K</Kbd>
+      <span className="sr-only sm:not-sr-only">{t("Search")}</span>
+      <Kbd aria-hidden="true" className="hidden text-foreground sm:inline-flex">
+        ⌘K
+      </Kbd>
     </Button>
   );
 }

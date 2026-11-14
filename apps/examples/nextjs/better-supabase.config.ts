@@ -155,6 +155,15 @@ export default defineConfig({
           columns: ["email", "role", "expiresAt"],
           area: "team",
         }),
+        // The incident log (EX-001): every incidents call takes `organizationId`, which the
+        // generated routes read from the route's `tenant` (ADR 0890).
+        defineEntityPage({
+          entity: "incidents.incident",
+          route: "/incidents",
+          tenantOption: "organizationId",
+          columns: ["title", "severity", "status", "startedAt"],
+          area: "operations",
+        }),
       ],
       server: { module: "@/lib/supabase/server", export: "bsb" },
       scaleDir: "../../../supabase/tests/scale",

@@ -659,6 +659,11 @@
     "gzip": 453826,
     "brotli": 396541
   },
+  "/[locale]/(app)/members/invitations/page": {
+    "raw": 1272234,
+    "gzip": 403908,
+    "brotli": 352756
+  },
   "/[locale]/(app)/metrics/[key]/page": {
     "raw": 1268168,
     "gzip": 402354,

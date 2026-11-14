@@ -23,3 +23,7 @@ create index "commissions_tenant_id_seller_id_page_idx" on "better_supabase"."co
 create index "referrals_tenant_id_created_at_id_page_idx" on "better_supabase"."referrals" ("tenant_id", "created_at", "id");
 create index "referrals_tenant_id_status_page_idx" on "better_supabase"."referrals" ("tenant_id", "status");
 create index "referrals_tenant_id_referrer_id_page_idx" on "better_supabase"."referrals" ("tenant_id", "referrer_id");
+create index "incidents_tenant_id_started_at_id_page_idx" on "better_supabase"."incidents" ("tenant_id", "started_at", "id");
+create index "incidents_tenant_id_severity_id_page_idx" on "better_supabase"."incidents" ("tenant_id", "severity", "id");
+create index "incidents_tenant_id_status_page_idx" on "better_supabase"."incidents" ("tenant_id", "status");
+create index "incidents_tenant_id_severity_page_idx" on "better_supabase"."incidents" ("tenant_id", "severity");

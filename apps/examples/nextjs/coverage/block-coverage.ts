@@ -9,6 +9,8 @@
  * the screen, and the script prints how many are left.
  */
 
+import { pageCoverage } from "../src/lib/supabase/pages/coverage.ts";
+
 export type CoverageEntry =
   | { readonly routes: readonly string[] }
   | { readonly noUi: string }
@@ -20,6 +22,15 @@ export type CoverageEntry =
 
 const at = (...routes: string[]): CoverageEntry => ({ routes });
 const none = (noUi: string): CoverageEntry => ({ noUi });
+
+/**
+ * A block with declared entity pages: their routes come from the generated
+ * `pages/coverage.ts` (ADR 0890), and the arguments add the screens that are not
+ * entity pages.
+ */
+const declared = (block: string, ...routes: string[]): CoverageEntry => ({
+  routes: [...(pageCoverage[block as keyof typeof pageCoverage] ?? []), ...routes],
+});
 
 export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   "updated-at": none("Trigger helper; the updated_at column shows on every record."),
@@ -42,7 +53,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   "vector-search": at("/knowledge"),
   permissions: at("/settings/roles"),
   impersonation: at("/settings/support"),
-  organizations: at("/settings/organization"),
+  organizations: declared("organizations", "/settings/organization"),
   profiles: at("/settings/profile"),
   outbox: at("/settings/jobs"),
   notifications: at("/notifications"),
@@ -149,11 +160,11 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   leases: at("/property/leases"),
   expenses: at("/finance/expenses"),
   donations: at("/shop/donations"),
-  dispatch: at("/field/dispatch"),
+  dispatch: declared("dispatch"),
   shipments: at("/field/shipments"),
   contracts: at("/crm/contracts", "/crm/contracts/[id]"),
   compliance: at("/compliance", "/compliance/[framework]"),
-  incidents: at("/incidents"),
+  incidents: declared("incidents"),
   courses: at("/courses"),
   messaging: at("/chat"),
   channels: at("/chat"),
@@ -170,7 +181,7 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   "field-encryption": at("/people/encryption", "/people/[id]"),
   content: at("/content"),
   qualifications: at("/qualifications", "/qualifications/[id]"),
-  risks: at("/risks"),
+  risks: declared("risks"),
   shifts: at("/shifts", "/shifts/[id]"),
   accounting: at("/finance/accounting"),
   acknowledgements: at("/documents"),
@@ -203,10 +214,10 @@ export const BLOCK_COVERAGE: Readonly<Record<string, CoverageEntry>> = {
   rfqs: at("/rfqs", "/rfqs/[id]"),
   tills: at("/tills", "/tills/[id]"),
   "clinical-decision-support": at("/medications"),
-  periods: at("/finance/periods"),
+  periods: declared("periods"),
   deadlines: at("/deadlines"),
-  commissions: at("/crm/commissions", "/crm/commissions/statements/[id]"),
-  referrals: at("/crm/referrals"),
+  commissions: declared("commissions", "/crm/commissions/statements/[id]"),
+  referrals: declared("referrals"),
   recurrence: at("/finance/recurring"),
   housekeeping: at("/settings/jobs", "/settings/jobs/runs"),
   seeds: none("Seed data declared by modules; the rows show on every seeded page."),

@@ -348633,6 +348633,56 @@
             "predicate": null
           },
           {
+            "name": "incidents_tenant_id_severity_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "severity",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "incidents_tenant_id_severity_page_idx",
+            "columns": [
+              "tenant_id",
+              "severity"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "incidents_tenant_id_started_at_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "started_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "incidents_tenant_id_status_page_idx",
+            "columns": [
+              "tenant_id",
+              "status"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "incidents_tenant_idx",
             "columns": [
               "tenant_id",
