@@ -106,6 +106,22 @@ export interface PresetCatalogManifest {
     Record<string, Readonly<Record<string, string>>>
   >;
   /**
+   * The list surface of each entity that declares one (`entities.<key>`'s
+   * `sorts`, `facets`, `filters` and `search`), for the entity page generator
+   * (ADR 0859).
+   */
+  readonly entityLists?: Readonly<
+    Record<
+      string,
+      {
+        readonly sorts?: readonly string[];
+        readonly facets?: readonly string[];
+        readonly filters?: readonly string[];
+        readonly search?: boolean | readonly string[];
+      }
+    >
+  >;
+  /**
    * The block's events: the event map type its subpath exports and the event
    * types, in its default names.
    */
