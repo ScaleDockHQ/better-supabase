@@ -1157,11 +1157,12 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X9
 
 - Scope: CRM and records (after G4)
-- Status: planned
+- Status: in progress
 - Branch: `feat/findings-x9`
 - PR: none yet
 - Findings: EX-601, EX-602, EX-032, EX-035, EX-103
 - Log: 2026-11-14, planned.
+- Log: 2026-11-14, started on `feat/findings-x9`.
 
 ## Lane ownership
 
