@@ -2,6 +2,7 @@ import type { BlockOf } from "../define-block.ts";
 import type { ObservationsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
+import { OFFLINE_RULES } from "../offline-rules.ts";
 import { observationsEvents } from "./events.ts";
 import { createObservations } from "./observations.ts";
 import { observationsSqlOptions } from "./options.ts";
@@ -31,7 +32,7 @@ export const observationsBlock: BlockOf<
     observation: {
       mutability: "state-machine",
       emits: { create: true },
-      offline: { scope: "readers", systemRows: "definitions" },
+      offline: OFFLINE_RULES.observations,
     },
     observation_definition: {
       mutability: "editable",

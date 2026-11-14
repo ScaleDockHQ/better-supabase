@@ -10,6 +10,7 @@ import {
   ENTITY_OFFLINE_SCOPES,
   ENTITY_PARTITION_EVERY,
 } from "../../src/blocks/entity-surface.ts";
+import { OFFLINE_RULES } from "../../src/blocks/offline-rules.ts";
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
 import {
   offlineOf,
@@ -227,5 +228,23 @@ describe("the entity surface of a manifest", () => {
         { column: "restricted_roles", isNull: true, optional: true },
       ],
     });
+  });
+
+  it("declares the shared offline rules on each offline manifest", () => {
+    const declared = BLOCK_MANIFESTS.flatMap((block) =>
+      entriesOf(block)
+        .map(([, surface]) => surface.offline)
+        .filter((offline) => typeof offline === "object")
+        .slice(0, 1)
+        .map((offline) => [block.name, offline] as const),
+    );
+
+    expect(declared.map(([name]) => name).toSorted()).toStrictEqual(
+      Object.keys(OFFLINE_RULES).toSorted(),
+    );
+
+    for (const [name, offline] of declared) {
+      expect(offline).toBe(OFFLINE_RULES[name as keyof typeof OFFLINE_RULES]);
+    }
   });
 });

@@ -2,6 +2,7 @@ import type { BlockOf } from "../define-block.ts";
 import type { TeamsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
+import { OFFLINE_RULES } from "../offline-rules.ts";
 import { teamsEvents } from "./events.ts";
 import { teamsSqlOptions } from "./options.ts";
 import { createTeams } from "./teams.ts";
@@ -18,7 +19,7 @@ export const teamsBlock: BlockOf<"teams", typeof createTeams, TeamsEvents> =
     entities: {
       team: {
         mutability: "editable",
-        offline: { scope: "tenant" },
+        offline: OFFLINE_RULES.teams,
         emits: { create: true, update: true, purge: true },
       },
     },

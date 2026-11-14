@@ -15,7 +15,7 @@ ADR 0920 declared `offline: true` on the eight blocks `powersync streams` suppor
 - `where` lists `column = value` and `column is null` conditions, each optionally skipped on a table without the column.
 - `systemRows` names a table suffix whose tenant-less rows sync next to the tenant's.
 
-The eight manifests declare their rules. `powersync streams` reads them with `offlineOf` and fails when a manifest's scope differs from the stream shape the generator writes for the block. The care tables (observations, medications, activities), the teams and the profiles take their filters from the declaration. The progress note conditions of the activities block moved from the generator to its manifest.
+`OFFLINE_RULES` (`src/blocks/offline-rules.ts`) holds the rules of the eight blocks, and each manifest declares its entry on its entity. `powersync streams` reads the table with `offlineOf`; it sits outside the registry because the CLI reaches the library only through its entry files and fails when a manifest's scope differs from the stream shape the generator writes for the block. The care tables (observations, medications, activities), the teams and the profiles take their filters from the declaration. The progress note conditions of the activities block moved from the generator to `OFFLINE_RULES`.
 
 ## Alternatives considered
 

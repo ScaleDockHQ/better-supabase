@@ -1,11 +1,11 @@
 import type {
   EntityOffline,
   EntityOfflineCondition,
-} from "../../blocks/entity-surface.ts";
+} from "../../blocks/index.ts";
 import type { BlockSqlFile } from "../../sql/index.ts";
 import type { Projection } from "./projection.ts";
 
-import { BLOCK_MANIFESTS } from "../../blocks/registry.ts";
+import { OFFLINE_RULES } from "../../blocks/index.ts";
 import { SPEC_PINS } from "../../index.ts";
 import { addedColumnTypes, declaredColumnTypes } from "../../sql/index.ts";
 
@@ -124,23 +124,11 @@ export interface PowerSyncOutput {
 }
 
 /**
- * The `offline` rules a block's manifest declares on its first offline entity.
- * The stream queries follow them (ADR 0926), so a rule is changed in the
- * manifest and the streams are written again.
+ * The `offline` rules of a block (ADR 0926). The stream queries follow them, so
+ * a rule is changed in `OFFLINE_RULES` and the streams are written again.
  */
-export function offlineOf(block: PowerSyncBlock): EntityOffline {
-  const manifest = BLOCK_MANIFESTS.find(({ name }) => name === block);
-
-  for (const surface of Object.values(manifest?.entities ?? {})) {
-    if (typeof surface.offline === "object") {
-      return surface.offline;
-    }
-  }
-
-  throw new Error(
-    `gen.powersync: the ${block} manifest declares no \`offline\` rules on an entity`,
-  );
-}
+export const offlineOf = (block: PowerSyncBlock): EntityOffline =>
+  OFFLINE_RULES[block];
 
 const sqlText = (text: string): string => `'${text.replaceAll("'", "''")}'`;
 
