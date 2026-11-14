@@ -4,7 +4,14 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { WebhookInput } from "../../core/signatures.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -34,6 +41,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { amountText, optionalMoneyOf } from "../money-codec.ts";
@@ -53,6 +61,7 @@ import {
 import { shipmentCarrierOf } from "./carrier.ts";
 import { shipmentsIntrastat } from "./intrastat.ts";
 import { lineOf, linesArg, returnsArg } from "./lines.ts";
+import { shipmentListSurface } from "./lists.ts";
 import {
   LABEL_FORMATS,
   SHIPMENT_STATUSES,
@@ -211,6 +220,18 @@ export interface Shipments<
   /** `null` when it doesn't exist or the caller can't read it. */
   get(id: string): AsyncResult<Shipment<F> | null>;
   list(options?: ShipmentListOptions): AsyncResult<readonly Shipment<F>[]>;
+  /**
+   * One keyset page of shipments, newest first or by `sort`, with `hasMore` and
+   * a `nextCursor`.
+   */
+  shipmentPage(options?: PageOptions): AsyncResult<ListPage<Shipment<F>>>;
+  /**
+   * The values of each facet of shipments and their counts, under the page's
+   * filters.
+   */
+  shipmentFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many of shipments match the page's filters. */
+  shipmentCount(options?: CountOptions): AsyncResult<Count>;
   /** Every configured carrier's quotes, by currency and then cheapest first. */
   rates(
     input: { id: string } & { readonly currency?: string },
@@ -556,7 +577,24 @@ export function createShipments<
     });
   };
 
+  const shipments = entityList({
+    entity: "shipment",
+    surface: shipmentListSurface,
+    call,
+    tenant,
+    fn: "list_shipments",
+    rowOf: shipmentOf,
+  });
+
   const client: Shipments<F> = {
+    shipmentPage: (options = {}) =>
+      shipments
+        .page(options)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    shipmentFacets: shipments.facets,
+    shipmentCount: shipments.count,
     shipCheapest: ({ id, currency, maxDays }) =>
       hooked
         .rates({ id, ...(currency === undefined ? {} : { currency }) })
@@ -628,12 +666,20 @@ export function createShipments<
           "list_shipments",
           {
             tenant: organizationId,
-            status: list.status ?? null,
-            subject_type: list.subject?.type ?? null,
-            subject_id: list.subject?.id ?? null,
-            carrier: list.carrier ?? null,
-            before: instantArg(list.before) ?? null,
-            page_size: list.limit ?? 50,
+            filters: {
+              ...(list.status === undefined ? {} : { status: list.status }),
+              ...(list.subject === undefined
+                ? {}
+                : {
+                    subjectType: list.subject.type,
+                    subjectId: list.subject.id,
+                  }),
+              ...(list.carrier === undefined ? {} : { carrier: list.carrier }),
+              ...(list.before === undefined
+                ? {}
+                : { before: instantArg(list.before) }),
+              limit: list.limit ?? 50,
+            },
           },
           (value) =>
             recordsOf(value, "list_shipments").map((row) =>

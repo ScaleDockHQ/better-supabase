@@ -1,4 +1,11 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
@@ -6,6 +13,7 @@ import type { BlockOptions } from "../shared.ts";
 import { plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { PERIOD_STATUSES } from "../../sql/modules/periods-values.ts";
 import {
@@ -17,6 +25,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { periodListSurface } from "./lists.ts";
 
 /** Where a period stands: writes into it stop at `locked` and `closed`. */
 export type PeriodStatus = (typeof PERIOD_STATUSES)[number];
@@ -86,6 +95,18 @@ export interface Periods {
     readonly reason?: string;
   }): AsyncResultType<Period>;
   listPeriods(list?: PeriodListOptions): AsyncResultType<readonly Period[]>;
+  /**
+   * One keyset page of periods, latest first or by `sort`, with `hasMore` and a
+   * `nextCursor`.
+   */
+  periodPage(options?: PageOptions): AsyncResultType<ListPage<Period>>;
+  /**
+   * The values of each facet of periods and their counts, under the page's
+   * filters.
+   */
+  periodFacets(options?: FacetOptions): AsyncResultType<readonly FacetResult[]>;
+  /** How many of periods match the page's filters. */
+  periodCount(options?: CountOptions): AsyncResultType<Count>;
 }
 
 function periodOf(value: unknown, fn: string): Period {
@@ -116,7 +137,19 @@ export function createPeriods(options: PeriodsOptions): Periods {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResultType<string> => requireTenant(options.tenant);
 
+  const periods = entityList({
+    entity: "period",
+    surface: periodListSurface,
+    call,
+    tenant,
+    fn: "list_periods",
+    rowOf: periodOf,
+  });
+
   const client: Periods = {
+    periodPage: periods.page,
+    periodFacets: periods.facets,
+    periodCount: periods.count,
     createPeriod: (input) =>
       tenant().andThen((organizationId) =>
         call(

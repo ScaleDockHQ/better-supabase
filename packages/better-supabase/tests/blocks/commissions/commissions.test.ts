@@ -156,4 +156,118 @@ describe("createCommissions", () => {
       { tenant: "org-1", filters: { seller: "u1" } },
     ]);
   });
+
+  it("reads a keyset page, its facets and its count of accrued commissions", async () => {
+    const t = fieldsTransport({
+      list_commissions: (args) => {
+        const filters = args["filters"] as Record<string, unknown>;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: filters["facet"],
+            values: [{ value: "accrued", count: { value: 2, exact: true } }],
+          };
+        }
+
+        if (filters["count"] === true) {
+          return { value: 7, exact: false };
+        }
+
+        return { items: [ENTRY], hasMore: true, nextCursor: ["a", "b"] };
+      },
+    });
+
+    const block = createCommissions({ transport: t, tenant: "org-1" });
+
+    const page = await block
+      .commissionPage({
+        limit: 1,
+        sort: { by: "occurredOn", direction: "asc" },
+        filters: { status: ["accrued"] },
+      })
+      .orThrow();
+
+    const facets = await block
+      .commissionFacets({ facets: ["status"] })
+      .orThrow();
+
+    const count = await block.commissionCount().orThrow();
+
+    expect(page.items).toHaveLength(1);
+    expect(page).toMatchObject({ hasMore: true, nextCursor: ["a", "b"] });
+    expect(t.calls[0]?.[1]).toMatchObject({
+      tenant: "org-1",
+      filters: { limit: 1, sort: "occurredOn", direction: "asc", paged: true },
+    });
+    expect(facets[0]?.facet).toBe("status");
+    expect(facets[0]?.values[0]?.count).toEqual({ value: 2, exact: true });
+    expect(count).toEqual({ value: 7, exact: false });
+  });
+
+  it("rejects a sort of accrued commissions that is not declared", async () => {
+    const t = fieldsTransport({});
+    const block = createCommissions({ transport: t, tenant: "org-1" });
+
+    const result = await block.commissionPage({ sort: { by: "nope" } });
+
+    expect(result.ok).toBe(false);
+    expect(t.calls).toHaveLength(0);
+  });
+
+  it("reads a keyset page, its facets and its count of commission statements", async () => {
+    const t = fieldsTransport({
+      list_commission_statements: (args) => {
+        const filters = args["filters"] as Record<string, unknown>;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: filters["facet"],
+            values: [{ value: "open", count: { value: 2, exact: true } }],
+          };
+        }
+
+        if (filters["count"] === true) {
+          return { value: 7, exact: false };
+        }
+
+        return { items: [STATEMENT], hasMore: true, nextCursor: ["a", "b"] };
+      },
+    });
+
+    const block = createCommissions({ transport: t, tenant: "org-1" });
+
+    const page = await block
+      .statementPage({
+        limit: 1,
+        sort: { by: "endsOn", direction: "asc" },
+        filters: { status: ["open"] },
+      })
+      .orThrow();
+
+    const facets = await block
+      .statementFacets({ facets: ["status"] })
+      .orThrow();
+
+    const count = await block.statementCount().orThrow();
+
+    expect(page.items).toHaveLength(1);
+    expect(page).toMatchObject({ hasMore: true, nextCursor: ["a", "b"] });
+    expect(t.calls[0]?.[1]).toMatchObject({
+      tenant: "org-1",
+      filters: { limit: 1, sort: "endsOn", direction: "asc", paged: true },
+    });
+    expect(facets[0]?.facet).toBe("status");
+    expect(facets[0]?.values[0]?.count).toEqual({ value: 2, exact: true });
+    expect(count).toEqual({ value: 7, exact: false });
+  });
+
+  it("rejects a sort of commission statements that is not declared", async () => {
+    const t = fieldsTransport({});
+    const block = createCommissions({ transport: t, tenant: "org-1" });
+
+    const result = await block.statementPage({ sort: { by: "nope" } });
+
+    expect(result.ok).toBe(false);
+    expect(t.calls).toHaveLength(0);
+  });
 });

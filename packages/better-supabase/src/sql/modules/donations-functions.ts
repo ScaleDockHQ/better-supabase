@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { bookSource, unbookSource } from "../accounting-sources-sql.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import {
   extraFieldsArg,
@@ -129,6 +130,71 @@ export function donationsFunctions(ctx: BlockSqlContext): string {
 
   const giftJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${d("id")}, 'organizationId', ${row}.${d("tenant")}, 'donorType', ${row}.${d("donorType")}, 'donorId', ${row}.${d("donorId")}, 'fundId', ${row}.${d("fund")}, 'pledgeId', ${row}.${d("pledge")}, 'periodStart', ${row}.${d("periodStart")}, 'amount', ${row}.${d("amount")}::text, 'currency', ${row}.${d("currency")}, 'receivedOn', ${row}.${d("receivedOn")}, 'method', ${or("donations", row, "method")}, 'status', ${row}.${d("status")}, 'provider', ${row}.${d("provider")}, 'paymentReference', ${row}.${d("paymentReference")}, 'transactionId', ${row}.${d("transaction")}, 'refundTransactionId', ${or("donations", row, "refundTransaction")}, 'receiptId', ${row}.${d("receipt")}, 'note', ${or("donations", row, "note")}, 'createdBy', ${row}.${d("createdBy")}, 'createdAt', ${row}.${d("createdAt")}, 'updatedAt', ${row}.${d("updatedAt")}${extraFieldsJson(row, extras)})`;
+
+  const giftList = {
+    name: "list_gifts",
+    from: donations,
+    alias: "x",
+    where: [
+      `x.${d("tenant")} = list_gifts.tenant`,
+      filterAny("donorType", `x.${d("donorType")}`),
+      filterAny("donorId", `x.${d("donorId")}`),
+      filterAny("fundId", `x.${d("fund")}`, "uuid"),
+      filterAny("pledgeId", `x.${d("pledge")}`, "uuid"),
+      filterAny("status", asText(ctx, "donations", `x.${d("status")}`)),
+    ],
+    keys: [
+      { expr: `x.${d("receivedOn")}`, dir: "desc", type: "date" },
+      { expr: `x.${d("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${d("id")}`, dir: "desc", type: "uuid" },
+    ],
+    sorts: {
+      receivedOn: [
+        { expr: `x.${d("receivedOn")}`, dir: "desc", type: "date" },
+        { expr: `x.${d("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${d("id")}`, dir: "desc", type: "uuid" },
+      ],
+      createdAt: [
+        { expr: `x.${d("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${d("id")}`, dir: "desc", type: "uuid" },
+      ],
+    },
+    facets: {
+      status: asText(ctx, "donations", `x.${d("status")}`),
+      fundId: `x.${d("fund")}`,
+    },
+    rowJson: giftJson("x"),
+    defaultLimit: 100,
+    maxLimit: 1000,
+    invalid: (message: string) => fail("DONATION_INVALID", message, "22023"),
+  } as const;
+
+  const pledgeList = {
+    name: "list_pledges",
+    from: pledges,
+    alias: "x",
+    where: [
+      `x.${p("tenant")} = list_pledges.tenant`,
+      filterAny("donorType", `x.${p("donorType")}`),
+      filterAny("donorId", `x.${p("donorId")}`),
+      filterAny("status", asText(ctx, "pledges", `x.${p("status")}`)),
+    ],
+    keys: [
+      { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${p("id")}`, dir: "desc", type: "uuid" },
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${p("id")}`, dir: "desc", type: "uuid" },
+      ],
+    },
+    facets: { status: asText(ctx, "pledges", `x.${p("status")}`) },
+    rowJson: pledgeJson("x"),
+    defaultLimit: 100,
+    maxLimit: 1000,
+    invalid: (message: string) => fail("DONATION_INVALID", message, "22023"),
+  } as const;
 
   const receiptJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'donorType', ${row}.${r("donorType")}, 'donorId', ${row}.${r("donorId")}, 'sequence', ${row}.${r("sequence")}::text, 'number', ${row}.${r("number")}, 'kind', ${row}.${r("kind")}, 'year', ${row}.${r("year")}, 'amount', ${row}.${r("amount")}::text, 'currency', ${row}.${r("currency")}, 'issuedAt', ${row}.${r("issuedAt")}, 'voidedAt', ${row}.${r("voidedAt")}, 'voidReason', ${or("receipts", row, "voidReason")})`;
@@ -481,34 +547,28 @@ end;
 $$;
 ${userGrant(`${fn("get_gift")}(uuid)`)}
 
-create or replace function ${fn("list_gifts")}(tenant ${idType}, donor_type text default null, donor_id text default null, fund_id uuid default null, pledge_id uuid default null, status text default null, page_size integer default 100)
+-- Gifts, latest first. filters is { donorType, donorId, fundId, pledgeId, status
+-- (each a value or a list), sort, direction, facet, count, limit, after, offset,
+-- paged, total, totalCap } (ADR 0749).
+create or replace function ${fn("list_gifts")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_column
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_gifts.filters, '{}'::jsonb);
+  ${listDeclare(giftList)}
 begin
   if not ${can("list_gifts.tenant", read)} then
     ${forbidden("not allowed to read donations")}
   end if;
-  return (
-    select coalesce(jsonb_agg(${giftJson("q")} order by q.${d("receivedOn")} desc, q.${d("createdAt")} desc), '[]'::jsonb)
-    from (
-      select * from ${donations} x
-      where x.${d("tenant")} = list_gifts.tenant
-        and (list_gifts.donor_type is null or (x.${d("donorType")} = list_gifts.donor_type and x.${d("donorId")} = list_gifts.donor_id))
-        and (list_gifts.fund_id is null or x.${d("fund")} = list_gifts.fund_id)
-        and (list_gifts.pledge_id is null or x.${d("pledge")} = list_gifts.pledge_id)
-        and (list_gifts.status is null or ${asText(ctx, "donations", `x.${d("status")}`)} = list_gifts.status)
-      order by x.${d("receivedOn")} desc, x.${d("createdAt")} desc
-      limit ${pageSize("list_gifts.page_size", 100, 1000)}
-    ) q
-  );
+  ${listBody(giftList)}
 end;
 $$;
-${userGrant(`${fn("list_gifts")}(${idType}, text, text, uuid, uuid, text, integer)`)}
+${userGrant(`${fn("list_gifts")}(${idType}, jsonb)`)}
 
 create or replace function ${fn("create_pledge")}(tenant ${idType}, donor_type text, donor_id text, amount bigint, currency text, frequency text default 'monthly', fund_id uuid default null, starts_on date default null, ends_on date default null, provider text default null, provider_customer text default null, note text default null)
 returns jsonb
@@ -582,32 +642,28 @@ end;
 $$;
 ${userGrant(`${fn("update_pledge")}(uuid, text, date, bigint)`)}
 
-create or replace function ${fn("list_pledges")}(tenant ${idType}, donor_type text default null, donor_id text default null, status text default null, page_size integer default 100)
+-- Pledges, newest first. filters is { donorType, donorId, status (each a value
+-- or a list), sort, direction, facet, count, limit, after, offset, paged, total,
+-- totalCap } (ADR 0749).
+create or replace function ${fn("list_pledges")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_column
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_pledges.filters, '{}'::jsonb);
+  ${listDeclare(pledgeList)}
 begin
   if not ${can("list_pledges.tenant", read)} then
     ${forbidden("not allowed to read donations")}
   end if;
-  return (
-    select coalesce(jsonb_agg(${pledgeJson("q")} order by q.${p("createdAt")} desc, q.${p("id")}), '[]'::jsonb)
-    from (
-      select * from ${pledges} x
-      where x.${p("tenant")} = list_pledges.tenant
-        and (list_pledges.donor_type is null or (x.${p("donorType")} = list_pledges.donor_type and x.${p("donorId")} = list_pledges.donor_id))
-        and (list_pledges.status is null or ${asText(ctx, "pledges", `x.${p("status")}`)} = list_pledges.status)
-      order by x.${p("createdAt")} desc, x.${p("id")}
-      limit ${pageSize("list_pledges.page_size", 100, 1000)}
-    ) q
-  );
+  ${listBody(pledgeList)}
 end;
 $$;
-${userGrant(`${fn("list_pledges")}(${idType}, text, text, text, integer)`)}
+${userGrant(`${fn("list_pledges")}(${idType}, jsonb)`)}
 
 -- The installments of active pledges that start on or before through
 -- (default today) and have no gift yet, oldest first, up to max_rows. A

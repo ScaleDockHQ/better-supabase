@@ -3,6 +3,7 @@ import type { ManufacturingEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { manufacturingEvents } from "./events.ts";
+import { productionOrderListSurface } from "./lists.ts";
 import { createManufacturing } from "./manufacturing.ts";
 import { manufacturingSqlOptions } from "./options.ts";
 import {
@@ -30,7 +31,11 @@ export const manufacturingBlock: BlockOf<
   recipes: ["production-order-board"],
   category: "commerce",
   entities: {
-    production_order: { mutability: "state-machine", emits: { create: false } },
+    production_order: {
+      ...productionOrderListSurface,
+      mutability: "state-machine",
+      emits: { create: false },
+    },
     bom: { mutability: "editable", emits: { update: false } },
     bom_component: { mutability: "read-only" },
     bom_operation: { mutability: "read-only" },

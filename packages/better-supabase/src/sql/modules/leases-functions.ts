@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { bookSource } from "../accounting-sources-sql.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import {
   extraFieldsArg,
   extraFieldsJson,
@@ -112,6 +113,54 @@ export function leasesFunctions(ctx: BlockSqlContext): string {
 
   const leaseJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${l("id")}, 'organizationId', ${row}.${l("tenant")}, 'unitId', ${row}.${l("unit")}, 'partyType', ${row}.${l("partyType")}, 'partyId', ${row}.${l("partyId")}, 'title', ${row}.${l("title")}, 'status', ${row}.${l("status")}, 'startsOn', ${row}.${l("startsOn")}, 'endsOn', ${row}.${l("endsOn")}, 'rent', ${row}.${l("rent")}::text, 'currency', ${row}.${l("currency")}, 'frequency', ${row}.${l("frequency")}, 'deposit', ${row}.${l("deposit")}::text, 'depositHoldId', ${row}.${l("depositHold")}, 'depositHeld', ${depositHeld(row)}::text, 'balanceDue', ${balanceDue(row)}::text, 'renewedAt', ${or("leases", row, "renewedAt")}, 'terminatedOn', ${row}.${l("terminatedOn")}, 'terminationReason', ${or("leases", row, "terminationReason")}, 'metadata', ${ctx.has("leases", "metadata") ? `${row}.${l("metadata")}` : "'{}'::jsonb"}, 'createdBy', ${row}.${l("createdBy")}, 'createdAt', ${row}.${l("createdAt")}, 'updatedAt', ${row}.${l("updatedAt")}${extraFieldsJson(row, extras)})`;
+
+  const leaseKeys = (
+    first: "startsOn" | "endsOn" | "createdAt",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => [
+    first === "endsOn"
+      ? {
+          expr: `coalesce(x.${l("endsOn")}, 'infinity'::date)`,
+          dir: "asc",
+          type: "date",
+        }
+      : {
+          expr: `x.${l(first)}`,
+          dir: "desc",
+          type: first === "createdAt" ? "timestamptz" : "date",
+        },
+    { expr: `x.${l("id")}`, dir: "asc", type: "uuid" },
+  ];
+
+  const leaseList = {
+    name: "list_leases",
+    from: leases,
+    alias: "x",
+    where: [
+      `x.${l("tenant")} = list_leases.tenant`,
+      filterAny("status", asText(ctx, "leases", `x.${l("status")}`)),
+      filterAny("unitId", `x.${l("unit")}`, "uuid"),
+      filterAny("partyType", `x.${l("partyType")}`),
+      filterAny("partyId", `x.${l("partyId")}`),
+    ],
+    keys: leaseKeys("startsOn"),
+    sorts: {
+      startsOn: leaseKeys("startsOn"),
+      endsOn: leaseKeys("endsOn"),
+      createdAt: leaseKeys("createdAt"),
+    },
+    facets: {
+      status: asText(ctx, "leases", `x.${l("status")}`),
+      unitId: `x.${l("unit")}`,
+    },
+    rowJson: leaseJson("x"),
+    defaultLimit: 100,
+    maxLimit: 1000,
+    invalid: (message: string) => fail("LEASE_INVALID", message, "22023"),
+  } as const;
 
   const chargeJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'leaseId', ${row}.${c("lease")}, 'periodStart', ${row}.${c("periodStart")}, 'periodEnd', ${row}.${c("periodEnd")}, 'amount', ${row}.${c("amount")}::text, 'currency', ${row}.${c("currency")}, 'transactionId', ${row}.${c("transaction")}, 'createdAt', ${or("charges", row, "createdAt")})`;
@@ -344,33 +393,28 @@ end;
 $$;
 ${userGrant(`${fn("get_lease")}(uuid)`)}
 
-create or replace function ${fn("list_leases")}(tenant ${idType}, status text default null, unit_id uuid default null, party_type text default null, party_id text default null, page_size integer default 100)
+-- Leases, latest start first. filters is { status, unitId, partyType, partyId
+-- (each a value or a list), sort, direction, facet, count, limit, after, offset,
+-- paged, total, totalCap } (ADR 0749).
+create or replace function ${fn("list_leases")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_column
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_leases.filters, '{}'::jsonb);
+  ${listDeclare(leaseList)}
 begin
   if not ${can("list_leases.tenant", read)} then
     ${forbidden("not allowed to read leases")}
   end if;
-  return (
-    select coalesce(jsonb_agg(${leaseJson("q")} order by q.${l("startsOn")} desc, q.${l("id")}), '[]'::jsonb)
-    from (
-      select * from ${leases} x
-      where x.${l("tenant")} = list_leases.tenant
-        and (list_leases.status is null or ${asText(ctx, "leases", `x.${l("status")}`)} = list_leases.status)
-        and (list_leases.unit_id is null or x.${l("unit")} = list_leases.unit_id)
-        and (list_leases.party_type is null or (x.${l("partyType")} = list_leases.party_type and x.${l("partyId")} = list_leases.party_id))
-      order by x.${l("startsOn")} desc, x.${l("id")}
-      limit ${pageSize("list_leases.page_size", 100, 1000)}
-    ) q
-  );
+  ${listBody(leaseList)}
 end;
 $$;
-${userGrant(`${fn("list_leases")}(${idType}, text, uuid, text, text, integer)`)}
+${userGrant(`${fn("list_leases")}(${idType}, jsonb)`)}
 
 -- Posts the rent of every period of an active lease that starts on or
 -- before through (default today), up to max_rows charges. Each period posts

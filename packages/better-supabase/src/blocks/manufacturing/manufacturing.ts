@@ -5,7 +5,14 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -15,6 +22,7 @@ import { detailArg } from "../../commerce/stock-detail.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   BOM_STATUSES,
@@ -35,6 +43,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { productionOrderListSurface } from "./lists.ts";
 
 /** Where a bill of materials version stands; one per variant is active. */
 export type BomStatus = (typeof BOM_STATUSES)[number];
@@ -472,6 +481,18 @@ export interface Manufacturing<F extends object = Record<never, never>> {
   listOrders(
     options?: ProductionOrderListOptions,
   ): AsyncResult<readonly ProductionOrder<F>[]>;
+  /**
+   * One keyset page of production orders, due first or by `sort`, with
+   * `hasMore` and a `nextCursor`.
+   */
+  orderPage(options?: PageOptions): AsyncResult<ListPage<ProductionOrder<F>>>;
+  /**
+   * The values of each facet of production orders and their counts, under the
+   * page's filters.
+   */
+  orderFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many of production orders match the page's filters. */
+  orderCount(options?: CountOptions): AsyncResult<Count>;
   /** The lots a lot was made from (`down`, the default) or went into (`up`). */
   lotGenealogy(input: {
     lotId: string;
@@ -850,10 +871,27 @@ export function createManufacturing<
     "production order fields",
   );
 
+  const orders = entityList({
+    entity: "production_order",
+    surface: productionOrderListSurface,
+    call,
+    tenant,
+    fn: "list_production_orders",
+    rowOf: orderOf,
+  });
+
   const bom = (fn: string) => (value: unknown) => bomDetailOf(value, fn);
   const order = (fn: string) => (value: unknown) => orderDetailOf(value, fn);
 
   const client: Manufacturing<F> = {
+    orderPage: (options = {}) =>
+      orders
+        .page(options)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    orderFacets: orders.facets,
+    orderCount: orders.count,
     saveBom: ({ variantId, input, bomId }) =>
       tenant().andThen((organizationId) =>
         call(
@@ -1020,7 +1058,7 @@ export function createManufacturing<
           "list_production_orders",
           {
             tenant: organizationId,
-            filter: {
+            filters: {
               ...optional("status", list.status),
               ...optional("variantId", list.variantId),
               ...optional("limit", list.limit),

@@ -107,4 +107,112 @@ describe("createReferrals", () => {
       { tenant: "org-1", filters: { status: "attributed" } },
     ]);
   });
+
+  it("reads a keyset page, its facets and its count of referrals", async () => {
+    const t = fieldsTransport({
+      list_referrals: (args) => {
+        const filters = args["filters"] as Record<string, unknown>;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: filters["facet"],
+            values: [{ value: "attributed", count: { value: 2, exact: true } }],
+          };
+        }
+
+        if (filters["count"] === true) {
+          return { value: 7, exact: false };
+        }
+
+        return { items: [REFERRAL], hasMore: true, nextCursor: ["a", "b"] };
+      },
+    });
+
+    const block = createReferrals({ transport: t, tenant: "org-1" });
+
+    const page = await block
+      .referralPage({
+        limit: 1,
+        sort: { by: "createdAt", direction: "asc" },
+        filters: { status: ["attributed"] },
+      })
+      .orThrow();
+
+    const facets = await block.referralFacets({ facets: ["status"] }).orThrow();
+    const count = await block.referralCount().orThrow();
+
+    expect(page.items).toHaveLength(1);
+    expect(page).toMatchObject({ hasMore: true, nextCursor: ["a", "b"] });
+    expect(t.calls[0]?.[1]).toMatchObject({
+      tenant: "org-1",
+      filters: { limit: 1, sort: "createdAt", direction: "asc", paged: true },
+    });
+    expect(facets[0]?.facet).toBe("status");
+    expect(facets[0]?.values[0]?.count).toEqual({ value: 2, exact: true });
+    expect(count).toEqual({ value: 7, exact: false });
+  });
+
+  it("rejects a sort of referrals that is not declared", async () => {
+    const t = fieldsTransport({});
+    const block = createReferrals({ transport: t, tenant: "org-1" });
+
+    const result = await block.referralPage({ sort: { by: "nope" } });
+
+    expect(result.ok).toBe(false);
+    expect(t.calls).toHaveLength(0);
+  });
+
+  it("reads a keyset page, its facets and its count of referral codes", async () => {
+    const t = fieldsTransport({
+      list_referral_codes: (args) => {
+        const filters = args["filters"] as Record<string, unknown>;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: filters["facet"],
+            values: [{ value: "u1", count: { value: 2, exact: true } }],
+          };
+        }
+
+        if (filters["count"] === true) {
+          return { value: 7, exact: false };
+        }
+
+        return { items: [CODE], hasMore: true, nextCursor: ["a", "b"] };
+      },
+    });
+
+    const block = createReferrals({ transport: t, tenant: "org-1" });
+
+    const page = await block
+      .codePage({
+        limit: 1,
+        sort: { by: "createdAt", direction: "asc" },
+        filters: { referrer: ["u1"] },
+      })
+      .orThrow();
+
+    const facets = await block.codeFacets({ facets: ["referrer"] }).orThrow();
+    const count = await block.codeCount().orThrow();
+
+    expect(page.items).toHaveLength(1);
+    expect(page).toMatchObject({ hasMore: true, nextCursor: ["a", "b"] });
+    expect(t.calls[0]?.[1]).toMatchObject({
+      tenant: "org-1",
+      filters: { limit: 1, sort: "createdAt", direction: "asc", paged: true },
+    });
+    expect(facets[0]?.facet).toBe("referrer");
+    expect(facets[0]?.values[0]?.count).toEqual({ value: 2, exact: true });
+    expect(count).toEqual({ value: 7, exact: false });
+  });
+
+  it("rejects a sort of referral codes that is not declared", async () => {
+    const t = fieldsTransport({});
+    const block = createReferrals({ transport: t, tenant: "org-1" });
+
+    const result = await block.codePage({ sort: { by: "nope" } });
+
+    expect(result.ok).toBe(false);
+    expect(t.calls).toHaveLength(0);
+  });
 });

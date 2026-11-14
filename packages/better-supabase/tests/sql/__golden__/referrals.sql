@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:949b538a52bc22de2d53d8602adbab3daa9bab47ad8bc39a6bb82370c406f034
+-- @bsb-hash sha256:4c7d504136c614c1bd320777885967f497ef3a887a5a23758cafe1bb01eec780
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -277,9 +277,10 @@ $$;
 revoke execute on function "better_supabase"."void_referral"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."void_referral"(uuid, text) to authenticated, service_role;
 
--- An organization's referrals, newest first. filters is { referrer, status,
--- limit }. Needs referrals.read; without it a member sees the referrals of
--- their own codes.
+-- An organization's referrals, newest first. filters is { referrer (a value or
+-- a list), status (a value or a list), sort, direction, facet, count, limit,
+-- after, offset, paged, total, totalCap } (ADR 0749). Needs referrals.read;
+-- without it a member sees the referrals of their own codes.
 create or replace function "better_supabase"."list_referrals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -291,26 +292,172 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referrals.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referrals.tenant is not null and coalesce(better_supabase.can('tenant', list_referrals.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'codeId', y."code_id", 'referrerId', y."referrer_id", 'referredUserId', y."referred_id", 'referredOrganizationId', y."referred_organization_id", 'referredEmail', y."referred_email", 'status', y."status", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'qualifiedAt', y."qualified_at", 'rewardedAt', y."rewarded_at", 'ledgerTransactionId', y."ledger_transaction_id", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'referrer') then
+      raise exception 'facet is one of status, referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'referrer' then (x."referrer_id")::text end) as v
+      from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "better_supabase"."referrals" z
-      where z."tenant_id" = list_referrals.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-        and (not v_filters ? 'status' or z."status" = v_filters ->> 'status')
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_referrals"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_referrals"(uuid, jsonb) to authenticated, service_role;
 
--- An organization's referral codes, newest first. filters is { referrer,
--- limit }. Needs referrals.read; without it a member sees their own codes.
+-- An organization's referral codes, newest first. filters is { referrer (a
+-- value or a list), sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749). Needs referrals.read; without it a member sees
+-- their own codes.
 create or replace function "better_supabase"."list_referral_codes"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -322,18 +469,156 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referral_codes.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referral_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_referral_codes.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'code', y."code", 'referrerId', y."referrer_id", 'invitationId', y."invitation_id", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'maxUses', y."max_uses", 'uses', y."uses", 'active', y."active", 'expiresAt', y."expires_at", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('referrer') then
+      raise exception 'facet is one of referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'referrer' then (x."referrer_id")::text end) as v
+      from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "better_supabase"."referral_codes" z
-      where z."tenant_id" = list_referral_codes.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_referral_codes"(uuid, jsonb) from public, anon;
@@ -392,7 +677,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:e5cecb61ffd9628c9ec4538d4b159340df10bee2d61b596550ded37055a97d96
+-- @bsb-hash sha256:0f1148f8a1cd7e17307f716a4500679cca4dd163eb5534da094956012f50e275
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -714,9 +999,10 @@ $$;
 revoke execute on function "better_supabase"."void_referral"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."void_referral"(uuid, text) to authenticated, service_role;
 
--- An organization's referrals, newest first. filters is { referrer, status,
--- limit }. Needs referrals.read; without it a member sees the referrals of
--- their own codes.
+-- An organization's referrals, newest first. filters is { referrer (a value or
+-- a list), status (a value or a list), sort, direction, facet, count, limit,
+-- after, offset, paged, total, totalCap } (ADR 0749). Needs referrals.read;
+-- without it a member sees the referrals of their own codes.
 create or replace function "better_supabase"."list_referrals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -728,26 +1014,172 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referrals.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referrals.tenant is not null and coalesce(better_supabase.can('tenant', list_referrals.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'codeId', y."code_id", 'referrerId', y."referrer_id", 'referredUserId', y."referred_id", 'referredOrganizationId', y."referred_organization_id", 'referredEmail', y."referred_email", 'status', y."status", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'qualifiedAt', y."qualified_at", 'rewardedAt', y."rewarded_at", 'ledgerTransactionId', y."ledger_transaction_id", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'referrer') then
+      raise exception 'facet is one of status, referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'referrer' then (x."referrer_id")::text end) as v
+      from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "better_supabase"."referrals" z
-      where z."tenant_id" = list_referrals.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-        and (not v_filters ? 'status' or z."status" = v_filters ->> 'status')
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_referrals"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_referrals"(uuid, jsonb) to authenticated, service_role;
 
--- An organization's referral codes, newest first. filters is { referrer,
--- limit }. Needs referrals.read; without it a member sees their own codes.
+-- An organization's referral codes, newest first. filters is { referrer (a
+-- value or a list), sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749). Needs referrals.read; without it a member sees
+-- their own codes.
 create or replace function "better_supabase"."list_referral_codes"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -759,18 +1191,156 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referral_codes.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referral_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_referral_codes.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'code', y."code", 'referrerId', y."referrer_id", 'invitationId', y."invitation_id", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'maxUses', y."max_uses", 'uses', y."uses", 'active', y."active", 'expiresAt', y."expires_at", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('referrer') then
+      raise exception 'facet is one of referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'referrer' then (x."referrer_id")::text end) as v
+      from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "better_supabase"."referral_codes" z
-      where z."tenant_id" = list_referral_codes.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_referral_codes"(uuid, jsonb) from public, anon;
@@ -833,7 +1403,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:d6b4d2060f7e06471e7ad382b745f8b9ef36a182638863a4f6d023fc1462f2bb
+-- @bsb-hash sha256:366ffd81ce1f1e79081c836c1e9739226e90a72c0b585e200ac4791ffe13c650
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1114,9 +1684,10 @@ $$;
 revoke execute on function "app_private"."void_referral"(uuid, text) from public, anon;
 grant execute on function "app_private"."void_referral"(uuid, text) to authenticated, service_role;
 
--- An organization's referrals, newest first. filters is { referrer, status,
--- limit }. Needs referrals.read; without it a member sees the referrals of
--- their own codes.
+-- An organization's referrals, newest first. filters is { referrer (a value or
+-- a list), status (a value or a list), sort, direction, facet, count, limit,
+-- after, offset, paged, total, totalCap } (ADR 0749). Needs referrals.read;
+-- without it a member sees the referrals of their own codes.
 create or replace function "app_private"."list_referrals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1128,26 +1699,172 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referrals.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referrals.tenant is not null and coalesce(better_supabase.can('tenant', list_referrals.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'codeId', y."code_id", 'referrerId', y."referrer_id", 'referredUserId', y."referred_id", 'referredOrganizationId', y."referred_organization_id", 'referredEmail', y."referred_email", 'status', y."status", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'qualifiedAt', y."qualified_at", 'rewardedAt', y."rewarded_at", 'ledgerTransactionId', y."ledger_transaction_id", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'referrer') then
+      raise exception 'facet is one of status, referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'referrer' then (x."referrer_id")::text end) as v
+      from "app_private"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "app_private"."referrals" z
-      where z."tenant_id" = list_referrals.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-        and (not v_filters ? 'status' or z."status" = v_filters ->> 'status')
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "app_private"."list_referrals"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."list_referrals"(uuid, jsonb) to authenticated, service_role;
 
--- An organization's referral codes, newest first. filters is { referrer,
--- limit }. Needs referrals.read; without it a member sees their own codes.
+-- An organization's referral codes, newest first. filters is { referrer (a
+-- value or a list), sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749). Needs referrals.read; without it a member sees
+-- their own codes.
 create or replace function "app_private"."list_referral_codes"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1159,18 +1876,156 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referral_codes.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referral_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_referral_codes.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'code', y."code", 'referrerId', y."referrer_id", 'invitationId', y."invitation_id", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'maxUses', y."max_uses", 'uses', y."uses", 'active', y."active", 'expiresAt', y."expires_at", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('referrer') then
+      raise exception 'facet is one of referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'referrer' then (x."referrer_id")::text end) as v
+      from "app_private"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "app_private"."referral_codes" z
-      where z."tenant_id" = list_referral_codes.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "app_private"."list_referral_codes"(uuid, jsonb) from public, anon;
@@ -1229,7 +2084,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:48e77054e640979e73f15e252c039f6419eee59ee9499939626536da0dbf2019
+-- @bsb-hash sha256:02fe9af0d06b53ef2aac6c0afba0ccc77cbd0487175c7840057a58a32748b905
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1505,9 +2360,10 @@ $$;
 revoke execute on function "better_supabase"."void_referral"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."void_referral"(uuid, text) to authenticated, service_role;
 
--- An organization's referrals, newest first. filters is { referrer, status,
--- limit }. Needs referrals.read; without it a member sees the referrals of
--- their own codes.
+-- An organization's referrals, newest first. filters is { referrer (a value or
+-- a list), status (a value or a list), sort, direction, facet, count, limit,
+-- after, offset, paged, total, totalCap } (ADR 0749). Needs referrals.read;
+-- without it a member sees the referrals of their own codes.
 create or replace function "better_supabase"."list_referrals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1519,26 +2375,172 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referrals.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referrals.tenant is not null and coalesce(better_supabase.can('tenant', list_referrals.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'codeId', y."code_id", 'referrerId', y."referrer_id", 'referredUserId', y."referred_id", 'referredOrganizationId', y."referred_organization_id", 'referredEmail', y."referred_email", 'status', y."status", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'qualifiedAt', y."qualified_at", 'rewardedAt', y."rewarded_at", 'ledgerTransactionId', y."ledger_transaction_id", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'referrer') then
+      raise exception 'facet is one of status, referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'referrer' then (x."referrer_id")::text end) as v
+      from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "better_supabase"."referrals" z
-      where z."tenant_id" = list_referrals.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-        and (not v_filters ? 'status' or z."status" = v_filters ->> 'status')
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_referrals"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_referrals"(uuid, jsonb) to authenticated, service_role;
 
--- An organization's referral codes, newest first. filters is { referrer,
--- limit }. Needs referrals.read; without it a member sees their own codes.
+-- An organization's referral codes, newest first. filters is { referrer (a
+-- value or a list), sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749). Needs referrals.read; without it a member sees
+-- their own codes.
 create or replace function "better_supabase"."list_referral_codes"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1550,18 +2552,156 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referral_codes.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referral_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_referral_codes.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'code', y."code", 'referrerId', y."referrer_id", 'invitationId', y."invitation_id", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'maxUses', y."max_uses", 'uses', y."uses", 'active', y."active", 'expiresAt', y."expires_at", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('referrer') then
+      raise exception 'facet is one of referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'referrer' then (x."referrer_id")::text end) as v
+      from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "better_supabase"."referral_codes" z
-      where z."tenant_id" = list_referral_codes.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_referral_codes"(uuid, jsonb) from public, anon;
@@ -1689,7 +2829,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:483040a91b5c32b2ca61250cdd75666605e7d4d503b74111c1532f389165d3d0
+-- @bsb-hash sha256:5e795b8f0b220662a6b1b5c0a4be77e6eedf57e91874738a7cfb94fce67c7b8a
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1954,9 +3094,10 @@ $$;
 revoke execute on function "better_supabase"."void_referral"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."void_referral"(uuid, text) to authenticated, service_role;
 
--- An organization's referrals, newest first. filters is { referrer, status,
--- limit }. Needs referrals.read; without it a member sees the referrals of
--- their own codes.
+-- An organization's referrals, newest first. filters is { referrer (a value or
+-- a list), status (a value or a list), sort, direction, facet, count, limit,
+-- after, offset, paged, total, totalCap } (ADR 0749). Needs referrals.read;
+-- without it a member sees the referrals of their own codes.
 create or replace function "better_supabase"."list_referrals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1968,26 +3109,172 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referrals.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referrals.tenant is not null and coalesce(better_supabase.can('tenant', list_referrals.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'codeId', y."code_id", 'referrerId', y."referrer_id", 'referredUserId', y."referred_id", 'referredOrganizationId', y."referred_organization_id", 'referredEmail', y."referred_email", 'status', y."status", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'qualifiedAt', y."qualified_at", 'rewardedAt', y."rewarded_at", 'ledgerTransactionId', y."ledger_transaction_id", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'referrer') then
+      raise exception 'facet is one of status, referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'referrer' then (x."referrer_id")::text end) as v
+      from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "better_supabase"."referrals" z
-      where z."tenant_id" = list_referrals.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-        and (not v_filters ? 'status' or z."status" = v_filters ->> 'status')
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referrals" x
+      where x."tenant_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_referrals"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_referrals"(uuid, jsonb) to authenticated, service_role;
 
--- An organization's referral codes, newest first. filters is { referrer,
--- limit }. Needs referrals.read; without it a member sees their own codes.
+-- An organization's referral codes, newest first. filters is { referrer (a
+-- value or a list), sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749). Needs referrals.read; without it a member sees
+-- their own codes.
 create or replace function "better_supabase"."list_referral_codes"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1999,18 +3286,156 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referral_codes.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referral_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_referral_codes.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'code', y."code", 'referrerId', y."referrer_id", 'invitationId', y."invitation_id", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'maxUses', y."max_uses", 'uses', y."uses", 'active', y."active", 'expiresAt', y."expires_at", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('referrer') then
+      raise exception 'facet is one of referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'referrer' then (x."referrer_id")::text end) as v
+      from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "better_supabase"."referral_codes" z
-      where z."tenant_id" = list_referral_codes.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referral_codes" x
+      where x."tenant_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_referral_codes"(uuid, jsonb) from public, anon;
@@ -2069,7 +3494,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_174_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:fe496c13fd2191b4dc3a9262bce6fb3441d48bc027ad3f14064033e8982cf120
+-- @bsb-hash sha256:65e8f5e3472b67cfb4ab5a1f2b2805b9b2a304f00263ce78f166b5bc0bcf2ac5
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2345,9 +3770,10 @@ $$;
 revoke execute on function "better_supabase"."void_referral"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."void_referral"(uuid, text) to authenticated, service_role;
 
--- An organization's referrals, newest first. filters is { referrer, status,
--- limit }. Needs referrals.read; without it a member sees the referrals of
--- their own codes.
+-- An organization's referrals, newest first. filters is { referrer (a value or
+-- a list), status (a value or a list), sort, direction, facet, count, limit,
+-- after, offset, paged, total, totalCap } (ADR 0749). Needs referrals.read;
+-- without it a member sees the referrals of their own codes.
 create or replace function "better_supabase"."list_referrals"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2359,26 +3785,172 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referrals.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referrals.tenant is not null and coalesce(better_supabase.can('tenant', list_referrals.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'codeId', y."code_id", 'referrerId', y."referrer_id", 'referredUserId', y."referred_id", 'referredOrganizationId', y."referred_organization_id", 'referredEmail', y."referred_email", 'status', y."status", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'qualifiedAt', y."qualified_at", 'rewardedAt', y."rewarded_at", 'ledgerTransactionId', y."ledger_transaction_id", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'referrer') then
+      raise exception 'facet is one of status, referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'referrer' then (x."referrer_id")::text end) as v
+      from "better_supabase"."referrals" x
+      where x."org_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "better_supabase"."referrals" z
-      where z."org_id" = list_referrals.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-        and (not v_filters ? 'status' or z."status" = v_filters ->> 'status')
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referrals" x
+      where x."org_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."org_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."org_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."org_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'codeId', x."code_id", 'referrerId', x."referrer_id", 'referredUserId', x."referred_id", 'referredOrganizationId', x."referred_organization_id", 'referredEmail', x."referred_email", 'status', x."status", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'qualifiedAt', x."qualified_at", 'rewardedAt', x."rewarded_at", 'ledgerTransactionId', x."ledger_transaction_id", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referrals" x
+      where x."org_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referrals" x
+      where x."org_id" = list_referrals.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_referrals"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_referrals"(uuid, jsonb) to authenticated, service_role;
 
--- An organization's referral codes, newest first. filters is { referrer,
--- limit }. Needs referrals.read; without it a member sees their own codes.
+-- An organization's referral codes, newest first. filters is { referrer (a
+-- value or a list), sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749). Needs referrals.read; without it a member sees
+-- their own codes.
 create or replace function "better_supabase"."list_referral_codes"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2390,18 +3962,156 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referral_codes.filters, '{}'::jsonb);
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referral_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_referral_codes.tenant, 'referrals.read'), false)));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
 begin
-  return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'code', y."code", 'referrerId', y."referrer_id", 'invitationId', y."invitation_id", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'maxUses', y."max_uses", 'uses', y."uses", 'active', y."active", 'expiresAt', y."expires_at", 'createdAt', y."created_at") order by y."created_at" desc)
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('referrer') then
+      raise exception 'facet is one of referrer' using errcode = '22023', hint = 'REFERRAL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'referrer' then (x."referrer_id")::text end) as v
+      from "better_supabase"."referral_codes" x
+      where x."org_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
     from (
-      select * from "better_supabase"."referral_codes" z
-      where z."org_id" = list_referral_codes.tenant
-        and (v_all or z."referrer_id" = (select auth.uid()))
-        and (not v_filters ? 'referrer' or z."referrer_id" = (v_filters ->> 'referrer')::uuid)
-      order by z."created_at" desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referral_codes" x
+      where x."org_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."org_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."org_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."org_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REFERRAL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'code', x."code", 'referrerId', x."referrer_id", 'invitationId', x."invitation_id", 'rewardAmount', x."reward_amount"::text, 'rewardUnit', x."reward_unit", 'maxUses', x."max_uses", 'uses', x."uses", 'active', x."active", 'expiresAt', x."expires_at", 'createdAt', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."referral_codes" x
+      where x."org_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."referral_codes" x
+      where x."org_id" = list_referral_codes.tenant
+        and (v_all or x."referrer_id" = (select auth.uid()))
+        and (not (v_filters -> 'referrer' is not null and jsonb_typeof(v_filters -> 'referrer') <> 'null' and not (jsonb_typeof(v_filters -> 'referrer') = 'array' and jsonb_array_length(v_filters -> 'referrer') = 0)) or x."referrer_id" = any((case when jsonb_typeof(v_filters -> 'referrer') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'referrer')) else array[v_filters ->> 'referrer'] end)::uuid[]))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
 end;
 $$;
 revoke execute on function "better_supabase"."list_referral_codes"(uuid, jsonb) from public, anon;
