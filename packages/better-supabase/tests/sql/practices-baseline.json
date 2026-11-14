@@ -180,7 +180,7 @@
     "security-definer-functions": 42
   },
   "donations": {
-    "security-definer-functions": 109
+    "security-definer-functions": 115
   },
   "drive-files": {
     "security-definer-functions": 28,
@@ -207,7 +207,7 @@
     "security-definer-functions": 9
   },
   "expenses": {
-    "security-definer-functions": 92
+    "security-definer-functions": 98
   },
   "field-encryption": {
     "security-definer-functions": 32
@@ -282,7 +282,7 @@
     "security-definer-functions": 56
   },
   "leave": {
-    "security-definer-functions": 117,
+    "security-definer-functions": 123,
     "row-triggers": 2
   },
   "ledger": {
@@ -412,7 +412,7 @@
     "security-definer-functions": 24
   },
   "qualifications": {
-    "security-definer-functions": 55,
+    "security-definer-functions": 61,
     "row-triggers": 1
   },
   "queue": {

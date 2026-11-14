@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:f3add0729be370539dedefe5fabaa31151fd05395e0f40bf32bfe4534aa9393b
+-- @bsb-hash sha256:53161ec8dfec2d3d767496f41a499bd1b6cfdecee79b5a338530267e6761c0f5
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -205,11 +205,38 @@ begin
   update "better_supabase"."donation_funds" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'goal', v_row."goal"::text, 'currency', v_row."currency", 'raised', case when v_row."currency" is null then null else coalesce((select sum(g."amount") from "better_supabase"."donations" g where g."fund_id" = v_row."id" and g."status" = 'posted' and g."currency" = v_row."currency"), 0)::text end, 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_donation_fund"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_donation_fund"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_donation_fund"(fund_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."donation_funds"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."donation_funds" x where x."id" = restore_donation_fund.fund_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'donations.manage'), false)) then
+    raise exception 'no such fund you can manage' using errcode = 'P0002', hint = 'DONATION_FUND_NOT_FOUND';
+  end if;
+  update "better_supabase"."donation_funds" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'goal', v_row."goal"::text, 'currency', v_row."currency", 'raised', case when v_row."currency" is null then null else coalesce((select sum(g."amount") from "better_supabase"."donations" g where g."fund_id" = v_row."id" and g."status" = 'posted' and g."currency" = v_row."currency"), 0)::text end, 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_donation_fund"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_donation_fund"(uuid) to authenticated, service_role;
 
 -- Funds and campaigns with what they raised: posted gifts in the goal's
 -- currency.

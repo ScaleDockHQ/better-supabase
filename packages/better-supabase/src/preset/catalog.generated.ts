@@ -16682,7 +16682,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "leave_request.rejected",
           "leave_request.updated",
           "leave_request.split",
-          "leave_balance.adjusted"
+          "leave_balance.adjusted",
+          "leave_type.archived",
+          "leave_type.restored"
         ]
       },
       "entityPermissions": {
@@ -18181,7 +18183,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "expense.rejected",
           "expense.reimbursed",
           "expense.withdrawn",
-          "expense.deleted"
+          "expense.deleted",
+          "expense_category.archived",
+          "expense_category.restored"
         ]
       }
     },
@@ -18593,7 +18597,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "pledge.created",
           "pledge.updated",
           "donation_receipt.issued",
-          "donation_receipt.voided"
+          "donation_receipt.voided",
+          "donation_fund.archived",
+          "donation_fund.restored"
         ]
       },
       "providers": [
@@ -21852,6 +21858,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "qualification_type.created",
           "qualification_type.updated",
           "qualification_type.archived",
+          "qualification_type.restored",
           "qualification.granted",
           "qualification.revoked",
           "qualification.expiry_warned",

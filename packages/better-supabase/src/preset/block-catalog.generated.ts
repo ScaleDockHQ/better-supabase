@@ -3070,7 +3070,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "leave_request.cancelled",
         "leave_request.requested",
         "leave_request.split",
-        "leave_request.updated"
+        "leave_request.updated",
+        "leave_type.archived",
+        "leave_type.restored"
       ],
       "subpath": "better-supabase/blocks/leave",
       "react": null,
@@ -3404,6 +3406,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
+        "expense_category.archived",
+        "expense_category.restored",
         "expense_report.approved",
         "expense_report.cancelled",
         "expense_report.created",
@@ -3440,6 +3444,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "donation.failed",
         "donation.received",
         "donation.refunded",
+        "donation_fund.archived",
+        "donation_fund.restored",
         "donation_receipt.issued",
         "donation_receipt.voided",
         "pledge.created",
@@ -4077,6 +4083,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "qualification.revoked",
         "qualification_type.archived",
         "qualification_type.created",
+        "qualification_type.restored",
         "qualification_type.updated"
       ],
       "subpath": "better-supabase/blocks/qualifications",

@@ -104,7 +104,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   domains:
     "add_hostname hostname_by_id list_hostnames remove_hostname resolve_hostname set_primary_hostname verify_hostname",
   donations:
-    "archive_donation_fund create_pledge due_pledge_installments get_gift issue_gift_receipt issue_yearly_receipt list_donation_funds list_donation_receipts list_gifts list_pledges open_gift record_gift record_gift_payment save_donation_fund update_pledge void_donation_receipt yearly_giving_summary",
+    "archive_donation_fund create_pledge due_pledge_installments get_gift issue_gift_receipt issue_yearly_receipt list_donation_funds list_donation_receipts list_gifts list_pledges open_gift record_gift record_gift_payment restore_donation_fund save_donation_fund update_pledge void_donation_receipt yearly_giving_summary",
   drive:
     "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_lock drive_move drive_node_access drive_path drive_release_hold drive_rename drive_search drive_set_download_blocked drive_share drive_shared drive_transfer_ownership drive_unlock drive_unshare",
   employees:
@@ -115,7 +115,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "cancel_enrollment complete_enrollment_step delete_enrollment_program enroll enrollment enrollment_programs get_enrollment list_enrollments open_enrollment_steps page_enrollments pause_enrollment reset_enrollment_step resume_enrollment save_enrollment_program set_enrollment_dates",
   entitlements: "entitlement_value has_entitlement",
   expenses:
-    "add_expense_line archive_expense_category cancel_expense_report check_expense_report create_expense_report get_expense_report list_expense_categories list_expense_reports reimburse_expense_report remove_expense_line save_expense_category submit_expense_report update_expense_line",
+    "add_expense_line archive_expense_category cancel_expense_report check_expense_report create_expense_report get_expense_report list_expense_categories list_expense_reports reimburse_expense_report remove_expense_line restore_expense_category save_expense_category submit_expense_report update_expense_line",
   "field-history": "field_history",
   flags:
     "delete_flag delete_flag_segment flag_definitions flag_history list_flag_segments list_flags restore_flag save_flag save_flag_segment set_flag_override",
@@ -187,7 +187,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   leases:
     "activate_lease create_lease get_lease list_lease_charges list_leases post_due_rent record_rent_payment renew_lease terminate_lease",
   leave:
-    "accrue_leave adjust_leave_balance archive_leave_type cancel_leave_request close_leave_year leave_balances leave_ledger_entries leave_working_days list_leave_requests list_leave_types request_leave save_leave_type split_leave_request update_leave_request",
+    "accrue_leave adjust_leave_balance archive_leave_type cancel_leave_request close_leave_year leave_balances leave_ledger_entries leave_working_days list_leave_requests list_leave_types request_leave restore_leave_type save_leave_type split_leave_request update_leave_request",
   ledger:
     "capture_ledger_hold close_ledger_account get_ledger_transaction ledger_account_entries list_ledger_accounts open_ledger_account place_ledger_hold post_ledger_transaction release_ledger_hold reverse_ledger_transaction",
   "legal-entities":
@@ -234,7 +234,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "apply_promotion_code create_promotion_codes delete_promotion delete_promotion_code remove_promotion_code save_promotion set_promotion_active",
   push: "prune_push_tokens push_tokens_for register_push_device unregister_push_device",
   qualifications:
-    "add_qualification_requirement archive_qualification_type grant_qualification list_qualification_requirements list_qualification_types notify_expiring_qualifications qualification_gaps qualifications_of qualified_holders remove_qualification_requirement revoke_qualification save_qualification_type",
+    "add_qualification_requirement archive_qualification_type grant_qualification list_qualification_requirements list_qualification_types notify_expiring_qualifications qualification_gaps qualifications_of qualified_holders remove_qualification_requirement restore_qualification_type revoke_qualification save_qualification_type",
   queue:
     "advance_schedule claim_due_schedules claim_jobs claim_lease complete_job complete_lease enqueue_job enqueue_job_once extend_job_lease extend_lease_claim fail_job job_queue_stats list_dead_jobs list_schedules purge_job_archive ready_job_queues release_lease_claim replay_dead_job retry_dead_jobs schedule_has_work schedule_job unschedule_job unschedule_tenant",
   quotes:

@@ -71,7 +71,7 @@ await db.qualifications
 `saveType` creates the type or updates the one with the same `key`.
 `validForMonths` is between 1 and 240; leave it out for a qualification that
 never expires. `archiveType` stops a type from taking new holdings and from
-showing up in the gap report; its holdings stay. `types` lists them by name,
+showing up in the gap report; its holdings stay, and `restoreType` brings it back (both record an event). `types` lists them by name,
 with `{ includeArchived: true }` for the archived ones too.
 
 | `targetType` | `targetValue`           | Applies to |
@@ -211,6 +211,7 @@ blocks: {
 | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `qualification_type.created`, `qualification_type.updated` | `organizationId`, `qualificationTypeId`, `key`, `name`                                                                              |
 | `qualification_type.archived`                              | `organizationId`, `qualificationTypeId`, `key`                                                                                      |
+| `qualification_type.restored`                              | `organizationId`, `qualificationTypeId`, `key`                                                                                      |
 | `qualification.granted`                                    | `organizationId`, `qualificationId`, `qualificationTypeId`, `typeKey`, `holderType`, `holderId`, `grantedOn`, `expiresOn`, `source` |
 | `qualification.revoked`                                    | the same holding fields, with `reason`                                                                                              |
 | `qualification.expiry_warned`, `qualification.expired`     | the same holding fields, with `expiresOn`                                                                                           |

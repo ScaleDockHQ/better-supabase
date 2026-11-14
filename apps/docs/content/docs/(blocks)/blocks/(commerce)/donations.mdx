@@ -106,26 +106,27 @@ repeated event changes nothing. A gift
 without a fund posts to the `general` income account. `funds()` returns each
 fund with what it `raised` in its goal's currency.
 
-| Method                                      | Returns                                                           |
-| ------------------------------------------- | ----------------------------------------------------------------- |
-| `saveFund(input)`                           | the fund, created or updated by key                               |
-| `archiveFund(fundId)`                       | the archived fund                                                 |
-| `funds({ includeArchived })`                | funds with what they raised                                       |
-| `recordGift(input)`                         | the posted gift                                                   |
-| `give(input)`                               | the gift and the provider's payment                               |
-| `getGift(giftId)`, `gifts(options)`         | gifts, newest first                                               |
-| `createPledge(input)`                       | the pledge                                                        |
-| `updatePledge(pledgeId, update)`            | the pledge, paused, resumed, ended or with a new amount           |
-| `pledges(options)`                          | pledges                                                           |
-| `dueInstallments(options)`                  | the installments due without a gift, oldest first                 |
-| `chargeDuePledges(options)`                 | one outcome per installment: charged, skipped or failed           |
-| `handlePaymentEvent(event)`                 | what the provider event did to its gift                           |
-| `webhook(input)`                            | the verified webhook's events applied                             |
-| `issueGiftReceipt(giftId)`                  | a receipt for one posted gift                                     |
-| `issueYearlyReceipt(donor, year, currency)` | a donor's receipt for the year                                    |
-| `voidReceipt(receiptId, reason)`            | the voided receipt                                                |
-| `receipts(options)`                         | receipts, newest first                                            |
-| `givingSummary(donor, year)`                | a donor's posted totals per currency and fund, and their receipts |
+| Method                                      | Returns                                                                                              |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `saveFund(input)`                           | the fund, created or updated by key                                                                  |
+| `archiveFund(fundId)`                       | the archived fund                                                                                    |
+| `restoreFund(fundId)`                       | the restored fund (records `donation_fund.restored`; `archiveFund` records `donation_fund.archived`) |
+| `funds({ includeArchived })`                | funds with what they raised                                                                          |
+| `recordGift(input)`                         | the posted gift                                                                                      |
+| `give(input)`                               | the gift and the provider's payment                                                                  |
+| `getGift(giftId)`, `gifts(options)`         | gifts, newest first                                                                                  |
+| `createPledge(input)`                       | the pledge                                                                                           |
+| `updatePledge(pledgeId, update)`            | the pledge, paused, resumed, ended or with a new amount                                              |
+| `pledges(options)`                          | pledges                                                                                              |
+| `dueInstallments(options)`                  | the installments due without a gift, oldest first                                                    |
+| `chargeDuePledges(options)`                 | one outcome per installment: charged, skipped or failed                                              |
+| `handlePaymentEvent(event)`                 | what the provider event did to its gift                                                              |
+| `webhook(input)`                            | the verified webhook's events applied                                                                |
+| `issueGiftReceipt(giftId)`                  | a receipt for one posted gift                                                                        |
+| `issueYearlyReceipt(donor, year, currency)` | a donor's receipt for the year                                                                       |
+| `voidReceipt(receiptId, reason)`            | the voided receipt                                                                                   |
+| `receipts(options)`                         | receipts, newest first                                                                               |
+| `givingSummary(donor, year)`                | a donor's posted totals per currency and fund, and their receipts                                    |
 
 ## In the books
 

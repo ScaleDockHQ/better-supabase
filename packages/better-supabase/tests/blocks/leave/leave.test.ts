@@ -165,6 +165,7 @@ describe("leave client", () => {
       save_leave_type: () => TYPE,
       list_leave_types: () => [TYPE],
       archive_leave_type: () => ({ ...TYPE, archivedAt: AT }),
+      restore_leave_type: () => TYPE,
     });
 
     const leave = createLeave({ transport: fake });
@@ -184,6 +185,9 @@ describe("leave client", () => {
     expect(
       (await leave.archiveType("t1").orThrow()).archivedAt?.toString(),
     ).toBe(AT);
+    expect(
+      (await leave.restoreType("t1").orThrow()).archivedAt,
+    ).toBeUndefined();
     expect(fake.calls.slice(0, 2)).toEqual([
       [
         "save_leave_type",
