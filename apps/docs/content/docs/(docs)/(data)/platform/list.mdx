@@ -601,7 +601,7 @@ rows. A larger load stays with `pnpm db:seed:scale`.
 `pages/routes.manifest.ts` holds `entityRoutes`, one entry per page with its list route, its API route,
 its detail route and the message keys of its title, columns, facets, sections and form fields. A
 translation file can be checked against `messageKeys`, so an empty or missing string fails in your own
-check instead of at runtime. The empty-translation check itself is not part of `gen`.
+check instead of at runtime. The empty-translation check is not part of `gen`; the example runs its own.
 
 ```ts
 import { entityRoutes } from "@/lib/supabase/pages/routes.manifest";
@@ -611,6 +611,13 @@ const keys = entityRoutes.flatMap((entry) => entry.messageKeys);
 const href = periodsNav.recordHref?.("p1");
 ```
 
-The periods page of the Next.js example sets `area: "finance"`, so `periods.navigation.ts` and
-`routes.manifest.ts` are generated output. It sets no `seed`: `gen` stops with `config_invalid` when a
-page sets `seed` and its block exports no input schema that fits the table.
+The Next.js example declares periods, risks, commissions, referrals and work orders, each with an `area`,
+so their `<name>.navigation.ts` files and `routes.manifest.ts` are generated output, and its side
+navigation reads `href` and `area` from them. Only the work orders page sets `seed` (`work-orders.seed.ts`,
+inserted by `pnpm db:seed:pages`): `gen` stops with `config_invalid` when a page sets `seed` and its block
+exports no input schema that fits the table, and a required field that takes a value the block configures
+(the category of a risk) gets a generated value the block refuses.
+
+The example checks the manifest in two places. `pnpm check:example-coverage` fails when a declared page's
+route is missing under its block in the coverage map, and `pnpm check:empty-translations` fails on an empty
+`msgstr` for a page's message keys and for the messages under its name as namespace.
