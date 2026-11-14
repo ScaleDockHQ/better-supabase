@@ -34,7 +34,8 @@ export type WorkflowTriggerKind =
   | "webhook"
   | "schedule"
   | "form"
-  | "chat";
+  | "chat"
+  | "event";
 
 /**
  * `tenant`: belongs to one organization. `system`: the app's, with no tenant;
@@ -214,6 +215,8 @@ export interface WorkflowNodeRun {
   readonly node: string;
   readonly status: WorkflowNodeRunStatus;
   readonly attempts: number;
+  /** The step's input; `undefined` for a run recorded before it was kept. */
+  readonly input: unknown;
   readonly output: unknown;
   readonly error: string | undefined;
   readonly startedAt: Temporal.Instant | undefined;
@@ -401,12 +404,28 @@ export interface AlertInput {
   readonly id?: string;
 }
 
+/** A block event an `event` trigger may start a run for. */
+export interface WorkflowEventInput {
+  /** The event type, e.g. `contact.created`. */
+  readonly type: string;
+  readonly data?: unknown;
+  /** Narrows the triggers to this tenant's definitions and the system's. */
+  readonly tenant?: string;
+  readonly subject?: string;
+  /** An RFC 3339 timestamp; with `id` it keys the run. */
+  readonly time?: string;
+  /** The event's own id when it has one; it keys the run. */
+  readonly id?: string;
+}
+
 export interface NodeRunRecord {
   /** The run's id or its engine's id. */
   readonly run: string;
   readonly node: string;
   readonly status: WorkflowNodeRunStatus;
   readonly attempt?: number;
+  /** The step's input, kept so the run detail can show it next to the output. */
+  readonly input?: unknown;
   readonly output?: unknown;
   readonly error?: string;
 }
@@ -610,6 +629,16 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
      * `Idempotency-Key` header keys the start. Answers 202 with `{ runId }`.
      */
     webhook(request: Request): Promise<Response>;
+    /**
+     * Starts a run for each enabled `event` trigger whose `config.event` is
+     * `event.type` (or a `prefix.*` pattern that covers it): the run's input is
+     * `{ type, data, tenant, subject, time }` and its key is the trigger plus
+     * the event, so a redelivered event starts nothing twice. Uses `service`.
+     * Resolves to the started run ids; a trigger that fails to start is skipped
+     * and the first error is returned only when no run started. Never throws.
+     * `subscribeEventTriggers` calls it for each block event.
+     */
+    fire(event: WorkflowEventInput): AsyncResult<readonly string[]>;
     /**
      * Creates or updates the `workflows` schedule of a schedule trigger (its
      * `config.cron`), named `builder-trigger:<id>`. Uses `service`.

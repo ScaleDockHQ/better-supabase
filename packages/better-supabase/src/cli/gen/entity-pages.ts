@@ -258,10 +258,14 @@ export function entityPageIndexes(
 const quote = (name: string): string => `"${name.replaceAll('"', '""')}"`;
 
 /**
- * The SQL of the indexes of every page: one re-runnable statement per index,
- * written to a migration a later run replaces.
+ * The SQL of the indexes of every page: one statement per index. The
+ * migration's statements are re-runnable; the schema file's declare the index
+ * (`idempotent` false), because doctor flags `if not exists` in a schema file.
  */
-export function entityPageIndexSql(config: PagesConfig): string | undefined {
+export function entityPageIndexSql(
+  config: PagesConfig,
+  idempotent = true,
+): string | undefined {
   const indexes = resolveEntityPages(config).flatMap((entry) =>
     entityPageIndexes(entry),
   );
@@ -289,7 +293,7 @@ export function entityPageIndexSql(config: PagesConfig): string | undefined {
         )
         .join(", ");
 
-      return `create index if not exists ${quote(index.name)} on ${target}${index.method === "gin" ? " using gin" : ""} (${columns});`;
+      return `create index ${idempotent ? "if not exists " : ""}${quote(index.name)} on ${target}${index.method === "gin" ? " using gin" : ""} (${columns});`;
     }),
     "",
   ].join("\n");
@@ -544,7 +548,7 @@ export function emitEntityPages(
     pagesDir: posix.join(posix.dirname(config.output), "pages"),
   };
 
-  const indexes = entityPageIndexSql(config);
+  const indexes = entityPageIndexSql(config, false);
 
   // The schema folder is the source of truth: `supabase:diff` drops an index
   // the migration creates when no schema file declares it.

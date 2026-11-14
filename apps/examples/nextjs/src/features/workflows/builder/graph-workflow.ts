@@ -17,6 +17,7 @@ import {
   graphStarter,
 } from "better-supabase/workflow-sdk/builder";
 import { Temporal } from "temporal-polyfill";
+import * as v from "valibot";
 import { createHook, sleep } from "workflow";
 
 import { serviceSupabase } from "../workflow-steps";
@@ -40,55 +41,86 @@ const isStep = (name: string): name is keyof typeof graphSteps =>
 const isNode = (kind: string): kind is keyof typeof graphNodeSteps =>
   Object.hasOwn(graphNodeSteps, kind);
 
+/** The key prefix of a run a `sub-workflow` node starts. */
+const SUB_WORKFLOW_KEY_PREFIX = "sub:";
+
+/** The payload a finished child run resumes its parent's node with. */
+const ChildRunOutcome = v.object({
+  status: v.string(),
+  error: v.nullish(v.string()),
+});
+
 /**
- * The `sub-workflow` node: starts another definition's published version and
- * returns its run id. It lives here, not in `graph-steps.ts`, because the
+ * The `sub-workflow` node: starts another definition's published version, then
+ * the parent waits (`waits: true`) until the child run ends; the outbox
+ * consumer wakes it. It lives here, not in `graph-steps.ts`, because the
  * starter needs the executor below, which imports the steps. The run is keyed
- * on the parent's run key and node, so a retried step starts one child.
+ * on the parent's run key and node (`sub:<key>:<node>`, so the consumer can
+ * tell a child run), so a retried step starts one child.
  */
 async function subWorkflowNode(call: GraphNodeCall) {
   "use step";
 
-  return reportNode(call, async () => {
-    const config = withConfig(call).config;
-    const { tenant, actor } = await runOwner();
-    const transport = rpcTransport(serviceSupabase(), { schema: "api" });
+  if (call.resumed !== undefined) {
+    const outcome = v.safeParse(ChildRunOutcome, call.resumed.payload);
 
-    const builder = createWorkflowEditor({
-      transport,
-      schema: "api",
-      steps: stepLibrary,
-      nodes: nodeKinds,
-      compile: (graph) => compileGraph(graph, { nodes: nodeKinds }),
-      start: graphStarter({
-        steps: graphSteps,
-        nodeKinds,
-        nodes: { ...graphNodeSteps, "sub-workflow": subWorkflowNode },
-        executor: graphExecutor,
-        executorRunsTests: true,
-        approval: requestGraphApproval,
-      }),
-      temporal: Temporal,
-    });
+    const child = v.parse(
+      v.record(v.string(), v.unknown()),
+      call.resumed.output,
+    );
 
-    const request: Writable<RunInput> = {
-      definition: text(config, "definition"),
-      input: { text: text(config, "text") },
-      idempotencyKey: `${call.runKey}:${call.node}`,
-    };
+    // oxlint-disable-next-line typescript/require-await -- reportNode takes an async function.
+    return reportNode(call, async () => ({
+      ...child,
+      status: outcome.success ? outcome.output.status : "unknown",
+      error: outcome.success ? (outcome.output.error ?? null) : null,
+    }));
+  }
 
-    if (actor !== undefined) {
-      request.actor = actor;
-    }
+  return reportNode(
+    call,
+    async () => {
+      const config = withConfig(call).config;
+      const { tenant, actor } = await runOwner();
+      const transport = rpcTransport(serviceSupabase(), { schema: "api" });
 
-    if (tenant !== undefined) {
-      request.tenant = tenant;
-    }
+      const builder = createWorkflowEditor({
+        transport,
+        schema: "api",
+        steps: stepLibrary,
+        nodes: nodeKinds,
+        compile: (graph) => compileGraph(graph, { nodes: nodeKinds }),
+        start: graphStarter({
+          steps: graphSteps,
+          nodeKinds,
+          nodes: { ...graphNodeSteps, "sub-workflow": subWorkflowNode },
+          executor: graphExecutor,
+          executorRunsTests: true,
+          approval: requestGraphApproval,
+        }),
+        temporal: Temporal,
+      });
 
-    const runId = await builder.run(request).orThrow();
+      const request: Writable<RunInput> = {
+        definition: text(config, "definition"),
+        input: { text: text(config, "text") },
+        idempotencyKey: `${SUB_WORKFLOW_KEY_PREFIX}${call.runKey}:${call.node}`,
+      };
 
-    return { runId };
-  });
+      if (actor !== undefined) {
+        request.actor = actor;
+      }
+
+      if (tenant !== undefined) {
+        request.tenant = tenant;
+      }
+
+      const runId = await builder.run(request).orThrow();
+
+      return { runId };
+    },
+    { waits: true },
+  );
 }
 
 /** The deployment's node steps by kind, the `nodes` of `graphStarter`. */
@@ -131,6 +163,7 @@ export async function graphExecutor(
       return graphNodeSteps[call.kind](call);
     },
     sleep: (ms) => sleep(ms),
+    waitFor: (call) => createHook<unknown>({ token: call.token }),
     requestApproval: (call) => requestGraphApproval(call),
     approval: (token) => createHook<unknown>({ token }),
   });

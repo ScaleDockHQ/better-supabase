@@ -153165,6 +153165,27 @@
         "table_id": 1000627,
         "schema": "better_supabase",
         "table": "workflow_node_runs",
+        "id": "1000627.9",
+        "ordinal_position": 9,
+        "name": "input",
+        "default_value": null,
+        "data_type": "jsonb",
+        "format": "jsonb",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000627,
+        "schema": "better_supabase",
+        "table": "workflow_node_runs",
         "id": "1000627.2",
         "ordinal_position": 2,
         "name": "node_id",
@@ -154774,7 +154795,7 @@
         "is_nullable": false,
         "is_updatable": true,
         "is_unique": false,
-        "check": "kind = ANY (ARRAY['manual'::text, 'webhook'::text, 'schedule'::text, 'form'::text, 'chat'::text])",
+        "check": "kind = ANY (ARRAY['manual'::text, 'webhook'::text, 'schedule'::text, 'form'::text, 'chat'::text, 'event'::text])",
         "enums": [],
         "comment": null
       },
@@ -252193,8 +252214,8 @@
         "schema": "better_supabase",
         "name": "record_workflow_node_run",
         "language": "plpgsql",
-        "definition": "\n#variable_conflict use_variable\ndeclare\n  v_run uuid;\n  v_ended boolean := status in ('completed', 'failed', 'skipped');\nbegin\n  select x.\"id\" into v_run from \"better_supabase\".\"workflow_runs\" x\n  where x.\"id\"::text = run or x.\"external_id\" = run\n  order by x.\"id\"::text = run desc\n  limit 1;\n  if not found then\n    return false;\n  end if;\n  insert into \"better_supabase\".\"workflow_node_runs\" as x (\"run_id\", \"node_id\", \"status\", \"attempts\", \"output\", \"error\", \"started_at\", \"ended_at\")\n  values (v_run, node, status, coalesce(attempt, 0), output, left(error, 4000), now(), case when v_ended then now() end)\n  on conflict (\"run_id\", \"node_id\") do update set\n    \"status\" = excluded.\"status\",\n    \"attempts\" = greatest(x.\"attempts\", excluded.\"attempts\"),\n    \"output\" = coalesce(excluded.\"output\", x.\"output\"),\n    \"error\" = excluded.\"error\",\n    \"started_at\" = coalesce(x.\"started_at\", excluded.\"started_at\"),\n    \"ended_at\" = excluded.\"ended_at\";\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(jsonb_build_object('id', v_run, 'node', node, 'status', status), 'node', 'workflow-run:' || v_run::text, true);\n  end if;\n  return true;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.record_workflow_node_run(run text, node text, status text, attempt integer DEFAULT NULL::integer, output jsonb DEFAULT NULL::jsonb, error text DEFAULT NULL::text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_variable\ndeclare\n  v_run uuid;\n  v_ended boolean := status in ('completed', 'failed', 'skipped');\nbegin\n  select x.\"id\" into v_run from \"better_supabase\".\"workflow_runs\" x\n  where x.\"id\"::text = run or x.\"external_id\" = run\n  order by x.\"id\"::text = run desc\n  limit 1;\n  if not found then\n    return false;\n  end if;\n  insert into \"better_supabase\".\"workflow_node_runs\" as x (\"run_id\", \"node_id\", \"status\", \"attempts\", \"output\", \"error\", \"started_at\", \"ended_at\")\n  values (v_run, node, status, coalesce(attempt, 0), output, left(error, 4000), now(), case when v_ended then now() end)\n  on conflict (\"run_id\", \"node_id\") do update set\n    \"status\" = excluded.\"status\",\n    \"attempts\" = greatest(x.\"attempts\", excluded.\"attempts\"),\n    \"output\" = coalesce(excluded.\"output\", x.\"output\"),\n    \"error\" = excluded.\"error\",\n    \"started_at\" = coalesce(x.\"started_at\", excluded.\"started_at\"),\n    \"ended_at\" = excluded.\"ended_at\";\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(jsonb_build_object('id', v_run, 'node', node, 'status', status), 'node', 'workflow-run:' || v_run::text, true);\n  end if;\n  return true;\nend;\n$function$\n",
+        "definition": "\n#variable_conflict use_variable\ndeclare\n  v_run uuid;\n  v_ended boolean := status in ('completed', 'failed', 'skipped');\nbegin\n  select x.\"id\" into v_run from \"better_supabase\".\"workflow_runs\" x\n  where x.\"id\"::text = run or x.\"external_id\" = run\n  order by x.\"id\"::text = run desc\n  limit 1;\n  if not found then\n    return false;\n  end if;\n  insert into \"better_supabase\".\"workflow_node_runs\" as x (\"run_id\", \"node_id\", \"status\", \"attempts\", \"input\", \"output\", \"error\", \"started_at\", \"ended_at\")\n  values (v_run, node, status, coalesce(attempt, 0), input, output, left(error, 4000), now(), case when v_ended then now() end)\n  on conflict (\"run_id\", \"node_id\") do update set\n    \"status\" = excluded.\"status\",\n    \"attempts\" = greatest(x.\"attempts\", excluded.\"attempts\"),\n    \"input\" = coalesce(excluded.\"input\", x.\"input\"),\n    \"output\" = coalesce(excluded.\"output\", x.\"output\"),\n    \"error\" = excluded.\"error\",\n    \"started_at\" = coalesce(x.\"started_at\", excluded.\"started_at\"),\n    \"ended_at\" = excluded.\"ended_at\";\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(jsonb_build_object('id', v_run, 'node', node, 'status', status), 'node', 'workflow-run:' || v_run::text, true);\n  end if;\n  return true;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.record_workflow_node_run(run text, node text, status text, attempt integer DEFAULT NULL::integer, output jsonb DEFAULT NULL::jsonb, error text DEFAULT NULL::text, input jsonb DEFAULT NULL::jsonb)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_variable\ndeclare\n  v_run uuid;\n  v_ended boolean := status in ('completed', 'failed', 'skipped');\nbegin\n  select x.\"id\" into v_run from \"better_supabase\".\"workflow_runs\" x\n  where x.\"id\"::text = run or x.\"external_id\" = run\n  order by x.\"id\"::text = run desc\n  limit 1;\n  if not found then\n    return false;\n  end if;\n  insert into \"better_supabase\".\"workflow_node_runs\" as x (\"run_id\", \"node_id\", \"status\", \"attempts\", \"input\", \"output\", \"error\", \"started_at\", \"ended_at\")\n  values (v_run, node, status, coalesce(attempt, 0), input, output, left(error, 4000), now(), case when v_ended then now() end)\n  on conflict (\"run_id\", \"node_id\") do update set\n    \"status\" = excluded.\"status\",\n    \"attempts\" = greatest(x.\"attempts\", excluded.\"attempts\"),\n    \"input\" = coalesce(excluded.\"input\", x.\"input\"),\n    \"output\" = coalesce(excluded.\"output\", x.\"output\"),\n    \"error\" = excluded.\"error\",\n    \"started_at\" = coalesce(x.\"started_at\", excluded.\"started_at\"),\n    \"ended_at\" = excluded.\"ended_at\";\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(jsonb_build_object('id', v_run, 'node', node, 'status', status), 'node', 'workflow-run:' || v_run::text, true);\n  end if;\n  return true;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -252206,6 +252227,12 @@
             "mode": "in",
             "name": "error",
             "type_id": 25,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "input",
+            "type_id": 3802,
             "has_default": true
           },
           {
@@ -252233,8 +252260,8 @@
             "has_default": false
           }
         ],
-        "argument_types": "run text, node text, status text, attempt integer DEFAULT NULL::integer, output jsonb DEFAULT NULL::jsonb, error text DEFAULT NULL::text",
-        "identity_argument_types": "run text, node text, status text, attempt integer, output jsonb, error text",
+        "argument_types": "run text, node text, status text, attempt integer DEFAULT NULL::integer, output jsonb DEFAULT NULL::jsonb, error text DEFAULT NULL::text, input jsonb DEFAULT NULL::jsonb",
+        "identity_argument_types": "run text, node text, status text, attempt integer, output jsonb, error text, input jsonb",
         "return_type_id": 16,
         "return_type": "boolean",
         "return_type_relation_id": null,
@@ -287597,6 +287624,40 @@
       {
         "id": 3002962,
         "schema": "better_supabase",
+        "name": "workflow_event_targets",
+        "language": "sql",
+        "definition": "\n  select coalesce(jsonb_agg(jsonb_build_object('trigger', jsonb_build_object(\n    'id', x.\"id\",\n    'definition', x.\"definition_id\",\n    'kind', x.\"kind\",\n    'config', x.\"config\",\n    'enabled', x.\"enabled\",\n    'createdAt', x.\"created_at\",\n    'updatedAt', x.\"updated_at\"\n  ), 'tenant', y.\"tenant_id\") order by x.\"created_at\"), '[]'::jsonb)\n  from \"better_supabase\".\"workflow_triggers\" x\n  join \"better_supabase\".\"workflow_definitions\" y on y.\"id\" = x.\"definition_id\"\n  where x.\"kind\" = 'event'\n    and x.\"enabled\"\n    and (\n      x.\"config\" ->> 'event' = workflow_event_targets.event\n      or (\n        x.\"config\" ->> 'event' like '%.*'\n        and workflow_event_targets.event like left(x.\"config\" ->> 'event', -1) || '%'\n      )\n    )\n    and (workflow_event_targets.tenant is null or y.\"tenant_id\" is null or y.\"tenant_id\" = workflow_event_targets.tenant);\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.workflow_event_targets(event text, tenant uuid DEFAULT NULL::uuid)\n RETURNS jsonb\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select coalesce(jsonb_agg(jsonb_build_object('trigger', jsonb_build_object(\n    'id', x.\"id\",\n    'definition', x.\"definition_id\",\n    'kind', x.\"kind\",\n    'config', x.\"config\",\n    'enabled', x.\"enabled\",\n    'createdAt', x.\"created_at\",\n    'updatedAt', x.\"updated_at\"\n  ), 'tenant', y.\"tenant_id\") order by x.\"created_at\"), '[]'::jsonb)\n  from \"better_supabase\".\"workflow_triggers\" x\n  join \"better_supabase\".\"workflow_definitions\" y on y.\"id\" = x.\"definition_id\"\n  where x.\"kind\" = 'event'\n    and x.\"enabled\"\n    and (\n      x.\"config\" ->> 'event' = workflow_event_targets.event\n      or (\n        x.\"config\" ->> 'event' like '%.*'\n        and workflow_event_targets.event like left(x.\"config\" ->> 'event', -1) || '%'\n      )\n    )\n    and (workflow_event_targets.tenant is null or y.\"tenant_id\" is null or y.\"tenant_id\" = workflow_event_targets.tenant);\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "event",
+            "type_id": 25,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "tenant",
+            "type_id": 2950,
+            "has_default": true
+          }
+        ],
+        "argument_types": "event text, tenant uuid DEFAULT NULL::uuid",
+        "identity_argument_types": "event text, tenant uuid",
+        "return_type_id": 3802,
+        "return_type": "jsonb",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "STABLE",
+        "security_definer": false,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3002963,
+        "schema": "better_supabase",
         "name": "workflow_graph_permissions",
         "language": "sql",
         "definition": "\n  select coalesce(array_agg(distinct x.p order by x.p), '{}'::text[])\n  from (\n    select coalesce(\n      '{}'::jsonb ->> (n.value ->> 'step'),\n      (select coalesce('{}'::jsonb ->> s.\"operation\", s.\"operation\")\n        from \"better_supabase\".\"workflow_step_templates\" s where s.\"name\" = n.value ->> 'step'),\n      'workflow_editor.run'\n    ) as p\n    from jsonb_array_elements(\n      case when jsonb_typeof(workflow_graph_permissions.graph -> 'nodes') = 'array'\n        then workflow_graph_permissions.graph -> 'nodes' else '[]'::jsonb end\n    ) n\n    where n.value ->> 'kind' = 'step'\n  ) x;\n",
@@ -287623,7 +287684,7 @@
         }
       },
       {
-        "id": 3002963,
+        "id": 3002964,
         "schema": "better_supabase",
         "name": "workflow_node_kinds_list",
         "language": "sql",
@@ -287644,12 +287705,12 @@
         }
       },
       {
-        "id": 3002964,
+        "id": 3002965,
         "schema": "better_supabase",
         "name": "workflow_node_runs_list",
         "language": "sql",
-        "definition": "\n  select coalesce(jsonb_agg(jsonb_build_object(\n    'run', x.\"run_id\",\n    'node', x.\"node_id\",\n    'status', x.\"status\",\n    'attempts', x.\"attempts\",\n    'output', x.\"output\",\n    'error', x.\"error\",\n    'startedAt', x.\"started_at\",\n    'endedAt', x.\"ended_at\"\n  ) order by x.\"started_at\" nulls last, x.\"node_id\"), '[]'::jsonb)\n  from \"better_supabase\".\"workflow_node_runs\" x\n  join \"better_supabase\".\"workflow_runs\" y on y.\"id\" = x.\"run_id\"\n  where y.\"id\"::text = workflow_node_runs_list.run or y.\"external_id\" = workflow_node_runs_list.run;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.workflow_node_runs_list(run text)\n RETURNS jsonb\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select coalesce(jsonb_agg(jsonb_build_object(\n    'run', x.\"run_id\",\n    'node', x.\"node_id\",\n    'status', x.\"status\",\n    'attempts', x.\"attempts\",\n    'output', x.\"output\",\n    'error', x.\"error\",\n    'startedAt', x.\"started_at\",\n    'endedAt', x.\"ended_at\"\n  ) order by x.\"started_at\" nulls last, x.\"node_id\"), '[]'::jsonb)\n  from \"better_supabase\".\"workflow_node_runs\" x\n  join \"better_supabase\".\"workflow_runs\" y on y.\"id\" = x.\"run_id\"\n  where y.\"id\"::text = workflow_node_runs_list.run or y.\"external_id\" = workflow_node_runs_list.run;\n$function$\n",
+        "definition": "\n  select coalesce(jsonb_agg(jsonb_build_object(\n    'run', x.\"run_id\",\n    'node', x.\"node_id\",\n    'status', x.\"status\",\n    'attempts', x.\"attempts\",\n    'input', x.\"input\",\n    'output', x.\"output\",\n    'error', x.\"error\",\n    'startedAt', x.\"started_at\",\n    'endedAt', x.\"ended_at\"\n  ) order by x.\"started_at\" nulls last, x.\"node_id\"), '[]'::jsonb)\n  from \"better_supabase\".\"workflow_node_runs\" x\n  join \"better_supabase\".\"workflow_runs\" y on y.\"id\" = x.\"run_id\"\n  where y.\"id\"::text = workflow_node_runs_list.run or y.\"external_id\" = workflow_node_runs_list.run;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.workflow_node_runs_list(run text)\n RETURNS jsonb\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select coalesce(jsonb_agg(jsonb_build_object(\n    'run', x.\"run_id\",\n    'node', x.\"node_id\",\n    'status', x.\"status\",\n    'attempts', x.\"attempts\",\n    'input', x.\"input\",\n    'output', x.\"output\",\n    'error', x.\"error\",\n    'startedAt', x.\"started_at\",\n    'endedAt', x.\"ended_at\"\n  ) order by x.\"started_at\" nulls last, x.\"node_id\"), '[]'::jsonb)\n  from \"better_supabase\".\"workflow_node_runs\" x\n  join \"better_supabase\".\"workflow_runs\" y on y.\"id\" = x.\"run_id\"\n  where y.\"id\"::text = workflow_node_runs_list.run or y.\"external_id\" = workflow_node_runs_list.run;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -287672,7 +287733,7 @@
         }
       },
       {
-        "id": 3002965,
+        "id": 3002966,
         "schema": "better_supabase",
         "name": "workflow_open_hooks",
         "language": "sql",
@@ -287768,7 +287829,7 @@
         }
       },
       {
-        "id": 3002966,
+        "id": 3002967,
         "schema": "better_supabase",
         "name": "workflow_purge_runs",
         "language": "plpgsql",
@@ -287808,7 +287869,7 @@
         }
       },
       {
-        "id": 3002967,
+        "id": 3002968,
         "schema": "better_supabase",
         "name": "workflow_release_run_key",
         "language": "sql",
@@ -287836,7 +287897,7 @@
         }
       },
       {
-        "id": 3002968,
+        "id": 3002969,
         "schema": "better_supabase",
         "name": "workflow_run_get",
         "language": "sql",
@@ -287864,7 +287925,7 @@
         }
       },
       {
-        "id": 3002969,
+        "id": 3002970,
         "schema": "better_supabase",
         "name": "workflow_run_principal",
         "language": "plpgsql",
@@ -287898,7 +287959,7 @@
         }
       },
       {
-        "id": 3002970,
+        "id": 3002971,
         "schema": "better_supabase",
         "name": "workflow_runs_list",
         "language": "sql",
@@ -287968,7 +288029,7 @@
         }
       },
       {
-        "id": 3002971,
+        "id": 3002972,
         "schema": "better_supabase",
         "name": "workflow_schedules_list",
         "language": "sql",
@@ -287996,7 +288057,7 @@
         }
       },
       {
-        "id": 3002972,
+        "id": 3002973,
         "schema": "better_supabase",
         "name": "workflow_set_run_key",
         "language": "sql",
@@ -288030,7 +288091,7 @@
         }
       },
       {
-        "id": 3002973,
+        "id": 3002974,
         "schema": "better_supabase",
         "name": "workflow_start_target",
         "language": "plpgsql",
@@ -288064,7 +288125,7 @@
         }
       },
       {
-        "id": 3002974,
+        "id": 3002975,
         "schema": "better_supabase",
         "name": "workflow_steps_list",
         "language": "sql",
@@ -288085,7 +288146,7 @@
         }
       },
       {
-        "id": 3002975,
+        "id": 3002976,
         "schema": "better_supabase",
         "name": "workflow_subject_start_target",
         "language": "plpgsql",
@@ -288131,7 +288192,7 @@
         }
       },
       {
-        "id": 3002976,
+        "id": 3002977,
         "schema": "better_supabase",
         "name": "workflow_triggers_list",
         "language": "sql",
@@ -288159,7 +288220,7 @@
         }
       },
       {
-        "id": 3002977,
+        "id": 3002978,
         "schema": "better_supabase",
         "name": "workflow_version_get",
         "language": "sql",
@@ -288187,7 +288248,7 @@
         }
       },
       {
-        "id": 3002978,
+        "id": 3002979,
         "schema": "better_supabase",
         "name": "workflow_versions_list",
         "language": "sql",
@@ -288215,7 +288276,7 @@
         }
       },
       {
-        "id": 3002979,
+        "id": 3002980,
         "schema": "better_supabase",
         "name": "workflow_webhook_target",
         "language": "sql",
@@ -288243,7 +288304,7 @@
         }
       },
       {
-        "id": 3002980,
+        "id": 3002981,
         "schema": "better_supabase",
         "name": "write_knowledge_chunks",
         "language": "plpgsql",
@@ -288283,7 +288344,7 @@
         }
       },
       {
-        "id": 3002981,
+        "id": 3002982,
         "schema": "better_supabase",
         "name": "write_off_invoice",
         "language": "plpgsql",
@@ -288323,7 +288384,7 @@
         }
       },
       {
-        "id": 3002982,
+        "id": 3002983,
         "schema": "better_supabase",
         "name": "yearly_giving_summary",
         "language": "plpgsql",
@@ -288369,7 +288430,7 @@
         }
       },
       {
-        "id": 3002983,
+        "id": 3002984,
         "schema": "public",
         "name": "app_table_set",
         "language": "plpgsql",
@@ -288415,7 +288476,7 @@
         }
       },
       {
-        "id": 3002984,
+        "id": 3002985,
         "schema": "public",
         "name": "client_notes_reveal",
         "language": "sql",
@@ -288464,7 +288525,7 @@
         }
       },
       {
-        "id": 3002985,
+        "id": 3002986,
         "schema": "public",
         "name": "customer_note_counts",
         "language": "sql",
@@ -288513,7 +288574,7 @@
         }
       },
       {
-        "id": 3002986,
+        "id": 3002987,
         "schema": "public",
         "name": "customers_by_status",
         "language": "sql",
@@ -288547,7 +288608,7 @@
         }
       },
       {
-        "id": 3002987,
+        "id": 3002988,
         "schema": "public",
         "name": "import_customer",
         "language": "plpgsql",
@@ -288587,7 +288648,7 @@
         }
       },
       {
-        "id": 3002988,
+        "id": 3002989,
         "schema": "public",
         "name": "import_customer_batch",
         "language": "plpgsql",
@@ -288621,7 +288682,7 @@
         }
       },
       {
-        "id": 3002989,
+        "id": 3002990,
         "schema": "public",
         "name": "import_customer_updated_at",
         "language": "sql",
@@ -288649,7 +288710,7 @@
         }
       },
       {
-        "id": 3002990,
+        "id": 3002991,
         "schema": "public",
         "name": "island_counts",
         "language": "sql",
@@ -288677,7 +288738,7 @@
         }
       },
       {
-        "id": 3002991,
+        "id": 3002992,
         "schema": "public",
         "name": "my_organizations",
         "language": "sql",
@@ -288765,7 +288826,7 @@
         }
       },
       {
-        "id": 3002992,
+        "id": 3002993,
         "schema": "public",
         "name": "my_profile",
         "language": "plpgsql",
@@ -288822,7 +288883,7 @@
         }
       },
       {
-        "id": 3002993,
+        "id": 3002994,
         "schema": "public",
         "name": "organization_invitations",
         "language": "sql",
@@ -288892,7 +288953,7 @@
         }
       },
       {
-        "id": 3002994,
+        "id": 3002995,
         "schema": "public",
         "name": "organization_members",
         "language": "sql",
@@ -288969,7 +289030,7 @@
         }
       },
       {
-        "id": 3002995,
+        "id": 3002996,
         "schema": "public",
         "name": "rs_finance_overview",
         "language": "sql",
@@ -288997,7 +289058,7 @@
         }
       },
       {
-        "id": 3002996,
+        "id": 3002997,
         "schema": "public",
         "name": "rs_pipeline_overview",
         "language": "sql",
@@ -289025,7 +289086,7 @@
         }
       },
       {
-        "id": 3002997,
+        "id": 3002998,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -289053,7 +289114,7 @@
         }
       },
       {
-        "id": 3002998,
+        "id": 3002999,
         "schema": "public",
         "name": "search_notes",
         "language": "plpgsql",
@@ -289087,7 +289148,7 @@
         }
       },
       {
-        "id": 3002999,
+        "id": 3003000,
         "schema": "public",
         "name": "search_notes_scores",
         "language": "plpgsql",
@@ -289135,7 +289196,7 @@
         }
       },
       {
-        "id": 3003000,
+        "id": 3003001,
         "schema": "public",
         "name": "set_my_avatar_path",
         "language": "plpgsql",
@@ -289163,7 +289224,7 @@
         }
       },
       {
-        "id": 3003001,
+        "id": 3003002,
         "schema": "public",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -289191,7 +289252,7 @@
         }
       },
       {
-        "id": 3003002,
+        "id": 3003003,
         "schema": "public",
         "name": "work_bulk_state",
         "language": "plpgsql",
@@ -371354,6 +371415,31 @@
             "predicate": null
           },
           {
+            "name": "periods_tenant_id_ends_on_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "ends_on",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "periods_tenant_id_kind_page_idx",
+            "columns": [
+              "tenant_id",
+              "kind"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "periods_tenant_id_kind_starts_on_key",
             "columns": [
               "tenant_id",
@@ -371361,6 +371447,31 @@
               "starts_on"
             ],
             "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "periods_tenant_id_starts_on_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "starts_on",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "periods_tenant_id_status_page_idx",
+            "columns": [
+              "tenant_id",
+              "status"
+            ],
+            "unique": false,
             "primary": false,
             "partial": false,
             "method": "btree",
@@ -405785,7 +405896,7 @@
         "checks": [
           {
             "name": "bsb_workflow_triggers_kind_check",
-            "definition": "CHECK ((kind = ANY (ARRAY['manual'::text, 'webhook'::text, 'schedule'::text, 'form'::text, 'chat'::text])))"
+            "definition": "CHECK ((kind = ANY (ARRAY['manual'::text, 'webhook'::text, 'schedule'::text, 'form'::text, 'chat'::text, 'event'::text])))"
           }
         ],
         "indexes": [
@@ -430940,7 +431051,7 @@
       {
         "schema": "better_supabase",
         "name": "record_workflow_node_run",
-        "signature": "run text, node text, status text, attempt integer, output jsonb, error text",
+        "signature": "run text, node text, status text, attempt integer, output jsonb, error text, input jsonb",
         "language": "plpgsql",
         "volatility": "volatile",
         "securityDefiner": true,

@@ -54,6 +54,7 @@ export function NodeInspector({
   onChange,
   onRemove,
   onDecide,
+  onComplete,
 }: {
   node: GraphFlowNode | undefined;
   entry: PaletteEntry | undefined;
@@ -65,6 +66,8 @@ export function NodeInspector({
   onChange: (id: string, data: Partial<GraphNodeData>) => void;
   onRemove: (id: string) => void;
   onDecide: (id: string, approved: boolean) => void;
+  /** Marks a waiting human task done, which resumes the run. */
+  onComplete: (id: string) => void;
 }) {
   const t = useExtracted("workflows");
   const id = useId();
@@ -141,6 +144,16 @@ export function NodeInspector({
               <AlertDescription>{result.error}</AlertDescription>
             </Alert>
           ) : null}
+          {result.input === undefined || result.input === null ? null : (
+            <CodeBlock size="sm">
+              <CodeBlockHeader>
+                <CodeBlockTitle>{t("Input")}</CodeBlockTitle>
+              </CodeBlockHeader>
+              <CodeBlockContent wrap>
+                {JSON.stringify(result.input, null, 2)}
+              </CodeBlockContent>
+            </CodeBlock>
+          )}
           {result.output === undefined || result.output === null ? null : (
             <CodeBlock size="sm">
               <CodeBlockHeader>
@@ -175,6 +188,20 @@ export function NodeInspector({
             {t("Reject")}
           </Button>
         </div>
+      ) : null}
+      {node.data.kind === "human-task" &&
+      canDecide &&
+      result?.status === "waiting" ? (
+        <Button
+          size="sm"
+          className="w-fit"
+          onClick={() => {
+            onComplete(node.id);
+          }}
+        >
+          <CheckIcon />
+          {t("Mark done")}
+        </Button>
       ) : null}
       {data.kind === "trigger" ? null : (
         <Button
