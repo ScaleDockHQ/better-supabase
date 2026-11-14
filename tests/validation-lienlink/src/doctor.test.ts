@@ -39,8 +39,10 @@ const doctor = async (
           // BS303 compares generated client code. BS700 and BS701 report the
           // host's shared memory. BS628 looks for a cursor index in the same
           // file as list_attachments and list_teams, which live in the base
-          // migration this fixture does not rewrite.
-          "BS303,BS628,BS700,BS701",
+          // migration this fixture does not rewrite. BS235 reports the
+          // purge_team migration, which renames delete_team on purpose
+          // (ADR 0851); the client sends the new name.
+          "BS235,BS303,BS628,BS700,BS701",
         ]
       : ["--only", only]),
     "--fail-on",

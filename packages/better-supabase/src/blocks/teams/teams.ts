@@ -50,7 +50,7 @@ export interface Team<F extends object = Record<never, never>> {
   readonly name: string;
   readonly slug: string;
   readonly description: string | null;
-  /** `archived` teams stay in `list` until `restore` or `delete`. */
+  /** `archived` teams stay in `list` until `restore` or `purge`. */
   readonly status: TeamStatus;
   /** The members' user ids, oldest first. Empty on `create` and `update`. */
   readonly memberIds: readonly string[];
@@ -105,7 +105,11 @@ export interface Teams<F extends object = Record<never, never>> {
   archive(id: string): AsyncResult<boolean>;
   /** Makes an archived team active again. */
   restore(id: string): AsyncResult<boolean>;
-  delete(id: string): AsyncResult<boolean>;
+  /**
+   * Removes the team and its members for good (hard delete). Archive keeps the
+   * row; `permissions.purge` gates this, falling back to `manage`.
+   */
+  purge(id: string): AsyncResult<boolean>;
   /** Adds a user, or with the employees block an employee, to a team. */
   addMember(input: TeamMemberInput): AsyncResult<boolean>;
   /** Removes a user or an employee; a row with both goes as a whole. */
@@ -235,8 +239,7 @@ export function createTeams<S extends StandardSchemaV1 | undefined = undefined>(
       call("archive_team", { team: id }, (value) => value === true),
     restore: (id) =>
       call("restore_team", { team: id }, (value) => value === true),
-    delete: (id) =>
-      call("delete_team", { team: id }, (value) => value === true),
+    purge: (id) => call("purge_team", { team: id }, (value) => value === true),
     addMember: (input) =>
       call("add_team_member", memberArgs(input), (value) => value === true),
     removeMember: (input) =>

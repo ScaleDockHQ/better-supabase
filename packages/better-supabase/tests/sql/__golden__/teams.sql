@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:28479452c009da3cdbf89f37cac07373d87ac012b32684989ad14980c953441e
+-- @bsb-hash sha256:c08f405aa38745eaa4b6037f0345da8a06387b91975aad15facc47012d705e81
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -173,8 +173,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_team"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_team"(uuid) to authenticated, service_role;
-
-create or replace function "better_supabase"."delete_team"(team uuid)
+create or replace function "better_supabase"."purge_team"(team uuid)
 returns boolean
 language plpgsql
 security definer
@@ -186,20 +185,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = delete_team.team;
+  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = purge_team.team;
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  delete from "better_supabase"."teams" where "id" = delete_team.team;
+  delete from "better_supabase"."teams" where "id" = purge_team.team;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_team"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_team"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_team"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_team"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."add_team_member"(team uuid, member uuid)
 returns boolean
@@ -347,7 +346,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:e67176f8751818787e69b9f539321d0c3d8c52c19691a1a76f377be1d2bcce02
+-- @bsb-hash sha256:86fcaff96156a48e6603ee8684233b5d853c5aee0c51e4621d0fe722dea3e586
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -549,8 +548,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_team"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_team"(uuid) to authenticated, service_role;
-
-create or replace function "better_supabase"."delete_team"(team uuid)
+create or replace function "better_supabase"."purge_team"(team uuid)
 returns boolean
 language plpgsql
 security definer
@@ -562,28 +560,28 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = delete_team.team;
+  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = purge_team.team;
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  delete from "better_supabase"."teams" where "id" = delete_team.team;
-  perform "better_supabase".emit_event('team.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_team.team), 'teams/' || (delete_team.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
+  delete from "better_supabase"."teams" where "id" = purge_team.team;
+  perform "better_supabase".emit_event('team.purged', jsonb_build_object('organizationId', v_tenant, 'id', purge_team.team), 'teams/' || (purge_team.team)::text, (v_tenant)::text, null, 'better-supabase/teams');
   perform better_supabase.audit_event(
-    event_type => 'team.deleted',
+    event_type => 'team.purged',
     category => 'membership',
     target_type => 'team',
-    record_id => (delete_team.team)::text,
+    record_id => (purge_team.team)::text,
     tenant => (v_tenant)::uuid,
-    metadata => jsonb_build_object('organizationId', v_tenant, 'id', delete_team.team)
+    metadata => jsonb_build_object('organizationId', v_tenant, 'id', purge_team.team)
   );
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_team"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_team"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_team"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_team"(uuid) to authenticated, service_role;
 
 -- A row whose employee stays (the team and the employee exist) keeps the
 -- employee when its user loses the account or the tenant membership.
@@ -851,7 +849,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:f2b972cd9a62f98eab8d474b954b22e07064a8d67af4ddcf21981708368303c2
+-- @bsb-hash sha256:ff56d3debac0e57d9d5d9e02767c37a07f9f5cc367463fb5ad0c5e727d7735be
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1028,8 +1026,7 @@ end;
 $$;
 revoke execute on function "app_private"."archive_team"(uuid) from public, anon;
 grant execute on function "app_private"."archive_team"(uuid) to authenticated, service_role;
-
-create or replace function "app_private"."delete_team"(team uuid)
+create or replace function "app_private"."purge_team"(team uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1041,20 +1038,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "app_private"."teams" where "id" = delete_team.team;
+  select "tenant_id" into v_tenant from "app_private"."teams" where "id" = purge_team.team;
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  delete from "app_private"."teams" where "id" = delete_team.team;
+  delete from "app_private"."teams" where "id" = purge_team.team;
   null;
   return true;
 end;
 $$;
-revoke execute on function "app_private"."delete_team"(uuid) from public, anon;
-grant execute on function "app_private"."delete_team"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."purge_team"(uuid) from public, anon;
+grant execute on function "app_private"."purge_team"(uuid) to authenticated, service_role;
 
 create or replace function "app_private"."add_team_member"(team uuid, member uuid)
 returns boolean
@@ -1202,7 +1199,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:37d14375b3ffa5ff5f0f6129d99286b1c9cd7e756382aecca4638cee9f7502a7
+-- @bsb-hash sha256:035c5dbcc454927bd1b25e8e10fa3e6a7d9b1f55248cc97bcbc214d92941d456
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1374,8 +1371,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_team"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_team"(uuid) to authenticated, service_role;
-
-create or replace function "better_supabase"."delete_team"(team uuid)
+create or replace function "better_supabase"."purge_team"(team uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1387,20 +1383,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = delete_team.team;
+  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = purge_team.team;
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  delete from "better_supabase"."teams" where "id" = delete_team.team;
+  delete from "better_supabase"."teams" where "id" = purge_team.team;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_team"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_team"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_team"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_team"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."add_team_member"(team uuid, member uuid)
 returns boolean
@@ -1572,14 +1568,14 @@ as $$ select "better_supabase"."archive_team"($1) $$;
 revoke execute on function "api"."archive_team"(uuid) from public, anon;
 grant execute on function "api"."archive_team"(uuid) to authenticated, service_role;
 
-create or replace function "api"."delete_team"(team uuid)
+create or replace function "api"."purge_team"(team uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."delete_team"($1) $$;
-revoke execute on function "api"."delete_team"(uuid) from public, anon;
-grant execute on function "api"."delete_team"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."purge_team"($1) $$;
+revoke execute on function "api"."purge_team"(uuid) from public, anon;
+grant execute on function "api"."purge_team"(uuid) to authenticated, service_role;
 
 create or replace function "api"."add_team_member"(team uuid, member uuid)
 returns boolean
@@ -1626,7 +1622,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:e1815e48e85ef2b0ed40fd89ee7c2b12f5661fd2dd989d4880daa2d7a12069cf
+-- @bsb-hash sha256:c415297b5b5d83b454bd656a42ce9e5440a2ffb72450d164b1015f4e14b85775
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1787,8 +1783,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_team"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_team"(uuid) to authenticated, service_role;
-
-create or replace function "better_supabase"."delete_team"(team uuid)
+create or replace function "better_supabase"."purge_team"(team uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1800,20 +1795,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = delete_team.team;
+  select "tenant_id" into v_tenant from "better_supabase"."teams" where "id" = purge_team.team;
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  delete from "better_supabase"."teams" where "id" = delete_team.team;
+  delete from "better_supabase"."teams" where "id" = purge_team.team;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_team"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_team"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_team"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_team"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."add_team_member"(team uuid, member uuid)
 returns boolean
@@ -1961,7 +1956,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:c6ed9a38417fa65ceac09725490d60c47093b407c4c2754afd959b4ddec41801
+-- @bsb-hash sha256:d26d9c55e0bfaf5d02391cde9d7a9043ae3f7ac93fb1887adbedc39f26d0bf0a
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2133,8 +2128,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_team"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_team"(uuid) to authenticated, service_role;
-
-create or replace function "better_supabase"."delete_team"(team uuid)
+create or replace function "better_supabase"."purge_team"(team uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2146,20 +2140,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "org_id" into v_tenant from "better_supabase"."teams" where "id" = delete_team.team;
+  select "org_id" into v_tenant from "better_supabase"."teams" where "id" = purge_team.team;
   if not found then
     raise exception 'team not found' using errcode = 'P0002', hint = 'TEAM_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'teams.manage'), false)) then
     raise exception 'not allowed to manage teams' using errcode = '42501', hint = 'TEAM_FORBIDDEN';
   end if;
-  delete from "better_supabase"."teams" where "id" = delete_team.team;
+  delete from "better_supabase"."teams" where "id" = purge_team.team;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_team"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_team"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_team"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_team"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."add_team_member"(team uuid, member uuid)
 returns boolean

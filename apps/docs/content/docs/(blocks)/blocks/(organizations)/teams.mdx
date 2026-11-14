@@ -3,7 +3,7 @@ title: Teams
 description: Tenant teams and their members, shared with the inbox.
 ---
 
-`teams` stores a tenant's teams and who is on them. Creating, changing, archiving, restoring and deleting a team, and changing its members, needs `teams.manage`. `blocks.teams.permissions` can split it: `create` checks `create_team`, `update` checks `update_team`, `archive_team` and `restore_team`, `delete` checks `delete_team`, and `members` checks `add_team_member` and `remove_team_member`. An action you leave unset checks `manage`, so a config without them behaves as before. `team_ids_of(user)` lists the teams a user belongs to. A signed-in caller may only pass their own id (`TEAM_FORBIDDEN` otherwise); the service role and direct database sessions may pass any user's.
+`teams` stores a tenant's teams and who is on them. Creating, changing, archiving, restoring and purging a team, and changing its members, needs `teams.manage`. `blocks.teams.permissions` can split it: `create` checks `create_team`, `update` checks `update_team`, `archive_team` and `restore_team`, `purge` checks `purge_team` (the hard delete; archive keeps the row), and `members` checks `add_team_member` and `remove_team_member`. An action you leave unset checks `manage`, so a config without them behaves as before. `team_ids_of(user)` lists the teams a user belongs to. A signed-in caller may only pass their own id (`TEAM_FORBIDDEN` otherwise); the service role and direct database sessions may pass any user's.
 
 ```bash
 better-supabase add teams
@@ -33,7 +33,7 @@ with `options.restore: true`, `restore(id)` sets it back to `active` through
 
 The [Next.js example](/docs/examples#the-nextjs-saas-app) builds its Teams
 settings on these: a list from `teams.list()` with a create dialog, and a
-team page that edits the slug, archives, restores and deletes the team and
+team page that edits the slug, archives, restores and purges the team and
 adds or removes members (`apps/examples/nextjs/src/features/teams`).
 
 ## Inbox

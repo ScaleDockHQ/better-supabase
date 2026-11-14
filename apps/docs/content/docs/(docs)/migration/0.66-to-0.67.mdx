@@ -13,19 +13,20 @@ below 1.0 a minor version may carry breaking changes. Each change is also in
 the
 [changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
 
-| Section                                       | Needs code                                                 |
-| --------------------------------------------- | ---------------------------------------------------------- |
-| [Supabase peers](#supabase-peers)             | Bump the Supabase packages                                 |
-| [Dropped majors](#dropped-majors)             | Move to the supported major of each framework              |
-| [Other peer floors](#other-peer-floors)       | Upgrade a peer that is older than its new floor            |
-| [Expo](#expo)                                 | Remove the `unstable_` options from `app.json`             |
-| [New optional peers](#new-optional-peers)     | None; install one only for the subpath you use             |
-| [Lite browser client](#lite-browser-client)   | Import `better-supabase/client`                            |
-| [Session cookies](#session-cookies)           | Replace `readSession` with `await ssrSession`              |
-| [Sign-in flows](#sign-in-flows)               | Replace `passwordGrant`, and check the PKCE error code     |
-| [Notification avatars](#notification-avatars) | Pass a function to `avatars`                               |
-| [Session status](#session-status)             | None; a 403 that is not Auth's JSON now reads as `unknown` |
-| [eve 1.0](#eve-10)                            | Upgrade eve, rename hook events and `credentialOwner`      |
+| Section                                       | Needs code                                                     |
+| --------------------------------------------- | -------------------------------------------------------------- |
+| [Supabase peers](#supabase-peers)             | Bump the Supabase packages                                     |
+| [Dropped majors](#dropped-majors)             | Move to the supported major of each framework                  |
+| [Other peer floors](#other-peer-floors)       | Upgrade a peer that is older than its new floor                |
+| [Expo](#expo)                                 | Remove the `unstable_` options from `app.json`                 |
+| [New optional peers](#new-optional-peers)     | None; install one only for the subpath you use                 |
+| [Lite browser client](#lite-browser-client)   | Import `better-supabase/client`                                |
+| [Session cookies](#session-cookies)           | Replace `readSession` with `await ssrSession`                  |
+| [Sign-in flows](#sign-in-flows)               | Replace `passwordGrant`, and check the PKCE error code         |
+| [Notification avatars](#notification-avatars) | Pass a function to `avatars`                                   |
+| [Session status](#session-status)             | None; a 403 that is not Auth's JSON now reads as `unknown`     |
+| [eve 1.0](#eve-10)                            | Upgrade eve, rename hook events and `credentialOwner`          |
+| [Team purge](#team-purge)                     | Rename `teams.delete`, `team.deleted` and `permissions.delete` |
 
 ## Supabase peers
 
@@ -187,6 +188,26 @@ avatars: (path) => users.getPublicUrl(path).data.publicUrl;
 `sessionStatus` now calls `auth.getUser`. A 403 whose body is not Auth's JSON
 (a proxy or firewall page) reads as `unknown` instead of `ended`, so it no
 longer signs the user out.
+
+## Team purge
+
+A team that can be archived and restored no longer has a `delete`: the hard
+delete is `purge`, behind its own `permissions.purge` key (ADR 0851). Archive
+keeps the row and `restore` brings it back.
+
+| Before                                          | After                                              |
+| ----------------------------------------------- | -------------------------------------------------- |
+| `teams.delete(id)`                              | `teams.purge(id)`                                  |
+| SQL function `delete_team(team)`                | `purge_team(team)`                                 |
+| Event `team.deleted`                            | `team.purged` (`team_member.deleted` is unchanged) |
+| `blocks.teams.permissions.delete`               | `blocks.teams.permissions.purge`                   |
+| `teamsRoute` needs `delete` on its `TeamWrites` | `purge`                                            |
+
+Run `better-supabase upgrade` and apply the migration, which drops
+`delete_team` and adds `purge_team`. A `permissions.delete` entry on the teams
+block is ignored after the upgrade, so purging falls back to `manage` until
+you set `purge`. Sinks and workflows that match `team.deleted` need the new
+type.
 
 ## eve 1.0
 

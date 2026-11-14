@@ -134,7 +134,7 @@ describe("teamsRoute and teamMembersRoute", () => {
     update: vi.fn(async () => ok(true)),
     archive: vi.fn(async () => ok(true)),
     restore: vi.fn(async () => ok(true)),
-    delete: vi.fn(async () => ok(true)),
+    purge: vi.fn(async () => ok(true)),
     addMember: vi.fn(async () => ok(true)),
     removeMember: vi.fn(async () => ok(true)),
   });
@@ -166,7 +166,7 @@ describe("teamsRoute and teamMembersRoute", () => {
       undefined,
       { slug: "revenue" },
     );
-    expect(teams.delete).toHaveBeenCalledWith("t2");
+    expect(teams.purge).toHaveBeenCalledWith("t2");
   });
 
   it("refuses creating a team through the queue", async () => {

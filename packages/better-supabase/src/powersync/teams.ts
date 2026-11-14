@@ -226,7 +226,7 @@ export interface TeamWrites {
   ): PromiseLike<Result<unknown>>;
   archive(id: string): PromiseLike<Result<unknown>>;
   restore(id: string): PromiseLike<Result<unknown>>;
-  delete(id: string): PromiseLike<Result<unknown>>;
+  purge(id: string): PromiseLike<Result<unknown>>;
   addMember(teamId: string, userId: string): PromiseLike<Result<unknown>>;
   removeMember(teamId: string, userId: string): PromiseLike<Result<unknown>>;
 }
@@ -255,7 +255,7 @@ export function teamsRoute(
   return async (entry) => {
     switch (entry.op) {
       case "DELETE": {
-        return teams.delete(entry.id);
+        return teams.purge(entry.id);
       }
 
       case "PATCH": {
