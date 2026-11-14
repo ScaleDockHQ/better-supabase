@@ -18,7 +18,7 @@ export const ENTITY_PAGE_INDEXES_SUFFIX =
   "_better_supabase_entity_page_indexes.sql";
 
 /** The schema file that declares the generated indexes, next to the block files. */
-export const ENTITY_PAGE_INDEXES_SCHEMA_FILE = "entity_page_indexes.sql";
+const ENTITY_PAGE_INDEXES_SCHEMA_FILE = "entity_page_indexes.sql";
 
 type PagesConfig = Pick<
   ResolvedConfig,
