@@ -6,7 +6,7 @@ import type {
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
-import type { BulkOptions, BulkReport } from "../../core/bulk.ts";
+import type { BulkCallOptions, BulkReport } from "../../core/bulk.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { IdempotencyClaims } from "../../core/idempotent-write.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -359,7 +359,7 @@ export interface Tasks<F extends object = Record<never, never>> {
   bulk(
     ids: readonly string[],
     action: TaskBulkAction,
-    options?: BulkOptions,
+    options?: BulkCallOptions,
   ): AsyncResult<BulkReport>;
   tree(rootId: string): AsyncResult<TaskNode[]>;
   /** One item you can read, or `undefined`. */
