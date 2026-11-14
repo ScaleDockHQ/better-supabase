@@ -82,7 +82,7 @@ deliveries before the World gives up on it, the same budget as
 write).
 
 The World speaks the `@workflow/world` protocol in
-`WORKFLOW_WORLD_PROTOCOL` (5.1.0 for `workflow` 5.2) and stores its tables
+`WORKFLOW_WORLD_PROTOCOL` (5.2.0 for `workflow` 5.5) and stores its tables
 in the shape of the `@workflow/world-postgres` version in
 `WORLD_POSTGRES_VERSION`. It passes the `@workflow/world-testing` suite.
 The `conformance` job in `.github/workflows/verify.yml` runs that suite
@@ -119,6 +119,18 @@ timestamps to `timestamptz`), then deploy the app. Runs started on
 `workflow` 5.2 with protocol 5.0 keep running; new runs use spec version 8,
 and `capabilities.inBandFence` is on for them. Don't run old and new app
 versions against the same database for longer than one deploy.
+
+### Rolling out 5.2
+
+`workflow` 5.5 needs `@workflow/world` and `@workflow/world-postgres` 5.2.
+Upgrade the SQL module first (`workflow-sdk` version 5 adds the
+`workflow.workflow_job_lock_holders` table of world-postgres migration 0030,
+closed to the API roles), then deploy the app. The World declares
+`queueAuthMode: "skip"`: the flow route checks the HMAC signature of every
+delivery itself, so the runtime adds no queue key check. It keeps the
+capabilities of `@workflow/world-postgres`, including `inBandFence`, so
+`WORKFLOW_SPEC_VERSION=9` creates spec 9 runs once every process runs
+`workflow` 5.5; without it, new runs stay on spec 8.
 
 ## Delivery
 
