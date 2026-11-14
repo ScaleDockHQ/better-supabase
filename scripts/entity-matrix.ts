@@ -10,6 +10,7 @@ import {
   ENTITY_METHODS,
   ENTITY_MUTABILITIES,
 } from "../packages/better-supabase/src/blocks/entity-surface.ts";
+import { webhookEventCatalog } from "../packages/better-supabase/src/blocks/event-catalog.ts";
 import { BLOCK_MANIFESTS } from "../packages/better-supabase/src/blocks/registry.ts";
 
 export const AUDIT_REPORT: string = join(
@@ -141,6 +142,17 @@ export function entityMatrix(): string {
         "Versioned",
       ],
       rows,
+    ),
+    "",
+    "The webhook event catalog: the events each block marks `public` (`event<T>({ public: true })`, ADR 0919).",
+    "",
+    ...table(
+      ["Block", "Public events"],
+      blocks.flatMap((block) => {
+        const types = webhookEventCatalog([block]).map((entry) => entry.type);
+
+        return types.length === 0 ? [] : [[block.name, types.join(", ")]];
+      }),
     ),
     "",
     END,

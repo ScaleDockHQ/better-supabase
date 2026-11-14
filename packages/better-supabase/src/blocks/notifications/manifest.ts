@@ -23,7 +23,11 @@ export const notificationsBlock: BlockOf<
   client: "notifications",
   category: "messaging",
   entities: {
-    notification: { mutability: "state-machine", emits: { create: true } },
+    notification: {
+      mutability: "state-machine",
+      emits: { create: true },
+      offline: true,
+    },
   },
   description:
     "In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.",

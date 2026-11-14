@@ -12,7 +12,7 @@ export const profilesBlock: BlockOf<"profiles", typeof createProfiles> =
     options: { profiles: profilesSqlOptions },
     create: createProfiles,
     category: "tenancy",
-    entities: { profile: { mutability: "read-only" } },
+    entities: { profile: { mutability: "read-only", offline: true } },
     description:
       "A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.",
     recipes: ["profile-form"],
