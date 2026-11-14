@@ -10,6 +10,10 @@ import type {
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  EntityList,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
@@ -38,6 +42,7 @@ import {
   isRecord,
   recordsOf,
 } from "../shared.ts";
+import { invitationList } from "./invitation-list.ts";
 import { decodeOverview } from "./overview.ts";
 
 /**
@@ -371,6 +376,26 @@ export interface Organizations<
   invitations(
     organizationId: string,
   ): AsyncResult<readonly OrganizationInvitationRow[]>;
+  /**
+   * One page of the open invitations, with `q` over the email, the `role`
+   * filter and the `expiresAt` or `email` sort (ADR 0923). The list reads the
+   * organization's open invitations once and pages them in memory; the cursor
+   * is valid for the sort and filters it came from.
+   */
+  invitationsPage: EntityList<
+    OrganizationInvitationRow,
+    RequiredTenantOption
+  >["page"];
+  /** The roles of the open invitations and how many hold each. */
+  invitationsFacets: EntityList<
+    OrganizationInvitationRow,
+    RequiredTenantOption
+  >["facets"];
+  /** How many open invitations match the same `q` and filters. */
+  invitationsCount: EntityList<
+    OrganizationInvitationRow,
+    RequiredTenantOption
+  >["count"];
   /**
    * The organization page in one call: the caller's role, the members with
    * their roles, the open invitations and the billed seats. `members` and
@@ -741,6 +766,30 @@ function organizationsClient<
     return { organizationId };
   };
 
+  const invitationRows = (
+    organizationId: string,
+  ): AsyncResult<readonly OrganizationInvitationRow[]> =>
+    run(
+      "organizations",
+      "list_organization_invitations",
+      { organization: organizationId },
+      (value) =>
+        recordsOf(value, "list_organization_invitations").map((row) => {
+          const expiresAt = optionalText(row["expires_at"]);
+
+          return {
+            id: text(row["id"]),
+            email: text(row["email"]),
+            role: text(row["role"]),
+            ...(expiresAt === null
+              ? {}
+              : { expiresAt: temporal().Instant.from(expiresAt) }),
+          };
+        }),
+    );
+
+  const invitationReads = invitationList(invitationRows);
+
   return {
     create({ attributes, ...createOptions }) {
       return checked(attributes).andThen((valid) => {
@@ -1036,26 +1085,10 @@ function organizationsClient<
         { organization: organizationId },
         decodeOverview,
       ),
-    invitations(organizationId) {
-      return run(
-        "organizations",
-        "list_organization_invitations",
-        { organization: organizationId },
-        (value) =>
-          recordsOf(value, "list_organization_invitations").map((row) => {
-            const expiresAt = optionalText(row["expires_at"]);
-
-            return {
-              id: text(row["id"]),
-              email: text(row["email"]),
-              role: text(row["role"]),
-              ...(expiresAt === null
-                ? {}
-                : { expiresAt: temporal().Instant.from(expiresAt) }),
-            };
-          }),
-      );
-    },
+    invitations: invitationRows,
+    invitationsPage: invitationReads.page,
+    invitationsFacets: invitationReads.facets,
+    invitationsCount: invitationReads.count,
     invite(request) {
       return AsyncResult.from(async () => {
         if (options.canInvite && !(await options.canInvite(request))) {

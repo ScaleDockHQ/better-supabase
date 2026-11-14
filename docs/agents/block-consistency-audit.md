@@ -544,7 +544,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | legal-entities            | tenancy       | legal_entity_setting       | editable      | -                      | update                 | -                                        | -                        | -           | -        | -       | -         |
 | memberships               | tenancy       | membership                 | read-only     | -                      | -                      | -                                        | -                        | -           | -        | y       | -         |
 | organizations             | tenancy       | organization               | editable      | create, update, delete | -                      | -                                        | -                        | -           | -        | -       | -         |
-| organizations             | tenancy       | invitation                 | editable      | create, update         | -                      | -                                        | -                        | -           | -        | -       | -         |
+| organizations             | tenancy       | invitation                 | editable      | create, update         | -                      | expiresAt, email                         | role                     | email       | -        | -       | -         |
 | profiles                  | tenancy       | profile                    | read-only     | -                      | -                      | -                                        | -                        | -           | -        | y       | -         |
 | reserved-slugs            | tenancy       | reserved_slug              | read-only     | -                      | -                      | -                                        | -                        | -           | -        | -       | -         |
 | saas                      | tenancy       | saa                        | read-only     | -                      | -                      | -                                        | -                        | -           | -        | -       | -         |
@@ -1064,11 +1064,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane O3
 
 - Scope: Offline, public events, impersonation actor, flags, invitations
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-o3`
-- PR: none yet
+- PR: #952, #956, #PRC
 - Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329, EX-510
-- Log: 2026-11-12, planned. 2026-11-14, in progress: stacked PRs 1318+1320 (offline declaration, public events; PR #952), 1321+510 (acting member, impersonation in the example), 1328+1329 (entity flags, invitations).
+- Log: 2026-11-12, planned. 2026-11-14, merged: PR #952 (1318+1320, offline declaration and public events), PR #956 (1321+510, acting member and impersonation in the example), PR #PRC (1328+1329, entity flags and the invitation list). EX-1318 stays partial (stream queries are hand-written) and EX-1329 stays partial (no SQL list function).
 
 ### Lane P
 

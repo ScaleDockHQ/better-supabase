@@ -149,8 +149,18 @@ export interface EntitySurface {
    * idempotency block (ADR 0809), such as `["create"]`.
    */
   readonly idempotent?: readonly string[];
-  /** The feature flag that turns the entity on. */
+  /**
+   * The feature flag that turns the entity on (ADR 0922). With `createBlocks({
+   * flags })`, each method in `methods` returns `not_found` while the flag is
+   * off, so the entity's routes, which call those methods, disappear with it.
+   */
   readonly flag?: string;
+  /**
+   * The client methods that belong to the entity, by name. `flag` gates exactly
+   * these; an entity with a `flag` and no `methods` gates nothing and fails the
+   * conformance test.
+   */
+  readonly methods?: readonly string[];
   /** The meter each write counts against. */
   readonly meter?: string;
   /** The plan limit the entity's count is held to. */
