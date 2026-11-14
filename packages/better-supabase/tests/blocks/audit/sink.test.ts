@@ -30,6 +30,19 @@ describe("auditEventOf", () => {
     });
   });
 
+  it("records the admin an impersonated mutation names", () => {
+    expect(
+      auditEventOf({
+        ...base,
+        type: "dev.better-supabase.task.created",
+        data: { actorId: "target", impersonatedBy: "admin" },
+      }),
+    ).toMatchObject({ actorId: "target", impersonatedBy: "admin" });
+    expect(
+      auditEventOf({ ...base, type: "x", data: { actorId: "u1" } }),
+    ).not.toHaveProperty("impersonatedBy");
+  });
+
   it("reads the tenant from the extension, then the data", () => {
     expect(
       auditEventOf({
