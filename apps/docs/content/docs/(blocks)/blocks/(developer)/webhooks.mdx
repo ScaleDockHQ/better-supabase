@@ -286,7 +286,7 @@ as it is, and `better-supabase doctor` reports it as BS335.
 ## Delivering
 
 Call `deliver()` from a cron route or a job. `deliverRoute` wraps it for
-Vercel Cron, behind the `CRON_SECRET` bearer token:
+a Vercel schedule, behind the `CRON_SECRET` bearer token:
 
 ```ts title="app/api/webhooks/deliver/route.ts"
 import { webhooks } from "@/lib/webhooks";

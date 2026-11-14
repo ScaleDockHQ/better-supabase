@@ -80,3 +80,12 @@ your own table or a queue with delayed jobs.
 
 The inbox's own [scheduled replies](/docs/blocks/inbox) are a separate
 feature: staff schedule them as themselves, and `maintain` sends them.
+
+## Running it on a schedule
+
+On Vercel, call the `publishDue` route from a
+[Vercel schedule](https://vercel.com/docs/schedules) with a path target
+(`"requestMethod": "GET"` for a `GET` route), which sends `CRON_SECRET` as a
+bearer token. An app that already runs the [queue block](/docs/blocks/queue)
+can schedule a job instead and call `publishDue` from its handler, with any
+of the [queue and scheduler pairs](/docs/blocks/queue#queues-and-schedulers).

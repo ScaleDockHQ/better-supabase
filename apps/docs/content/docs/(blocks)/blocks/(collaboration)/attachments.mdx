@@ -520,7 +520,13 @@ export async function GET(): Promise<Response> {
 
 ```json title="vercel.json"
 {
-  "crons": [{ "path": "/api/cron/attachment-cleanup", "schedule": "0 * * * *" }]
+  "schedules": {
+    "attachment-cleanup": {
+      "schedule": "0 * * * *",
+      "path": "/api/cron/attachment-cleanup",
+      "requestMethod": "GET"
+    }
+  }
 }
 ```
 

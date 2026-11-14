@@ -469,3 +469,14 @@ contacts.
 - `queueSchedules` starts the sessions from the eve schedule's own task, so
   a drain is bounded by `budgetMs` (50 seconds by default). Jobs left over
   wait for the next minute.
+
+## Queue schedulers
+
+`queueSchedules` calls `runSchedules` and then drains the
+[queue block](/docs/blocks/queue), so its schedules need the drain scheduler
+(`blocks.queue.options.scheduler: "drain"`, or `sqlScheduler(sql, { mode:
+"drain" })`). Under pg_cron or Vercel Schedules, `runSchedules` enqueues
+nothing and the runs reach the queue another way (see
+[Queues and schedulers](/docs/blocks/queue#queues-and-schedulers)).
+`ScheduleProvider` from `better-supabase/blocks/queue` is the port a
+scheduler implements.
