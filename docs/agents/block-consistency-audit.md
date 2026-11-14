@@ -1032,7 +1032,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane O2
 
 - Scope: Plan limits, quota, method meters
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-o2`
 - PR: none yet
 - Findings: EX-1312, EX-1313, EX-1314
