@@ -2,7 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
-import { readAdminRows } from "@/features/admin-lists/admin-detail-read";
+import { readUserRows } from "@/features/admin-lists/admin-detail-read";
 import { loadAdminList } from "@/features/admin-lists/admin-list-load";
 import { readPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
@@ -33,7 +33,7 @@ export async function getCreditEntries() {
     tenant,
     list: creditList,
     source: creditEntrySource,
-    access: "admin",
+    access: "user",
     query: creditList.defaults,
   });
 }
@@ -50,7 +50,7 @@ export async function getCreditBalance() {
     return null;
   }
 
-  const [row] = await readAdminRows<{ balance: string; held: string }>(
+  const [row] = await readUserRows<{ balance: string; held: string }>(
     request.session,
     `select coalesce(sum(b.balance), 0)::text as balance, coalesce(sum(b.held), 0)::text as held
      from better_supabase.ledger_balances b
@@ -104,7 +104,7 @@ export async function getCreditTransaction(
     return "forbidden";
   }
 
-  const [row] = await readAdminRows<TransactionRaw>(
+  const [row] = await readUserRows<TransactionRaw>(
     request.session,
     `select t.id::text as id, t.kind, t.memo,
        nullif(concat_ws(' ', t.reference_type, t.reference_id), '') as reference,

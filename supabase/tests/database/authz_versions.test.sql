@@ -5,7 +5,7 @@
 -- `authz_ver` next to the active organization's permission keys. User …00a1 is an admin and owns organization …0001, and
 -- …00a2 is a member there, in supabase/seed.sql.
 begin;
-select plan(14);
+select plan(17);
 
 create temp table seen as
 select user_id, version from better_supabase.user_authz_versions;
@@ -101,6 +101,47 @@ select is(
   pg_temp.bumped('00000000-0000-4000-8000-0000000000a1'),
   1::bigint,
   'an override leaves members with other roles alone'
+);
+
+-- A role's catalog grants change outside the API, as a migration does (EX-808).
+-- The trigger on role_permissions bumps every member who holds the role, so
+-- each open session refreshes its token and sees the new key.
+create temp table before_grant as
+select user_id, version from better_supabase.user_authz_versions;
+
+insert into better_supabase.role_permissions (role_id, permission_id)
+select r.id, p.id
+from better_supabase.roles r, better_supabase.permissions p
+where r.key = 'admin' and p.key = 'flags.manage'
+on conflict do nothing;
+
+select ok(
+  (select v.version > coalesce(b.version, 0)
+   from better_supabase.user_authz_versions v
+   left join before_grant b on b.user_id = v.user_id
+   where v.user_id = '00000000-0000-4000-8000-0000000000a2'),
+  'a role grant added by a migration bumps the members who hold the role'
+);
+
+select is(
+  rbac.custom_access_token_hook(
+    '{"user_id":"00000000-0000-4000-8000-0000000000a2","claims":{"sub":"00000000-0000-4000-8000-0000000000a2"}}'
+  ) -> 'claims' -> 'authz_ver',
+  to_jsonb((select version from better_supabase.user_authz_versions
+    where user_id = '00000000-0000-4000-8000-0000000000a2')),
+  'the next token carries the bumped version'
+);
+
+select ok(
+  'flags.manage' = any (
+    array(select jsonb_array_elements_text(
+      better_supabase.permission_claims(
+        '00000000-0000-4000-8000-0000000000a2',
+        '00000000-0000-4000-8000-000000000001'
+      ) -> '00000000-0000-4000-8000-000000000001'
+    ))
+  ),
+  'and the keys behind that token include the new grant'
 );
 
 -- Every block adds permissions, so the full owner set no longer fits the hook's

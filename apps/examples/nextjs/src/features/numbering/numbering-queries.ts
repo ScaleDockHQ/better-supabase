@@ -21,7 +21,7 @@ export async function getNumbering() {
   const tenant = tenantOf(request.session);
   const permissions = await readPermissions(request);
 
-  if (!tenant || !can(permissions, "numbering.assign")) {
+  if (!tenant || !can(permissions, "numbering.read")) {
     return null;
   }
 
