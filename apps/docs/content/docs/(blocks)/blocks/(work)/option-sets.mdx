@@ -65,7 +65,7 @@ const [priority] = await sets
 
 `ensure` creates the field's default set from the binding on first use, so calling it on every start is safe. `list`, `upsert`, `saveItem`, `reorderItem` and `archiveItem` do the rest.
 
-`archiveItem({ itemId, replacementId })` moves the records that use the item to the replacement, and writes the replacement's level to them. Without a replacement, an item that is in use is refused (`OPTION_SET_ITEM_IN_USE`). A set keeps at least one item (`OPTION_SET_LAST_ITEM`), and the replacement must be another active item of the same set (`OPTION_SET_REPLACEMENT_INVALID`).
+`restoreItem(itemId)` brings an archived item back and records `option_set_item.restored`; records that moved away stay where they are. `archiveItem({ itemId, replacementId })` moves the records that use the item to the replacement, and writes the replacement's level to them. Without a replacement, an item that is in use is refused (`OPTION_SET_ITEM_IN_USE`). A set keeps at least one item (`OPTION_SET_LAST_ITEM`), and the replacement must be another active item of the same set (`OPTION_SET_REPLACEMENT_INVALID`).
 
 `createOptionSetsController` wraps the client for a settings screen. Its snapshot is `{ sets, error }`, and its actions are `refresh`, `saveItem`, `moveItem` and `archiveItem`.
 

@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:ace4f3e2647d526b726ca5f5e7ff61464ff32c958cc6f90f153cbb1a7170e5a2
+-- @bsb-hash sha256:8abfd72137077cf7a88d168fea3812d3d7f011b14f8758c2fe7084d091c75b56
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -330,6 +330,52 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_asset_location"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_asset_location"(uuid) to authenticated, service_role;
+
+-- Restores an archived location, unless its parent is still archived.
+create or replace function "better_supabase"."restore_asset_location"(location_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."asset_locations"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."asset_locations" x where x."id" = restore_asset_location.location_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.read'), false)) then
+    raise exception 'location not found' using errcode = 'P0002', hint = 'ASSETS_LOCATION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.manage'), false)) then
+    raise exception 'not allowed to manage locations' using errcode = '42501', hint = 'ASSETS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    if v_row."parent_id" is not null and exists (select 1 from "better_supabase"."asset_locations" y where y."id" = v_row."parent_id" and y."archived_at" is not null) then
+      raise exception 'restore the parent location first' using errcode = '55000', hint = 'ASSETS_LOCATION_IN_USE';
+    end if;
+    update "better_supabase"."asset_locations" x set "archived_at" = null, "updated_at" = now()
+      where x."id" = v_row."id"
+      returning * into v_row;
+    perform "better_supabase".emit_event('asset_location.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'kind', v_row."kind", 'name', v_row."name", 'parentId', v_row."parent_id"), 'asset-locations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/assets');
+  perform better_supabase.audit_event(
+    event_type => 'asset_location.restored',
+    category => 'data',
+    target_type => 'asset_location',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    summary => 'restored location',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'kind', v_row."kind", 'name', v_row."name", 'parentId', v_row."parent_id")
+  );
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'parentId', v_row."parent_id", 'kind', v_row."kind", 'name', v_row."name", 'code', v_row."code", 'address', v_row."address", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'area', extensions.st_asgeojson(v_row.area::extensions.geometry)::jsonb, 'metadata', v_row."metadata", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_asset_location"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_asset_location"(uuid) to authenticated, service_role;
 
 -- A location with its path from the top (path ends with the location itself)
 -- and how many sublocations and assets it holds.
@@ -1891,6 +1937,15 @@ set search_path = ''
 as $$ select "better_supabase"."archive_asset_location"($1) $$;
 revoke execute on function "api"."archive_asset_location"(uuid) from public, anon;
 grant execute on function "api"."archive_asset_location"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_asset_location"(location_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_asset_location"($1) $$;
+revoke execute on function "api"."restore_asset_location"(uuid) from public, anon;
+grant execute on function "api"."restore_asset_location"(uuid) to authenticated, service_role;
 
 create or replace function "api"."get_asset_location"(location_id uuid)
 returns jsonb

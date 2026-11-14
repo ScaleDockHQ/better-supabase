@@ -489,6 +489,38 @@ end;
 $$;
 ${userGrant(`${fn("archive_asset_location")}(uuid)`)}
 
+-- Restores an archived location, unless its parent is still archived.
+create or replace function ${fn("restore_asset_location")}(location_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${locations}%rowtype;
+begin
+  select * into v_row from ${locations} x where x.${l("id")} = restore_asset_location.location_id for update;
+  if not found or not ${readsLocation("v_row")} then
+    ${locationMissing}
+  end if;
+  if not ${allowed(`v_row.${l("tenant")}`, manage)} then
+    ${forbidden("not allowed to manage locations")}
+  end if;
+  if v_row.${l("archivedAt")} is not null then
+    if v_row.${l("parent")} is not null and exists (select 1 from ${locations} y where y.${l("id")} = v_row.${l("parent")} and y.${l("archivedAt")} is not null) then
+      ${fail("ASSETS_LOCATION_IN_USE", "restore the parent location first", "55000")}
+    end if;
+    update ${locations} x set ${l("archivedAt")} = null, ${l("updatedAt")} = now()
+      where x.${l("id")} = v_row.${l("id")}
+      returning * into v_row;
+    ${locationRecord("asset_location.restored", "v_row", "restored location")}
+  end if;
+  return ${locationJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("restore_asset_location")}(uuid)`)}
+
 -- A location with its path from the top (path ends with the location itself)
 -- and how many sublocations and assets it holds.
 create or replace function ${fn("get_asset_location")}(location_id uuid)

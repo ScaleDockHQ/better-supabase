@@ -81,7 +81,9 @@ entry per locale. `coverAttachmentId` points at an attachment and needs the
 attachments block. `contentEntryInputSchema` validates the input.
 
 `update(id, input)` changes the slug, title, summary, body or cover, and
-`archive(id)` takes an entry offline. `get(id)` returns one entry with its
+`archive(id)` takes an entry offline. `restore(id)` brings an archived entry
+back as a draft and records `content_entry.restored`; publish it again as a
+separate step. `get(id)` returns one entry with its
 translations, or null when the caller can't read it. `list({ type, locale,
 status, translationGroupId, query, limit, offset })` returns the
 organization's entries, latest change first; `query` matches the title or

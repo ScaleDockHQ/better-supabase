@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:07e57ab4fcfc3dd6ded64030696e676f10f80cf0d4f9ad9321827ef56a9abc69
+-- @bsb-hash sha256:0b8a3adc99a1b1cc74e6280e2b55226b64ef2ad62d0071ce0b300796eba2d08e
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -229,6 +229,36 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_medication"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_medication"(uuid) to authenticated, service_role;
+
+-- Restores an archived medication: new orders can use it again.
+create or replace function "better_supabase"."restore_medication"(medication_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_medication "better_supabase"."medications"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_medication from "better_supabase"."medications" x where x."id" = restore_medication.medication_id;
+  if not found then
+    raise exception 'medication not found' using errcode = 'P0002', hint = 'MEDICATION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_medication."tenant_id", 'medications.prescribe'), false)) then
+    raise exception 'not allowed to change the medication catalog' using errcode = '42501', hint = 'MEDICATION_FORBIDDEN';
+  end if;
+  update "better_supabase"."medications" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_medication."id"
+  returning x.* into v_medication;
+  return jsonb_build_object('id', v_medication."id", 'organizationId', v_medication."tenant_id", 'name', v_medication."name", 'codeSystem', v_medication."code_system", 'code', v_medication."code", 'form', v_medication."form", 'strength', v_medication."strength", 'unit', v_medication."unit", 'highRisk', v_medication."high_risk", 'archivedAt', v_medication."archived_at", 'createdAt', v_medication."created_at", 'updatedAt', v_medication."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_medication"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_medication"(uuid) to authenticated, service_role;
 
 -- Stores an item picked from a MedicationCatalog (name, unit, codeSystem,
 -- code, form, strength, highRisk) in the organization's catalog. An item

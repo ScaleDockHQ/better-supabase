@@ -75,6 +75,16 @@ const validate = (
 ) => schema["~standard"].validate(value) as { issues?: unknown[] };
 
 describe("createCases", () => {
+  it("restores an archived kind", async () => {
+    const t = fieldsTransport({ restore_case_kind: () => KIND });
+    const cases = createCases({ transport: t, tenant: "org-1" });
+
+    expect(await cases.restoreKind("k1").orThrow()).toMatchObject({
+      id: KIND.id,
+    });
+    expect(t.calls).toEqual([["restore_case_kind", { kind_id: "k1" }]]);
+  });
+
   it("saves, archives and lists kinds", async () => {
     const t = fieldsTransport({
       save_case_kind: () => KIND,

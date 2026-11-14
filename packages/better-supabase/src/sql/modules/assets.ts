@@ -66,6 +66,10 @@ const EVENTS: BlockSqlEvents<AssetsEvents> = {
     subject: "asset-locations",
     payload: LOCATION_PAYLOAD,
   },
+  "asset_location.restored": {
+    subject: "asset-locations",
+    payload: LOCATION_PAYLOAD,
+  },
   "asset.created": { subject: "assets", payload: ASSET_PAYLOAD },
   "asset.updated": { subject: "assets", payload: ASSET_PAYLOAD },
   "asset.assigned": { subject: "assets", payload: ASSET_PAYLOAD },

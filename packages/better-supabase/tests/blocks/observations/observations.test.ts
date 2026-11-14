@@ -76,6 +76,21 @@ const validate = (
 ) => schema["~standard"].validate(value) as { issues?: unknown[] };
 
 describe("createObservations", () => {
+  it("restores an archived definition", async () => {
+    const t = fieldsTransport({
+      restore_observation_definition: () => DEFINITION,
+    });
+
+    const observations = createObservations({ transport: t });
+
+    expect(await observations.restoreDefinition("d1").orThrow()).toMatchObject({
+      id: DEFINITION.id,
+    });
+    expect(t.calls).toEqual([
+      ["restore_observation_definition", { definition_id: "d1" }],
+    ]);
+  });
+
   it("saves, archives and lists definitions", async () => {
     const t = fieldsTransport({
       save_observation_definition: () => ({

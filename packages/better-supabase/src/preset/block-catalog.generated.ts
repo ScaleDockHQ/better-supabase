@@ -2460,9 +2460,11 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "pipeline.archived",
         "pipeline.created",
+        "pipeline.restored",
         "pipeline.updated",
         "pipeline_stage.archived",
         "pipeline_stage.created",
+        "pipeline_stage.restored",
         "pipeline_stage.updated"
       ],
       "subpath": "better-supabase/blocks/pipelines",
@@ -3196,6 +3198,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "asset.updated",
         "asset_location.archived",
         "asset_location.created",
+        "asset_location.restored",
         "asset_location.updated"
       ],
       "subpath": "better-supabase/blocks/assets",
@@ -4048,6 +4051,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "content_entry.archived",
         "content_entry.created",
         "content_entry.published",
+        "content_entry.restored",
         "content_entry.scheduled",
         "content_entry.unscheduled",
         "content_entry.updated"
@@ -5392,6 +5396,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "option_set.updated",
         "option_set_item.archived",
         "option_set_item.created",
+        "option_set_item.restored",
         "option_set_item.updated"
       ],
       "subpath": "better-supabase/blocks/option-sets",

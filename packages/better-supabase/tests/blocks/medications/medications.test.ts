@@ -125,6 +125,16 @@ const catalogOf = (
 });
 
 describe("createMedications", () => {
+  it("restores an archived medication", async () => {
+    const t = fieldsTransport({ restore_medication: () => MEDICATION });
+    const medications = createMedications({ transport: t });
+
+    expect(await medications.restoreMedication("m1").orThrow()).toMatchObject({
+      id: MEDICATION.id,
+    });
+    expect(t.calls).toEqual([["restore_medication", { medication_id: "m1" }]]);
+  });
+
   it("saves, archives, imports and lists medications", async () => {
     const t = fieldsTransport({
       save_medication: () => MEDICATION,

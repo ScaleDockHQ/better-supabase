@@ -265,6 +265,37 @@ end;
 $$;
 ${userGrant(`${fn("archive_compliance_policy")}(uuid)`)}
 
+-- Restores an archived policy and places its every-member assignment again
+-- when it needs an acknowledgement.
+create or replace function ${fn("restore_compliance_policy")}(policy_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${policies}%rowtype;
+begin
+  select * into v_row from ${policies} x where x.${p("id")} = restore_compliance_policy.policy_id for update;
+  if not found then
+    ${notFound}
+  end if;
+  if not ${allowed(`v_row.${p("tenant")}`, manage)} then
+    ${forbidden("not allowed to manage policies")}
+  end if;
+  if v_row.${p("archivedAt")} is not null then
+    update ${policies} x set ${p("archivedAt")} = null${touch}
+      where x.${p("id")} = v_row.${p("id")}
+      returning * into v_row;
+    if v_row.${p("requiresAck")} then
+      perform ${assignment("place_acknowledgement_assignment", ", null")};
+    end if;
+  end if;
+  return ${policyJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("restore_compliance_policy")}(uuid)`)}
+
 -- The policies, with the caller's acknowledgement of each current version
 -- and how many members acknowledged it. list_my_acknowledgements in the
 -- acknowledgements block lists the ones the caller still has to acknowledge.

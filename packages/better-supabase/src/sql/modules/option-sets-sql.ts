@@ -572,5 +572,39 @@ begin
 end;
 $$;
 ${userGrant(`${fn("archive_option_set_item")}(uuid, uuid)`)}
+
+-- Restores an archived item. Records that moved to a replacement stay there.
+create or replace function ${fn("restore_option_set_item")}(item uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${idType};
+  v_set uuid;
+  v_item uuid := restore_option_set_item.item;
+begin
+  select x.${i("tenant")}, x.${i("set")} into v_tenant, v_set
+  from ${t("items")} x
+  where x.${i("id")} = restore_option_set_item.item and x.${i("archivedAt")} is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  ${manage("v_tenant")}
+  update ${t("items")} x set ${i("archivedAt")} = null, ${i("updatedAt")} = now() where x.${i("id")} = restore_option_set_item.item;
+  ${configured(
+    "option_set_item.restored",
+    "jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item)",
+    "'option-sets/' || v_set::text",
+    "v_tenant::text",
+    "option_set_item",
+    "v_item::text",
+    "'restored an option set item'",
+  )}
+  return true;
+end;
+$$;
+${userGrant(`${fn("restore_option_set_item")}(uuid)`)}
 `;
 }

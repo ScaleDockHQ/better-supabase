@@ -37,7 +37,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   approvals:
     "approval_requirement cancel_approval consume_approval decide_approval decide_approval_items delegate_approval get_approval get_approvals is_approved list_approval_policies list_approvals page_approvals record_approval_created remove_approval_policy request_approval request_approval_items save_approval_policy settle_approval",
   assets:
-    "archive_asset_location asset_assignment_history asset_locations_at assets_near assign_asset create_asset create_asset_location dispose_asset get_asset get_asset_location list_asset_depreciations list_asset_locations list_assets page_assets release_asset run_asset_depreciation set_asset_link update_asset update_asset_location",
+    "archive_asset_location asset_assignment_history asset_locations_at assets_near assign_asset create_asset create_asset_location dispose_asset get_asset get_asset_location list_asset_depreciations list_asset_locations list_assets page_assets release_asset restore_asset_location run_asset_depreciation set_asset_link update_asset update_asset_location",
   assignment:
     "assign_subject assignment_history list_assignment_queues remove_assignment_queue save_assignment_queue set_assignment_members",
   attachments:
@@ -77,7 +77,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   comments:
     "comment_conversation comment_counts copy_comments create_comment get_comment list_comments list_file_comments",
   compliance:
-    "add_control_evidence apply_oscal_profile archive_compliance_policy control_posture export_oscal_assessment_results get_control import_oscal_catalog list_compliance_policies list_control_frameworks list_controls list_evidence_tasks notify_overdue_evidence_tasks publish_compliance_policy remove_control_evidence save_compliance_policy save_control save_control_framework save_evidence_task",
+    "add_control_evidence apply_oscal_profile archive_compliance_policy control_posture export_oscal_assessment_results get_control import_oscal_catalog list_compliance_policies list_control_frameworks list_controls list_evidence_tasks notify_overdue_evidence_tasks publish_compliance_policy remove_control_evidence restore_compliance_policy save_compliance_policy save_control save_control_framework save_evidence_task",
   connectors:
     "check_connector_fingerprint decide_connector_fingerprint delete_connector_server expiring_connector_grants get_connector get_connector_session list_connector_servers purge_connector_sessions record_connector_grant renew_connector_grant revoke_connector_grant save_connector_server save_connector_session",
   consents:
@@ -85,7 +85,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   contacts:
     "add_person_identity archive_company archive_person company_people_of delete_payment_term find_person_by_identity get_company get_person list_companies list_document_delivery_preferences list_payment_terms list_people list_person_identities merge_companies merge_people remove_company_person remove_person_identity save_company save_payment_term save_person set_company_person set_document_delivery_preferences set_party_roles set_supplier_status supplier_status_from_qualifications",
   content:
-    "archive_content_entry create_content_entry get_content_entry list_content_entries public_content_entries public_content_entry publish_content_entry publish_due_content_entries schedule_content_entry update_content_entry",
+    "archive_content_entry create_content_entry get_content_entry list_content_entries public_content_entries public_content_entry publish_content_entry publish_due_content_entries restore_content_entry schedule_content_entry update_content_entry",
   contracts:
     "create_contract delete_contract_obligation get_contract list_contract_obligations list_contracts run_contract_renewals save_contract_obligation send_contract_for_signature set_contract_obligation_status transition_contract update_contract",
   courses:
@@ -197,7 +197,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   manufacturing:
     "activate_bom bom_where_used cancel_production_order complete_production_order create_from_requirements create_production_order explode_bom finish_production_operation get_bom get_production_order list_boms list_production_orders list_work_centers lot_genealogy lot_recall material_requirements record_production_consumption release_production_order save_bom save_work_center start_production_operation",
   medications:
-    "approve_medication_order archive_medication import_medication import_medication_orders list_medications mark_missed_medication_administrations medication_chart medication_orders_of pause_medication_order plan_medication_administrations prescribe_medication record_as_needed_administration record_medication_administration save_medication stop_medication_order update_medication_order",
+    "approve_medication_order archive_medication import_medication import_medication_orders list_medications mark_missed_medication_administrations medication_chart medication_orders_of pause_medication_order plan_medication_administrations prescribe_medication record_as_needed_administration record_medication_administration restore_medication save_medication stop_medication_order update_medication_order",
   memory:
     "memory_create memory_delete memory_document_read memory_document_write memory_forget memory_insert memory_list memory_rename memory_restore memory_save memory_search memory_str_replace memory_view pending_memory_embeddings purge_memories purge_memory_documents recall_ai_messages set_ai_message_embedding set_memory_embeddings",
   messaging:
@@ -221,12 +221,12 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   outbox:
     "emit_event outbox_ack outbox_claim outbox_dead_letters outbox_fail outbox_history outbox_register outbox_unregister purge_outbox",
   "option-sets":
-    "archive_option_set_item ensure_option_set list_option_sets rank_option_set_item save_option_set save_option_set_item",
+    "archive_option_set_item ensure_option_set list_option_sets rank_option_set_item restore_option_set_item save_option_set save_option_set_item",
   passes:
     "check_in_pass get_pass issue_pass list_pass_check_ins list_passes my_passes page_passes revoke_pass",
   permissions: "can list_roles my_permissions set_permission_override",
   pipelines:
-    "archive_pipeline archive_pipeline_stage list_pipelines pipeline_board pipeline_health pipeline_stats rank_pipeline_stage save_pipeline save_pipeline_stage set_pipeline_transitions",
+    "archive_pipeline archive_pipeline_stage list_pipelines pipeline_board pipeline_health pipeline_stats rank_pipeline_stage restore_pipeline restore_pipeline_stage save_pipeline save_pipeline_stage set_pipeline_transitions",
   posts:
     "create_post delete_post get_post list_post_boards list_posts merge_posts save_post_board set_post_state update_post vote_on_post",
   profiles: "my_profile update_my_profile",

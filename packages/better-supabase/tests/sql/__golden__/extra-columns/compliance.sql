@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:cadcd4a476ca31ff9bd243c28332ca28961c6f168ca8bbd03675c3a44be50da3
+-- @bsb-hash sha256:bbc1fe8814fb0c03ec2bb1128133c443f7cf1343b35074977ae6a8234fb2f9d7
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -683,6 +683,41 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_compliance_policy"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_compliance_policy"(uuid) to authenticated, service_role;
+
+-- Restores an archived policy and places its every-member assignment again
+-- when it needs an acknowledgement.
+create or replace function "better_supabase"."restore_compliance_policy"(policy_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."compliance_policies"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = restore_compliance_policy.policy_id for update;
+  if not found then
+    raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
+    raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    update "better_supabase"."compliance_policies" x set "archived_at" = null, "updated_at" = now()
+      where x."id" = v_row."id"
+      returning * into v_row;
+    if v_row."requires_acknowledgement" then
+      perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*', null);
+    end if;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
+end;
+$$;
+revoke execute on function "better_supabase"."restore_compliance_policy"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_compliance_policy"(uuid) to authenticated, service_role;
 
 -- The policies, with the caller's acknowledgement of each current version
 -- and how many members acknowledged it. list_my_acknowledgements in the

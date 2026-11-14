@@ -294,6 +294,8 @@ export interface Assets {
   }): AsyncResult<AssetLocation>;
   /** Only a location without open sublocations or assets in service. */
   archiveLocation(locationId: string): AsyncResult<AssetLocation>;
+  /** Brings an archived location back; its parent must be active. */
+  restoreLocation(locationId: string): AsyncResult<AssetLocation>;
   location(locationId: string): AsyncResult<AssetLocationDetail>;
   /** The locations under `parentId`, or the top ones. */
   locations(options?: {
@@ -684,6 +686,10 @@ export function createAssets(options: AssetsOptions): Assets {
     archiveLocation: (locationId) =>
       call("archive_asset_location", { location_id: locationId }, (value) =>
         locationOf(value, "archive_asset_location"),
+      ),
+    restoreLocation: (locationId) =>
+      call("restore_asset_location", { location_id: locationId }, (value) =>
+        locationOf(value, "restore_asset_location"),
       ),
     location: (locationId) =>
       call("get_asset_location", { location_id: locationId }, (value) => {
