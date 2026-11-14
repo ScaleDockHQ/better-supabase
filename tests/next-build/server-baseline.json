@@ -1230,27 +1230,27 @@
     "brotli": 783132
   },
   "/[locale]/(app)/workflows/builder/[definition]/page": {
-    "raw": 5073588,
+    "raw": 5074416,
     "gzip": 1539378,
     "brotli": 1272489
   },
   "/[locale]/(app)/workflows/page": {
-    "raw": 5077841,
+    "raw": 5078669,
     "gzip": 1541077,
     "brotli": 1273964
   },
   "/[locale]/(app)/workflows/runs/[run]/page": {
-    "raw": 5077892,
+    "raw": 5078720,
     "gzip": 1541283,
     "brotli": 1274130
   },
   "/[locale]/(app)/workflows/runs/page": {
-    "raw": 5076041,
+    "raw": 5076869,
     "gzip": 1541435,
     "brotli": 1274218
   },
   "/[locale]/(app)/workflows/templates/page": {
-    "raw": 5071387,
+    "raw": 5072215,
     "gzip": 1538331,
     "brotli": 1271517
   },
@@ -1590,7 +1590,7 @@
     "brotli": 658295
   },
   "/api/jobs/drain/route": {
-    "raw": 4673689,
+    "raw": 4674556,
     "gzip": 1408776,
     "brotli": 1183251
   },
@@ -1645,7 +1645,7 @@
     "brotli": 301491
   },
   "/api/outbox/route": {
-    "raw": 4589182,
+    "raw": 4590051,
     "gzip": 1381817,
     "brotli": 1159162
   },
@@ -1655,7 +1655,7 @@
     "brotli": 685415
   },
   "/api/periods/list/route": {
-    "raw": 2558296,
+    "raw": 2559332,
     "gzip": 774238,
     "brotli": 657308
   },
@@ -1680,7 +1680,7 @@
     "brotli": 178759
   },
   "/api/queues/block-ticks/route": {
-    "raw": 4652539,
+    "raw": 4653406,
     "gzip": 1400637,
     "brotli": 1175890
   },
@@ -1765,7 +1765,7 @@
     "brotli": 749595
   },
   "/api/workflows/definitions/list/route": {
-    "raw": 4722998,
+    "raw": 4723865,
     "gzip": 1419854,
     "brotli": 1192633
   },
@@ -1775,12 +1775,12 @@
     "brotli": 821371
   },
   "/api/workflows/runs/list/route": {
-    "raw": 4723001,
+    "raw": 4723868,
     "gzip": 1419858,
     "brotli": 1192632
   },
   "/api/workflows/tick/route": {
-    "raw": 4606390,
+    "raw": 4607257,
     "gzip": 1385839,
     "brotli": 1162669
   },
