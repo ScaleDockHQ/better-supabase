@@ -280,7 +280,11 @@ export function WorkflowRunDetail({ detail }: { detail: RunDetailData }) {
       t("Version"),
       detail.version === null
         ? "–"
-        : t("v{version}", { version: String(detail.version) }),
+        : detail.mode === "test"
+          ? t("v{version} (hidden test snapshot)", {
+              version: String(detail.version),
+            })
+          : t("v{version}", { version: String(detail.version) }),
     ],
   ] as const;
 

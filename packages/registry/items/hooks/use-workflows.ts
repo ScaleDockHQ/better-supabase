@@ -4,6 +4,7 @@ import type {
   WorkflowRunActions,
   WorkflowRunsActions,
   WorkflowRunSnapshot,
+  WorkflowRunMode,
   WorkflowRunsSnapshot,
   WorkflowRunStatus,
 } from "better-supabase/blocks/workflows";
@@ -25,6 +26,11 @@ export interface UseWorkflowRunsOptions {
   readonly tenant?: string | null;
   readonly definition?: string;
   readonly status?: WorkflowRunStatus;
+  /**
+   * `live` (the default), `test` or `all`. A test run started in the editor
+   * only shows with `test` or `all`.
+   */
+  readonly mode?: WorkflowRunMode | "all";
   readonly limit?: number;
   /**
    * The schema the calls go to: the module schema (default `better_supabase`),
@@ -48,7 +54,7 @@ export function useWorkflowRuns(
   options: UseWorkflowRunsOptions = {},
 ): WorkflowRunsState {
   const { supabase, auth, ports } = useBlockEnv();
-  const { schema, tenant, definition, status, limit } = options;
+  const { schema, tenant, definition, status, mode, limit } = options;
 
   return useController(
     () =>
@@ -62,9 +68,10 @@ export function useWorkflowRuns(
         tenant: tenant ?? null,
         ...(definition === undefined ? {} : { definition }),
         ...(status === undefined ? {} : { status }),
+        ...(mode === undefined ? {} : { mode }),
         ...(limit === undefined ? {} : { limit }),
       }),
-    [supabase, auth, ports, schema, tenant, definition, status, limit],
+    [supabase, auth, ports, schema, tenant, definition, status, mode, limit],
   ).view;
 }
 

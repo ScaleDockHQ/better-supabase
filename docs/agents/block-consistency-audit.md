@@ -1128,11 +1128,12 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X6
 
 - Scope: Workflows (after G2)
-- Status: planned
+- Status: in progress
 - Branch: `feat/findings-x6`
 - PR: none yet
 - Findings: EX-201, EX-202, EX-203, EX-205, EX-210, EX-212, EX-213
 - Log: 2026-11-14, planned.
+- Log: 2026-11-14, EX-205, EX-210, EX-212 (partly) and EX-213 done (ADRs 0989 and 0990); EX-201 to EX-203 deferred with their needs.
 
 ### Lane X7
 
