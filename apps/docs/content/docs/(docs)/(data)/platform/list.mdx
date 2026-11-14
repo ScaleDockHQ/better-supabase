@@ -128,9 +128,20 @@ page.facetCountsTruncated; // [] when every facet was counted in full
 
 `facetCountMode: "capped"` reads at most `facetScanCap` rows per facet (1000 by
 default) and counts that sample, instead of grouping every matching row. When
-the cap is reached, `page.facetCountsCapped` is true. `countFacets` returns
-those counts without the page, and `facetCacheKey` stays the same while the
-page, cursor and size change, so a cache can keep them:
+the cap is reached, `page.facetCountsCapped` is true. Pass `facetCountMode` to
+`run` or `countFacets` to override the config for one call: `"exact"` for a
+dashboard number on a list that is capped by default, `"capped"` for a list that
+counts exactly. On the 1,000,000-customer tenant an exact status count took
+21 ms, so a list can stay exact until a measurement says otherwise:
+
+```ts
+const exact = await customerList
+  .countFacets(db, query, { facetCountMode: "exact" })
+  .orThrow();
+```
+
+`countFacets` returns those counts without the page, and `facetCacheKey` stays
+the same while the page, cursor and size change, so a cache can keep them:
 
 ```ts
 const key = customerList.facetCacheKey(query);
