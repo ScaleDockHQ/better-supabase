@@ -29,6 +29,11 @@ import type {
   ProvidedArgumentValue,
 } from "eve/connections";
 import type { SessionAuthContext } from "eve/context";
+import type {
+  DefinedDynamicSchedules,
+  ScheduleProvider as EveScheduleProviderContract,
+  ScheduleProviderContext,
+} from "eve/experimental/schedules";
 import type { StreamEventHooks } from "eve/hooks";
 import type { MemoryProvider } from "eve/memory";
 import type { ScheduleRunHandler } from "eve/schedules";
@@ -57,11 +62,15 @@ import type { CredentialSubject } from "../src/credentials/index.ts";
 import type {
   EveApprovalConfiguration,
   EveConnectionAuthorization,
+  EveDynamicSchedules,
   EveScheduleOptions,
+  EveScheduleProviderContext,
   EveSessionAuth,
   EveToolApproval,
   approvalPolicy,
   persistSessions,
+  queueDynamicSchedules,
+  queueScheduleProvider,
   queueSchedules,
   supabaseJwtAuth,
   supabaseMemory,
@@ -199,6 +208,19 @@ describe("structurally typed optional peers", () => {
       EveScheduleOptions["appAuth"]
     >().toExtend<SessionAuthContext>();
     expectTypeOf<ReturnType<typeof supabaseJwtAuth>>().toExtend<AuthFn>();
+  });
+
+  it("eve takes the queue-backed dynamic schedules provider and its tick", () => {
+    expectTypeOf<
+      ReturnType<typeof queueScheduleProvider>
+    >().toExtend<EveScheduleProviderContract>();
+    expectTypeOf<ScheduleProviderContext>().toExtend<EveScheduleProviderContext>();
+    expectTypeOf<
+      DefinedDynamicSchedules<{ readonly task: string }>
+    >().toExtend<EveDynamicSchedules>();
+    expectTypeOf<
+      ReturnType<typeof queueDynamicSchedules>
+    >().toExtend<ScheduleRunHandler>();
   });
 
   it("a PowerSync database has what syncWithAuth drives", () => {

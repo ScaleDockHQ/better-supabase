@@ -43,6 +43,33 @@ export type {
   EveTokenResult,
 } from "./connections.ts";
 
+export {
+  eveScheduleRun,
+  queueDynamicSchedules,
+  queueScheduleProvider,
+} from "./dynamic-schedules.ts";
+
+export type {
+  EveDynamicRunArgs,
+  EveDynamicSchedules,
+  EveDynamicTargetHandle,
+  EveScheduleAuthContext,
+  EveScheduleExpression,
+  EveScheduleHandle,
+  EveScheduleJob,
+  EveScheduleOccurrence,
+  EveScheduleOccurrenceEvent,
+  EveScheduleOccurrenceIdentity,
+  EveSchedulePrincipal,
+  EveScheduleProvider,
+  EveScheduleProviderContext,
+  EveScheduleRecord,
+  EveScheduleRun,
+  EveScheduleState,
+  QueueDynamicSchedulesOptions,
+  QueueScheduleProviderOptions,
+} from "./dynamic-schedules.ts";
+
 export { stableUuid } from "./ids.ts";
 
 export { routeInbox } from "./inbox.ts";
@@ -70,6 +97,7 @@ export type {
   EveQueueJob,
   EveQueueScheduler,
   EveScheduleOptions,
+  EveSendOptions,
   EveTargetHandle,
   QueueSchedulesOptions,
   ScheduleAgentOptions,
