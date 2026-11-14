@@ -172,6 +172,7 @@ describe("the columns, detail and forms outputs", () => {
       "src/lib/supabase/pages/risks.detail.ts",
       "src/lib/supabase/pages/risks.form.ts",
       "src/lib/supabase/pages/risks.list.ts",
+      "src/lib/supabase/pages/routes.manifest.ts",
       "supabase/schemas/entity_page_indexes.sql",
       "supabase/tests/scale/scale_list_risks.test.sql",
     ]);

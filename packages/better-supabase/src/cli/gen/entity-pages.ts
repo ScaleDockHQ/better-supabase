@@ -11,6 +11,11 @@ import { resolveBlock } from "../../sql/index.ts";
 import { CliError } from "../core/errors.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import {
+  MANIFEST_OUTPUT,
+  NAVIGATION_OUTPUT,
+  SEED_OUTPUT,
+} from "./entity-page-meta.ts";
+import {
   COLUMNS_OUTPUT,
   DETAIL_OUTPUT,
   FORM_OUTPUT,
@@ -535,7 +540,7 @@ const SCALE_TEST: EntityPageOutput = {
 
 /**
  * The outputs the generator runs, in order. Lane M2 added columns, detail and
- * forms; M3 and M4 append theirs.
+ * forms, M3 seed, navigation and the route manifest; M4 appends its own.
  */
 export const ENTITY_PAGE_OUTPUTS: readonly EntityPageOutput[] = [
   LIST_QUERY,
@@ -544,6 +549,9 @@ export const ENTITY_PAGE_OUTPUTS: readonly EntityPageOutput[] = [
   COLUMNS_OUTPUT,
   DETAIL_OUTPUT,
   FORM_OUTPUT,
+  SEED_OUTPUT,
+  NAVIGATION_OUTPUT,
+  MANIFEST_OUTPUT,
 ];
 
 /** Every file the entity pages generate, or none without `gen.entityPages`. */
