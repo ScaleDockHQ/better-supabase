@@ -3,6 +3,7 @@ import type { OrganizationsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { organizationsEvents } from "./events.ts";
+import { invitationListSurface } from "./invitation-list.ts";
 import { organizationsSqlOptions, invitationsSqlOptions } from "./options.ts";
 import { createOrganizations } from "./organizations.ts";
 
@@ -28,6 +29,7 @@ export const organizationsBlock: BlockOf<
       emits: { create: true, update: true, delete: true },
     },
     invitation: {
+      ...invitationListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
     },

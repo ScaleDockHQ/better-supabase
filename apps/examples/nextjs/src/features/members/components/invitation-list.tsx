@@ -1,13 +1,16 @@
 "use client";
 
 import { useAction, useErrorMessage } from "better-supabase/react";
-import { XIcon } from "lucide-react";
+import { SendIcon, XIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
 import type { PendingInvitation } from "@/features/organization/organization-queries";
 
 import { Button } from "@/components/ui/button";
-import { revokeInvitation } from "@/features/organization/organization-actions";
+import {
+  resendInvitation,
+  revokeInvitation,
+} from "@/features/organization/organization-actions";
 import { RoleBadge } from "@/features/user/components/role-badge";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -33,6 +36,18 @@ export function InvitationList({
       toast.error(errorMessage(error));
     },
   });
+
+  const resend = useAction(resendInvitation, {
+    onSuccess: () => {
+      toast.success(t("Invitation sent again"));
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const resending = (id: string) =>
+    resend.pendingInputs.some((input) => input.invitationId === id);
 
   const revoking = (id: string) =>
     revoke.pendingInputs.some((input) => input.invitationId === id);
@@ -69,6 +84,19 @@ export function InvitationList({
                 : "–",
             })}
           </span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            disabled={resending(invitation.id) || revoking(invitation.id)}
+            aria-label={t("Resend invitation to {email}", {
+              email: invitation.email,
+            })}
+            onClick={() => {
+              void resend.run({ invitationId: invitation.id });
+            }}
+          >
+            <SendIcon />
+          </Button>
           <Button
             variant="ghost"
             size="icon-sm"
