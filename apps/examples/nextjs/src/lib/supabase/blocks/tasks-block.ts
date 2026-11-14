@@ -8,6 +8,7 @@ import {
   type Iteration as DefaultIteration,
   type Project as DefaultProject,
   type Task as DefaultTask,
+  type TaskBulkAction as DefaultTaskBulkAction,
   type TaskChange as DefaultTaskChange,
   type TaskChangeResult as DefaultTaskChangeResult,
   type TaskChecklistOptimisticAction as DefaultTaskChecklistOptimisticAction,
@@ -53,6 +54,9 @@ export type Project = RenamedType<DefaultProject, TasksRenames>;
 
 /** @public */
 export type WorkItem<F extends object = Record<never, never>> = RenamedType<DefaultTask<F>, TasksRenames>;
+
+/** @public */
+export type WorkItemBulkAction = RenamedType<DefaultTaskBulkAction, TasksRenames>;
 
 /** @public */
 export type WorkItemChange<F extends object = Record<never, never>> = RenamedType<DefaultTaskChange<F>, TasksRenames>;
