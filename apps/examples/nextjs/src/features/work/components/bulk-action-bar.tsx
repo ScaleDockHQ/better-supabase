@@ -42,7 +42,7 @@ import type { WorkItemRow } from "../work-types";
 import { useStateLabel } from "../use-work-labels";
 import { WORK_ITEM_STATES } from "../work-types";
 
-interface BulkFailure {
+interface BulkItemError {
   readonly id: string;
   readonly identifier: string;
   readonly message: string;
@@ -65,7 +65,7 @@ export function BulkActionBar({
   const stateLabel = useStateLabel();
   const [to, setTo] = useState<TaskState | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [failures, setFailures] = useState<readonly BulkFailure[]>([]);
+  const [failures, setFailures] = useState<readonly BulkItemError[]>([]);
 
   const identifiers = new Map(selected.map((row) => [row.id, row.identifier]));
 

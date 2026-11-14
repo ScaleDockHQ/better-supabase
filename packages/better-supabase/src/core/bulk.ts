@@ -8,7 +8,7 @@ import { AsyncResult, err, ok, toDbError } from "./result.ts";
 export const BULK_LIMIT = 500;
 
 /** One id the action did not apply to, with the plain error it failed with. */
-export interface BulkFailure {
+export interface BulkItemError {
   readonly id: string;
   readonly error: DbError;
 }
@@ -20,10 +20,10 @@ export interface BulkFailure {
  */
 export interface BulkReport {
   readonly succeeded: readonly string[];
-  readonly failed: readonly BulkFailure[];
+  readonly failed: readonly BulkItemError[];
 }
 
-export interface BulkOptions {
+export interface BulkCallOptions {
   /** The most ids the call takes. Default {@link BULK_LIMIT}. */
   readonly limit?: number;
 }
@@ -32,7 +32,7 @@ export interface BulkOptions {
 export type EntityBulk<Action extends string = string> = (
   ids: readonly string[],
   action: Action,
-  options?: BulkOptions,
+  options?: BulkCallOptions,
 ) => AsyncResult<BulkReport>;
 
 /**
@@ -62,7 +62,7 @@ export function bulk<Action extends string>(
   ids: readonly string[],
   action: Action,
   apply: (id: string, action: Action) => PromiseLike<Result<unknown>>,
-  options: BulkOptions = {},
+  options: BulkCallOptions = {},
 ): AsyncResult<BulkReport> {
   return AsyncResult.from(async (): Promise<Result<BulkReport>> => {
     const unique = [...new Set(ids)];
@@ -73,7 +73,7 @@ export function bulk<Action extends string>(
     }
 
     const succeeded: string[] = [];
-    const failed: BulkFailure[] = [];
+    const failed: BulkItemError[] = [];
 
     for (const id of unique) {
       try {
@@ -108,7 +108,7 @@ export function bulkOfSet(
       readonly skipped: readonly string[];
     }>
   >,
-  options: BulkOptions = {},
+  options: BulkCallOptions = {},
 ): AsyncResult<BulkReport> {
   return AsyncResult.from(async (): Promise<Result<BulkReport>> => {
     const unique = [...new Set(ids)];
@@ -155,7 +155,7 @@ export interface BulkRowLike {
 /** The `BulkReport` of the per-row results a set-based SQL function returns. */
 export function bulkReportOf(rows: readonly BulkRowLike[]): BulkReport {
   const succeeded: string[] = [];
-  const failed: BulkFailure[] = [];
+  const failed: BulkItemError[] = [];
 
   for (const row of rows) {
     if (row.ok) {

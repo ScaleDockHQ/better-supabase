@@ -1031,7 +1031,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - PR: [#954](https://github.com/ScaleDockHQ/better-supabase/pull/954)
 - Findings: EX-1262, EX-1263, EX-002 (columns)
 - Log: 2026-11-12, planned.
-- Log: 2026-11-14, lane M2 started from main (52233c484c) in `../bsb-audit-M2`. One PR: the `columns`, `detail` and `forms` outputs, `defineEntityForm` and its types in `better-supabase/list`, ADR 0869. No SQL change, so no migration. EX-1262, EX-1263 and EX-002 fixed, the header-sort row (033) is partly fixed (a free multi-column sort is a library change) and the ReUI `Filters` row (034) stays deferred, so both leave this lane. Also fixed `check:naming` (`ListArgs`, `EveDynamicRunArgs`). Merged as [#954](https://github.com/ScaleDockHQ/better-supabase/pull/954).
+- Log: 2026-11-14, lane M2 started from main (52233c484c) in `../bsb-audit-M2`. One PR: the `columns`, `detail` and `forms` outputs, `defineEntityForm` and its types in `better-supabase/list`, ADR 0869. No SQL change, so no migration. EX-1262, EX-1263 and EX-002 fixed, the header-sort row (033) is partly fixed (a free multi-column sort is a library change) and the ReUI `Filters` row (034) stays deferred, so both leave this lane. Also fixed `check:naming` (two retired type names). Merged as [#954](https://github.com/ScaleDockHQ/better-supabase/pull/954).
 
 ### Lane M3
 

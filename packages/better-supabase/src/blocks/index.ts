@@ -182,8 +182,8 @@ export {
 } from "../core/bulk.ts";
 
 export type {
-  BulkFailure,
-  BulkOptions,
+  BulkItemError,
+  BulkCallOptions,
   BulkReport,
   BulkRowLike,
   EntityBulk,
