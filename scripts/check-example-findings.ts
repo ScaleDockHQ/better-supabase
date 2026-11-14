@@ -298,11 +298,10 @@ export const namedIds = (
   lanes: readonly Lane[],
   tracker: string,
 ): ReadonlySet<string> => {
-  const start = tracker.indexOf("\n## Progress");
-  const end = tracker.indexOf("\n## ", start + 1);
-
-  const progress =
-    start === -1 ? "" : tracker.slice(start, end === -1 ? undefined : end);
+  const start = tracker.search(/^## Progress$/m);
+  const rest = start === -1 ? "" : tracker.slice(start + 1);
+  const end = rest.search(/^## /m);
+  const progress = end === -1 ? rest : rest.slice(0, end);
 
   const ranges = [...progress.matchAll(RANGE)].flatMap((match) =>
     expandIds(match[0]),
