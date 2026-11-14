@@ -5,6 +5,8 @@ import type {
   ReviewQueueOptions,
 } from "better-supabase/blocks/reviews";
 
+import { ok } from "better-supabase";
+import { subjectKey } from "better-supabase/blocks/subjects";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
@@ -42,12 +44,39 @@ function toRow(review: Review): ReviewRow {
     status: review.status,
     verified: review.verified,
     subject: review.subjectType,
+    subjectType: review.subjectType,
+    subjectId: review.subjectId,
     createdAt: review.createdAt.toString(),
   };
 }
 
+/** Replaces each row's subject type with the subject's name, in one call. */
+async function nameSubjects(
+  db: Db,
+  rows: readonly ReviewRow[],
+): Promise<readonly ReviewRow[]> {
+  if (rows.length === 0) {
+    return rows;
+  }
+
+  const labels = await db.subjects.label(
+    rows.map((row) => ({ type: row.subjectType, id: row.subjectId })),
+  );
+
+  if (!labels.ok) {
+    return rows;
+  }
+
+  return rows.map((row) => {
+    const named =
+      labels.data[subjectKey({ type: row.subjectType, id: row.subjectId })];
+
+    return named?.found === true ? { ...row, subject: named.label } : row;
+  });
+}
+
 /** One page of the moderation queue, shared by the page and the list route. */
-export function loadReviewPage(
+export async function loadReviewPage(
   db: Db,
   organizationId: string,
   query: BlockListQuery<"newest">,
@@ -55,7 +84,7 @@ export function loadReviewPage(
   const before =
     query.after === undefined ? undefined : Temporal.Instant.from(query.after);
 
-  return pageOverStatuses({
+  const page = await pageOverStatuses({
     statuses: query.facets["status"],
     size: REVIEW_PAGE_SIZE,
     fetchPage: (status, take) => {
@@ -73,6 +102,12 @@ export function loadReviewPage(
     },
     map: toRow,
   });
+
+  if (!page.ok) {
+    return page;
+  }
+
+  return ok({ ...page.data, items: await nameSubjects(db, page.data.items) });
 }
 
 /** The first page of reviews, for the instant shell. */
@@ -130,8 +165,10 @@ export async function getReview(id: string): Promise<ReviewDetailData | null> {
     return null;
   }
 
+  const [named] = await nameSubjects(db, [toRow(review)]);
+
   return {
-    ...toRow(review),
+    ...(named ?? toRow(review)),
     body: review.body ?? null,
     reply: review.reply ?? null,
     rejectionReason: review.rejectionReason ?? null,

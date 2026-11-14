@@ -427,8 +427,16 @@ export default defineConfig({
     teams: { options: { patch: true, restore: true } },
     contacts: {
       names: {
-        company: { url: "/crm/contacts/{id}" },
-        person: { url: "/crm/contacts/{id}" },
+        // Search finds a company by its website as well as its domain, and a
+        // person by phone as well as email (EX-101).
+        company: {
+          url: "/crm/contacts/{id}",
+          search: { title: "name", body: ["domain", "website"] },
+        },
+        person: {
+          url: "/crm/contacts/{id}",
+          search: { title: "name", body: ["email", "phone", "title"] },
+        },
       },
     },
     pipelines: {},

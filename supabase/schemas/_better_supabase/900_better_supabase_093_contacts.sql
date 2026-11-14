@@ -1,6 +1,6 @@
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:1014fc8e7789d1f39f1f9c3ef86c3e3461ba4f32c466e51a8b3166325a37d8af
+-- @bsb-hash sha256:2708497042baa4a0515b47e04c297cf5a8ebf5ac6270eaad8ca00e442201c8c2
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2066,10 +2066,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."party_channels" as r
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create trigger "bsb_search_company_index"
-  after insert or delete or update of "id", "tenant_id", "name", "domain" on "better_supabase"."companies"
+  after insert or delete or update of "id", "tenant_id", "name", "domain", "website" on "better_supabase"."companies"
   for each row execute function "better_supabase"."search_index_row"('company', 'id');
 create trigger "bsb_search_person_index"
-  after insert or delete or update of "id", "tenant_id", "name", "email", "title" on "better_supabase"."people"
+  after insert or delete or update of "id", "tenant_id", "name", "email", "phone", "title" on "better_supabase"."people"
   for each row execute function "better_supabase"."search_index_row"('person', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)

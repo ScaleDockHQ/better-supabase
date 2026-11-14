@@ -889,10 +889,10 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G4
 
 - Scope: List contract rollout: crm, people and scheduling
-- Status: in progress
+- Status: in progress (#918 merged; the lists listed in the log stay for a later G4 PR)
 - Branch: `feat/audit-g4`
-- PR: [#918](https://github.com/ScaleDockHQ/better-supabase/pull/918)
-- Findings: EX-1200 to EX-1205, EX-1215
+- PR: [#918](https://github.com/ScaleDockHQ/better-supabase/pull/918) (merged)
+- Findings: EX-1200 to EX-1205, EX-1215, EX-600, EX-1000, EX-1001
 - Log: 2026-11-12, planned.
   2026-11-13, lane G4 started from main (7f4bcbfdf7) in `../bsb-audit-g4`.
   2026-11-13, PR #918 opened: five entities moved over (ADR 0779): sequences, payroll runs, passes, enrollments and prescriptions; sibling `page_*` functions for the positional lists, `get_enrollment` added. Blocks with extra columns and the permission-heavy lists (contacts, contracts, hiring, time-entries, bookings, leave, calendar, shifts, mail-sync, qualifications, medications) stay for a later lane.
@@ -1055,7 +1055,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Findings: EX-1350
 - Log: 2026-11-12, planned.
 
-The lanes X0 to X9 below are the findings program. It closes the unfinished rows of [`example-findings.md`](example-findings.md) that no audit lane owns. One lane is one PR on `feat/findings-x<n>` in `../bsb-findings-x<n>`, and its PR body says "findings program, lane Xn". `pnpm check:example-findings` fails when an unfinished row is named by no lane's Findings line and when a lane is `merged` while one of its rows is unfinished.
+The lanes X0 to X9 below are the findings program. It closes the unfinished rows of [`example-findings.md`](example-findings.md) that no audit lane owns. One lane is one PR on `feat/findings-x<n>` in `../bsb-findings-x<n>`, and its PR body says "findings program, lane Xn". `pnpm check:example-findings` fails when an unfinished row is named by no lane's Findings line and when a lane is `merged` while one of its rows is unfinished, except a row stated `deferred (needs: ...)`, which waits on a maintainer step.
 
 ### Lane X0
 
@@ -1069,9 +1069,9 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X1
 
 - Scope: Dev loop and local stack: open bugs and tooling rows (repo tooling, no changeset)
-- Status: in progress
+- Status: in progress (#923 merged; EX-313, EX-903, EX-1020 and EX-310 stay deferred)
 - Branch: `feat/findings-x1`
-- PR: none yet
+- PR: [#923](https://github.com/ScaleDockHQ/better-supabase/pull/923) (merged)
 - Findings: EX-309, EX-704, EX-313, EX-318, EX-819, EX-903, EX-430, EX-315, EX-108, EX-050, EX-051, EX-056, EX-1021, EX-505, EX-511, EX-512, EX-605, EX-606, EX-820, EX-207, EX-208, EX-214, EX-316, EX-107, EX-106, EX-902, EX-1507, EX-310, EX-1020
 - Log: 2026-11-14, planned; waits for [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) (merged 2026-11-13, so it can start). 2026-11-14, lane X1 started from main (f6e7d2b78d) in `../bsb-findings-x1`. Fixed in code: `dev:example` script, `dotenv -o`, `tsc --incremental false`, `worktree-setup` (signing keys, app env, workflow world, prune), `env:local` (`WORKFLOW_TARGET_WORLD`, `SUPABASE_JWKS`), `perf-results/`. Documented in tooling.md. EX-313, EX-903, EX-1020 and EX-310 stay deferred, so the lane is not `merged`.
 
@@ -1080,7 +1080,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 - Scope: Library follow-ups: what lane H left open, the facet count and the diff rewrites
 - Status: merged
 - Branch: `feat/findings-x2`
-- PR: [#930](https://github.com/ScaleDockHQ/better-supabase/pull/930)
+- PR: [#930](https://github.com/ScaleDockHQ/better-supabase/pull/930) (merged)
 - Findings: EX-611, EX-506, EX-513, EX-808, EX-1108, EX-016, EX-924, EX-814
 - Log: 2026-11-14, lane X2 started from main (f6e7d2b78d) in `../bsb-findings-x2`. EX-016, EX-506, EX-513 and EX-1108 fixed, EX-808, EX-924 and EX-814 measured and closed; ADR 0949 and migrations 20270102100000 to 20270102100004.
 
@@ -1096,18 +1096,20 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X3
 
 - Scope: Example-only fixes, and the forms and names on lane C and N
-- Status: planned
+- Status: merged
 - Branch: `feat/findings-x3`
-- PR: none yet
+- PR: [#926](https://github.com/ScaleDockHQ/better-supabase/pull/926)
 - Findings: EX-1505, EX-925, EX-042, EX-804, EX-411, EX-703, EX-104, EX-803, EX-809, EX-610, EX-810, EX-101, EX-402
 - Log: 2026-11-14, planned.
+- Log: 2026-11-14, started in `../bsb-findings-x3`.
+- Log: 2026-11-14, all 13 rows worked: 11 fixed or closed or measured away, EX-104 waits for `AI_GATEWAY_API_KEY`. ADR 0959, migration `20270103120000`.
 
 ### Lane X4
 
 - Scope: Admin and billing (a maintainer sets Stripe test keys in the three Vercel environments)
 - Status: merged
 - Branch: `feat/findings-x4`
-- PR: #924 (merged), follow-up docs fix in `feat/findings-x4-docs`
+- PR: [#924](https://github.com/ScaleDockHQ/better-supabase/pull/924) (merged), follow-up docs fix [#931](https://github.com/ScaleDockHQ/better-supabase/pull/931) (merged)
 - Findings: EX-1608, EX-502, EX-507, EX-516
 - Log: 2026-11-14, planned.
 - Log: 2026-11-14, started in `bsb-findings-x4`.

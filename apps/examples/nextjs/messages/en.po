@@ -629,9 +629,9 @@ msgid "Everyone your organization works with."
 msgstr "Everyone your organization works with."
 
 #: src/app/[locale]/(app)/dam/page.tsx
-msgctxt "dam.d1uESJ"
-msgid "Assets"
-msgstr "Assets"
+msgctxt "dam.34jmEB"
+msgid "Digital assets"
+msgstr "Digital assets"
 
 #: src/app/[locale]/(app)/dam/page.tsx
 msgctxt "dam.NZSq_3"
@@ -14404,9 +14404,9 @@ msgid "No awards yet"
 msgstr "No awards yet"
 
 #: src/features/funding/components/award-usage.tsx
-msgctxt "funding.y4Dw4R"
-msgid "Add a funding product with its rate, then record the units a funder awards a customer."
-msgstr "Add a funding product with its rate, then record the units a funder awards a customer."
+msgctxt "funding.RVmYge"
+msgid "Add a funding product with its rate, then record the units a funder awards a customer. An award lists only for people who can read its subject, so an award on a customer you can't read stays out of this list."
+msgstr "Add a funding product with its rate, then record the units a funder awards a customer. An award lists only for people who can read its subject, so an award on a customer you can't read stays out of this list."
 
 #: src/features/funding/components/award-usage.tsx
 msgctxt "funding.-4qGDl"
@@ -15058,6 +15058,28 @@ msgctxt "inbox.KgAlAZ"
 msgid "Add note"
 msgstr "Add note"
 
+#: src/features/inbox/components/contact-deals.tsx
+msgctxt "inbox.oRCMD5"
+msgid "Open deals"
+msgstr "Open deals"
+
+#: src/features/inbox/components/contact-deals.tsx
+msgctxt "inbox.dO9fsB"
+msgid "The deals didn't load."
+msgstr "The deals didn't load."
+
+#: src/features/inbox/components/contact-deals.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/inbox/components/contact-deals.tsx
+msgctxt "inbox.u4CArO"
+msgid "No open deals name this contact."
+msgstr "No open deals name this contact."
+
 #: src/features/inbox/components/conversation-badges.tsx
 msgctxt "inbox.v7m7rk"
 msgid "Web widget"
@@ -15339,12 +15361,6 @@ msgstr "The queue did not load"
 msgctxt "inbox.xUnZ3u"
 msgid "Check your connection and try again."
 msgstr "Check your connection and try again."
-
-#: src/features/inbox/components/conversation-queue.tsx
-#: src/features/inbox/components/scheduled-replies.tsx
-msgctxt "inbox.62nsdy"
-msgid "Retry"
-msgstr "Retry"
 
 #: src/features/inbox/components/conversation-queue.tsx
 msgctxt "inbox.1NNSUY"
@@ -19929,9 +19945,9 @@ msgstr "Meetings"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
-msgctxt "navigation.d1uESJ"
-msgid "Assets"
-msgstr "Assets"
+msgctxt "navigation.34jmEB"
+msgid "Digital assets"
+msgstr "Digital assets"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
@@ -31986,6 +32002,11 @@ msgid "ID"
 msgstr "ID"
 
 #: src/features/work/components/work-item-grid.tsx
+msgctxt "work.uYAYib"
+msgid "Stage"
+msgstr "Stage"
+
+#: src/features/work/components/work-item-grid.tsx
 msgctxt "work.vx8bv3"
 msgid "Assignee"
 msgstr "Assignee"
@@ -31996,9 +32017,9 @@ msgid "Select {identifier}"
 msgstr "Select {identifier}"
 
 #: src/features/work/components/work-item-grid.tsx
-msgctxt "work.NP0l5s"
-msgid "State of {identifier}"
-msgstr "State of {identifier}"
+msgctxt "work.AmWodP"
+msgid "Stage of {identifier}"
+msgstr "Stage of {identifier}"
 
 #: src/features/work/components/work-item-grid.tsx
 msgctxt "work.AlwLGP"

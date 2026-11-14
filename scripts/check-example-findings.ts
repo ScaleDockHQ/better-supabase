@@ -3,7 +3,8 @@
 // has a stray header, a blank row or a duplicate id, when the status counts at
 // the top are stale, when an unfinished row (open, partly fixed or deferred) is
 // named by no lane's Findings line, and when a lane is `merged` while one of
-// its rows is unfinished. `--write` rewrites the status counts; without it the
+// its rows is unfinished. A row stated `deferred (needs: ...)` waits on a
+// maintainer step and does not block a merged lane. `--write` rewrites the status counts; without it the
 // script only validates. Run with `node scripts/check-example-findings.ts`.
 import { readFileSync, writeFileSync } from "node:fs";
 import { argv, exit } from "node:process";
@@ -33,6 +34,8 @@ const UNFINISHED: ReadonlySet<FindingState> = new Set([
 export interface Finding {
   readonly id: string;
   readonly state: FindingState;
+  /** `deferred (needs: ...)`: only a maintainer step (keys, accounts) is left. */
+  readonly waiting?: boolean;
 }
 
 export interface Lane {
@@ -135,7 +138,12 @@ export const parseFindings = (markdown: string): ParsedFindings => {
     }
 
     seen.add(id);
-    rows.push({ id, state });
+    rows.push({
+      id,
+      state,
+      waiting:
+        state === "deferred" && (parts[3] ?? "").startsWith("deferred (needs:"),
+    });
   }
 
   return { rows, problems };
@@ -245,6 +253,10 @@ export const checkLanes = (
     rows.filter((row) => UNFINISHED.has(row.state)).map((r) => [r.id, r.state]),
   );
 
+  const waiting = new Set(
+    rows.filter((row) => row.waiting === true).map((row) => row.id),
+  );
+
   const named = new Set(lanes.flatMap((lane) => lane.findings));
   const orphans = [...unfinished.keys()].filter((id) => !named.has(id));
 
@@ -259,7 +271,11 @@ export const checkLanes = (
       continue;
     }
 
-    const open = lane.findings.filter((id) => unfinished.has(id));
+    // A merged lane may keep a row that waits on a maintainer step, because
+    // the lane's code is done and no further PR can close it.
+    const open = lane.findings.filter(
+      (id) => unfinished.has(id) && !waiting.has(id),
+    );
 
     if (open.length > 0) {
       problems.push(
