@@ -4,6 +4,7 @@ import type { DispatchEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDispatch } from "./dispatch.ts";
 import { dispatchEvents } from "./events.ts";
+import { workOrderListSurface } from "./lists.ts";
 import { dispatchSqlOptions } from "./options.ts";
 import { dispatchBinding } from "./record-binding.ts";
 import { workOrderInputSchema, workOrderPartInputSchema } from "./schemas.ts";
@@ -30,6 +31,7 @@ export const dispatchBlock: BlockOf<
   category: "work",
   entities: {
     work_order: {
+      ...workOrderListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
     },

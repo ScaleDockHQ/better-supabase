@@ -1,5 +1,14 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import {
+  filterAny,
+  filterFlag,
+  filterHasInvalid,
+  filterSet,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 import {
   bookValueJson,
@@ -176,6 +185,51 @@ export function assetsFunctions(ctx: BlockSqlContext): string {
 
   const assetJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'locationId', ${row}.${s("location")}, 'kind', ${row}.${s("kind")}, 'name', ${row}.${s("name")}, 'tag', ${or("assets", row, "tag")}, 'serialNumber', ${or("assets", row, "serial")}, 'status', ${row}.${s("status")}, 'assigneeType', ${row}.${s("assigneeType")}, 'assigneeId', ${row}.${s("assigneeId")}, 'latitude', ${or("assets", row, "latitude")}, 'longitude', ${or("assets", row, "longitude")}, 'metadata', ${or("assets", row, "metadata")}, 'retiredAt', ${or("assets", row, "retiredAt")}, 'createdBy', ${or("assets", row, "createdBy")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})${depreciationJson(ctx, row)}`;
+
+  const createdKeys = [
+    { expr: `x.${s("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${s("id")}`, dir: "desc", type: "uuid" },
+  ] as const;
+
+  const searched = [
+    `x.${s("name")} ilike v_search`,
+    ...(ctx.has("assets", "tag") ? [`x.${s("tag")} ilike v_search`] : []),
+    ...(ctx.has("assets", "serial") ? [`x.${s("serial")} ilike v_search`] : []),
+  ].join(" or ");
+
+  const pageList = {
+    name: "page_assets",
+    from: assets,
+    alias: "x",
+    where: [
+      `x.${s("tenant")} = page_assets.tenant`,
+      filterAny("kind", `x.${s("kind")}`),
+      filterAny("status", status("x")),
+      filterAny("assigneeType", `x.${s("assigneeType")}`),
+      filterAny("assigneeId", `x.${s("assigneeId")}`),
+      `(not ${filterSet("locationId")} or x.${s("location")} in (
+        with recursive below as (
+          select y.${l("id")} as id, 0 as depth from ${locations} y where ${filterAny("locationId", `y.${l("id")}`, "uuid")}
+          union all
+          select y.${l("id")}, below.depth + 1 from ${locations} y join below on y.${l("parent")} = below.id
+          where ${filterFlag("includeSublocations")} and below.depth < 64
+        )
+        select below.id from below))`,
+      `(v_search is null or ${searched})`,
+      readsAsset("x"),
+    ],
+    keys: createdKeys,
+    sorts: {
+      createdAt: createdKeys,
+      name: [
+        { expr: `x.${s("name")}`, dir: "asc", type: "text" },
+        { expr: `x.${s("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: status("x"), kind: `x.${s("kind")}` },
+    rowJson: assetJson("x"),
+    invalid: (message: string): string => invalid("ASSETS_INVALID", message),
+  } as const;
 
   const assignmentJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${g("id")}, 'assetId', ${row}.${g("asset")}, 'assigneeType', ${row}.${g("assigneeType")}, 'assigneeId', ${row}.${g("assigneeId")}, 'note', ${or("assignments", row, "note")}, 'assignedBy', ${or("assignments", row, "assignedBy")}, 'assignedAt', ${row}.${g("assignedAt")}, 'releasedAt', ${row}.${g("releasedAt")})`;
@@ -738,6 +792,36 @@ as $$
   ) z
 $$;
 ${userGrant(`${fn("list_assets")}(${listArgs})`)}
+
+-- The assets of an organization as a keyset page (ADR 0749, 0949), newest first.
+-- filters is { kind, status, assigneeType, assigneeId, locationId (each a value
+-- or a list of them), includeSublocations (with locationId, also the assets
+-- below it), search (name, tag and serial number), sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap }. The caller sees the
+-- assets list_assets shows.
+create or replace function ${fn("page_assets")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_assets.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(pageList)}
+begin
+  if jsonb_typeof(v_filters) <> 'object' then
+    ${invalid("ASSETS_INVALID", "filters must be an object")}
+  end if;
+  if ${filterHasInvalid("locationId")} then
+    ${invalid("ASSETS_INVALID", "locationId must be a uuid")}
+  end if;
+  ${listBody(pageList)}
+end;
+$$;
+${userGrant(`${fn("page_assets")}(${idType}, jsonb)`)}
 
 -- An asset's assignments, newest first.
 create or replace function ${fn("asset_assignment_history")}(asset_id uuid, page_size integer default 50)

@@ -1,4 +1,11 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type {
@@ -19,6 +26,7 @@ import type { BlockOptions } from "../shared.ts";
 import { plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { evaluateVersion as evaluateRuleVersion } from "../../sql/modules/deadlines-evaluate.ts";
 import { validateRuleVersion as validateContent } from "../../sql/modules/deadlines-validate.ts";
@@ -36,6 +44,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { deadlineListSurface } from "./lists.ts";
 
 /** A version of a rule set: draft until approved, then frozen. */
 export interface RuleVersion {
@@ -179,6 +188,21 @@ export interface Deadlines {
     readonly action?: string;
   }): AsyncResultType<Deadline>;
   list(options?: DeadlineListOptions): AsyncResultType<readonly Deadline[]>;
+  /** One deadline by id, when the caller's read policy shows it. */
+  get(deadlineId: string): AsyncResultType<Deadline>;
+  /**
+   * One keyset page of the organization's deadlines, soonest first. Sort by
+   * `dueOn` or `createdAt`; filter by `subjectType`, `subjectId`, `groupKey`,
+   * `period`, `state`, `result`, `provisional` and `dueBefore`.
+   */
+  page(options?: PageOptions): AsyncResultType<ListPage<Deadline>>;
+  /**
+   * The values of each facet (`state`, `result`, `groupKey`) and how many
+   * deadlines hold each.
+   */
+  facets(options?: FacetOptions): AsyncResultType<readonly FacetResult[]>;
+  /** How many deadlines match the page's filters. */
+  count(options?: CountOptions): AsyncResultType<Count>;
 }
 
 /**
@@ -331,6 +355,15 @@ export function createDeadlines(options: DeadlinesOptions): Deadlines {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResultType<string> => requireTenant(options.tenant);
 
+  const registry = entityList({
+    entity: "deadline",
+    surface: deadlineListSurface,
+    call,
+    tenant,
+    fn: "page_deadlines",
+    rowOf: deadlineOf,
+  });
+
   const client: Deadlines = {
     saveRules: (input) =>
       call(
@@ -438,6 +471,13 @@ export function createDeadlines(options: DeadlinesOptions): Deadlines {
             ),
         ),
       ),
+    get: (deadlineId) =>
+      call("get_deadline", { deadline_id: deadlineId }, (value) =>
+        deadlineOf(value, "get_deadline"),
+      ),
+    page: registry.page,
+    facets: registry.facets,
+    count: registry.count,
   };
 
   return withBlockHooks(client, options.hooks, {

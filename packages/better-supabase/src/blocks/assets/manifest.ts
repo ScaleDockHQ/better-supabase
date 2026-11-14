@@ -4,6 +4,7 @@ import type { AssetsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createAssets } from "./assets.ts";
 import { assetsEvents } from "./events.ts";
+import { assetListSurface } from "./lists.ts";
 import { assetsSqlOptions } from "./options.ts";
 import { assetsBinding } from "./record-binding.ts";
 
@@ -24,7 +25,11 @@ export const assetsBlock: BlockOf<
   record: assetsBinding,
   category: "work",
   entities: {
-    asset: { mutability: "editable", emits: { create: true, update: true } },
+    asset: {
+      ...assetListSurface,
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
     asset_location: {
       mutability: "editable",
       emits: { create: true, update: true },

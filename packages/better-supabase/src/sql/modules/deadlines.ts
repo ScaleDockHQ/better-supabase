@@ -27,6 +27,7 @@ import {
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { inlineSubjectReadable } from "./attachments-app.ts";
 import { evaluatorSql } from "./deadlines-evaluator.ts";
+import { deadlinePageSql } from "./deadlines-page.ts";
 import { validatorSql } from "./deadlines-validator.ts";
 import {
   DEADLINE_RESULTS,
@@ -959,7 +960,8 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_deadlines")}(${idType}, jsonb)`)}
-`;
+
+${deadlinePageSql({ allowed: (tenantExpr) => allowed(tenantExpr, read), d, deadlines, fn, idType, json, missing })}`;
 }
 
 function contract(): readonly BlockSqlContractFunction[] {
@@ -997,6 +999,8 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "satisfy_deadline", args: ["uuid", "text"], returns: "jsonb" },
     { name: "list_deadlines", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "page_deadlines", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_deadline", args: ["uuid"], returns: "jsonb" },
   ];
 }
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:3846c2655f68b9409ca6c1552dd337521e37a9112dcb3af455fedcc4ba67b8af
+-- @bsb-hash sha256:6bcb5467b18206005502b07b1c8d710d91d462c472924f4d5b91d5092fe66506
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -663,6 +663,333 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_assets"(uuid, uuid, boolean, text, text, text, text, text, timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."list_assets"(uuid, uuid, boolean, text, text, text, text, text, timestamptz, integer) to authenticated, service_role;
+
+-- The assets of an organization as a keyset page (ADR 0749, 0949), newest first.
+-- filters is { kind, status, assigneeType, assigneeId, locationId (each a value
+-- or a list of them), includeSublocations (with locationId, also the assets
+-- below it), search (name, tag and serial number), sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap }. The caller sees the
+-- assets list_assets shows.
+create or replace function "better_supabase"."page_assets"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_assets.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if jsonb_typeof(v_filters) <> 'object' then
+    raise exception 'filters must be an object' using errcode = '22023', hint = 'ASSETS_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'locationId') = 'array' then v_filters -> 'locationId' when jsonb_typeof(v_filters -> 'locationId') in ('string', 'number') then jsonb_build_array(v_filters -> 'locationId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'locationId must be a uuid' using errcode = '22023', hint = 'ASSETS_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ASSETS_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'kind') then
+      raise exception 'facet is one of status, kind' using errcode = '22023', hint = 'ASSETS_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'kind' then (x."kind")::text end) as v
+      from "better_supabase"."assets" x
+      where x."tenant_id" = page_assets.tenant
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assigneeType' is not null and jsonb_typeof(v_filters -> 'assigneeType') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeType') = 'array' and jsonb_array_length(v_filters -> 'assigneeType') = 0)) or x."assignee_type" = any((case when jsonb_typeof(v_filters -> 'assigneeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeType')) else array[v_filters ->> 'assigneeType'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or x."location_id" in (
+        with recursive below as (
+          select y."id" as id, 0 as depth from "better_supabase"."asset_locations" y where (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or y."id" = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::uuid[]))
+          union all
+          select y."id", below.depth + 1 from "better_supabase"."asset_locations" y join below on y."parent_id" = below.id
+          where coalesce(nullif(coalesce(v_filters #>> '{includeSublocations,0}', v_filters ->> 'includeSublocations'), '') = 'true', false) and below.depth < 64
+        )
+        select below.id from below))
+        and (v_search is null or x."name" ilike v_search or x."tag" ilike v_search or x."serial_number" ilike v_search)
+        and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)) or (x."assignee_type" = 'member' and coalesce(x."assignee_id" = auth.uid()::text, false)))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."assets" x
+      where x."tenant_id" = page_assets.tenant
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assigneeType' is not null and jsonb_typeof(v_filters -> 'assigneeType') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeType') = 'array' and jsonb_array_length(v_filters -> 'assigneeType') = 0)) or x."assignee_type" = any((case when jsonb_typeof(v_filters -> 'assigneeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeType')) else array[v_filters ->> 'assigneeType'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or x."location_id" in (
+        with recursive below as (
+          select y."id" as id, 0 as depth from "better_supabase"."asset_locations" y where (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or y."id" = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::uuid[]))
+          union all
+          select y."id", below.depth + 1 from "better_supabase"."asset_locations" y join below on y."parent_id" = below.id
+          where coalesce(nullif(coalesce(v_filters #>> '{includeSublocations,0}', v_filters ->> 'includeSublocations'), '') = 'true', false) and below.depth < 64
+        )
+        select below.id from below))
+        and (v_search is null or x."name" ilike v_search or x."tag" ilike v_search or x."serial_number" ilike v_search)
+        and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)) or (x."assignee_type" = 'member' and coalesce(x."assignee_id" = auth.uid()::text, false)))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'name') then
+    raise exception 'sort is one of createdAt, name' using errcode = '22023', hint = 'ASSETS_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ASSETS_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ASSETS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id", 'kind', x."kind", 'name', x."name", 'tag', x."tag", 'serialNumber', x."serial_number", 'status', x."status", 'assigneeType', x."assignee_type", 'assigneeId', x."assignee_id", 'latitude', x."latitude", 'longitude', x."longitude", 'metadata', x."metadata", 'retiredAt', x."retired_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('acquisitionCost', x."acquisition_cost"::text, 'currency', x."currency", 'acquiredOn', x."acquired_on", 'usefulLifeMonths', x."useful_life_months", 'residualValue', x."residual_value"::text, 'depreciationMethod', x."depreciation_method", 'depreciationRateBps', x."depreciation_rate_bps", 'disposedOn', x."disposed_on", 'disposalAmount', x."disposal_amount"::text) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."assets" x
+      where x."tenant_id" = page_assets.tenant
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assigneeType' is not null and jsonb_typeof(v_filters -> 'assigneeType') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeType') = 'array' and jsonb_array_length(v_filters -> 'assigneeType') = 0)) or x."assignee_type" = any((case when jsonb_typeof(v_filters -> 'assigneeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeType')) else array[v_filters ->> 'assigneeType'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or x."location_id" in (
+        with recursive below as (
+          select y."id" as id, 0 as depth from "better_supabase"."asset_locations" y where (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or y."id" = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::uuid[]))
+          union all
+          select y."id", below.depth + 1 from "better_supabase"."asset_locations" y join below on y."parent_id" = below.id
+          where coalesce(nullif(coalesce(v_filters #>> '{includeSublocations,0}', v_filters ->> 'includeSublocations'), '') = 'true', false) and below.depth < 64
+        )
+        select below.id from below))
+        and (v_search is null or x."name" ilike v_search or x."tag" ilike v_search or x."serial_number" ilike v_search)
+        and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)) or (x."assignee_type" = 'member' and coalesce(x."assignee_id" = auth.uid()::text, false)))
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ASSETS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id", 'kind', x."kind", 'name', x."name", 'tag', x."tag", 'serialNumber', x."serial_number", 'status', x."status", 'assigneeType', x."assignee_type", 'assigneeId', x."assignee_id", 'latitude', x."latitude", 'longitude', x."longitude", 'metadata', x."metadata", 'retiredAt', x."retired_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('acquisitionCost', x."acquisition_cost"::text, 'currency', x."currency", 'acquiredOn', x."acquired_on", 'usefulLifeMonths', x."useful_life_months", 'residualValue', x."residual_value"::text, 'depreciationMethod', x."depreciation_method", 'depreciationRateBps', x."depreciation_rate_bps", 'disposedOn', x."disposed_on", 'disposalAmount', x."disposal_amount"::text) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."assets" x
+      where x."tenant_id" = page_assets.tenant
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assigneeType' is not null and jsonb_typeof(v_filters -> 'assigneeType') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeType') = 'array' and jsonb_array_length(v_filters -> 'assigneeType') = 0)) or x."assignee_type" = any((case when jsonb_typeof(v_filters -> 'assigneeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeType')) else array[v_filters ->> 'assigneeType'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or x."location_id" in (
+        with recursive below as (
+          select y."id" as id, 0 as depth from "better_supabase"."asset_locations" y where (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or y."id" = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::uuid[]))
+          union all
+          select y."id", below.depth + 1 from "better_supabase"."asset_locations" y join below on y."parent_id" = below.id
+          where coalesce(nullif(coalesce(v_filters #>> '{includeSublocations,0}', v_filters ->> 'includeSublocations'), '') = 'true', false) and below.depth < 64
+        )
+        select below.id from below))
+        and (v_search is null or x."name" ilike v_search or x."tag" ilike v_search or x."serial_number" ilike v_search)
+        and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)) or (x."assignee_type" = 'member' and coalesce(x."assignee_id" = auth.uid()::text, false)))
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ASSETS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id", 'kind', x."kind", 'name', x."name", 'tag', x."tag", 'serialNumber', x."serial_number", 'status', x."status", 'assigneeType', x."assignee_type", 'assigneeId', x."assignee_id", 'latitude', x."latitude", 'longitude', x."longitude", 'metadata', x."metadata", 'retiredAt', x."retired_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('acquisitionCost', x."acquisition_cost"::text, 'currency', x."currency", 'acquiredOn', x."acquired_on", 'usefulLifeMonths', x."useful_life_months", 'residualValue', x."residual_value"::text, 'depreciationMethod', x."depreciation_method", 'depreciationRateBps', x."depreciation_rate_bps", 'disposedOn', x."disposed_on", 'disposalAmount', x."disposal_amount"::text) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."assets" x
+      where x."tenant_id" = page_assets.tenant
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assigneeType' is not null and jsonb_typeof(v_filters -> 'assigneeType') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeType') = 'array' and jsonb_array_length(v_filters -> 'assigneeType') = 0)) or x."assignee_type" = any((case when jsonb_typeof(v_filters -> 'assigneeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeType')) else array[v_filters ->> 'assigneeType'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or x."location_id" in (
+        with recursive below as (
+          select y."id" as id, 0 as depth from "better_supabase"."asset_locations" y where (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or y."id" = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::uuid[]))
+          union all
+          select y."id", below.depth + 1 from "better_supabase"."asset_locations" y join below on y."parent_id" = below.id
+          where coalesce(nullif(coalesce(v_filters #>> '{includeSublocations,0}', v_filters ->> 'includeSublocations'), '') = 'true', false) and below.depth < 64
+        )
+        select below.id from below))
+        and (v_search is null or x."name" ilike v_search or x."tag" ilike v_search or x."serial_number" ilike v_search)
+        and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)) or (x."assignee_type" = 'member' and coalesce(x."assignee_id" = auth.uid()::text, false)))
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ASSETS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id", 'kind', x."kind", 'name', x."name", 'tag', x."tag", 'serialNumber', x."serial_number", 'status', x."status", 'assigneeType', x."assignee_type", 'assigneeId', x."assignee_id", 'latitude', x."latitude", 'longitude', x."longitude", 'metadata', x."metadata", 'retiredAt', x."retired_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('acquisitionCost', x."acquisition_cost"::text, 'currency', x."currency", 'acquiredOn', x."acquired_on", 'usefulLifeMonths', x."useful_life_months", 'residualValue', x."residual_value"::text, 'depreciationMethod', x."depreciation_method", 'depreciationRateBps', x."depreciation_rate_bps", 'disposedOn', x."disposed_on", 'disposalAmount', x."disposal_amount"::text) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."assets" x
+      where x."tenant_id" = page_assets.tenant
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assigneeType' is not null and jsonb_typeof(v_filters -> 'assigneeType') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeType') = 'array' and jsonb_array_length(v_filters -> 'assigneeType') = 0)) or x."assignee_type" = any((case when jsonb_typeof(v_filters -> 'assigneeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeType')) else array[v_filters ->> 'assigneeType'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or x."location_id" in (
+        with recursive below as (
+          select y."id" as id, 0 as depth from "better_supabase"."asset_locations" y where (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or y."id" = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::uuid[]))
+          union all
+          select y."id", below.depth + 1 from "better_supabase"."asset_locations" y join below on y."parent_id" = below.id
+          where coalesce(nullif(coalesce(v_filters #>> '{includeSublocations,0}', v_filters ->> 'includeSublocations'), '') = 'true', false) and below.depth < 64
+        )
+        select below.id from below))
+        and (v_search is null or x."name" ilike v_search or x."tag" ilike v_search or x."serial_number" ilike v_search)
+        and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)) or (x."assignee_type" = 'member' and coalesce(x."assignee_id" = auth.uid()::text, false)))
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ASSETS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id", 'kind', x."kind", 'name', x."name", 'tag', x."tag", 'serialNumber', x."serial_number", 'status', x."status", 'assigneeType', x."assignee_type", 'assigneeId', x."assignee_id", 'latitude', x."latitude", 'longitude', x."longitude", 'metadata', x."metadata", 'retiredAt', x."retired_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('acquisitionCost', x."acquisition_cost"::text, 'currency', x."currency", 'acquiredOn', x."acquired_on", 'usefulLifeMonths', x."useful_life_months", 'residualValue', x."residual_value"::text, 'depreciationMethod', x."depreciation_method", 'depreciationRateBps', x."depreciation_rate_bps", 'disposedOn', x."disposed_on", 'disposalAmount', x."disposal_amount"::text) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."assets" x
+      where x."tenant_id" = page_assets.tenant
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assigneeType' is not null and jsonb_typeof(v_filters -> 'assigneeType') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeType') = 'array' and jsonb_array_length(v_filters -> 'assigneeType') = 0)) or x."assignee_type" = any((case when jsonb_typeof(v_filters -> 'assigneeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeType')) else array[v_filters ->> 'assigneeType'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or x."location_id" in (
+        with recursive below as (
+          select y."id" as id, 0 as depth from "better_supabase"."asset_locations" y where (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or y."id" = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::uuid[]))
+          union all
+          select y."id", below.depth + 1 from "better_supabase"."asset_locations" y join below on y."parent_id" = below.id
+          where coalesce(nullif(coalesce(v_filters #>> '{includeSublocations,0}', v_filters ->> 'includeSublocations'), '') = 'true', false) and below.depth < 64
+        )
+        select below.id from below))
+        and (v_search is null or x."name" ilike v_search or x."tag" ilike v_search or x."serial_number" ilike v_search)
+        and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)) or (x."assignee_type" = 'member' and coalesce(x."assignee_id" = auth.uid()::text, false)))
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ASSETS_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id", 'kind', x."kind", 'name', x."name", 'tag', x."tag", 'serialNumber', x."serial_number", 'status', x."status", 'assigneeType', x."assignee_type", 'assigneeId', x."assignee_id", 'latitude', x."latitude", 'longitude', x."longitude", 'metadata', x."metadata", 'retiredAt', x."retired_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('acquisitionCost', x."acquisition_cost"::text, 'currency', x."currency", 'acquiredOn', x."acquired_on", 'usefulLifeMonths', x."useful_life_months", 'residualValue', x."residual_value"::text, 'depreciationMethod', x."depreciation_method", 'depreciationRateBps', x."depreciation_rate_bps", 'disposedOn', x."disposed_on", 'disposalAmount', x."disposal_amount"::text) as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."assets" x
+      where x."tenant_id" = page_assets.tenant
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assigneeType' is not null and jsonb_typeof(v_filters -> 'assigneeType') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeType') = 'array' and jsonb_array_length(v_filters -> 'assigneeType') = 0)) or x."assignee_type" = any((case when jsonb_typeof(v_filters -> 'assigneeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeType')) else array[v_filters ->> 'assigneeType'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or x."location_id" in (
+        with recursive below as (
+          select y."id" as id, 0 as depth from "better_supabase"."asset_locations" y where (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or y."id" = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::uuid[]))
+          union all
+          select y."id", below.depth + 1 from "better_supabase"."asset_locations" y join below on y."parent_id" = below.id
+          where coalesce(nullif(coalesce(v_filters #>> '{includeSublocations,0}', v_filters ->> 'includeSublocations'), '') = 'true', false) and below.depth < 64
+        )
+        select below.id from below))
+        and (v_search is null or x."name" ilike v_search or x."tag" ilike v_search or x."serial_number" ilike v_search)
+        and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)) or (x."assignee_type" = 'member' and coalesce(x."assignee_id" = auth.uid()::text, false)))
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."assets" x
+      where x."tenant_id" = page_assets.tenant
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'assigneeType' is not null and jsonb_typeof(v_filters -> 'assigneeType') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeType') = 'array' and jsonb_array_length(v_filters -> 'assigneeType') = 0)) or x."assignee_type" = any((case when jsonb_typeof(v_filters -> 'assigneeType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeType')) else array[v_filters ->> 'assigneeType'] end)::text[]))
+        and (not (v_filters -> 'assigneeId' is not null and jsonb_typeof(v_filters -> 'assigneeId') <> 'null' and not (jsonb_typeof(v_filters -> 'assigneeId') = 'array' and jsonb_array_length(v_filters -> 'assigneeId') = 0)) or x."assignee_id" = any((case when jsonb_typeof(v_filters -> 'assigneeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'assigneeId')) else array[v_filters ->> 'assigneeId'] end)::text[]))
+        and (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or x."location_id" in (
+        with recursive below as (
+          select y."id" as id, 0 as depth from "better_supabase"."asset_locations" y where (not (v_filters -> 'locationId' is not null and jsonb_typeof(v_filters -> 'locationId') <> 'null' and not (jsonb_typeof(v_filters -> 'locationId') = 'array' and jsonb_array_length(v_filters -> 'locationId') = 0)) or y."id" = any((case when jsonb_typeof(v_filters -> 'locationId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'locationId')) else array[v_filters ->> 'locationId'] end)::uuid[]))
+          union all
+          select y."id", below.depth + 1 from "better_supabase"."asset_locations" y join below on y."parent_id" = below.id
+          where coalesce(nullif(coalesce(v_filters #>> '{includeSublocations,0}', v_filters ->> 'includeSublocations'), '') = 'true', false) and below.depth < 64
+        )
+        select below.id from below))
+        and (v_search is null or x."name" ilike v_search or x."tag" ilike v_search or x."serial_number" ilike v_search)
+        and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'assets.read'), false)) or (x."assignee_type" = 'member' and coalesce(x."assignee_id" = auth.uid()::text, false)))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_assets"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_assets"(uuid, jsonb) to authenticated, service_role;
 
 -- An asset's assignments, newest first.
 create or replace function "better_supabase"."asset_assignment_history"(asset_id uuid, page_size integer default 50)
