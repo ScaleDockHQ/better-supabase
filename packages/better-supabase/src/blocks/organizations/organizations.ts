@@ -10,6 +10,7 @@ import type {
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { BulkReport } from "../../core/bulk.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
@@ -314,6 +315,16 @@ export interface Organizations<
     role: string;
   }): AsyncResult<true>;
   /**
+   * `updateMemberRole` for up to 500 members in one round trip (ADR 0853).
+   * Every member gets the same checks as the single call; the ones the checks
+   * refuse come back in `failed` and never stop the rest.
+   */
+  updateMemberRoles(input: {
+    organizationId: string;
+    userIds: readonly string[];
+    role: string;
+  }): AsyncResult<BulkReport>;
+  /**
    * Adds a role to a member, with `blocks.memberships.options.roles.many`.
    * `false` when they already held it.
    */
@@ -440,6 +451,9 @@ const INVITATION_KEYS: ReadonlySet<string> = new Set([
   "token",
   "fields",
 ]);
+
+const listOf = (value: unknown): readonly unknown[] =>
+  Array.isArray(value) ? value : [];
 
 function invitationFrom(row: Record<string, unknown>): Invitation {
   const invitedBy = optionalText(row["invited_by"]);
@@ -814,6 +828,42 @@ function organizationsClient<
           }
 
           throw new TypeError(`Unknown slug problem ${String(value)}`);
+        },
+      );
+    },
+    updateMemberRoles({ organizationId, userIds, role }) {
+      return run(
+        "organizations",
+        "update_member_roles",
+        { organization: organizationId, members: [...userIds], role },
+        (value): BulkReport => {
+          const report = recordOf(value, "update_member_roles");
+          const succeeded = listOf(report["succeeded"]).map(String);
+
+          for (const userId of succeeded) {
+            organizationEvent("organization.role_changed", {
+              organizationId,
+              userId,
+              role,
+            });
+          }
+
+          return {
+            succeeded,
+            failed: listOf(report["failed"]).map((row) => {
+              const failure = recordOf(row, "update_member_roles");
+              const code = failure["code"];
+
+              return {
+                id: String(failure["id"]),
+                error: dbError(
+                  "raised",
+                  String(failure["message"] ?? "The role change failed"),
+                  typeof code === "string" && code !== "" ? { hint: code } : {},
+                ),
+              };
+            }),
+          };
         },
       );
     },

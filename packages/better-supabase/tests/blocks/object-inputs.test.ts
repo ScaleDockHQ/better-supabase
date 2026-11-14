@@ -25,6 +25,7 @@ const POSITIONAL = new Set<string>([
   "ai-keys/ai-keys.ts:list",
   "ai-keys/types.ts:list",
   "banking/berlin-group.ts:transactions",
+  "bulk-actions/bulk-actions.ts:bulk",
   "create-blocks.ts:serviceBlocks",
   "domains/provider.ts:add",
   "domains/provider.ts:addProjectDomain",

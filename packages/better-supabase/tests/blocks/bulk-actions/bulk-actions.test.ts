@@ -207,3 +207,94 @@ describe("bulk client", () => {
     expect(await bulk.get("run-2").orThrow()).toBeNull();
   });
 });
+
+describe("common bulk and jobs", () => {
+  it("answers bulk(ids, action) with succeeded and failed", async () => {
+    const fake = transport({
+      bulk_apply: {
+        total: 2,
+        succeeded: 1,
+        failed: 1,
+        results: [
+          { id: "a", ok: true },
+          { id: "b", ok: false, error: { code: "X", message: "no" } },
+        ],
+      },
+    });
+
+    const bulk = createBulkActions({ transport: fake });
+
+    const report = await bulk
+      .bulk(["a", "b", "a"], "trash.trash", {
+        organizationId: ORG,
+        subjectType: "task",
+      })
+      .orThrow();
+
+    expect(fake.calls[0]?.args["ids"]).toEqual(["a", "b"]);
+    expect(report.succeeded).toEqual(["a"]);
+    expect(report.failed).toMatchObject([
+      { id: "b", error: { hint: "X", message: "no" } },
+    ]);
+  });
+
+  it("refuses more ids than the limit before calling the database", async () => {
+    const fake = transport({});
+    const bulk = createBulkActions({ transport: fake, limit: 2 });
+
+    const result = await bulk.bulk(["a", "b", "c"], "trash.trash", {
+      organizationId: ORG,
+      subjectType: "task",
+    });
+
+    expect(fake.calls).toEqual([]);
+    expect(!result.ok && result.error.hint).toBe("BULK_TOO_MANY");
+  });
+
+  it("starts a job and reads it back as a job result", async () => {
+    const fake = transport({
+      start_bulk: { id: "run-1", total: 3, topic: "t" },
+      bulk_run: {
+        id: "run-1",
+        organizationId: ORG,
+        subjectType: "task",
+        action: "trash.trash",
+        status: "completed",
+        position: 3,
+        total: 3,
+        succeeded: 2,
+        failed: 1,
+        createdAt: "2026-11-14T10:00:00Z",
+        finishedAt: "2026-11-14T10:00:05Z",
+        results: [
+          { id: "a", ok: true },
+          { id: "b", ok: true },
+          { id: "c", ok: false, error: { code: "X", message: "no" } },
+        ],
+      },
+    });
+
+    const bulk = createBulkActions({ transport: fake });
+
+    expect(
+      await bulk
+        .startJob({
+          organizationId: ORG,
+          subjectType: "task",
+          rows: ["a", "b", "c"],
+          action: "trash.trash",
+        })
+        .orThrow(),
+    ).toEqual({ jobId: "bulk:run-1" });
+
+    const job = await bulk.jobs.get("run-1").orThrow();
+
+    expect(job).toMatchObject({
+      jobId: "bulk:run-1",
+      status: "completed",
+      done: true,
+      progress: { done: 3, total: 3 },
+    });
+    expect(job?.result).toMatchObject({ succeeded: ["a", "b"] });
+  });
+});

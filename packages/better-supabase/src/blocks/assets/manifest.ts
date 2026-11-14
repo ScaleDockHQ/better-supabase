@@ -23,6 +23,7 @@ export const assetsBlock: BlockOf<
   create: createAssets,
   record: assetsBinding,
   category: "work",
+  importTarget: ["meter_reading", "due_check", "asset", "asset_identifier"],
   entities: {
     asset: { mutability: "editable", emits: { create: true, update: true } },
     asset_location: {

@@ -758,6 +758,10 @@
     "message": "bulk run not found"
   },
   {
+    "code": "BULK_TOO_MANY",
+    "message": "A bulk call takes at most 500 members"
+  },
+  {
     "code": "CALENDAR_ATTENDEE_INVALID",
     "message": "an attendee needs a userId, an email or a subjectType and subjectId"
   },

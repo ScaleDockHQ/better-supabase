@@ -165,6 +165,45 @@ export type {
   PageOptions,
 } from "./shared.ts";
 
+export {
+  BULK_LIMIT,
+  bulk,
+  bulkReportOf,
+  checkBulkLimit,
+} from "../core/bulk.ts";
+
+export type {
+  BulkFailure,
+  BulkOptions,
+  BulkReport,
+  BulkRowLike,
+  EntityBulk,
+} from "../core/bulk.ts";
+
+export {
+  EXPORT_ROW_CAP,
+  exportCsv,
+  exportResponse,
+} from "../core/entity-export.ts";
+
+export type {
+  EntityExport,
+  ExportOptions,
+  ExportPage,
+} from "../core/entity-export.ts";
+
+export type { ExportableEntityList } from "../core/entity-list.ts";
+
+export { createJobs, jobRef, jobResultOf, parseJobId } from "../core/jobs.ts";
+
+export type {
+  JobRef,
+  JobResult,
+  JobSource,
+  JobStatus,
+  Jobs,
+} from "../core/jobs.ts";
+
 export { ENTITY_METHODS, ENTITY_MUTABILITIES } from "./entity-surface.ts";
 
 export type {

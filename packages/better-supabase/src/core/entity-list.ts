@@ -5,11 +5,13 @@ import type {
   ListPage,
   PageOptions,
 } from "./block-helpers.ts";
+import type { ExportOptions } from "./entity-export.ts";
 import type { Result } from "./result.ts";
 import type { BlockTenant } from "./tenant-source.ts";
 
 import { pageRowsOf, recordOf, recordsOf, textOf } from "./block-helpers.ts";
 import { requireTenant } from "./block-tenant.ts";
+import { exportCsv } from "./entity-export.ts";
 import { dbError } from "./errors.ts";
 import { AsyncResult, err, ok } from "./result.ts";
 
@@ -83,6 +85,23 @@ export interface EntityList<Item, Extra extends object = object> {
   readonly count: (
     ...args: ListArgs<CountOptions, Extra>
   ) => AsyncResult<Count>;
+}
+
+/**
+ * An `EntityList` with `export` (ADR 0850): what `entityList` builds. A block
+ * that writes its own `page` exports with `exportCsv(page, options)`.
+ */
+export interface ExportableEntityList<
+  Item,
+  Extra extends object = object,
+> extends EntityList<Item, Extra> {
+  /**
+   * The rows `page` returns for the same filters as a CSV stream, one page at a
+   * time (ADR 0850).
+   */
+  readonly export: (
+    ...args: ListArgs<ExportOptions, Extra>
+  ) => ReadableStream<string>;
 }
 
 /** What `entityList` needs from a block. */
@@ -211,10 +230,10 @@ function facetOf(value: unknown, fn: string): FacetResult {
  */
 export function entityList<Item, Extra extends object = object>(
   spec: EntityListSpec<Item>,
-): EntityList<Item, Extra>;
+): ExportableEntityList<Item, Extra>;
 export function entityList<Item>(
   spec: EntityListSpec<Item>,
-): EntityList<Item, TenantOption> {
+): ExportableEntityList<Item, TenantOption> {
   const { call, fn, tenant } = spec;
 
   const read = <T>(
@@ -233,21 +252,20 @@ export function entityList<Item>(
         )
       : AsyncResult.err(filters.error);
 
-  return {
-    page: (options: PageOptions & TenantOption = {}) =>
-      read(
-        options.organizationId,
-        listFilters(spec, options),
-        { paged: true },
-        (value) => {
-          const page = pageRowsOf(value, fn);
+  const page = (options: PageOptions & TenantOption = {}) =>
+    read(
+      options.organizationId,
+      listFilters(spec, options),
+      { paged: true },
+      (value) => {
+        const page = pageRowsOf(value, fn);
 
-          return {
-            ...page,
-            items: page.items.map((row) => spec.rowOf(row, fn)),
-          };
-        },
-      ),
+        return { ...page, items: page.items.map((row) => spec.rowOf(row, fn)) };
+      },
+    );
+
+  return {
+    page,
     facets: (options: FacetOptions & TenantOption = {}) => {
       const names = options.facets ?? spec.surface.facets ?? [];
 
@@ -294,6 +312,17 @@ export function entityList<Item>(
         listFilters(spec, options),
         { count: true },
         (value) => countOf(value, fn),
+      ),
+    export: (options: ExportOptions & TenantOption = {}) =>
+      exportCsv(
+        (exportPage) =>
+          page({
+            ...exportPage,
+            ...(options.organizationId === undefined
+              ? {}
+              : { organizationId: options.organizationId }),
+          }),
+        options,
       ),
   };
 }

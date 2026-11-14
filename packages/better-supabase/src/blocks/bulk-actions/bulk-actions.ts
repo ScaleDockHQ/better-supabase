@@ -1,11 +1,16 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { BulkReport } from "../../core/bulk.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { JobRef, JobSource } from "../../core/jobs.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult, ok } from "../../core/result.ts";
+import { bulkReportOf, checkBulkLimit } from "../../core/bulk.ts";
+import { dbError } from "../../core/errors.ts";
+import { jobRef, jobResultOf } from "../../core/jobs.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
   blockCall,
   instantOf,
@@ -151,7 +156,32 @@ export interface BulkDrainOptions {
   readonly signal?: AbortSignal;
 }
 
+/** What `bulk(ids, action, options)` adds to the action's own arguments. */
+export interface BulkCall<A extends string = string> {
+  readonly organizationId: string;
+  readonly subjectType: string;
+  readonly args?: ArgsOf<A>;
+  /** Roll back every row when one fails. Default false. */
+  readonly atomic?: boolean;
+  /** The most ids the call takes. Default the block's `limit` option. */
+  readonly limit?: number;
+}
+
 export interface BulkActions {
+  /**
+   * The common bulk call (ADR 0849): one action on `ids` (up to the limit) with
+   * `{ succeeded, failed }`. More ids than the limit fail with `BULK_TOO_MANY`;
+   * use `start` for them.
+   */
+  bulk<A extends string>(
+    ids: readonly string[],
+    action: A,
+    call: BulkCall<A>,
+  ): AsyncResult<BulkReport>;
+  /** `start`, with the `{ jobId }` every long call returns (ADR 0852). */
+  startJob<A extends string>(input: BulkInput<A>): AsyncResult<JobRef>;
+  /** The `bulk` kind of `createJobs`: a run as a `JobResult`. */
+  readonly jobs: JobSource;
   /**
    * Runs one action on every row in one call (up to the limit), with a result
    * per row.
@@ -305,7 +335,72 @@ export function createBulkActions(options: BulkActionsOptions): BulkActions {
       }
     });
 
+  const startJob: BulkActions["startJob"] = (input) =>
+    AsyncResult.from(async () => {
+      const started = await startIds(input, await rowsOf(input.rows));
+
+      return started.ok ? ok(jobRef("bulk", started.data.id)) : started;
+    });
+
+  const jobs: JobSource = {
+    get: (id) =>
+      AsyncResult.from(async () => {
+        const run = await call("bulk_run", { run_id: id }, runOf);
+
+        if (!run.ok) {
+          return run;
+        }
+
+        const found = run.data;
+
+        if (found === null) {
+          return ok(null);
+        }
+
+        return ok(
+          jobResultOf("bulk", found.id, {
+            status: found.status,
+            progress: {
+              done: found.succeeded + found.failed,
+              total: found.total,
+            },
+            ...(found.status === "completed" || found.status === "failed"
+              ? { result: bulkReportOf(found.results) }
+              : {}),
+            ...(found.status === "failed"
+              ? { error: dbError("raised", "The bulk run stopped") }
+              : {}),
+          }),
+        );
+      }),
+  };
+
   const client: BulkActions = {
+    bulk: (ids, action, input) =>
+      AsyncResult.from(async () => {
+        const unique = [...new Set(ids)];
+        const rejected = checkBulkLimit(unique, input.limit ?? limit);
+
+        if (rejected) {
+          return err(rejected);
+        }
+
+        const result = await runIds(
+          {
+            organizationId: input.organizationId,
+            subjectType: input.subjectType,
+            rows: unique,
+            action,
+            ...(input.args === undefined ? {} : { args: input.args }),
+          },
+          unique,
+          input.atomic ?? false,
+        );
+
+        return result.ok ? ok(bulkReportOf(result.data.results)) : result;
+      }),
+    startJob,
+    jobs,
     run: (input) =>
       AsyncResult.from(async () =>
         runIds(input, await rowsOf(input.rows), input.atomic ?? false),

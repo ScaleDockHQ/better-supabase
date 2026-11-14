@@ -18,6 +18,7 @@ export const documentTemplatesBlock: BlockOf<
   events: documentTemplatesEvents,
   create: createDocumentTemplates,
   category: "tenancy",
+  importTarget: ["document_template", "document_text_block"],
   entities: {
     document_template: {
       mutability: "editable",

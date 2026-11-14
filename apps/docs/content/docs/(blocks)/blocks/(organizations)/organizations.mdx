@@ -79,6 +79,24 @@ transfer as a whole, and it refuses a new owner
 whose account is disabled (`ORGANIZATION_FORBIDDEN`) or whose membership is
 suspended (`ORGANIZATION_MEMBER_SUSPENDED`).
 
+## Changing many roles at once
+
+`update_member_roles(organization, members, role)` changes the role of up to
+500 members in one call. It runs `update_member_role` for each distinct member
+in its own subtransaction, so each member gets the same checks, event and audit
+row as a single change. It returns `{ succeeded: [id], failed: [{ id, code,
+message }] }`: a member the checks refuse (`ORGANIZATION_SELF_ROLE`,
+`ORGANIZATION_ROLE_CEILING`, `ORGANIZATION_NOT_MEMBER`) lands in `failed` and
+the others still change. More than 500 members raise `BULK_TOO_MANY`.
+
+```ts
+const report = await organizations
+  .updateMemberRoles({ organizationId, userIds, role: "admin" })
+  .orThrow();
+```
+
+The client emits `organization.role_changed` for each member in `succeeded`.
+
 ## Suspending members
 
 With a `disabledAt` column on the memberships table (managed tables have it;
