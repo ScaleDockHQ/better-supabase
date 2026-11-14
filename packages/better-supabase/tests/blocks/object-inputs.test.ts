@@ -24,6 +24,7 @@ const POSITIONAL = new Set<string>([
   "ai-evals/job.ts:task",
   "ai-keys/ai-keys.ts:list",
   "ai-keys/types.ts:list",
+  "approvals/approvals.ts:rowOf",
   "banking/berlin-group.ts:transactions",
   "create-blocks.ts:serviceBlocks",
   "domains/provider.ts:add",

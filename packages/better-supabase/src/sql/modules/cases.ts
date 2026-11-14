@@ -392,6 +392,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "cancel_case", args: ["uuid", "text"], returns: "jsonb" },
     { name: "get_case", args: ["uuid"], returns: "jsonb" },
     { name: "list_cases", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "page_cases", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "case_stats",
       args: ["{id}", "text", "date", "date", "text"],

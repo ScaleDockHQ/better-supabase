@@ -1,7 +1,14 @@
 import type { Money } from "../../commerce/money.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RecordRef } from "../../schema/types.ts";
@@ -10,6 +17,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 import { optionalPlainDateOf, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { amountsError, amountText, optionalMoneyOf } from "../money-codec.ts";
 import {
@@ -25,6 +33,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { assetListSurface } from "./lists.ts";
 
 export interface AssetsOptions
   extends BlockTemporalOptions, BlockTenantOptions {
@@ -301,6 +310,17 @@ export interface Assets {
   asset(assetId: string): AsyncResult<AssetDetail>;
   /** Newest first, in the block's tenant. */
   assets(options?: AssetListOptions): AsyncResult<readonly Asset[]>;
+  /**
+   * One keyset page of the block tenant's assets the caller can read, newest
+   * first. Sort by `createdAt` or `name`; filter by `kind`, `status`,
+   * `assigneeType`, `assigneeId`, `locationId` and `includeSublocations`; `q`
+   * searches the name, tag and serial number.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<Asset>>;
+  /** The values of each facet (`status`, `kind`) and how many assets hold each. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many assets match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
   /** The assets a member or a record holds. The record decides the tenant. */
   assignedTo(
     input: { assignee: RecordRef | AssetAssignee } & {
@@ -626,6 +646,15 @@ export function createAssets(options: AssetsOptions): Assets {
         ),
     );
 
+  const registry = entityList({
+    entity: "asset",
+    surface: assetListSurface,
+    call,
+    tenant,
+    fn: "page_assets",
+    rowOf: assetOf,
+  });
+
   const client: Assets = {
     createLocation: (input) =>
       tenant().andThen((organizationId) =>
@@ -714,6 +743,9 @@ export function createAssets(options: AssetsOptions): Assets {
       ),
     assets: (filter = {}) =>
       tenant().andThen((organizationId) => list(organizationId, filter)),
+    page: registry.page,
+    facets: registry.facets,
+    count: registry.count,
     assignedTo: ({ assignee, ...filter }) =>
       list(null, {
         assignee: { type: assignee.type, id: assignee.id },

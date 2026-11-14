@@ -54,10 +54,10 @@
     "security-definer-functions": 99
   },
   "approvals": {
-    "security-definer-functions": 151
+    "security-definer-functions": 157
   },
   "assets": {
-    "security-definer-functions": 164,
+    "security-definer-functions": 170,
     "row-triggers": 18
   },
   "assignment": {
@@ -99,7 +99,7 @@
     "row-triggers": 1
   },
   "cases": {
-    "security-definer-functions": 151,
+    "security-definer-functions": 157,
     "row-triggers": 6
   },
   "catalog": {
@@ -167,7 +167,7 @@
     "row-triggers": 6
   },
   "dispatch": {
-    "security-definer-functions": 78
+    "security-definer-functions": 84
   },
   "document-templates": {
     "security-definer-functions": 61,
@@ -231,7 +231,7 @@
     "security-definer-functions": 6
   },
   "guests": {
-    "security-definer-functions": 66
+    "security-definer-functions": 78
   },
   "hiring": {
     "security-definer-functions": 36,

@@ -3,8 +3,19 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -12,6 +23,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -27,6 +39,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { incidentListSurface } from "./lists.ts";
 
 export interface IncidentsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -406,6 +419,23 @@ export interface Incidents<F extends object = Record<never, never>> {
   list(
     input: { organizationId: string } & IncidentListOptions,
   ): AsyncResult<readonly Incident<F>[]>;
+  /**
+   * One keyset page of the organization's incidents, newest first. Sort by
+   * `startedAt` or `severity`; filter by `status`, `severity` and
+   * `componentId`; `q` searches the title.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Incident<F>>>;
+  /**
+   * The values of each facet (`status`, `severity`) and how many incidents hold
+   * each.
+   */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many incidents match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
   /** Creates or changes the draft. Needs `incidents.write`. */
   savePostmortem(input: {
     incidentId: string;
@@ -852,6 +882,15 @@ export function createIncidents<
 
   const incident = (fn: string) => (value: unknown) => incidentOf(value, fn);
 
+  const incidents = entityList<Incident, RequiredTenantOption>({
+    entity: "incident",
+    surface: incidentListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_incidents",
+    rowOf: incidentOf,
+  });
+
   const postmortem = (fn: string) => (value: unknown) =>
     postmortemOf(value, fn);
 
@@ -951,6 +990,14 @@ export function createIncidents<
             incidentOf(row, "list_incidents"),
           ),
       ).andThen(fields.rows),
+    page: (pageOptions) =>
+      incidents
+        .page(pageOptions)
+        .andThen((page) =>
+          fields.rows(page.items).map((items) => ({ ...page, items })),
+        ),
+    facets: incidents.facets,
+    count: incidents.count,
     savePostmortem: ({ incidentId, input }) =>
       call(
         "save_incident_postmortem",

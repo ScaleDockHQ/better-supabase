@@ -103,6 +103,33 @@ hour. Creating, changing and scheduling need `dispatch.manage`.
 The [dispatch binding](/docs/repository/record-bindings) lists a record's work orders on
 its page, with `create` and `cancel` writes.
 
+## Page through work orders
+
+`list` is the capped convenience list, and `get(id)` returns one work order.
+`page` is the full list contract (ADR 0749, 0949). It takes `sort`, `filters`
+whose values are lists, `q`, `after` and `limit`, and returns
+`{ items, hasMore, nextCursor }`. Sorts are `createdAt` (the default, newest
+first), `startsAt` and `title`. Filters are `status`, `priority`,
+`technicianId`, `assetId`, `subjectType`, `subjectId`, `from` (the slot ends
+after it) and `until` (the slot starts before it), the facets are `status` and
+`priority`, and `q` searches the title. The SQL function is `page_work_orders`.
+
+```ts
+const mine = await dispatch
+  .page({
+    filters: { status: ["scheduled", "en_route"], technicianId: [userId] },
+    sort: { by: "startsAt" },
+  })
+  .orThrow();
+
+const facets = await dispatch.facets().orThrow();
+const total = await dispatch
+  .count({ filters: { priority: ["urgent"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from.
+
 ## The status lifecycle
 
 | From                    | To          | Who                            |

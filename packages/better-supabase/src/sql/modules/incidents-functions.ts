@@ -2,6 +2,14 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
+  filterAny,
+  filterHasInvalid,
+  filterSet,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
+import {
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -101,6 +109,42 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
 
   const incidentJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${i("id")}, 'organizationId', ${row}.${i("tenant")}, 'title', ${row}.${i("title")}, 'description', ${field("incidents", row, "description")}, 'severity', ${row}.${i("severity")}, 'status', ${row}.${i("status")}, 'public', ${row}.${i("public")}, 'commanderId', ${field("incidents", row, "commander")}, 'startedAt', ${row}.${i("startedAt")}, 'resolvedAt', ${row}.${i("resolvedAt")}, 'createdBy', ${field("incidents", row, "createdBy")}, 'createdAt', ${field("incidents", row, "createdAt")}, 'updatedAt', ${field("incidents", row, "updatedAt")}, 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im.${m("component")}, 'name', ic.${c("name")}, 'impact', im.${m("impact")}) order by ${componentOrder(ctx, "ic")}), '[]'::jsonb) from ${impacts} im join ${components} ic on ic.${c("id")} = im.${m("component")} where im.${m("incident")} = ${row}.${i("id")})${extraFieldsJson(row, extras)})`;
+
+  const startedKeys = [
+    { expr: `x.${i("startedAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${i("id")}`, dir: "desc", type: "uuid" },
+  ] as const;
+
+  const pageList = {
+    name: "page_incidents",
+    from: incidents,
+    alias: "x",
+    where: [
+      `x.${i("tenant")} = page_incidents.tenant`,
+      filterAny("status", asText(ctx, "incidents", `x.${i("status")}`)),
+      filterAny("severity", asText(ctx, "incidents", `x.${i("severity")}`)),
+      `(not ${filterSet("componentId")} or exists (select 1 from ${impacts} y where y.${m("incident")} = x.${i("id")} and ${filterAny("componentId", `y.${m("component")}`, "uuid")}))`,
+      `(v_search is null or x.${i("title")} ilike v_search)`,
+    ],
+    keys: startedKeys,
+    sorts: {
+      startedAt: startedKeys,
+      severity: [
+        {
+          expr: asText(ctx, "incidents", `x.${i("severity")}`),
+          dir: "asc",
+          type: "text",
+        },
+        { expr: `x.${i("id")}`, dir: "desc", type: "uuid" },
+      ],
+    },
+    facets: {
+      status: asText(ctx, "incidents", `x.${i("status")}`),
+      severity: asText(ctx, "incidents", `x.${i("severity")}`),
+    },
+    rowJson: incidentJson("x"),
+    invalid,
+  } as const;
 
   const updateJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${u("id")}, 'incidentId', ${row}.${u("incident")}, 'status', ${row}.${u("status")}, 'body', ${row}.${u("body")}, 'public', ${row}.${u("public")}, 'authorId', ${row}.${u("author")}, 'createdAt', ${row}.${u("createdAt")})`;
@@ -580,6 +624,34 @@ as $$
   ) page
 $$;
 ${userGrant(`${fn("list_incidents")}(${idType}, text, text, uuid, timestamptz, integer)`)}
+
+-- The incidents as a keyset page (ADR 0749, 0949), newest first. filters is {
+-- status, severity, componentId (each a value or a list of them), search
+-- (title), sort, direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. Runs with the caller's rights, as list_incidents does.
+create or replace function ${fn("page_incidents")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_incidents.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(pageList)}
+begin
+  if jsonb_typeof(v_filters) <> 'object' then
+    ${invalid("filters must be an object")}
+  end if;
+  if ${filterHasInvalid("componentId")} then
+    ${invalid("componentId must be a uuid")}
+  end if;
+  ${listBody(pageList)}
+end;
+$$;
+${userGrant(`${fn("page_incidents")}(${idType}, jsonb)`)}
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
 -- resolution; a key left out keeps its value. Action items are tasks:

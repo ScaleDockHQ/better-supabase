@@ -478,6 +478,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       ],
       returns: "jsonb",
     },
+    { name: "page_assets", args: [id, "jsonb"], returns: "jsonb" },
     { name: "get_asset", args: ["uuid"], returns: "jsonb" },
     {
       name: "assign_asset",

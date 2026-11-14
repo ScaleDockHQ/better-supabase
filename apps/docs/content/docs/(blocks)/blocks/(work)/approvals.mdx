@@ -182,6 +182,33 @@ Each step of a tenant policy has its own quorum, checked the same way as the con
 
 Saving and removing a policy needs `approvals.manage` and goes to the audit log; `listPolicies` needs `approvals.read`. `requirement(subjectType, action, payload)` returns the merged policy for a payload, or `null` when nothing is required, so the app can run the action without a request. `request` refuses a request nothing requires with `APPROVAL_NOT_REQUIRED`.
 
+## Page through requests
+
+`list` is the capped convenience list. `page` is the full list contract
+(ADR 0749, 0949) over the block tenant's requests, and it returns the same
+requests `list` shows the caller: their own, the ones their role may read and
+the ones they can decide. It takes `sort`, `filters` whose values are lists,
+`after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Sorts are
+`createdAt` (the default, newest first) and `action`. Filters are `status`,
+`subjectType`, `subjectId`, `action` and `assigned`, and the facets are `status`
+and `subjectType`. `assigned: ["true"]` keeps the requests whose current step
+the caller can decide. Requests carry no text search, so `q` returns
+`invalid_input`. Unlike `list`, `page` has no `tenantless` option: requests
+without an organization stay on `list`. The SQL function is `page_approvals`.
+
+```ts
+const mine = await approvals
+  .page({ filters: { status: ["pending"], assigned: ["true"] } })
+  .orThrow();
+
+const facets = await approvals.facets().orThrow();
+const total = await approvals
+  .count({ filters: { status: ["pending"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from.
+
 ## Requests without an organization
 
 `options.tenantless` lists subject types whose requests may have no organization, for a personal AI chat or a platform action. `request(subject, { action, tenantless: true })` files one as the signed-in user, `list({ tenantless: true })` lists them and `requirement(..., { tenantless: true })` checks one. Their approvers are named users, a provider's `isApprover`, or platform staff holding the step's `permission`; roles, teams and managers belong to an organization and don't match. Platform policies apply to them; tenant policies don't. A request without an organization for any other subject type fails with `APPROVAL_TENANT_REQUIRED`, and these requests send no notifications. `organizationId` is `null` on them.

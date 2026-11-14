@@ -538,6 +538,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "set_incident_impacts", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "get_incident", args: ["uuid"], returns: "jsonb" },
+    { name: "page_incidents", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "list_incidents",
       args: ["{id}", "text", "text", "uuid", "timestamptz", "integer"],
