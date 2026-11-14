@@ -46,3 +46,8 @@ page says so. The header-sort UI on the example is not part of this change: the 
 block's `page`, so a header that adds a second column would show an order the rows do not have, and
 the list kit's state (`RecordListUrlQuery.sort`) is one string shared by eight lists. EX-033 stays
 partly fixed until a block's SQL list function reads the list.
+
+The size baseline of four block entries (`courses`, `dam`, `events`, `cms`) rises by about 3 KB gzip
+each, measured with `pnpm --filter @better-supabase/bundle run update` (the four bundle `entityList`,
+which now checks a list of sorts and reports `sorted`); `./list` does not move because
+the sort helpers live in a module of their own (`core/page-sort.ts`) with no imports.

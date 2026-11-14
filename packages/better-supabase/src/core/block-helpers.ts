@@ -2,6 +2,7 @@ import type { CredentialRef } from "../credentials/provider.ts";
 import type { BlockTenantOptions } from "./block-tenant.ts";
 import type { BlockTransport } from "./block-transport.ts";
 import type { DbError, ErrorMapper } from "./errors.ts";
+import type { PageSort, SortReport } from "./page-sort.ts";
 import type { Result } from "./result.ts";
 
 import { fromPgError } from "../postgres/pg-error.ts";
@@ -13,6 +14,10 @@ import { temporal } from "./temporal-required.ts";
 import { provideTemporal } from "./temporal.ts";
 
 export { portOf } from "./port.ts";
+
+export { MAX_PAGE_SORTS, sortsOf } from "./page-sort.ts";
+
+export type { PageSort, SortReport } from "./page-sort.ts";
 
 /** The `temporal` option every block creator takes. */
 export interface BlockTemporalOptions {
@@ -238,30 +243,6 @@ export interface ListPage<Item> {
    * the block cannot honor is never dropped silently.
    */
   readonly sorted?: SortReport;
-}
-
-/** One term of a sort: a column from the entity's `sorts` and its direction. */
-export interface PageSort {
-  readonly by: string;
-  readonly direction?: "asc" | "desc";
-}
-
-/** What a page did with the sorts it was asked for (ADR 0896). */
-export interface SortReport {
-  readonly applied: readonly PageSort[];
-  readonly ignored: readonly PageSort[];
-}
-
-/** The most terms a list of sorts may hold. */
-export const MAX_PAGE_SORTS = 3;
-
-/** The terms of `sort` as a list: none, the one sort, or the list as given. */
-export function sortsOf(sort: PageOptions["sort"]): readonly PageSort[] {
-  if (sort === undefined) {
-    return [];
-  }
-
-  return "by" in sort ? [sort] : sort;
 }
 
 /**

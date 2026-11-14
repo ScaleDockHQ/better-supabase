@@ -4,12 +4,12 @@ import type {
   FacetResult,
   ListPage,
   PageOptions,
-  PageSort,
 } from "../core/block-helpers.ts";
 import type { EntityListSurface } from "../core/entity-list.ts";
 import type { DbError, ValidationIssue } from "../core/errors.ts";
+import type { PageSort } from "../core/page-sort.ts";
 
-import { MAX_PAGE_SORTS, sortsOf } from "../core/block-helpers.ts";
+import { MAX_PAGE_SORTS, sortsOf } from "../core/page-sort.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
 import { decodeFilterQuery } from "./filter-query.ts";
 

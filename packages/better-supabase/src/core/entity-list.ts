@@ -9,17 +9,11 @@ import type { ExportOptions } from "./entity-export.ts";
 import type { Result } from "./result.ts";
 import type { BlockTenant } from "./tenant-source.ts";
 
-import {
-  MAX_PAGE_SORTS,
-  pageRowsOf,
-  recordOf,
-  recordsOf,
-  sortsOf,
-  textOf,
-} from "./block-helpers.ts";
+import { pageRowsOf, recordOf, recordsOf, textOf } from "./block-helpers.ts";
 import { requireTenant } from "./block-tenant.ts";
 import { exportCsv } from "./entity-export.ts";
 import { dbError } from "./errors.ts";
+import { MAX_PAGE_SORTS, sortsOf } from "./page-sort.ts";
 import { AsyncResult, err, ok } from "./result.ts";
 
 /**
