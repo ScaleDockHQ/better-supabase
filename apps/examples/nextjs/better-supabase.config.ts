@@ -116,8 +116,11 @@ export default defineConfig({
       // The fixture installs every block, so its module SQL is far past the
       // 2 MB cache budget (BS244), and `client_notes_reveal` is a demo
       // function that embeds its masking table (BS243). Apps install fewer
-      // blocks and keep data in tables.
-      ignore: ["BS243", "BS244"],
+      // blocks and keep data in tables. The commerce list migration
+      // (20270102120003) drops the positional list_gifts, list_leases,
+      // list_pledges and list_shipments signatures for one `filters jsonb`
+      // argument (BS235, four findings); the client sends the new form.
+      ignore: ["BS235", "BS243", "BS244"],
     },
   },
   auth: {

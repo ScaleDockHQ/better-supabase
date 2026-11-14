@@ -114,4 +114,58 @@ describe("createPeriods", () => {
       filters: { kind: "leave_year" },
     });
   });
+
+  it("reads a keyset page, its facets and its count of periods", async () => {
+    const t = fieldsTransport({
+      list_periods: (args) => {
+        const filters = args["filters"] as Record<string, unknown>;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: filters["facet"],
+            values: [{ value: "leave_year", count: { value: 2, exact: true } }],
+          };
+        }
+
+        if (filters["count"] === true) {
+          return { value: 7, exact: false };
+        }
+
+        return { items: [PERIOD], hasMore: true, nextCursor: ["a", "b"] };
+      },
+    });
+
+    const block = createPeriods({ transport: t, tenant: "org-1" });
+
+    const page = await block
+      .periodPage({
+        limit: 1,
+        sort: { by: "startsOn", direction: "asc" },
+        filters: { kind: ["leave_year"] },
+      })
+      .orThrow();
+
+    const facets = await block.periodFacets({ facets: ["kind"] }).orThrow();
+    const count = await block.periodCount().orThrow();
+
+    expect(page.items).toHaveLength(1);
+    expect(page).toMatchObject({ hasMore: true, nextCursor: ["a", "b"] });
+    expect(t.calls[0]?.[1]).toMatchObject({
+      tenant: "org-1",
+      filters: { limit: 1, sort: "startsOn", direction: "asc", paged: true },
+    });
+    expect(facets[0]?.facet).toBe("kind");
+    expect(facets[0]?.values[0]?.count).toEqual({ value: 2, exact: true });
+    expect(count).toEqual({ value: 7, exact: false });
+  });
+
+  it("rejects a sort of periods that is not declared", async () => {
+    const t = fieldsTransport({});
+    const block = createPeriods({ transport: t, tenant: "org-1" });
+
+    const result = await block.periodPage({ sort: { by: "nope" } });
+
+    expect(result.ok).toBe(false);
+    expect(t.calls).toHaveLength(0);
+  });
 });

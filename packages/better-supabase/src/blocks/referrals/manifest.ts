@@ -3,6 +3,7 @@ import type { ReferralsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { referralsEvents } from "./events.ts";
+import { referralCodeListSurface, referralListSurface } from "./lists.ts";
 import { referralsSqlOptions } from "./options.ts";
 import { createReferrals } from "./referrals.ts";
 
@@ -22,11 +23,13 @@ export const referralsBlock: BlockOf<
   category: "commerce",
   entities: {
     referral_code: {
+      ...referralCodeListSurface,
       mutability: "append-only",
       emits: { create: true },
       permissions: { read: "referrals.read", create: "referrals.write" },
     },
     referral: {
+      ...referralListSurface,
       mutability: "state-machine",
       permissions: { read: "referrals.read", manage: "referrals.manage" },
     },

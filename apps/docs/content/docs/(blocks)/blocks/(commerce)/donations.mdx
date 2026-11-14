@@ -236,6 +236,39 @@ move to the kept record.
 `donation_receipt.voided`. The [events page](/docs/extending/events) lists
 their payloads.
 
+## Paging a list
+
+`gifts` and `pledges` stay as the capped convenience lists.
+
+`giftPage` pages gifts (ADR 0749). Sorts are `receivedOn` and `createdAt`, and the default order is `receivedOn`, latest first. Filters are `donorType`, `donorId`, `fundId`, `pledgeId` and `status`, and facets are `status` and `fundId`. Each filter takes a list of values and a row matches any of them. `giftFacets` counts the values of each facet under the same filters, and `giftCount` returns `{ value, exact }`.
+
+`pledgePage` pages pledges (ADR 0749). Sorts are `createdAt`, and the default order is `createdAt`, newest first. Filters are `donorType`, `donorId` and `status`, and facets are `status`. Each filter takes a list of values and a row matches any of them. `pledgeFacets` counts the values of each facet under the same filters, and `pledgeCount` returns `{ value, exact }`.
+
+```ts
+const first = await donations
+  .giftPage({ filters: { status: ["posted"] }, limit: 50 })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await donations
+    .giftPage({
+      filters: { status: ["posted"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
+    .orThrow();
+}
+
+const facets = await donations
+  .giftFacets({ filters: { status: ["posted"] } })
+  .orThrow();
+const total = await donations
+  .giftCount({ filters: { status: ["posted"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter or facet the entity does not declare returns an `invalid_input` error. See [the list contract](/docs/extending/blocks#the-list-contract) for the options.
+
 ## Without the client
 
 `db.donations` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:

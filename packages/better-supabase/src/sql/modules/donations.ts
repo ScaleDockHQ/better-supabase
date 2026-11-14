@@ -434,11 +434,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "get_gift", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "list_gifts",
-      args: ["{id}", "text", "text", "uuid", "uuid", "text", "integer"],
-      returns: "jsonb",
-    },
+    { name: "list_gifts", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "create_pledge",
       args: [
@@ -462,11 +458,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "text", "date", "bigint"],
       returns: "jsonb",
     },
-    {
-      name: "list_pledges",
-      args: ["{id}", "text", "text", "text", "integer"],
-      returns: "jsonb",
-    },
+    { name: "list_pledges", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "due_pledge_installments",
       args: ["{id}", "date", "integer"],

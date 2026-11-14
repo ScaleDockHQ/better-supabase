@@ -169,7 +169,7 @@ begin
   if jsonb_array_length(better_supabase.list_tracking_events(v_id)) <> 3 then
     raise exception 'events %', better_supabase.list_tracking_events(v_id);
   end if;
-  if jsonb_array_length(better_supabase.list_shipments('${TENANT}', 'delivered')) <> 1 then
+  if jsonb_array_length(better_supabase.list_shipments('${TENANT}', '{"status":"delivered"}')) <> 1 then
     raise exception 'list_shipments missed the shipment';
   end if;
 end;

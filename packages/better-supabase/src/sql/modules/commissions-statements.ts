@@ -1,6 +1,12 @@
 import type { CommissionSql } from "./commissions-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { fail, serviceGrant, userGrant } from "../shared.ts";
 import { commissionAccount } from "./commissions-accrual.ts";
 import { commissionJson } from "./commissions-tables.ts";
@@ -51,12 +57,108 @@ export function commissionStatements(k: CommissionSql): string {
   const total = (alias: string): string =>
     `coalesce((select sum(e.${c("amount")}) from ${entries} e where e.${c("statement")} = ${alias}.${s("id")} and e.${c("status")} = 'accrued'), 0)`;
 
-  const filters = (alias: string, table: "entries" | "statements"): string => {
-    const col = table === "entries" ? c : s;
+  const idKey = (col: (name: string) => string) =>
+    ({ expr: `x.${col("id")}`, dir: "asc", type: "uuid" }) as const;
 
-    return `(not v_filters ? 'seller' or ${alias}.${col("seller")} = (v_filters ->> 'seller')::uuid)
-        and (not v_filters ? 'status' or ${alias}.${col("status")} = v_filters ->> 'status')`;
-  };
+  const statementKeys = (
+    first: "createdAt" | "endsOn" | "total",
+    dir: "asc" | "desc",
+    type: string,
+  ) =>
+    [
+      { expr: `x.${s(first)}`, dir, type },
+      { expr: `x.${s("createdAt")}`, dir, type: "timestamptz" },
+      idKey(s),
+    ] as const;
+
+  const statementList = {
+    name: "list_commission_statements",
+    from: statements,
+    alias: "x",
+    where: [
+      `x.${s("tenant")} = list_commission_statements.tenant`,
+      `(v_all or x.${s("seller")} = (select auth.uid()))`,
+      filterAny("seller", `x.${s("seller")}`, "uuid"),
+      filterAny("status", `x.${s("status")}`),
+    ],
+    keys: statementKeys("endsOn", "desc", "date"),
+    sorts: {
+      endsOn: statementKeys("endsOn", "desc", "date"),
+      createdAt: statementKeys("createdAt", "desc", "timestamptz"),
+      total: statementKeys("total", "desc", "numeric"),
+    },
+    facets: { status: `x.${s("status")}`, seller: `x.${s("seller")}` },
+    rowJson: json.statement("x"),
+    defaultLimit: 100,
+    maxLimit: 500,
+    invalid: (message: string) => fail("COMMISSION_INVALID", message, "22023"),
+  } as const;
+
+  const entryKeys = (
+    first: "createdAt" | "occurredOn" | "amount",
+    dir: "asc" | "desc",
+    type: string,
+  ) =>
+    [
+      { expr: `x.${c(first)}`, dir, type },
+      { expr: `x.${c("createdAt")}`, dir, type: "timestamptz" },
+      idKey(c),
+    ] as const;
+
+  const commissionList = {
+    name: "list_commissions",
+    from: entries,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = list_commissions.tenant`,
+      `(v_all or x.${c("seller")} = (select auth.uid()))`,
+      filterAny("seller", `x.${c("seller")}`, "uuid"),
+      filterAny("status", `x.${c("status")}`),
+    ],
+    keys: entryKeys("occurredOn", "desc", "date"),
+    sorts: {
+      occurredOn: entryKeys("occurredOn", "desc", "date"),
+      createdAt: entryKeys("createdAt", "desc", "timestamptz"),
+      amount: entryKeys("amount", "desc", "numeric"),
+    },
+    facets: { status: `x.${c("status")}`, seller: `x.${c("seller")}` },
+    rowJson: json.entry("x"),
+    defaultLimit: 100,
+    maxLimit: 500,
+    invalid: (message: string) => fail("COMMISSION_INVALID", message, "22023"),
+  } as const;
+
+  const planList = {
+    name: "list_commission_plans",
+    from: plans,
+    alias: "x",
+    where: [
+      `x.${p("tenant")} = list_commission_plans.tenant`,
+      `(${filterFlag("archived")} or x.${p("archivedAt")} is null)`,
+    ],
+    keys: [
+      { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+      ],
+      name: [
+        { expr: `x.${p("name")}`, dir: "asc", type: "text" },
+        { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { kind: `x.${p("kind")}` },
+    rowJson: `${json.plan("x")} || jsonb_build_object('assignments', coalesce((
+        select jsonb_agg(${json.assignment("a")} order by a.${k.a("startsOn")} desc, a.${k.a("createdAt")} desc)
+        from ${k.assignments} a where a.${k.a("plan")} = x.${p("id")}
+      ), '[]'::jsonb))`,
+    defaultLimit: 100,
+    maxLimit: 500,
+    invalid: (message: string) => fail("COMMISSION_INVALID", message, "22023"),
+  } as const;
 
   return `
 -- Collects a seller's accrued commissions dated from starts_on to ends_on
@@ -248,8 +350,10 @@ end;
 $$;
 ${userGrant(`${fn("get_commission_statement")}(uuid)`)}
 
--- An organization's statements, newest first. filters is { seller, status,
--- limit }. Needs commissions.read; without it a member sees their own.
+-- An organization's statements, newest first. filters is { seller (a value or a
+-- list), status (a value or a list), sort, direction, facet, count, limit,
+-- after, offset, paged, total, totalCap } (ADR 0749). Needs commissions.read;
+-- without it a member sees their own.
 create or replace function ${fn("list_commission_statements")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -261,24 +365,17 @@ as $$
 declare
   v_filters jsonb := coalesce(list_commission_statements.filters, '{}'::jsonb);
   v_all boolean := ${k.allowed("list_commission_statements.tenant", k.read)};
+  ${listDeclare(statementList)}
 begin
-  return coalesce((
-    select jsonb_agg(${json.statement("y")} order by y.${s("endsOn")} desc, y.${s("createdAt")} desc)
-    from (
-      select * from ${statements} z
-      where z.${s("tenant")} = list_commission_statements.tenant
-        and (v_all or z.${s("seller")} = (select auth.uid()))
-        and ${filters("z", "statements")}
-      order by z.${s("endsOn")} desc, z.${s("createdAt")} desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(statementList)}
 end;
 $$;
 ${userGrant(`${fn("list_commission_statements")}(${idType}, jsonb)`)}
 
--- An organization's accrued commissions, newest first. filters is { seller,
--- status, limit }. Needs commissions.read; without it a member sees their own.
+-- An organization's accrued commissions, newest first. filters is { seller (a
+-- value or a list), status (a value or a list), sort, direction, facet, count,
+-- limit, after, offset, paged, total, totalCap } (ADR 0749). Needs
+-- commissions.read; without it a member sees their own.
 create or replace function ${fn("list_commissions")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -290,24 +387,16 @@ as $$
 declare
   v_filters jsonb := coalesce(list_commissions.filters, '{}'::jsonb);
   v_all boolean := ${k.allowed("list_commissions.tenant", k.read)};
+  ${listDeclare(commissionList)}
 begin
-  return coalesce((
-    select jsonb_agg(${json.entry("y")} order by y.${c("occurredOn")} desc, y.${c("createdAt")} desc)
-    from (
-      select * from ${entries} z
-      where z.${c("tenant")} = list_commissions.tenant
-        and (v_all or z.${c("seller")} = (select auth.uid()))
-        and ${filters("z", "entries")}
-      order by z.${c("occurredOn")} desc, z.${c("createdAt")} desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(commissionList)}
 end;
 $$;
 ${userGrant(`${fn("list_commissions")}(${idType}, jsonb)`)}
 
--- An organization's plans and the assignments of each, newest first. Needs
--- commissions.read.
+-- An organization's plans and the assignments of each, newest first. filters
+-- is { archived, sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749). Needs commissions.read.
 create or replace function ${fn("list_commission_plans")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -318,23 +407,12 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_commission_plans.filters, '{}'::jsonb);
+  ${listDeclare(planList)}
 begin
   if not ${k.allowed("list_commission_plans.tenant", k.read)} then
     ${forbidden("not allowed to read commission plans")}
   end if;
-  return coalesce((
-    select jsonb_agg(${json.plan("y")} || jsonb_build_object('assignments', coalesce((
-        select jsonb_agg(${json.assignment("a")} order by a.${k.a("startsOn")} desc, a.${k.a("createdAt")} desc)
-        from ${k.assignments} a where a.${k.a("plan")} = y.${p("id")}
-      ), '[]'::jsonb)) order by y.${p("createdAt")} desc)
-    from (
-      select * from ${plans} z
-      where z.${p("tenant")} = list_commission_plans.tenant
-        and (coalesce((v_filters ->> 'archived')::boolean, false) or z.${p("archivedAt")} is null)
-      order by z.${p("createdAt")} desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(planList)}
 end;
 $$;
 ${userGrant(`${fn("list_commission_plans")}(${idType}, jsonb)`)}

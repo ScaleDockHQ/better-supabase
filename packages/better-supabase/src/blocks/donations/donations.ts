@@ -9,7 +9,14 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
@@ -23,6 +30,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { optionalPlainDateOf, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -36,6 +44,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { giftListSurface, pledgeListSurface } from "./lists.ts";
 
 export type GiftStatus = "pending" | "posted" | "failed" | "refunded";
 
@@ -304,12 +313,36 @@ export interface Donations<F extends object = Record<never, never>> {
   give(input: GiveInput<F>): AsyncResult<GiveOutcome<F>>;
   getGift(giftId: string): AsyncResult<Gift<F>>;
   gifts(options?: GiftListOptions): AsyncResult<readonly Gift<F>[]>;
+  /**
+   * One keyset page of gifts, latest first or by `sort`, with `hasMore` and a
+   * `nextCursor`.
+   */
+  giftPage(options?: PageOptions): AsyncResult<ListPage<Gift<F>>>;
+  /**
+   * The values of each facet of gifts and their counts, under the page's
+   * filters.
+   */
+  giftFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many of gifts match the page's filters. */
+  giftCount(options?: CountOptions): AsyncResult<Count>;
   createPledge(input: PledgeInput): AsyncResult<Pledge>;
   updatePledge(input: {
     pledgeId: string;
     update: PledgeUpdate;
   }): AsyncResult<Pledge>;
   pledges(options?: PledgeListOptions): AsyncResult<readonly Pledge[]>;
+  /**
+   * One keyset page of pledges, newest first or by `sort`, with `hasMore` and a
+   * `nextCursor`.
+   */
+  pledgePage(options?: PageOptions): AsyncResult<ListPage<Pledge>>;
+  /**
+   * The values of each facet of pledges and their counts, under the page's
+   * filters.
+   */
+  pledgeFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many of pledges match the page's filters. */
+  pledgeCount(options?: CountOptions): AsyncResult<Count>;
   dueInstallments(
     options?: DueInstallmentOptions,
   ): AsyncResult<readonly PledgeInstallment[]>;
@@ -721,7 +754,36 @@ export function createDonations<
       return ok({ event: event.id, kind: "gift", gift: stored.data });
     });
 
+  const giftList = entityList({
+    entity: "gift",
+    surface: giftListSurface,
+    call,
+    tenant,
+    fn: "list_gifts",
+    rowOf: giftOf,
+  });
+
+  const pledgeList = entityList({
+    entity: "pledge",
+    surface: pledgeListSurface,
+    call,
+    tenant,
+    fn: "list_pledges",
+    rowOf: pledgeOf,
+  });
+
   const client: Donations<F> = {
+    giftPage: (options = {}) =>
+      giftList
+        .page(options)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    giftFacets: giftList.facets,
+    giftCount: giftList.count,
+    pledgePage: pledgeList.page,
+    pledgeFacets: pledgeList.facets,
+    pledgeCount: pledgeList.count,
     saveFund: (input) =>
       tenant().andThen((organizationId) =>
         call(
@@ -867,12 +929,17 @@ export function createDonations<
           "list_gifts",
           {
             tenant: organizationId,
-            donor_type: list.donor?.type ?? null,
-            donor_id: list.donor?.id ?? null,
-            fund_id: list.fundId ?? null,
-            pledge_id: list.pledgeId ?? null,
-            status: list.status ?? null,
-            page_size: list.pageSize ?? null,
+            filters: {
+              ...(list.donor === undefined
+                ? {}
+                : { donorType: list.donor.type, donorId: list.donor.id }),
+              ...(list.fundId === undefined ? {} : { fundId: list.fundId }),
+              ...(list.pledgeId === undefined
+                ? {}
+                : { pledgeId: list.pledgeId }),
+              ...(list.status === undefined ? {} : { status: list.status }),
+              ...(list.pageSize === undefined ? {} : { limit: list.pageSize }),
+            },
           },
           (value) => recordsOf(value, "list_gifts").map(gift("list_gifts")),
         ).andThen(fields.rows),
@@ -915,10 +982,13 @@ export function createDonations<
           "list_pledges",
           {
             tenant: organizationId,
-            donor_type: list.donor?.type ?? null,
-            donor_id: list.donor?.id ?? null,
-            status: list.status ?? null,
-            page_size: list.pageSize ?? null,
+            filters: {
+              ...(list.donor === undefined
+                ? {}
+                : { donorType: list.donor.type, donorId: list.donor.id }),
+              ...(list.status === undefined ? {} : { status: list.status }),
+              ...(list.pageSize === undefined ? {} : { limit: list.pageSize }),
+            },
           },
           (value) =>
             recordsOf(value, "list_pledges").map(pledge("list_pledges")),

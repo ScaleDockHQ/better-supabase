@@ -324,6 +324,37 @@ and refresh. It is in the Next.js example.
 `shipment.cancelled`, `shipment.proof_recorded` and `shipment.return_received`. The [events page](/docs/extending/events) lists their
 payloads.
 
+## Paging a list
+
+`list` stays as the capped convenience list, and it keeps its `before` option.
+
+`shipmentPage` pages shipments (ADR 0749). Sorts are `createdAt` and `deliveredAt`, and the default order is `createdAt`, newest first. Filters are `status`, `carrier`, `subjectType` and `subjectId`, and facets are `status` and `carrier`. Each filter takes a list of values and a row matches any of them. `shipmentFacets` counts the values of each facet under the same filters, and `shipmentCount` returns `{ value, exact }`.
+
+```ts
+const first = await shipments
+  .shipmentPage({ filters: { status: ["draft", "labeled"] }, limit: 50 })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await shipments
+    .shipmentPage({
+      filters: { status: ["draft", "labeled"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
+    .orThrow();
+}
+
+const facets = await shipments
+  .shipmentFacets({ filters: { status: ["draft", "labeled"] } })
+  .orThrow();
+const total = await shipments
+  .shipmentCount({ filters: { status: ["draft", "labeled"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter or facet the entity does not declare returns an `invalid_input` error. See [the list contract](/docs/extending/blocks#the-list-contract) for the options.
+
 ## Without the client
 
 `db.shipments` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:

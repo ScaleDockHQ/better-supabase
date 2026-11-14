@@ -14,12 +14,17 @@ import {
   TRACKING_STATUSES,
 } from "../../blocks/shipments/statuses.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  filterFirst,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addForeignKey,
   extraFieldsArg,
   fail,
-  pageSize,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
@@ -388,6 +393,24 @@ function functions(
       .filter((line) => line !== "")
       .join(",\n      ");
 
+  const shipmentKeys = (
+    first: "createdAt" | "deliveredAt",
+    dir: "asc" | "desc",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => [
+    first === "createdAt"
+      ? { expr: `x.${h("createdAt")}`, dir, type: "timestamptz" }
+      : {
+          expr: `coalesce(x.${h("deliveredAt")}, 'infinity'::timestamptz)`,
+          dir,
+          type: "timestamptz",
+        },
+    { expr: `x.${h("id")}`, dir, type: "uuid" },
+  ];
+
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
 
@@ -505,6 +528,31 @@ function functions(
   if not found or not ${allowed(`v_ship.${h("tenant")}`, manage)} then
     ${fail("SHIPMENT_NOT_FOUND", "shipment not found", "P0002")}
   end if;`;
+
+  const shipmentList = {
+    name: "list_shipments",
+    from: shipments,
+    alias: "x",
+    where: [
+      `x.${h("tenant")} = list_shipments.tenant`,
+      filterAny("status", shipStatus("x")),
+      filterAny("carrier", `x.${h("carrier")}`),
+      linked
+        ? `(not v_filters ? 'subjectType' or (x.${h("subjectType")} = v_filters ->> 'subjectType' and x.${h("subjectId")} = v_filters ->> 'subjectId'))`
+        : `(not v_filters ? 'subjectType')`,
+      `(${filterFirst("before")} is null or x.${h("createdAt")} < ${filterFirst("before")}::timestamptz)`,
+    ],
+    keys: shipmentKeys("createdAt", "desc"),
+    sorts: {
+      createdAt: shipmentKeys("createdAt", "desc"),
+      deliveredAt: shipmentKeys("deliveredAt", "desc"),
+    },
+    facets: { status: shipStatus("x"), carrier: `x.${h("carrier")}` },
+    rowJson: shipmentJson("x"),
+    defaultLimit: 50,
+    maxLimit: 500,
+    invalid: (message: string) => fail("SHIPMENT_INVALID", message, "22023"),
+  } as const;
 
   return `
 ${createDrop}
@@ -625,36 +673,28 @@ end;
 $$;
 ${userGrant(`${fn("get_shipment")}(uuid)`)}
 
--- A tenant's shipments, newest first, filtered by status, record or carrier.
-create or replace function ${fn("list_shipments")}(tenant ${idType}, status text default null, subject_type text default null, subject_id text default null, carrier text default null, before timestamptz default null, page_size integer default 50)
+-- A tenant's shipments, newest first. filters is { status, carrier (each a
+-- value or a list), subjectType, subjectId, before, sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap } (ADR 0749).
+create or replace function ${fn("list_shipments")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-#variable_conflict use_column
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_shipments.filters, '{}'::jsonb);
+  ${listDeclare(shipmentList)}
 begin
   if not ${allowed("list_shipments.tenant", read)} then
     ${fail("SHIPMENT_FORBIDDEN", "not allowed to read shipments")}
   end if;
-  return (
-    select coalesce(jsonb_agg(z.item order by z.created desc, z.id desc), '[]'::jsonb)
-    from (
-      select ${shipmentJson("x")} as item, x.${h("createdAt")} as created, x.${h("id")} as id
-      from ${shipments} x
-      where x.${h("tenant")} = list_shipments.tenant
-        and (list_shipments.status is null or ${shipStatus("x")} = list_shipments.status)
-        and (list_shipments.subject_type is null or ${linked ? `(x.${h("subjectType")} = list_shipments.subject_type and x.${h("subjectId")} = list_shipments.subject_id)` : "false"})
-        and (list_shipments.carrier is null or x.${h("carrier")} = list_shipments.carrier)
-        and (list_shipments.before is null or x.${h("createdAt")} < list_shipments.before)
-      order by x.${h("createdAt")} desc, x.${h("id")} desc
-      limit ${pageSize("list_shipments.page_size", 50, 500)}
-    ) z
-  );
+  ${listBody(shipmentList)}
 end;
 $$;
-${userGrant(`${fn("list_shipments")}(${idType}, text, text, text, text, timestamptz, integer)`)}
+${userGrant(`${fn("list_shipments")}(${idType}, jsonb)`)}
 
 -- Stores the label a carrier sold for a draft shipment and starts its
 -- timeline with a label_created event.
@@ -938,11 +978,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "get_shipment", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "list_shipments",
-      args: ["{id}", "text", "text", "text", "text", "timestamptz", "integer"],
-      returns: "jsonb",
-    },
+    { name: "list_shipments", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "set_shipment_label",
       args: [

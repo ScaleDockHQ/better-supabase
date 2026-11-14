@@ -1,10 +1,18 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { REFERRAL_STATUSES } from "../../sql/modules/referrals-values.ts";
 import {
@@ -18,6 +26,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { referralCodeListSurface, referralListSurface } from "./lists.ts";
 
 /** Where a referral stands: attributed at signup, qualified, then rewarded. */
 export type ReferralStatus = (typeof REFERRAL_STATUSES)[number];
@@ -122,6 +131,32 @@ export interface Referrals {
   listReferrals(
     list?: ReferralListOptions,
   ): AsyncResultType<readonly Referral[]>;
+  /**
+   * One keyset page of referrals, newest first or by `sort`, with `hasMore` and
+   * a `nextCursor`.
+   */
+  referralPage(options?: PageOptions): AsyncResultType<ListPage<Referral>>;
+  /**
+   * The values of each facet of referrals and their counts, under the page's
+   * filters.
+   */
+  referralFacets(
+    options?: FacetOptions,
+  ): AsyncResultType<readonly FacetResult[]>;
+  /** How many of referrals match the page's filters. */
+  referralCount(options?: CountOptions): AsyncResultType<Count>;
+  /**
+   * One keyset page of referral codes, newest first or by `sort`, with
+   * `hasMore` and a `nextCursor`.
+   */
+  codePage(options?: PageOptions): AsyncResultType<ListPage<ReferralCode>>;
+  /**
+   * The values of each facet of referral codes and their counts, under the
+   * page's filters.
+   */
+  codeFacets(options?: FacetOptions): AsyncResultType<readonly FacetResult[]>;
+  /** How many of referral codes match the page's filters. */
+  codeCount(options?: CountOptions): AsyncResultType<Count>;
 }
 
 function rewardOf(amount: unknown, unit: unknown): ReferralReward | undefined {
@@ -195,7 +230,31 @@ export function createReferrals(options: ReferralsOptions): Referrals {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResultType<string> => requireTenant(options.tenant);
 
+  const referrals = entityList({
+    entity: "referral",
+    surface: referralListSurface,
+    call,
+    tenant,
+    fn: "list_referrals",
+    rowOf: referralOf,
+  });
+
+  const codes = entityList({
+    entity: "referral_code",
+    surface: referralCodeListSurface,
+    call,
+    tenant,
+    fn: "list_referral_codes",
+    rowOf: codeOf,
+  });
+
   const client: Referrals = {
+    referralPage: referrals.page,
+    referralFacets: referrals.facets,
+    referralCount: referrals.count,
+    codePage: codes.page,
+    codeFacets: codes.facets,
+    codeCount: codes.count,
     createCode: (input = {}) =>
       tenant().andThen((organizationId) =>
         call(

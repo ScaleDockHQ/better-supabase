@@ -101,6 +101,41 @@ extra pay lines. `payrollLines` (SQL `commission_payroll_lines`) returns one
 line per seller and currency for the finalized and paid statements that end in a
 range, for the app to pass to its payroll run.
 
+## Paging a list
+
+`listCommissions`, `listStatements` and `listPlans` stay as the capped convenience lists. A member without `commissions.read` sees only their own commissions and statements in every page, facet and count.
+
+`commissionPage` pages accrued commissions (ADR 0749). Sorts are `occurredOn`, `createdAt` and `amount`, and the default order is `occurredOn`, newest first. Filters are `status` and `seller`, and facets are `status` and `seller`. Each filter takes a list of values and a row matches any of them. `commissionFacets` counts the values of each facet under the same filters, and `commissionCount` returns `{ value, exact }`.
+
+`statementPage` pages statements (ADR 0749). Sorts are `endsOn`, `createdAt` and `total`, and the default order is `endsOn`, latest first. Filters are `status` and `seller`, and facets are `status` and `seller`. Each filter takes a list of values and a row matches any of them. `statementFacets` counts the values of each facet under the same filters, and `statementCount` returns `{ value, exact }`.
+
+`planPage` pages plans with their assignments (ADR 0749). Sorts are `createdAt` and `name`, and the default order is `createdAt`, newest first. Filters are `archived`, and facets are `kind`. Each filter takes a list of values and a row matches any of them. `planFacets` counts the values of each facet under the same filters, and `planCount` returns `{ value, exact }`.
+
+```ts
+const first = await commissions
+  .commissionPage({ filters: { status: ["accrued"] }, limit: 50 })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await commissions
+    .commissionPage({
+      filters: { status: ["accrued"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
+    .orThrow();
+}
+
+const facets = await commissions
+  .commissionFacets({ filters: { status: ["accrued"] } })
+  .orThrow();
+const total = await commissions
+  .commissionCount({ filters: { status: ["accrued"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter or facet the entity does not declare returns an `invalid_input` error. See [the list contract](/docs/extending/blocks#the-list-contract) for the options.
+
 ## Events
 
 | Event                                                         | Carries                                                            |
