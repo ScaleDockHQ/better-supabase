@@ -1002,7 +1002,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 
 - Scope: Bulk, export, import target and job shape
 - Status: in progress
-- Branch: `feat/audit-l-3` (#946 and #960 are merged)
+- Branch: `feat/audit-l-4` (#946, #960, #967 and #969 are merged)
 - PR: [#946](https://github.com/ScaleDockHQ/better-supabase/pull/946) merged; follow-ups are sequential PRs, one open at a time (EX-515 done)
 - Findings: EX-1209, EX-1210, EX-1211, EX-1324, EX-515 (check #917's set checks first)
 - Log: 2026-11-12, planned.
@@ -1010,6 +1010,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
   2026-11-14, ADRs 0852 to 0856: `bulk` and the limit (`src/core/bulk.ts`), `exportCsv` and `entityList().export`, manifest `importTarget` on 14 blocks, `createJobs` with `bulk`, `import`, `export` and `workflow` sources, and `update_member_roles` (migration `20270117120012`, pgTAP `organizations_member_roles`). EX-1211 fixed; EX-1209, EX-1210, EX-1324 and EX-515 partly fixed, the rest moves with the category lanes and the example.
   2026-11-14, follow-up 1: the members controller `setRoles` and the example members table use `update_member_roles` (EX-515 fixed).
   2026-11-14, follow-up 2 (ADR 0857, 0858): `export` and `workflow` job sources, `tasks.bulk` with `bulkOfSet`. Deferred: the other `*Many` calls (different values per row), the eight format-specific exports, the generated export route (lane M1) and job sources for blocks that only enqueue.
+  2026-11-14, follow-up 3 (ADR 0880): the `export-route` output writes `/api/<name>/export` and lists it in the route manifest for a page that sets `export`. The eight format-specific exports stay (deferred: a format hook on `exportCsv`, a `page` over the audit log's cursor read).
 
 ### Lane M1
 

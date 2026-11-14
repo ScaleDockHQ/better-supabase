@@ -511,6 +511,7 @@ export default defineConfig({
 | `sections` | The sections of the detail page, in order. `gen` writes `pages/<name>.detail.ts` from them.   |
 | `area`     | The nav area of the page. `gen` writes `pages/<name>.navigation.ts` when it is set.           |
 | `seed`     | `demo` rows (default 10, at most 500) and `tiers`. `gen` writes `pages/<name>.seed.ts`.       |
+| `export`   | `filename`, `columns` and `maxRows` of a CSV download. `gen` writes `/api/<name>/export`.     |
 
 The generated module calls `defineEntityListQuery` with the entity's surface. It has no database
 access of its own: `parse` checks the URL, `schema` checks typed input as a Standard Schema, and `run`
@@ -611,6 +612,24 @@ const keys = entityRoutes.flatMap((entry) => entry.messageKeys);
 const href = periodsNav.recordHref?.("p1");
 ```
 
-The periods page of the Next.js example sets `area: "finance"`, so `periods.navigation.ts` and
-`routes.manifest.ts` are generated output. It sets no `seed`: `gen` stops with `config_invalid` when a
+### CSV export route
+
+A page that sets `export` gets `GET /api/<name>/export`. The route reads the list query's `q`, `sort`
+and filters from the URL, then streams `exportResponse` over the entity's `page`, so the file holds
+the rows the list shows under the same filters, one page at a time. `columns` defaults to the page's
+`columns` (the keys of the rows), `filename` to `<name>.csv` and `maxRows` to `EXPORT_ROW_CAP`
+(100000); an export that reaches the cap ends with the `EXPORT_ROW_CAP` error. The manifest entry of
+the page lists the route as `export`. A page without `export` writes no route and no `export` key.
+
+```ts
+const csv = entityRoutes.find((entry) => entry.name === "periods")?.export;
+// "/api/periods/export?status=open&sort=startsOn:desc"
+```
+
+The route covers entities whose `page` returns the rows to download. A block whose export is not CSV
+over `page` (OSCAL, SEPA, iCalendar, payroll files, promptfoo, the audit log's NDJSON, OCSF or
+cursor-paged CSV, and the data export) keeps its own method.
+
+The periods page of the Next.js example sets `area: "finance"` and `export`, so `periods.navigation.ts` and
+`routes.manifest.ts` and `api/periods/export/route.ts` are generated output. It sets no `seed`: `gen` stops with `config_invalid` when a
 page sets `seed` and its block exports no input schema that fits the table.
