@@ -18647,9 +18647,6 @@ msgstr "Vercel team"
 
 #: src/features/marketplace/components/resource-detail.tsx
 msgctxt "marketplace.vvmRpn"
-msgid "Provisioned"
-msgstr "Provisioned"
-
 #: src/features/medications/components/medication-chart.tsx
 msgctxt "medications.Ydnmc6"
 msgid "The medication chart didn't load"
