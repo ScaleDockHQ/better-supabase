@@ -2,7 +2,7 @@
 -- driven through the fixture target `customer` (public.import_customer) as
 -- the admin (…00a1) of Acme (…0001) and the service role.
 begin;
-select plan(29);
+select plan(33);
 
 select set_config(
   'request.jwt.claims',
@@ -29,9 +29,30 @@ select lives_ok(
   'another source starts at the same time'
 );
 select is(
-  (select count(*)::int from better_supabase.list_import_runs('00000000-0000-4000-8000-000000000001', 'erp')),
+  jsonb_array_length(better_supabase.list_import_runs('00000000-0000-4000-8000-000000000001', '{"source":"erp"}'::jsonb)),
   1,
   'the run is listed'
+);
+select is(
+  better_supabase.list_import_runs('00000000-0000-4000-8000-000000000001', '{"count":true}'::jsonb),
+  '{"value":2,"exact":true}'::jsonb,
+  'count returns the runs of the organization'
+);
+select is(
+  (select jsonb_array_length(better_supabase.list_import_runs('00000000-0000-4000-8000-000000000001', '{"paged":true,"limit":1,"sort":"createdAt","status":["running","pending"]}'::jsonb) -> 'items')),
+  1,
+  'a page returns the limit and takes a list of statuses'
+);
+select is(
+  (better_supabase.list_import_runs('00000000-0000-4000-8000-000000000001', '{"facet":"source"}'::jsonb) -> 'values' -> 0 -> 'count' ->> 'value'),
+  '1',
+  'a facet counts the runs of each source'
+);
+select throws_ok(
+  $$select better_supabase.list_import_runs('00000000-0000-4000-8000-000000000001', '{"sort":"nope"}'::jsonb)$$,
+  '22023',
+  null,
+  'an undeclared sort is refused'
 );
 
 reset role;

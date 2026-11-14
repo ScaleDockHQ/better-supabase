@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:a5bb3c0fdff0bbd60a3a83d58832b17362ffc90820622587a20db26b9daf1f75
+-- @bsb-hash sha256:93aa3656a4ad9b470452c9da2b1d041b5c544eb56a2d68f9460013dd89fb021f
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -279,30 +279,189 @@ revoke execute on function "better_supabase"."get_access_request"(uuid) from pub
 grant execute on function "better_supabase"."get_access_request"(uuid) to authenticated, service_role;
 
 -- Newest first. Readers of the organization see every request; others see
--- their own.
-create or replace function "better_supabase"."list_access_requests"(tenant uuid, status text default null, mine boolean default false, page_size integer default null, before timestamptz default null)
+-- their own. filters is { status, mine, role, before, sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap } (ADR 0749); status and
+-- role take a value or a list, mine takes true, and before is a timestamp that
+-- keeps older requests.
+create or replace function "better_supabase"."list_access_requests"(tenant uuid, filters jsonb default '{}')
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 set intervalstyle = 'iso_8601'
 as $$
-  select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_access_requests.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'role') then
+      raise exception 'facet is one of status, role' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (r.bs_status)::text when 'role' then (r."role")::text end) as v
+      from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
   from (
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as item, r."created_at" as created
-    from "better_supabase"."access_requests" r
-    left join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
-    where r."tenant_id" = list_access_requests.tenant
-      and (r."user_id" = auth.uid() or (not list_access_requests.mine and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
-      and (list_access_requests.status is null or case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end = list_access_requests.status)
-      and (list_access_requests.before is null or r."created_at" < list_access_requests.before)
-    order by r."created_at" desc
-    limit least(greatest(coalesce(list_access_requests.page_size, 50), 1), 200)
-  ) items
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
 $$;
-revoke execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_access_requests"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_access_requests"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -341,7 +500,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:580b65257c1f64b1674ef7835f5e6043a190f086f3370e178e03938707676872
+-- @bsb-hash sha256:5f62b65dca03616bc94501e4987227c99a679ba99ff8c949c44d6c0c257d15f9
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -702,30 +861,189 @@ revoke execute on function "better_supabase"."get_access_request"(uuid) from pub
 grant execute on function "better_supabase"."get_access_request"(uuid) to authenticated, service_role;
 
 -- Newest first. Readers of the organization see every request; others see
--- their own.
-create or replace function "better_supabase"."list_access_requests"(tenant uuid, status text default null, mine boolean default false, page_size integer default null, before timestamptz default null)
+-- their own. filters is { status, mine, role, before, sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap } (ADR 0749); status and
+-- role take a value or a list, mine takes true, and before is a timestamp that
+-- keeps older requests.
+create or replace function "better_supabase"."list_access_requests"(tenant uuid, filters jsonb default '{}')
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 set intervalstyle = 'iso_8601'
 as $$
-  select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_access_requests.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'role') then
+      raise exception 'facet is one of status, role' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (r.bs_status)::text when 'role' then (r."role")::text end) as v
+      from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
   from (
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'target', r."target", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'emergency', r."emergency", 'review', case when r."reviewed_at" is null then null else jsonb_build_object('verdict', r."review_verdict", 'note', r."review_note", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at") end, 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as item, r."created_at" as created
-    from "better_supabase"."access_requests" r
-    left join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
-    where r."tenant_id" = list_access_requests.tenant
-      and (r."user_id" = auth.uid() or (not list_access_requests.mine and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
-      and (list_access_requests.status is null or case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end = list_access_requests.status)
-      and (list_access_requests.before is null or r."created_at" < list_access_requests.before)
-    order by r."created_at" desc
-    limit least(greatest(coalesce(list_access_requests.page_size, 50), 1), 200)
-  ) items
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'target', r."target", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'emergency', r."emergency", 'review', case when r."reviewed_at" is null then null else jsonb_build_object('verdict', r."review_verdict", 'note', r."review_note", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at") end, 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'target', r."target", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'emergency', r."emergency", 'review', case when r."reviewed_at" is null then null else jsonb_build_object('verdict', r."review_verdict", 'note', r."review_note", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at") end, 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'target', r."target", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'emergency', r."emergency", 'review', case when r."reviewed_at" is null then null else jsonb_build_object('verdict', r."review_verdict", 'note', r."review_note", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at") end, 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'target', r."target", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'emergency', r."emergency", 'review', case when r."reviewed_at" is null then null else jsonb_build_object('verdict', r."review_verdict", 'note', r."review_note", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at") end, 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
 $$;
-revoke execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_access_requests"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_access_requests"(uuid, jsonb) to authenticated, service_role;
 
 -- Asks for access to one record: its team leads approve, then the record's
 -- own approvers when its type names them, or the holders of subjects.manage.
@@ -1044,7 +1362,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:26e2455e74537214d0704d38d212871e5305df7229d69ec148ee7f9105a7499e
+-- @bsb-hash sha256:c322f6d77c3a6634164c9d86b42e4cb8bcafefdb79e2056469c24872b1425375
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1327,30 +1645,189 @@ revoke execute on function "app_private"."get_access_request"(uuid) from public,
 grant execute on function "app_private"."get_access_request"(uuid) to authenticated, service_role;
 
 -- Newest first. Readers of the organization see every request; others see
--- their own.
-create or replace function "app_private"."list_access_requests"(tenant uuid, status text default null, mine boolean default false, page_size integer default null, before timestamptz default null)
+-- their own. filters is { status, mine, role, before, sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap } (ADR 0749); status and
+-- role take a value or a list, mine takes true, and before is a timestamp that
+-- keeps older requests.
+create or replace function "app_private"."list_access_requests"(tenant uuid, filters jsonb default '{}')
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 set intervalstyle = 'iso_8601'
 as $$
-  select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_access_requests.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'role') then
+      raise exception 'facet is one of status, role' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (r.bs_status)::text when 'role' then (r."role")::text end) as v
+      from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "app_private"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "app_private"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
   from (
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as item, r."created_at" as created
-    from "app_private"."access_requests" r
-    left join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
-    where r."tenant_id" = list_access_requests.tenant
-      and (r."user_id" = auth.uid() or (not list_access_requests.mine and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
-      and (list_access_requests.status is null or case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end = list_access_requests.status)
-      and (list_access_requests.before is null or r."created_at" < list_access_requests.before)
-    order by r."created_at" desc
-    limit least(greatest(coalesce(list_access_requests.page_size, 50), 1), 200)
-  ) items
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "app_private"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "app_private"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "app_private"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "app_private"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "app_private"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
 $$;
-revoke execute on function "app_private"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
-grant execute on function "app_private"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "app_private"."list_access_requests"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."list_access_requests"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1389,7 +1866,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:a3e12cfb36760843b7890125ec31f2c6543015bf9cbd206a945fad691aca1b86
+-- @bsb-hash sha256:e5d19f7104f45d2121f52a445bc36e335063e12ee3550f3dca89c49da9c876bd
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1667,30 +2144,189 @@ revoke execute on function "better_supabase"."get_access_request"(uuid) from pub
 grant execute on function "better_supabase"."get_access_request"(uuid) to authenticated, service_role;
 
 -- Newest first. Readers of the organization see every request; others see
--- their own.
-create or replace function "better_supabase"."list_access_requests"(tenant uuid, status text default null, mine boolean default false, page_size integer default null, before timestamptz default null)
+-- their own. filters is { status, mine, role, before, sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap } (ADR 0749); status and
+-- role take a value or a list, mine takes true, and before is a timestamp that
+-- keeps older requests.
+create or replace function "better_supabase"."list_access_requests"(tenant uuid, filters jsonb default '{}')
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 set intervalstyle = 'iso_8601'
 as $$
-  select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_access_requests.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'role') then
+      raise exception 'facet is one of status, role' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (r.bs_status)::text when 'role' then (r."role")::text end) as v
+      from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
   from (
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as item, r."created_at" as created
-    from "better_supabase"."access_requests" r
-    left join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
-    where r."tenant_id" = list_access_requests.tenant
-      and (r."user_id" = auth.uid() or (not list_access_requests.mine and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
-      and (list_access_requests.status is null or case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end = list_access_requests.status)
-      and (list_access_requests.before is null or r."created_at" < list_access_requests.before)
-    order by r."created_at" desc
-    limit least(greatest(coalesce(list_access_requests.page_size, 50), 1), 200)
-  ) items
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
 $$;
-revoke execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_access_requests"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_access_requests"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1753,15 +2389,15 @@ as $$ select "better_supabase"."get_access_request"($1) $$;
 revoke execute on function "api"."get_access_request"(uuid) from public, anon;
 grant execute on function "api"."get_access_request"(uuid) to authenticated, service_role;
 
-create or replace function "api"."list_access_requests"(tenant uuid, status text default null, mine boolean default false, page_size integer default null, before timestamptz default null)
+create or replace function "api"."list_access_requests"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_access_requests"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
-grant execute on function "api"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
+as $$ select "better_supabase"."list_access_requests"($1, $2) $$;
+revoke execute on function "api"."list_access_requests"(uuid, jsonb) from public, anon;
+grant execute on function "api"."list_access_requests"(uuid, jsonb) to authenticated, service_role;
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
@@ -1780,7 +2416,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:3f900b70dbbc42d93ad2cd98dd220a829862d110526e3692a5d50f4a70c6cd12
+-- @bsb-hash sha256:a635f78cc8295cea71c29bf2881a1210d1e1f145ea515df22d794131e0580c30
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2056,30 +2692,189 @@ revoke execute on function "better_supabase"."get_access_request"(uuid) from pub
 grant execute on function "better_supabase"."get_access_request"(uuid) to authenticated, service_role;
 
 -- Newest first. Readers of the organization see every request; others see
--- their own.
-create or replace function "better_supabase"."list_access_requests"(tenant uuid, status text default null, mine boolean default false, page_size integer default null, before timestamptz default null)
+-- their own. filters is { status, mine, role, before, sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap } (ADR 0749); status and
+-- role take a value or a list, mine takes true, and before is a timestamp that
+-- keeps older requests.
+create or replace function "better_supabase"."list_access_requests"(tenant uuid, filters jsonb default '{}')
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 set intervalstyle = 'iso_8601'
 as $$
-  select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_access_requests.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'role') then
+      raise exception 'facet is one of status, role' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (r.bs_status)::text when 'role' then (r."role")::text end) as v
+      from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
   from (
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as item, r."created_at" as created
-    from "better_supabase"."access_requests" r
-    left join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
-    where r."tenant_id" = list_access_requests.tenant
-      and (r."user_id" = auth.uid() or (not list_access_requests.mine and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
-      and (list_access_requests.status is null or case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end = list_access_requests.status)
-      and (list_access_requests.before is null or r."created_at" < list_access_requests.before)
-    order by r."created_at" desc
-    limit least(greatest(coalesce(list_access_requests.page_size, 50), 1), 200)
-  ) items
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."tenant_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
 $$;
-revoke execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_access_requests"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_access_requests"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2118,7 +2913,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:a2a6268807ca067194c3b4ac55f9cb26819ca0165375b7f8cbc339e68afba657
+-- @bsb-hash sha256:fc9e8ea951240f3f4c58793bdc9c8c5fb2db54a2d3266d6b24c9890f4f5699fe
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2396,30 +3191,189 @@ revoke execute on function "better_supabase"."get_access_request"(uuid) from pub
 grant execute on function "better_supabase"."get_access_request"(uuid) to authenticated, service_role;
 
 -- Newest first. Readers of the organization see every request; others see
--- their own.
-create or replace function "better_supabase"."list_access_requests"(tenant uuid, status text default null, mine boolean default false, page_size integer default null, before timestamptz default null)
+-- their own. filters is { status, mine, role, before, sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap } (ADR 0749); status and
+-- role take a value or a list, mine takes true, and before is a timestamp that
+-- keeps older requests.
+create or replace function "better_supabase"."list_access_requests"(tenant uuid, filters jsonb default '{}')
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 set intervalstyle = 'iso_8601'
 as $$
-  select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_access_requests.filters, '{}'::jsonb);
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'role') then
+      raise exception 'facet is one of status, role' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (r.bs_status)::text when 'role' then (r."role")::text end) as v
+      from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."org_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."org_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt') then
+    raise exception 'sort is one of createdAt' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
   from (
-    select jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as item, r."created_at" as created
-    from "better_supabase"."access_requests" r
-    left join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
-    where r."org_id" = list_access_requests.tenant
-      and (r."user_id" = auth.uid() or (not list_access_requests.mine and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
-      and (list_access_requests.status is null or case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end = list_access_requests.status)
-      and (list_access_requests.before is null or r."created_at" < list_access_requests.before)
-    order by r."created_at" desc
-    limit least(greatest(coalesce(list_access_requests.page_size, 50), 1), 200)
-  ) items
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."org_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."org_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."org_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at" >= (v_after ->> 0)::timestamptz and ((r."created_at" > (v_after ->> 0)::timestamptz) or (r."created_at" = (v_after ->> 0)::timestamptz and r."id" < (v_after ->> 1)::uuid))))
+      order by r."created_at" asc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'ACCESS_REQUEST_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', r."id", 'organizationId', r."org_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', r.bs_status, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as j, jsonb_build_array((r."created_at")::text, (r."id")::text) as k
+    from (
+      select * from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."org_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+        and (v_after is null or (r."created_at", r."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by r."created_at" desc, r."id" desc
+      limit v_limit + 1 offset v_offset
+    ) r
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from (select q.*, case when q."ended_at" is not null then 'ended' when q."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end as bs_status from "better_supabase"."access_requests" q left join "better_supabase"."approval_requests" x on x."id" = q."approval_id") r
+      where r."org_id" = list_access_requests.tenant
+        and (r."user_id" = auth.uid() or (not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_access_requests.tenant, 'access_requests.read'), false))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or r.bs_status = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or r."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
+        and (not (v_filters -> 'before' is not null and jsonb_typeof(v_filters -> 'before') <> 'null' and not (jsonb_typeof(v_filters -> 'before') = 'array' and jsonb_array_length(v_filters -> 'before') = 0)) or r."created_at" < (nullif(coalesce(v_filters #>> '{before,0}', v_filters ->> 'before'), ''))::timestamptz)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
 $$;
-revoke execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_access_requests"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."list_access_requests"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

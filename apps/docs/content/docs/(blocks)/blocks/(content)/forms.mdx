@@ -74,6 +74,24 @@ import { useForms } from "@/lib/supabase/hooks";
 const rows = useForms({ limit: 50 });
 ```
 
+## Paging a list
+
+`list` is the capped convenience list. `page` is the full contract for forms (ADR 0749, 0939): it takes `organizationId`, which names the organization per call, and `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. The sorts are `createdAt`, `title` and `key`; the default order is `createdAt`, newest first. The filter is `status`. The facet is `status`. `list` returns 200 forms unless you pass `limit` (500 at most). A cursor belongs to the sort it came from, so start again from the first page when `sort` or `direction` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error.
+
+```ts
+const open = await forms
+  .page({
+    organizationId,
+    filters: { status: ["open"] },
+    sort: { by: "title" },
+    limit: 20,
+  })
+  .orThrow();
+
+const facets = await forms.facets({ organizationId }).orThrow();
+const total = await forms.count({ organizationId }).orThrow();
+```
+
 ## Definitions and versions
 
 A definition is a list of steps, and each step a list of fields. `publish(formId, definition)` stores it as the form's next numbered version and makes it current; older versions and their submissions stay as they were. A form takes submissions only while its status is `open` (`FORM_CLOSED` otherwise).

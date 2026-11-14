@@ -1,10 +1,21 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type {
   FormDefinition,
   FormJsonSchema,
 } from "../../core/contracts/form-definition.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -15,6 +26,7 @@ import type { FormAnswers } from "./validate.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { isFormDefinition } from "../../core/contracts/form-definition.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -30,6 +42,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { formListSurface } from "./lists.ts";
 
 export interface FormsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -237,6 +250,19 @@ export interface Forms<F extends object = Record<never, never>> {
       readonly status?: FormStatus;
     },
   ): AsyncResult<readonly Form<F>[]>;
+  /**
+   * One keyset page of the organization's forms, newest first. Sort by
+   * `createdAt`, `title` or `key`; filter by `status`.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Form<F>>>;
+  /** The values of each facet (`status`) and how many forms hold each. */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many forms match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
   /** Submits answers to the form's current version; Postgres validates them. */
   submit(
     input: { formId: string; answers: FormAnswers } & SubmitOptions,
@@ -435,6 +461,32 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
           fields: valid,
         }));
 
+  const parsedAll = (forms: readonly Form[]): AsyncResult<Form<F>[]> =>
+    AsyncResult.from(async () => {
+      const out: Form<F>[] = [];
+
+      for (const form of forms) {
+        const read = await parsed(form);
+
+        if (!read.ok) {
+          return read;
+        }
+
+        out.push(read.data);
+      }
+
+      return ok(out);
+    });
+
+  const entries = entityList<Form, RequiredTenantOption>({
+    entity: "form",
+    surface: formListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "list_forms",
+    rowOf: formOf,
+  });
+
   const client: Forms<F> = {
     create: (input) =>
       extra(input.fields)
@@ -493,31 +545,26 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
     list: ({ organizationId, limit, ...list }) =>
       call(
         "list_forms",
-        { tenant: organizationId, status: list.status ?? null },
-        (value) => {
-          const rows = recordsOf(value, "list_forms").map((row) =>
-            formOf(row, "list_forms"),
-          );
-
-          return limit === undefined ? rows : rows.slice(0, limit);
+        {
+          tenant: organizationId,
+          filters: {
+            ...(list.status === undefined ? {} : { status: list.status }),
+            ...(limit === undefined ? {} : { limit }),
+          },
         },
-      ).andThen((forms) =>
-        AsyncResult.from(async () => {
-          const out: Form<F>[] = [];
+        (value) =>
+          recordsOf(value, "list_forms").map((row) =>
+            formOf(row, "list_forms"),
+          ),
+      ).andThen(parsedAll),
+    page: (pageOptions) =>
+      entries.page(pageOptions).andThen(async (page) => {
+        const items = await parsedAll(page.items);
 
-          for (const form of forms) {
-            const read = await parsed(form);
-
-            if (!read.ok) {
-              return read;
-            }
-
-            out.push(read.data);
-          }
-
-          return ok(out);
-        }),
-      ),
+        return items.ok ? ok({ ...page, items: items.data }) : items;
+      }),
+    facets: entries.facets,
+    count: entries.count,
     submit: ({ formId, answers, ...submit }) =>
       call(
         "submit_form",

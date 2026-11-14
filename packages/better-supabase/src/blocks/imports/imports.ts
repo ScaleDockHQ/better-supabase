@@ -1,11 +1,23 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { ImportChunks } from "./chunks.ts";
 import type { ImportBatchReply, ImportItem } from "./define-import.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
@@ -18,6 +30,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { importRunListSurface } from "./lists.ts";
 
 export interface ImportsOptions {
   readonly transport: BlockTransport;
@@ -207,6 +220,22 @@ export interface Imports {
     list(
       input: { organizationId: string } & ListImportRunsOptions,
     ): AsyncResult<readonly ImportRun[]>;
+    /**
+     * One keyset page of the organization's runs, newest first. Filter by
+     * `source` and `status`. Needs the manage permission.
+     */
+    page(
+      options: PageOptions & RequiredTenantOption,
+    ): AsyncResult<ListPage<ImportRun>>;
+    /**
+     * The values of each facet (`source`, `status`) and how many runs hold
+     * each.
+     */
+    facets(
+      options: FacetOptions & RequiredTenantOption,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many runs match the page's filters. */
+    count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
     /** Cancels a pending or running run; `false` when it already ended. */
     cancel(id: string): AsyncResult<boolean>;
   };
@@ -362,6 +391,15 @@ const startArg = (start: StartImportRunOptions): Record<string, unknown> => ({
 
 export function createImports(options: ImportsOptions): Imports {
   const call = blockCall(options.transport, options.schema, options.mappers);
+
+  const runEntries = entityList<ImportRun, RequiredTenantOption>({
+    entity: "import",
+    surface: importRunListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "list_import_runs",
+    rowOf: runOf,
+  });
 
   const idOf = (value: unknown, fn: string): { readonly id: string } => ({
     id: textOf(recordOf(value, fn)["id"]),
@@ -555,15 +593,24 @@ export function createImports(options: ImportsOptions): Imports {
           "list_import_runs",
           {
             tenant: organizationId,
-            source: listOptions.source ?? null,
-            status: listOptions.status ?? null,
-            row_limit: listOptions.limit ?? 50,
+            filters: {
+              ...(listOptions.source === undefined
+                ? {}
+                : { source: listOptions.source }),
+              ...(listOptions.status === undefined
+                ? {}
+                : { status: listOptions.status }),
+              limit: listOptions.limit ?? 50,
+            },
           },
           (value) =>
             (Array.isArray(value) ? value : []).map((row) =>
               runOf(row, "list_import_runs"),
             ),
         ),
+      page: runEntries.page,
+      facets: runEntries.facets,
+      count: runEntries.count,
       cancel: (id) =>
         call("cancel_import_run", { id }, (value) => value === true),
     },

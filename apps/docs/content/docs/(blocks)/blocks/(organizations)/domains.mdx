@@ -45,6 +45,25 @@ const rows = useDomains({ limit: 50 });
 
 Show the record to the organization's admin, who publishes it at their DNS provider and points the hostname at your app (a CNAME or the address your host gives you). The record stays on the hostname until it is verified, so the settings page can show it again.
 
+## Paging a list
+
+`list` is the capped convenience list. `page` is the full contract for hostnames (ADR 0749, 0939): it takes `organizationId`, which names the organization per call, and `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. The sorts are `hostname` and `createdAt`; the default order is the primary first, then `hostname`. The filters are `kind` and `verified` (`"true"` or `"false"`). The facets are `kind` and `verified`. `list(organizationId)` and `page` need `domains.read`; `list` returns at most 200 hostnames. A cursor belongs to the sort it came from, so start again from the first page when `sort` or `direction` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error.
+
+```ts
+const verified = await domains
+  .page({
+    organizationId,
+    filters: { verified: ["true"] },
+    sort: { by: "hostname" },
+    limit: 20,
+  })
+  .orThrow();
+
+// How many hostnames are custom or subdomains, and how many match.
+const facets = await domains.facets({ organizationId }).orThrow();
+const total = await domains.count({ organizationId }).orThrow();
+```
+
 ## Verification
 
 `verify_hostname` is granted to the service role only. `createDomainsAdmin` looks up the TXT record over DNS-over-HTTPS (Cloudflare's resolver by default) and marks the hostname verified once the value is there. Pass `actorId` when a user asked for the check, so the database confirms they hold `domains.manage`.

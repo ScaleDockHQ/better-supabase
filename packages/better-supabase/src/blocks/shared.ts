@@ -62,4 +62,6 @@ export type {
   EntityList,
   EntityListSurface,
   FacetOptions,
+  RequiredTenantOption,
+  TenantOption,
 } from "../core/entity-list.ts";

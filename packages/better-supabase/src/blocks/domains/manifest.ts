@@ -4,6 +4,7 @@ import type { DomainsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDomains } from "./domains.ts";
 import { domainsEvents } from "./events.ts";
+import { hostnameListSurface } from "./lists.ts";
 import { domainsSqlOptions } from "./options.ts";
 
 /** The `domains` block's manifest (ADR 0029). */
@@ -20,6 +21,7 @@ export const domainsBlock: BlockOf<
   category: "tenancy",
   entities: {
     hostname: {
+      ...hostnameListSurface,
       mutability: "state-machine",
       emits: { create: true, delete: true },
     },
