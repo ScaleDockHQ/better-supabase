@@ -7,10 +7,15 @@ import {
   ENTITY_ERASES,
   ENTITY_METHODS,
   ENTITY_MUTABILITIES,
+  ENTITY_OFFLINE_SCOPES,
   ENTITY_PARTITION_EVERY,
 } from "../../src/blocks/entity-surface.ts";
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
-import { POWERSYNC_BLOCKS } from "../../src/cli/powersync/streams.ts";
+import { OFFLINE_RULES } from "../../src/cli/powersync/offline-rules.ts";
+import {
+  offlineOf,
+  POWERSYNC_BLOCKS,
+} from "../../src/cli/powersync/streams.ts";
 import { EMIT_GAPS } from "./emit-gaps.ts";
 
 /**
@@ -199,9 +204,49 @@ describe("the entity surface of a manifest", () => {
 
   it("declares offline on exactly the blocks `powersync streams` can sync", () => {
     const offline = BLOCK_MANIFESTS.filter((block) =>
-      entriesOf(block).some(([, surface]) => surface.offline === true),
+      entriesOf(block).some(
+        ([, surface]) =>
+          surface.offline !== undefined && surface.offline !== false,
+      ),
     ).map((block) => block.name);
 
     expect(offline.toSorted()).toStrictEqual([...POWERSYNC_BLOCKS].toSorted());
+  });
+
+  it("gives every offline block the rules its streams follow", () => {
+    for (const block of POWERSYNC_BLOCKS) {
+      expect(ENTITY_OFFLINE_SCOPES).toContain(offlineOf(block).scope);
+    }
+  });
+
+  it("states the progress note conditions on the activities manifest", () => {
+    expect(offlineOf("activities")).toStrictEqual({
+      scope: "readers",
+      where: [
+        { column: "type", equals: "note" },
+        { column: "audience", equals: "team", optional: true },
+        { column: "restricted_roles", isNull: true, optional: true },
+      ],
+    });
+  });
+
+  it("declares the shared offline rules on each offline manifest", () => {
+    const declared = BLOCK_MANIFESTS.flatMap((block) =>
+      entriesOf(block)
+        .map(([, surface]) => surface.offline)
+        .filter((offline) => typeof offline === "object")
+        .slice(0, 1)
+        .map((offline) => [block.name, offline] as const),
+    );
+
+    expect(declared.map(([name]) => name).toSorted()).toStrictEqual(
+      Object.keys(OFFLINE_RULES).toSorted(),
+    );
+
+    for (const [name, offline] of declared) {
+      expect(offline).toStrictEqual(
+        OFFLINE_RULES[name as keyof typeof OFFLINE_RULES],
+      );
+    }
   });
 });

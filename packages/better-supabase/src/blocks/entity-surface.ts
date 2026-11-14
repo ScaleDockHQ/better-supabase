@@ -75,6 +75,49 @@ export interface EntityPartition {
   readonly archive?: "detach" | "drop";
 }
 
+/** Whose rows a device holds offline. */
+export type EntityOfflineScope =
+  /** The rows of the signed-in user (`user_id`). */
+  | "user"
+  /** The signed-in user's own row (`id`). */
+  | "self"
+  /** The rows of the organizations the user is an active member of. */
+  | "tenant"
+  /**
+   * The rows of the organizations where the user's roles hold the block's
+   * `read`.
+   */
+  | "readers";
+
+export const ENTITY_OFFLINE_SCOPES: readonly EntityOfflineScope[] = [
+  "user",
+  "self",
+  "tenant",
+  "readers",
+];
+
+/** A condition every offline row meets: `column = equals` or `column is null`. */
+export type EntityOfflineCondition = {
+  readonly column: string;
+  /** Skips the condition on a table that has no such column. */
+  readonly optional?: boolean;
+} & (
+  | { readonly equals: string; readonly isNull?: never }
+  | { readonly isNull: true; readonly equals?: never }
+);
+
+/** The rows an offline entity syncs. */
+export interface EntityOffline {
+  readonly scope: EntityOfflineScope;
+  /** Conditions on the entity's table, added to the scope. */
+  readonly where?: readonly EntityOfflineCondition[];
+  /**
+   * Tables of the block whose name ends with this keep the rows that have no
+   * tenant (the system definitions) next to the tenant's.
+   */
+  readonly systemRows?: string;
+}
+
 /**
  * One entity's declared surface (ADR 0689). Every field is optional so a block
  * can declare what it knows today; later lanes read these fields to generate
@@ -135,8 +178,12 @@ export interface EntitySurface {
   readonly partition?: EntityPartition;
   /** `true` when the entity's changes reach clients through realtime. */
   readonly realtime?: boolean;
-  /** `true` when the entity is available offline. */
-  readonly offline?: boolean;
+  /**
+   * The entity is available offline: `true`, or the rules that pick the rows a
+   * device holds, from which `powersync streams` writes the stream query (ADR
+   * 0926).
+   */
+  readonly offline?: boolean | EntityOffline;
   /** `true` when every change keeps a version. */
   readonly versioned?: boolean;
   /**
