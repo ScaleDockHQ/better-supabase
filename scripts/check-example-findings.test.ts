@@ -114,6 +114,21 @@ describe("check-example-findings", () => {
     ]);
   });
 
+  it("lets a merged lane keep a row that waits on a maintainer step", () => {
+    const { rows } = parseFindings(
+      table(
+        "| EX-1 | a | bug | deferred (needs: Stripe keys) | x |",
+        "| EX-2 | a | bug | deferred (a library change) | x |",
+      ),
+    );
+
+    expect(
+      checkLanes(rows, [
+        { name: "X1", status: "merged", findings: ["EX-1", "EX-2"] },
+      ]),
+    ).toEqual(["Lane X1 is merged but EX-2 is unfinished"]);
+  });
+
   it("holds for the committed report and tracker", () => {
     const { rows, problems } = parseFindings(
       readFileSync("docs/agents/example-findings.md", "utf-8"),
