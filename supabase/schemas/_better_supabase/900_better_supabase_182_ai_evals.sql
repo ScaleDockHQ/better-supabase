@@ -1,6 +1,6 @@
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:023a44dc7cc8f4b18b49a380afc90a16cf75fc042dec677638cf7af4eef27dfc
+-- @bsb-hash sha256:56d4c5c7035aa1cacefbf1ad551bfe09f5c7005fbf75d063210d8a88b634e81d
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -93,6 +93,30 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
+
+-- The dataset with that id, or null. The service role's caller compares its
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
+create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."eval_datasets"%rowtype;
+begin
+  select x.* into v_row from "better_supabase"."eval_datasets" x where x."id" = get_eval_dataset.dataset;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_eval_dataset"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_eval_dataset"(uuid) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -487,6 +511,16 @@ set search_path = ''
 as $$ select "better_supabase"."create_eval_dataset"($1, $2, $3) $$;
 revoke execute on function "api"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
 grant execute on function "api"."create_eval_dataset"(text, uuid, text) to service_role;
+
+create or replace function "api"."get_eval_dataset"(dataset uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_eval_dataset"($1) $$;
+revoke execute on function "api"."get_eval_dataset"(uuid) from public, anon, authenticated;
+grant execute on function "api"."get_eval_dataset"(uuid) to service_role;
 
 create or replace function "api"."add_eval_items"(dataset uuid, items jsonb)
 returns integer

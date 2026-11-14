@@ -1,5 +1,6 @@
 import { getExtracted, getFormatter } from "next-intl/server";
 
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,16 +11,19 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
+import { Link } from "@/i18n/navigation";
 
-import { getAiUsage, USAGE_WINDOW } from "../ai-usage-queries";
+import type { UsageRange } from "../ai-usage-queries";
+
+import { getAiUsage, USAGE_RANGES, USAGE_WINDOW } from "../ai-usage-queries";
 import { ClearCacheButton } from "./clear-cache-button";
 import { ModelSpendTable } from "./model-spend-table";
 import { SpendChartLazy } from "./spend-chart-lazy";
 
 /** Render inside `<Suspense>`: KPIs, spend per day and the ledger per model. */
-export async function UsageOverview() {
+export async function UsageOverview({ range }: { range: UsageRange }) {
   const [usage, permissions, t, format] = await Promise.all([
-    getAiUsage(),
+    getAiUsage(range),
     getPermissions(),
     getExtracted("aiUsage"),
     getFormatter(),
@@ -54,6 +58,26 @@ export async function UsageOverview() {
 
   return (
     <div className="flex flex-col gap-6">
+      <nav aria-label={t("Range")} className="flex flex-wrap gap-2">
+        {USAGE_RANGES.map((option) => (
+          <Link
+            key={option}
+            href={{
+              pathname: "/assistant/usage",
+              query: { range: String(option) },
+            }}
+            aria-current={option === range ? "page" : undefined}
+            className={buttonVariants({
+              variant: option === range ? "secondary" : "outline",
+              size: "sm",
+            })}
+          >
+            {option === 0
+              ? t("All runs")
+              : t("Last {days, number} days", { days: option })}
+          </Link>
+        ))}
+      </nav>
       <ul className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {kpis.map((kpi) => (
           <li key={kpi.label}>

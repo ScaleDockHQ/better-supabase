@@ -2,13 +2,15 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { AiAccess } from "../ai-access.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { DenyTopic, PiiKind } from "./heuristics.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { dbError } from "../../core/errors.ts";
 import { consoleLogger } from "../../core/logger.ts";
-import { ok } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
+import { accessDenied } from "../ai-access.ts";
 import {
   applyTemporal,
   blockCall,
@@ -118,6 +120,13 @@ export interface AiGuardrailsOptions extends BlockTemporalOptions {
   readonly logger?: Logger;
   /** Calls as the service role: the log records which content was blocked. */
   readonly transport: BlockTransport;
+  /**
+   * The caller these calls act for. When set, every method fails with
+   * `forbidden` unless the caller has an organization and the permission, a
+   * call must name that organization in `organizationId`, and `purge` (which
+   * deletes across organizations) is refused.
+   */
+  readonly access?: AiAccess;
   /**
    * The module schema, or its API schema: `defineBlocks` passes it from
    * `blocks.generated.ts`. Default `better_supabase`.
@@ -451,7 +460,48 @@ export function createAiGuardrails(options: AiGuardrailsOptions): AiGuardrails {
         }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  const access = options.access;
+
+  const scoped: AiGuardrails = {
+    policies: {
+      upsert: (input) => {
+        const denied = accessDenied(access, [input.organizationId]);
+
+        return denied ? AsyncResult.err(denied) : client.policies.upsert(input);
+      },
+      get: (input) => {
+        const denied = accessDenied(access, [input.organizationId]);
+
+        return denied ? AsyncResult.err(denied) : client.policies.get(input);
+      },
+    },
+    decisions: {
+      list: (listOptions) => {
+        const denied = accessDenied(access, [listOptions?.organizationId]);
+
+        return denied
+          ? AsyncResult.err(denied)
+          : client.decisions.list(listOptions);
+      },
+      purge: () =>
+        AsyncResult.err(
+          dbError(
+            "forbidden",
+            "Purging the decision log spans every organization",
+            access?.permission === undefined
+              ? {}
+              : { permission: access.permission },
+          ),
+        ),
+    },
+    check: (input) => {
+      const denied = accessDenied(access, [input.organizationId]);
+
+      return denied ? AsyncResult.err(denied) : client.check(input);
+    },
+  };
+
+  return withBlockHooks(access === undefined ? client : scoped, options.hooks, {
     block: "ai-guardrails",
     ...(options.logger ? { logger: options.logger } : {}),
   });

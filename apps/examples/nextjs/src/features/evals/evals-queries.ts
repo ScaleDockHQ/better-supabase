@@ -6,7 +6,7 @@ import type {
 
 import type { OpsListQuery } from "@/components/ops-list/ops-list-params";
 
-import { opsTenant } from "@/features/assistant/assistant-ops";
+import { opsAccess } from "@/features/assistant/assistant-ops";
 import { promptSubjects } from "@/features/prompts/prompts-queries";
 import { promptsBlock } from "@/features/prompts/prompts-server";
 
@@ -31,7 +31,8 @@ export async function getEvalSubjectPage(
   readonly items: readonly EvalSubjectRow[];
   readonly nextCursor: string | null;
 }> {
-  const organizationId = await opsTenant("ai_chat.manage");
+  const access = await opsAccess("ai_chat.manage");
+  const organizationId = access.allowed ? access.organizationId : undefined;
 
   if (organizationId === undefined) {
     return { items: [], nextCursor: null };
@@ -103,13 +104,14 @@ export async function getEvalWorkspace(
   name: string,
   params: EvalParams,
 ): Promise<EvalWorkspace | undefined> {
-  const organizationId = await opsTenant("ai_chat.manage");
+  const access = await opsAccess("ai_chat.manage");
+  const organizationId = access.allowed ? access.organizationId : undefined;
 
   if (organizationId === undefined) {
     return undefined;
   }
 
-  const evals = evalsBlock();
+  const evals = evalsBlock(access);
 
   const dataset = await evals.datasets
     .create({ name, organizationId })
@@ -118,7 +120,7 @@ export async function getEvalWorkspace(
   const [items, runs, versions] = await Promise.all([
     evals.items.list({ datasetId: dataset.id, limit: 100 }).orThrow(),
     evals.runs.list({ datasetId: dataset.id, limit: 20 }).orThrow(),
-    promptsBlock().versions({ name, organizationId }).orThrow(),
+    promptsBlock(access).versions({ name, organizationId }).orThrow(),
   ]);
 
   const rows: EvalRunRow[] = runs.map((run) => ({

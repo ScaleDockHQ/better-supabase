@@ -2,12 +2,15 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { AiAccess } from "../ai-access.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { PromptfooConfig } from "./promptfoo.ts";
 import type { EvalScorer, ScorerDescription } from "./scorers.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult, ok } from "../../core/result.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult, err, ok } from "../../core/result.ts";
+import { accessDenied } from "../ai-access.ts";
 import {
   applyTemporal,
   blockCall,
@@ -125,6 +128,12 @@ export interface AiEvalsOptions extends BlockTemporalOptions {
   /** Calls as the service role: items and outputs can hold user content. */
   readonly transport: BlockTransport;
   /**
+   * The caller these calls act for. When set, every method fails with
+   * `forbidden` unless the caller has an organization and the permission, and a
+   * dataset or run of another organization (or of none) reads as `not_found`.
+   */
+  readonly access?: AiAccess;
+  /**
    * The module schema, or its API schema: `defineBlocks` passes it from
    * `blocks.generated.ts`. Default `better_supabase`.
    */
@@ -150,6 +159,8 @@ export interface AiEvals {
         readonly description?: string;
       },
     ): AsyncResult<EvalDataset>;
+    /** The dataset, or `undefined` when there is none. */
+    get(datasetId: string): AsyncResult<EvalDataset | undefined>;
   };
   readonly items: {
     /** Adds items and returns how many. */
@@ -468,6 +479,10 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
           },
           datasetOf,
         ),
+      get: (datasetId) =>
+        call("get_eval_dataset", { dataset: datasetId }, (value) =>
+          value === null || value === undefined ? undefined : datasetOf(value),
+        ),
     },
     items: {
       add: ({ datasetId, items }) =>
@@ -603,7 +618,105 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
       }),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  const access = options.access;
+
+  /** Runs `run` when the caller may use every dataset and run named. */
+  const within = <T>(
+    named: {
+      readonly datasets?: readonly string[];
+      readonly runs?: readonly string[];
+    },
+    run: () => AsyncResult<T>,
+  ): AsyncResult<T> => {
+    const denied = accessDenied(access);
+
+    if (denied) {
+      return AsyncResult.err(denied);
+    }
+
+    return AsyncResult.from(async () => {
+      const tenants: (string | undefined)[] = [];
+
+      for (const runId of named.runs ?? []) {
+        const found = await client.runs.get(runId);
+
+        if (!found.ok) {
+          return found;
+        }
+
+        tenants.push(found.data?.organizationId);
+      }
+
+      for (const datasetId of named.datasets ?? []) {
+        const found = await client.datasets.get(datasetId);
+
+        if (!found.ok) {
+          return found;
+        }
+
+        tenants.push(found.data?.organizationId);
+      }
+
+      return accessDenied(access, tenants) === undefined
+        ? run()
+        : err(dbError("not_found", "No such eval dataset or run"));
+    });
+  };
+
+  const scoped: AiEvals = {
+    datasets: {
+      create: (input) => {
+        const denied = accessDenied(access, [input.organizationId]);
+
+        return denied ? AsyncResult.err(denied) : client.datasets.create(input);
+      },
+      get: (datasetId) =>
+        within({ datasets: [datasetId] }, () => client.datasets.get(datasetId)),
+    },
+    items: {
+      add: (input) =>
+        within({ datasets: [input.datasetId] }, () => client.items.add(input)),
+      addFromFeedback: (input) =>
+        within({ datasets: [input.datasetId] }, () =>
+          client.items.addFromFeedback(input),
+        ),
+      list: (input) =>
+        within(
+          {
+            datasets: [input.datasetId],
+            ...(input.pendingRun === undefined
+              ? {}
+              : { runs: [input.pendingRun] }),
+          },
+          () => client.items.list(input),
+        ),
+    },
+    runs: {
+      create: (input) =>
+        within({ datasets: [input.datasetId] }, () =>
+          client.runs.create(input),
+        ),
+      get: (runId) => within({ runs: [runId] }, () => client.runs.get(runId)),
+      list: (input) =>
+        within({ datasets: [input.datasetId] }, () => client.runs.list(input)),
+      record: (input) =>
+        within({ runs: [input.runId] }, () => client.runs.record(input)),
+      results: (input) =>
+        within({ runs: [input.runId] }, () => client.runs.results(input)),
+      finish: (input) =>
+        within({ runs: [input.runId] }, () => client.runs.finish(input)),
+      compare: (input) =>
+        within({ runs: [input.baseRunId, input.candidateRunId] }, () =>
+          client.runs.compare(input),
+        ),
+    },
+    exportPromptfoo: (input) =>
+      within({ datasets: [input.datasetId] }, () =>
+        client.exportPromptfoo(input),
+      ),
+  };
+
+  return withBlockHooks(access === undefined ? client : scoped, options.hooks, {
     block: "ai-evals",
     ...(options.logger ? { logger: options.logger } : {}),
   });

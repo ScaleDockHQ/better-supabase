@@ -77,6 +77,28 @@ so a renamed variable fails in tests instead of sending a broken prompt.
 | `set_prompt_label(name, label, version, tenant)`                  | service |
 | `list_prompt_versions(name, tenant)`                              | service |
 
+## Check the caller
+
+The block runs as the service role, so it does not know who is asking. When
+you serve a signed-in caller, pass `access` and the block refuses what the
+caller may not touch:
+
+```ts
+const prompts = createPrompts({
+  transport,
+  access: {
+    organizationId: activeOrganizationId,
+    allowed: can(permissions, "ai_chat.manage"),
+    permission: "ai_chat.manage",
+  },
+});
+```
+
+Every method fails with a `forbidden` error when the caller has no organization
+or lacks the permission. A call must name the caller's organization in `organizationId`, so a call for another organization or for a system prompt is refused.
+Without `access` the block trusts its caller, as before, so a background job or
+the assistant's own runtime can keep using an unscoped client.
+
 ## Without the client
 
 ```ts title="lib/prompts.ts"
