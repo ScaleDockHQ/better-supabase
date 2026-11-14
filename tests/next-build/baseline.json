@@ -255,7 +255,7 @@
     "brotli": 430550
   },
   "/[locale]/(app)/crm/contacts/[id]/page": {
-    "raw": 1453579,
+    "raw": 1456880,
     "gzip": 469296,
     "brotli": 410006
   },
@@ -275,7 +275,7 @@
     "brotli": 429346
   },
   "/[locale]/(app)/crm/deals/[id]/page": {
-    "raw": 1570721,
+    "raw": 1574022,
     "gzip": 508481,
     "brotli": 444237
   },
@@ -365,7 +365,7 @@
     "brotli": 429346
   },
   "/[locale]/(app)/customers/[id]/page": {
-    "raw": 1498995,
+    "raw": 1501234,
     "gzip": 486582,
     "brotli": 424922
   },
@@ -1330,7 +1330,7 @@
     "brotli": 118237
   },
   "/[locale]/(app)/crm/companies/[id]/page": {
-    "raw": 1453606,
+    "raw": 1456880,
     "gzip": 469330,
     "brotli": 410078
   },
