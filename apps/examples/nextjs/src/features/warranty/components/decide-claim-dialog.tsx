@@ -22,6 +22,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { inputFieldMessages } from "@/lib/input-field-messages";
 import { toast } from "@/lib/toast";
 
 import { decideClaim } from "../warranty-actions";
@@ -46,7 +47,13 @@ export function DecideClaimDialog({
     },
   });
 
-  const error = form.error === undefined ? null : errorMessage(form.error);
+  const fieldMessage = inputFieldMessages(form.error)["decision"];
+
+  const error =
+    form.error === undefined || fieldMessage !== undefined
+      ? null
+      : errorMessage(form.error);
+
   const approving = status === "approved";
 
   return (
@@ -79,16 +86,17 @@ export function DecideClaimDialog({
             </DialogDescription>
           </DialogHeader>
           <FieldGroup>
-            <Field data-invalid={error ? true : undefined}>
+            <Field data-invalid={error || fieldMessage ? true : undefined}>
               <FieldLabel htmlFor={`${fieldId}-decision`}>
                 {t("Decision")}
               </FieldLabel>
               <Textarea
                 id={`${fieldId}-decision`}
                 name="decision"
-                required
                 maxLength={1000}
+                aria-invalid={fieldMessage ? true : undefined}
               />
+              {fieldMessage ? <FieldError>{fieldMessage}</FieldError> : null}
               {error ? <FieldError>{error}</FieldError> : null}
             </Field>
           </FieldGroup>

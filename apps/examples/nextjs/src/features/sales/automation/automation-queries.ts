@@ -1,4 +1,5 @@
 import "server-only";
+import { subjectKey } from "better-supabase/blocks/subjects";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
@@ -6,6 +7,26 @@ import { CRM_TAG } from "@/features/crm/crm-cache";
 import { bsb } from "@/lib/supabase/server";
 
 import { SALES_TAG } from "../sales-cache";
+
+type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
+
+/**
+ * The name of each subject through `subjects.label`; the id when none is
+ * readable.
+ */
+async function namesOf(
+  db: Db,
+  type: string,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  const labels = await db.subjects
+    .label(ids.map((id) => ({ type, id })))
+    .orThrow();
+
+  return new Map(
+    ids.map((id) => [id, labels[subjectKey({ type, id })]?.label ?? id]),
+  );
+}
 
 export interface SegmentRow {
   readonly id: string;
@@ -56,6 +77,7 @@ export async function loadSegments(): Promise<readonly SegmentRow[] | null> {
 export interface SegmentDetail extends SegmentRow {
   readonly members: readonly {
     readonly subjectId: string;
+    readonly name: string;
     readonly enteredAt: string;
   }[];
 }
@@ -82,10 +104,17 @@ export async function loadSegment(
     .members({ segmentId: id, limit: 100 })
     .orThrow();
 
+  const names = await namesOf(
+    db,
+    segment.subjectType,
+    members.map((member) => member.subjectId),
+  );
+
   return {
     ...segmentOf(segment),
     members: members.map((member) => ({
       subjectId: member.subjectId,
+      name: names.get(member.subjectId) ?? member.subjectId,
       enteredAt: member.enteredAt.toString(),
     })),
   };
@@ -231,6 +260,7 @@ export interface ScoredRecord {
   readonly id: string;
   readonly subjectType: string;
   readonly subjectId: string;
+  readonly name: string;
   readonly score: number;
   readonly band: string | null;
   readonly computedAt: string;
@@ -276,6 +306,12 @@ export async function loadScoreModel(
     .top({ modelKey: model.key, pageSize: 50 })
     .orThrow();
 
+  const names = await namesOf(
+    db,
+    model.subjectType,
+    top.map((score) => score.subject.id),
+  );
+
   return {
     model: {
       id: model.id,
@@ -306,6 +342,7 @@ export async function loadScoreModel(
       id: score.id,
       subjectType: score.subject.type,
       subjectId: score.subject.id,
+      name: names.get(score.subject.id) ?? score.subject.id,
       score: score.score,
       band: score.band ?? null,
       computedAt: score.computedAt.toString(),
@@ -321,7 +358,7 @@ export interface HealthRow {
   readonly modelKey: string;
   readonly subjectType: string;
   readonly subjectId: string;
-  readonly name: string | null;
+  readonly name: string;
   readonly score: number;
   readonly band: string | null;
   readonly computedAt: string;
@@ -354,15 +391,14 @@ export async function loadHealth(): Promise<HealthData | null> {
     return { models: [], modelKey: null, rows: [] };
   }
 
-  const [scores, companies] = await Promise.all([
-    db.scores.top({ modelKey: model.key, pageSize: 200 }).orThrow(),
-    db.$blocks.contacts
-      .listCompanies({ organizationId: tenant, limit: 200 })
-      .orThrow(),
-  ]);
+  const scores = await db.scores
+    .top({ modelKey: model.key, pageSize: 200 })
+    .orThrow();
 
-  const nameOf = new Map(
-    companies.items.map((company) => [company.id, company.name]),
+  const nameOf = await namesOf(
+    db,
+    model.subjectType,
+    scores.map((score) => score.subject.id),
   );
 
   return {
@@ -373,7 +409,7 @@ export async function loadHealth(): Promise<HealthData | null> {
       modelKey: score.modelKey,
       subjectType: score.subject.type,
       subjectId: score.subject.id,
-      name: nameOf.get(score.subject.id) ?? null,
+      name: nameOf.get(score.subject.id) ?? score.subject.id,
       score: score.score,
       band: score.band ?? null,
       computedAt: score.computedAt.toString(),

@@ -109,10 +109,10 @@ export async function SegmentDetail({ id }: { id: string }) {
                 )}
                 className="font-medium hover:underline"
               >
-                {member.subjectId}
+                {member.name}
               </Link>
             ) : (
-              member.subjectId
+              member.name
             ),
             fmtDate(member.enteredAt),
           ],
@@ -288,10 +288,10 @@ export async function ScoreModelDetail({ id }: { id: string }) {
                 )}
                 className="font-medium hover:underline"
               >
-                {score.subjectId}
+                {score.name}
               </Link>
             ) : (
-              score.subjectId
+              score.name
             ),
             <span key="s" className="tabular-nums">
               {score.score}

@@ -563,18 +563,18 @@ export async function HealthOverview({ query }: { query: BlockListQuery }) {
       loaded={rows}
       query={query}
       spec={{
-        search: (row) => `${row.name ?? ""} ${row.band ?? ""}`,
+        search: (row) => `${row.name} ${row.band ?? ""}`,
         facet: (row) => row.band ?? "",
         defaultSort: "lowest",
         sorts: {
           lowest: (a, b) => a.score - b.score,
           highest: (a, b) => b.score - a.score,
-          name: (a, b) => (a.name ?? "").localeCompare(b.name ?? ""),
+          name: (a, b) => a.name.localeCompare(b.name),
         },
       }}
       toRow={(row) => ({
         id: row.subjectId,
-        name: row.name ?? row.subjectId,
+        name: row.name,
         score: row.score,
         band: row.band,
         computedAt: fmtDate(row.computedAt),

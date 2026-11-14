@@ -14,7 +14,7 @@ export default function DamPage() {
   return (
     <>
       <PageHeader
-        title={t("Assets")}
+        title={t("Digital assets")}
         description={t("Who may use your files, where, and until when.")}
       />
       <Suspense fallback={<UsageRightsSectionSkeleton />}>

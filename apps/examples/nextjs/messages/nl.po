@@ -629,9 +629,9 @@ msgid "Everyone your organization works with."
 msgstr "Iedereen met wie je organisatie werkt."
 
 #: src/app/[locale]/(app)/dam/page.tsx
-msgctxt "dam.d1uESJ"
-msgid "Assets"
-msgstr "Assets"
+msgctxt "dam.34jmEB"
+msgid "Digital assets"
+msgstr ""
 
 #: src/app/[locale]/(app)/dam/page.tsx
 msgctxt "dam.NZSq_3"
@@ -14394,9 +14394,9 @@ msgid "No awards yet"
 msgstr "Nog geen toekenningen"
 
 #: src/features/funding/components/award-usage.tsx
-msgctxt "funding.y4Dw4R"
-msgid "Add a funding product with its rate, then record the units a funder awards a customer."
-msgstr "Voeg een financieringsproduct met zijn tarief toe en leg daarna de eenheden vast die een financier een klant toekent."
+msgctxt "funding.RVmYge"
+msgid "Add a funding product with its rate, then record the units a funder awards a customer. An award lists only for people who can read its subject, so an award on a customer you can't read stays out of this list."
+msgstr ""
 
 #: src/features/funding/components/award-usage.tsx
 msgctxt "funding.-4qGDl"
@@ -15048,6 +15048,28 @@ msgctxt "inbox.KgAlAZ"
 msgid "Add note"
 msgstr "Notitie toevoegen"
 
+#: src/features/inbox/components/contact-deals.tsx
+msgctxt "inbox.oRCMD5"
+msgid "Open deals"
+msgstr ""
+
+#: src/features/inbox/components/contact-deals.tsx
+msgctxt "inbox.dO9fsB"
+msgid "The deals didn't load."
+msgstr ""
+
+#: src/features/inbox/components/contact-deals.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+#: src/features/inbox/components/scheduled-replies.tsx
+msgctxt "inbox.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/inbox/components/contact-deals.tsx
+msgctxt "inbox.u4CArO"
+msgid "No open deals name this contact."
+msgstr ""
+
 #: src/features/inbox/components/conversation-badges.tsx
 msgctxt "inbox.v7m7rk"
 msgid "Web widget"
@@ -15329,12 +15351,6 @@ msgstr "De wachtrij is niet geladen"
 msgctxt "inbox.xUnZ3u"
 msgid "Check your connection and try again."
 msgstr "Controleer je verbinding en probeer het opnieuw."
-
-#: src/features/inbox/components/conversation-queue.tsx
-#: src/features/inbox/components/scheduled-replies.tsx
-msgctxt "inbox.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
 
 #: src/features/inbox/components/conversation-queue.tsx
 msgctxt "inbox.1NNSUY"
@@ -19919,9 +19935,9 @@ msgstr "Vergaderingen"
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
-msgctxt "navigation.d1uESJ"
-msgid "Assets"
-msgstr "Assets"
+msgctxt "navigation.34jmEB"
+msgid "Digital assets"
+msgstr ""
 
 #: src/features/navigation/components/nav-label-server.ts
 #: src/features/navigation/components/use-nav-label.ts
@@ -31976,6 +31992,11 @@ msgid "ID"
 msgstr "ID"
 
 #: src/features/work/components/work-item-grid.tsx
+msgctxt "work.uYAYib"
+msgid "Stage"
+msgstr ""
+
+#: src/features/work/components/work-item-grid.tsx
 msgctxt "work.vx8bv3"
 msgid "Assignee"
 msgstr "Toegewezen aan"
@@ -31986,9 +32007,9 @@ msgid "Select {identifier}"
 msgstr "{identifier} selecteren"
 
 #: src/features/work/components/work-item-grid.tsx
-msgctxt "work.NP0l5s"
-msgid "State of {identifier}"
-msgstr "Status van {identifier}"
+msgctxt "work.AmWodP"
+msgid "Stage of {identifier}"
+msgstr ""
 
 #: src/features/work/components/work-item-grid.tsx
 msgctxt "work.AlwLGP"

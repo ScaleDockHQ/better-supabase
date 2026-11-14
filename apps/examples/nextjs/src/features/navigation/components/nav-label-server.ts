@@ -268,7 +268,7 @@ export async function getNavLabel(): Promise<(id: NavId) => string> {
       }
 
       case "dam": {
-        return t("Assets");
+        return t("Digital assets");
       }
 
       case "lims": {

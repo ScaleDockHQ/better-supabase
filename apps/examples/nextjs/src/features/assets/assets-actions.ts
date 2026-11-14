@@ -2,7 +2,7 @@
 
 import type { AssetInput } from "better-supabase/blocks/assets";
 
-import { ok } from "better-supabase";
+import { err, invalidInput, ok } from "better-supabase";
 import * as v from "valibot";
 
 import type { Mutable } from "@/lib/block-status-list";
@@ -23,7 +23,7 @@ export const createAsset = bsb.action(
   {
     input: v.object({
       name: Text(200),
-      kind: v.pipe(v.string(), v.trim(), v.regex(/^[a-z][a-z0-9_]{0,62}$/)),
+      kind: v.pipe(v.string(), v.trim(), v.minLength(1)),
       tag: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(60))),
       serialNumber: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(80))),
     }),
@@ -44,6 +44,23 @@ export const createAsset = bsb.action(
     const created = await db.assets.createAsset(input);
 
     if (!created.ok) {
+      // The register's kind check surfaces as a constraint name; place it on the field.
+      if (
+        created.error.kind === "check" &&
+        created.error.constraint === "bsb_assets_kind_check"
+      ) {
+        return err(
+          invalidInput("The kind has the wrong shape.", [
+            {
+              path: ["kind"],
+              code: "KIND_INVALID",
+              message:
+                "Use lowercase letters, digits and underscores, starting with a letter.",
+            },
+          ]),
+        );
+      }
+
       return created;
     }
 
