@@ -1028,11 +1028,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M3
 
 - Scope: Generated seed, nav, route manifest, coverage, message keys
-- Status: planned
-- Branch: `feat/audit-m3`
-- PR: none yet
-- Findings: EX-1264, EX-1267, EX-1268
-- Log: 2026-11-12, planned.
+- Status: merged
+- Branch: `feat/audit-lane-m3`
+- PR: [#957](https://github.com/ScaleDockHQ/better-supabase/pull/957)
+- Findings: none (the three partly fixed rows moved to lane M4)
+- Log: 2026-11-14, lane M3 started from main (522f461335) in `../bsb-audit-M3`. One PR: the `seed`, `navigation` and `manifest` outputs in `better-supabase/list`'s generator, ADR 0879. No SQL change, so no migration. EX-1264, EX-1267 and EX-1268 are partly fixed (the generator side is done) and moved to lane M4. Merged as [#957](https://github.com/ScaleDockHQ/better-supabase/pull/957).
 
 ### Lane M4
 
@@ -1040,7 +1040,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-m4`
 - PR: none yet
-- Findings: EX-1294, EX-1327, EX-813, EX-024 (once the instant allow list is empty), EX-033 and EX-034 (header sort on the generated columns, ReUI `Filters` state; moved from M2)
+- Findings: EX-1264, EX-1267, EX-1268 (moved from M3: example seed rows, the coverage map and the empty-translation check), EX-1294, EX-1327, EX-813, EX-024 (once the instant allow list is empty), EX-033 and EX-034 (header sort on the generated columns, ReUI `Filters` state; moved from M2)
 - Log: 2026-11-12, planned.
 
 ### Lane O1

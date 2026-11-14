@@ -509,9 +509,8 @@ export default defineConfig({
 | `list`     | `pageSize` and `maxPageSize` of the generated list query.                                     |
 | `columns`  | The logical columns of the list, in order. `gen` writes `pages/<name>.columns.ts` from them.  |
 | `sections` | The sections of the detail page, in order. `gen` writes `pages/<name>.detail.ts` from them.   |
-
-`area` and `seed` are accepted today and read by later generators (seed rows and navigation), so a
-page descriptor does not change when those land.
+| `area`     | The nav area of the page. `gen` writes `pages/<name>.navigation.ts` when it is set.           |
+| `seed`     | `demo` rows (default 10, at most 500) and `tiers`. `gen` writes `pages/<name>.seed.ts`.       |
 
 The generated module calls `defineEntityListQuery` with the entity's surface. It has no database
 access of its own: `parse` checks the URL, `schema` checks typed input as a Standard Schema, and `run`
@@ -588,3 +587,30 @@ export async function createRisk(data: FormData) {
 
 The Next.js example declares `columns` and `sections` on its periods page, so
 `src/lib/supabase/pages/periods.columns.ts` and `periods.detail.ts` are generated output.
+
+### Seed, navigation and the route manifest
+
+`seed` writes `<name>Seed`: the table, the tenant column the app fills, the `tiers` and `demo` rows
+keyed by database column, so they insert without a rename. The rows come from the required fields of
+the block's input schema that are columns of the table, filled from each field's kind and bounds
+(enum values in turn, dates counting forward from a fixed day). The same descriptor gives the same
+rows. A larger load stays with `pnpm db:seed:scale`.
+
+`area` writes `<name>Nav`: the `area`, a `label`, the list `href`, `recordHref` (the generated
+`<name>Detail.href`, when the page has `sections`) and `titleKey` (the first entry of `<name>Columns`).
+`pages/routes.manifest.ts` holds `entityRoutes`, one entry per page with its list route, its API route,
+its detail route and the message keys of its title, columns, facets, sections and form fields. A
+translation file can be checked against `messageKeys`, so an empty or missing string fails in your own
+check instead of at runtime. The empty-translation check itself is not part of `gen`.
+
+```ts
+import { entityRoutes } from "@/lib/supabase/pages/routes.manifest";
+import { periodsNav } from "@/lib/supabase/pages/periods.navigation";
+
+const keys = entityRoutes.flatMap((entry) => entry.messageKeys);
+const href = periodsNav.recordHref?.("p1");
+```
+
+The periods page of the Next.js example sets `area: "finance"`, so `periods.navigation.ts` and
+`routes.manifest.ts` are generated output. It sets no `seed`: `gen` stops with `config_invalid` when a
+page sets `seed` and its block exports no input schema that fits the table.
