@@ -1,4 +1,4 @@
--- Restoring an archived item records its `restored` event once (ADR 0852).
+-- Restoring an archived item records its `restored` event once (ADR 1023).
 -- The Acme owner (…00a1) archives and restores a work item and a
 -- conversation; restoring an item that is not archived records nothing.
 begin;

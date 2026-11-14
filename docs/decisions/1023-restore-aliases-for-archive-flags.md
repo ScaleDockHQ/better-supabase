@@ -1,4 +1,4 @@
-# 0852: Restore aliases for archive flags
+# 1023: Restore aliases for archive flags
 
 - Status: accepted
 - Date: 2026-11-14
