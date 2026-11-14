@@ -26,7 +26,7 @@ export const notificationsBlock: BlockOf<
     notification: {
       mutability: "state-machine",
       emits: { create: true },
-      offline: true,
+      offline: { scope: "user" },
     },
   },
   description:

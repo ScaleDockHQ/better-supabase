@@ -31,7 +31,7 @@ export const medicationsBlock: BlockOf<
     medication: {
       mutability: "editable",
       emits: { update: false },
-      offline: true,
+      offline: { scope: "readers", systemRows: "definitions" },
     },
     medication_order: {
       mutability: "editable",

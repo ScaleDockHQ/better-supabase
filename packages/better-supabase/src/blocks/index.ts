@@ -217,6 +217,7 @@ export {
   ENTITY_ERASES,
   ENTITY_METHODS,
   ENTITY_MUTABILITIES,
+  ENTITY_OFFLINE_SCOPES,
   ENTITY_PARTITION_EVERY,
 } from "./entity-surface.ts";
 
@@ -225,6 +226,9 @@ export type {
   EntityErase,
   EntityMethod,
   EntityMutability,
+  EntityOffline,
+  EntityOfflineCondition,
+  EntityOfflineScope,
   EntityPartition,
   EntityPartitionEvery,
   EntitySurface,

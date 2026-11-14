@@ -27,7 +27,15 @@ export const activitiesBlock: BlockOf<
   entities: {
     activity: {
       mutability: "editable",
-      offline: true,
+      offline: {
+        scope: "readers",
+        // Progress notes that are open to the whole team.
+        where: [
+          { column: "type", equals: "note" },
+          { column: "audience", equals: "team", optional: true },
+          { column: "restricted_roles", isNull: true, optional: true },
+        ],
+      },
       emits: { create: true, update: true, delete: true },
     },
   },
