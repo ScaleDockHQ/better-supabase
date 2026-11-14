@@ -2,7 +2,7 @@
 
 import type { WarrantyClaimInput } from "better-supabase/blocks/warranty";
 
-import { ok } from "better-supabase";
+import { err, invalidInput, ok } from "better-supabase";
 import { parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
@@ -86,6 +86,18 @@ export const decideClaim = bsb.action(
     permission: "warranty.decide",
   },
   async ({ claimId, status, decision }, { db, auth }) => {
+    if (status !== "closed" && !decision) {
+      return err(
+        invalidInput("A decision says why the claim was approved or denied.", [
+          {
+            path: ["decision"],
+            code: "DECISION_REQUIRED",
+            message: "Say why the claim is approved or denied.",
+          },
+        ]),
+      );
+    }
+
     const decided = await db.warranty.decide(claimId, status, decision);
 
     if (!decided.ok) {

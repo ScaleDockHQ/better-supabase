@@ -84,7 +84,7 @@ export async function AwardUsage() {
           <EmptyTitle>{t("No awards yet")}</EmptyTitle>
           <EmptyDescription>
             {t(
-              "Add a funding product with its rate, then record the units a funder awards a customer.",
+              "Add a funding product with its rate, then record the units a funder awards a customer. An award lists only for people who can read its subject, so an award on a customer you can't read stays out of this list.",
             )}
           </EmptyDescription>
         </EmptyHeader>

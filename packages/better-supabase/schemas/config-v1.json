@@ -3735,6 +3735,28 @@
                       },
                       "auditReads": {
                         "type": "boolean"
+                      },
+                      "search": {
+                        "anyOf": [
+                          {
+                            "const": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string"
+                              },
+                              "body": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        ]
                       }
                     },
                     "additionalProperties": false
@@ -4047,6 +4069,28 @@
                       },
                       "auditReads": {
                         "type": "boolean"
+                      },
+                      "search": {
+                        "anyOf": [
+                          {
+                            "const": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string"
+                              },
+                              "body": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        ]
                       }
                     },
                     "additionalProperties": false

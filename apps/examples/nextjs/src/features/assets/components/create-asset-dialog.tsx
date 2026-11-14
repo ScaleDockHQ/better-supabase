@@ -24,6 +24,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { inputFieldMessages } from "@/lib/input-field-messages";
 import { toast } from "@/lib/toast";
 
 import { createAsset } from "../assets-actions";
@@ -42,7 +43,12 @@ export function CreateAssetDialog() {
     },
   });
 
-  const error = form.error === undefined ? null : errorMessage(form.error);
+  const fieldMessages = inputFieldMessages(form.error);
+
+  const error =
+    form.error === undefined || Object.keys(fieldMessages).length > 0
+      ? null
+      : errorMessage(form.error);
 
   return (
     <Dialog
@@ -76,7 +82,7 @@ export function CreateAssetDialog() {
               />
               {error ? <FieldError>{error}</FieldError> : null}
             </Field>
-            <Field>
+            <Field data-invalid={fieldMessages["kind"] ? true : undefined}>
               <FieldLabel htmlFor={`${fieldId}-kind`}>{t("Kind")}</FieldLabel>
               <Input
                 id={`${fieldId}-kind`}
@@ -84,14 +90,17 @@ export function CreateAssetDialog() {
                 required
                 maxLength={60}
                 autoComplete="off"
-                pattern="[a-z][a-z0-9_]{0,62}"
                 placeholder="vehicle"
+                aria-invalid={fieldMessages["kind"] ? true : undefined}
               />
               <FieldDescription>
                 {t(
                   "Lowercase letters, digits and underscores, such as vehicle or forklift.",
                 )}
               </FieldDescription>
+              {fieldMessages["kind"] ? (
+                <FieldError>{fieldMessages["kind"]}</FieldError>
+              ) : null}
             </Field>
             <Field>
               <FieldLabel htmlFor={`${fieldId}-tag`}>{t("Tag")}</FieldLabel>

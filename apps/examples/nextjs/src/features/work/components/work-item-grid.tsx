@@ -460,6 +460,7 @@ export function WorkItemGrid({
             ) : null}
             <TableHead>{t("ID")}</TableHead>
             <TableHead>{t("Title")}</TableHead>
+            <TableHead>{t("Stage")}</TableHead>
             <TableHead>{t("State")}</TableHead>
             <TableHead>{t("Priority")}</TableHead>
             <TableHead>{t("Assignee")}</TableHead>
@@ -520,7 +521,7 @@ export function WorkItemGrid({
                       <SelectTrigger
                         size="sm"
                         className="w-40"
-                        aria-label={t("State of {identifier}", {
+                        aria-label={t("Stage of {identifier}", {
                           identifier: row.identifier,
                         })}
                       >
@@ -535,10 +536,16 @@ export function WorkItemGrid({
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Badge variant={stateBadgeVariant(row.state)}>
-                      {stateLabel(row.state)}
-                    </Badge>
+                    <span className="text-muted-foreground">
+                      {stageItems.find((item) => item.value === row.stageId)
+                        ?.label ?? "–"}
+                    </span>
                   )}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={stateBadgeVariant(row.state)}>
+                    {stateLabel(row.state)}
+                  </Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {priorityLabel(row.priority)}
