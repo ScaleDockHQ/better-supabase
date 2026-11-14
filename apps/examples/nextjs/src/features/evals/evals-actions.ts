@@ -6,11 +6,12 @@ import { refresh } from "next/cache";
 import { after } from "next/server";
 import * as v from "valibot";
 
+import { actionAccess } from "@/features/assistant/assistant-ops";
 import { promptsBlock } from "@/features/prompts/prompts-server";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { evalsBlock } from "./evals-server";
-import { answerFor } from "./evals-task";
+import { answerFor, isScripted, SCRIPTED_MODEL } from "./evals-task";
 
 const Name = v.pipe(v.string(), v.regex(/^[a-z0-9][a-z0-9._-]{2,79}$/));
 
@@ -31,7 +32,7 @@ export const addEvalItems = bsbCore.action(
     permission: "ai_chat.manage",
   },
   async ({ name, lines }, { tenant }) => {
-    const evals = evalsBlock();
+    const evals = evalsBlock(actionAccess(tenant, "ai_chat.manage"));
 
     const dataset = await evals.datasets.create({
       name,
@@ -77,7 +78,7 @@ export const addEvalItemsFromFeedback = bsbCore.action(
     permission: "ai_chat.manage",
   },
   async ({ name }, { tenant }) => {
-    const evals = evalsBlock();
+    const evals = evalsBlock(actionAccess(tenant, "ai_chat.manage"));
 
     const dataset = await evals.datasets.create({
       name,
@@ -118,8 +119,10 @@ export const startEvalRun = bsbCore.action(
     requireTenant: true,
     permission: "ai_chat.manage",
   },
-  async ({ name, promptVersion, model }, { tenant }) => {
-    const evals = evalsBlock();
+  async ({ name, promptVersion, model: requested }, { tenant }) => {
+    // A run without a key measures the script, so its row says so.
+    const model = isScripted() ? SCRIPTED_MODEL : requested;
+    const evals = evalsBlock(actionAccess(tenant, "ai_chat.manage"));
 
     const dataset = await evals.datasets.create({
       name,
@@ -150,7 +153,9 @@ export const startEvalRun = bsbCore.action(
       budgetMs: BUDGET_MS,
       concurrency: 4,
       task: async (item, started) => {
-        const prompt = await promptsBlock()
+        const prompt = await promptsBlock(
+          actionAccess(tenant, "ai_chat.manage"),
+        )
           .get({ name, version: started.promptVersion, organizationId: tenant })
           .orThrow();
 

@@ -2,10 +2,12 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
+import type { AiAccess } from "../ai-access.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult } from "../../core/result.ts";
+import { accessDenied } from "../ai-access.ts";
 import {
   applyTemporal,
   blockCall,
@@ -52,6 +54,12 @@ export interface PromptOptions extends BlockTemporalOptions {
   readonly logger?: Logger;
   /** Calls as the service role: templates can hold instructions and secrets. */
   readonly transport: BlockTransport;
+  /**
+   * The caller these calls act for. When set, every method fails with
+   * `forbidden` unless the caller has an organization and the permission, and a
+   * call must name that organization in `organizationId`.
+   */
+  readonly access?: AiAccess;
   /**
    * The module schema, or its API schema: `defineBlocks` passes it from
    * `blocks.generated.ts`. Default `better_supabase`.
@@ -214,7 +222,32 @@ export function createPrompts(options: PromptOptions): Prompts {
       ),
   };
 
-  return withBlockHooks(client, options.hooks, {
+  const access = options.access;
+
+  const scoped: Prompts = {
+    create: (input) => {
+      const denied = accessDenied(access, [input.organizationId]);
+
+      return denied ? AsyncResult.err(denied) : client.create(input);
+    },
+    get: (input) => {
+      const denied = accessDenied(access, [input.organizationId]);
+
+      return denied ? AsyncResult.err(denied) : client.get(input);
+    },
+    setLabel: (input) => {
+      const denied = accessDenied(access, [input.organizationId]);
+
+      return denied ? AsyncResult.err(denied) : client.setLabel(input);
+    },
+    versions: (input) => {
+      const denied = accessDenied(access, [input.organizationId]);
+
+      return denied ? AsyncResult.err(denied) : client.versions(input);
+    },
+  };
+
+  return withBlockHooks(access === undefined ? client : scoped, options.hooks, {
     block: "prompts",
     ...(options.logger ? { logger: options.logger } : {}),
   });
