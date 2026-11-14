@@ -100,7 +100,7 @@ export interface ExportableEntityList<
    * time (ADR 0855).
    */
   readonly export: (
-    ...args: ListArgs<ExportOptions, Extra>
+    ...args: ListCallParams<ExportOptions, Extra>
   ) => ReadableStream<string>;
 }
 

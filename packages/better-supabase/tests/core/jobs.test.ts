@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { dbError } from "../../src/core/errors.ts";
 import {
   createJobs,
   jobRef,
   jobResultOf,
   parseJobId,
 } from "../../src/core/jobs.ts";
-import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
 
 describe("jobs", () => {
@@ -48,6 +48,7 @@ describe("jobs", () => {
     const failing = createJobs({
       bulk: { get: () => AsyncResult.err(dbError("timeout", "Too slow")) },
     });
+
     const result = await failing.get("bulk:r1");
 
     expect(!result.ok && result.error.kind).toBe("timeout");
