@@ -10,6 +10,7 @@ import {
   ENTITY_PARTITION_EVERY,
 } from "../../src/blocks/entity-surface.ts";
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
+import { POWERSYNC_BLOCKS } from "../../src/cli/powersync/streams.ts";
 import { EMIT_GAPS } from "./emit-gaps.ts";
 
 /**
@@ -194,5 +195,13 @@ describe("the entity surface of a manifest", () => {
     }
 
     expect(wrong).toStrictEqual([]);
+  });
+
+  it("declares offline on exactly the blocks `powersync streams` can sync", () => {
+    const offline = BLOCK_MANIFESTS.filter((block) =>
+      entriesOf(block).some(([, surface]) => surface.offline === true),
+    ).map((block) => block.name);
+
+    expect(offline.toSorted()).toStrictEqual([...POWERSYNC_BLOCKS].toSorted());
   });
 });
