@@ -291,7 +291,7 @@ column of the table, such as a derived sort, has no index. Each entry of `sortLi
 multi-column sort the page offers, adds one btree on `(tenant, a, b, id)`; `gen` stops with
 `config_invalid` for an entry with fewer than two or more than three keys, or a key outside the
 entity's sorts. The scale file covers single sorts and facets only. It fails
-when a sort needs a sort step or a facet count is not an index-only scan, and it
+when a sort needs a sort step or a facet count does not read an index, and it
 reads the rows of the running stack, so run `pnpm db:seed:scale` first to
 measure a large table. [BS636](/docs/cli/doctor#bs636) reports the same gap in a
 running database.

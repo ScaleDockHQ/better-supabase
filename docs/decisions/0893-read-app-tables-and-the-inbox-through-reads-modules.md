@@ -28,7 +28,9 @@ costs nothing.
   `/api/customers/list` to `/api/customers/overview`, because the generated route answers with the
   raw page and the facets. The inbox action and `getConversations` call `inboxReads`.
 - The generated scale test also sets `enable_sort`, `enable_incremental_sort` and
-  `enable_bitmapscan` to `off`, so a sort that no index serves fails whatever the table size.
+  `enable_bitmapscan` to `off`, so a sort that no index serves fails whatever the table size. A facet count must read an index, index-only or not: rolled-back
+  test rows clear the visibility map of `public.customers`, which turns an index-only scan into an
+  index scan in CI.
 - `check:example-coverage` skips the block map for an `app.*` entity (it belongs to no block) and
   still checks that its page exists.
 

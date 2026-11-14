@@ -679,7 +679,7 @@ const lit = (value: string): string => `'${value.replaceAll("'", "''")}'`;
  * `scale_list_<name>.test.sql`: asks the planner, with sequential scans
  * disabled, how it reads the page in each declared sort and how it counts each
  * facet. A sort must come out of an index with no sort step, and a facet count
- * must be an index-only scan. The rows come from the running stack's seed
+ * must be read from an index. The rows come from the running stack's seed
  * (`pnpm db:seed:scale`).
  */
 const SCALE_TEST: EntityPageOutput = {
@@ -730,7 +730,7 @@ const SCALE_TEST: EntityPageOutput = {
             GENERATED_HEADER.replace("// ", "-- "),
             `-- Scale plan check of the list of ${entry.page.entity} (${entry.page.route}).`,
             "-- With sequential, bitmap and sort plans off, a sort must come out of an index with no sort",
-            "-- step and a facet count must be an index-only scan. The rows are the",
+            "-- step and a facet count must be read from an index. The rows are the",
             "-- running stack's seed; run `pnpm db:seed:scale --tier l` first to measure.",
             "begin;",
             `select plan(${String(queries.length)});`,
@@ -752,8 +752,8 @@ const SCALE_TEST: EntityPageOutput = {
               `select ok(`,
               query.kind === "sort"
                 ? `  pg_temp.plan_of(${lit(query.sql)})::text !~ '"Node Type": "(Incremental )?Sort"',`
-                : `  pg_temp.plan_of(${lit(query.sql)})::text ~ '"Node Type": "Index Only Scan"',`,
-              `  ${lit(`${entry.page.entity} ${query.label} ${query.kind === "sort" ? "needs no sort step" : "is an index-only scan"}`)}`,
+                : `  pg_temp.plan_of(${lit(query.sql)})::text ~ '"Node Type": "Index (Only )?Scan"',`,
+              `  ${lit(`${entry.page.entity} ${query.label} ${query.kind === "sort" ? "needs no sort step" : "reads an index"}`)}`,
               ");",
               "",
             ]),
