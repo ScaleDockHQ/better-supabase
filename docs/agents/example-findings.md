@@ -9,7 +9,7 @@ you change the example, and add a line when you find something.
 <!-- example-findings:counts:start -->
 
 295 findings: 215 fixed, 10 closed, 5 measured away,
-0 open, 12 partly fixed and 53 deferred
+0 open, 13 partly fixed and 52 deferred
 (65 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
 <!-- example-findings:counts:end -->
 
@@ -278,7 +278,7 @@ From [`block-consistency-audit.md`](block-consistency-audit.md). Each row is a c
 | EX-1204 | Audit    | feature     | partly fixed (PR #906, #918, #920, #929, G6; ADR 0789, 0939 list the rest)          | Text search is a method on 20 blocks and an option on none of the others. Add a `q` option to `page`, backed by the subject's registered search document, with the column choice in the manifest (EX-101, EX-800)                                                |
 | EX-1205 | Audit    | improvement | partly fixed (PR #906, #918, #920, #929, G6; ADR 0789, 0939 list the rest)          | `count` exists on 37 blocks, and only the app-table path has the exact or estimated modes (ADR 0425, 0433). Return `{ value, exact }` from `count` on every list block                                                                                           |
 | EX-1206 | Audit    | improvement | partly fixed (lane I slice 1, ADR 0839: leave, qualifications, donations, expenses) | 37 blocks archive and 16 restore; 28 archive with no restore (invoices, leave, risks, shipments, bookings and others). Pair every `archive` with `restore`, or document why the entity is final                                                                  |
-| EX-1207 | Audit    | improvement | deferred (library roadmap, ADR 0197 and the audit rows)                             | 58 blocks delete and 47 of them have no archive; the event catalog has 52 `.deleted` kinds against 16 `.archived` and 4 `.restored`. Make soft delete the default for records, and keep a hard delete only as `purge` behind its own key (ADR 0346)              |
+| EX-1207 | Audit    | improvement | partly fixed (lane I slice 2, PR #949, ADR 0851: teams purge)                       | 58 blocks delete and 47 of them have no archive; the event catalog has 52 `.deleted` kinds against 16 `.archived` and 4 `.restored`. Make soft delete the default for records, and keep a hard delete only as `purge` behind its own key (ADR 0346)              |
 | EX-1208 | Audit    | improvement | fixed (PR #897)                                                                     | 77 blocks have a create method and no update, and the scan cannot tell append-only from missing. Declare `mutability` (`editable`, `append-only` or `state-machine`) per entity in the manifest and check it                                                     |
 | EX-1209 | Audit    | improvement | deferred (library roadmap, ADR 0197 and the audit rows)                             | Bulk work has three shapes: an array overload (`tasks.remove`), a `bulk-actions` block and per-block `*Many` calls. Use one `bulk(ids, action)` returning `{ succeeded, failed: [{ id, error }] }` with a declared limit                                         |
 | EX-1210 | Audit    | feature     | deferred (library roadmap, ADR 0197 and the audit rows)                             | Export exists on 8 blocks. Add `export(options)` that streams CSV over the same filters as `page`, and generate the route from it                                                                                                                                |

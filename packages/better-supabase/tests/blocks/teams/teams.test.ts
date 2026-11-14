@@ -124,4 +124,11 @@ describe("teams.setMembers and setArchived", () => {
     expect(without[0]?.memberEmployeeIds).toEqual([]);
     expect(withEmployees[0]?.memberEmployeeIds).toEqual(["e1"]);
   });
+
+  it("purges a team through purge_team, a name that says it is final", async () => {
+    const { teams, calls } = setup([]);
+
+    expect(await teams.purge("t1").orThrow()).toBe(true);
+    expect(calls).toEqual([["purge_team", { team: "t1" }]]);
+  });
 });
