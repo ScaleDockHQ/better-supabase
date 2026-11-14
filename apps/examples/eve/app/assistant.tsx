@@ -18,7 +18,7 @@ async function authorization(): Promise<Record<string, string>> {
 
 function Chat(): ReactNode {
   const agent = useEveAgent({ headers: authorization });
-  const busy = agent.status === "submitted" || agent.status === "streaming";
+  const busy = agent.status === "busy";
   const resuming = agent.status === "resuming";
 
   const onSubmit = (event: SubmitEvent<HTMLFormElement>): void => {
@@ -36,7 +36,7 @@ function Chat(): ReactNode {
 
   return (
     <form onSubmit={onSubmit}>
-      {agent.data.messages.map((message) => (
+      {agent.messages.map((message) => (
         <article key={message.id}>
           <strong>{message.role}</strong>
           {message.parts.map((part, index) =>

@@ -906,7 +906,10 @@ deliver: `sqlScheduler(sql)` in its default pg_cron mode with Vercel Queues
 on a Supabase queue (runs go to Vercel Queues topics that nothing reads). Any
 `ScheduleProvider` (API version 1) works; prove one with `testScheduleProvider`
 from [conformance kits](/docs/extending/conformance). `transportScheduler`
-takes a `BlockTransport` instead of a SQL connection.
+takes a `BlockTransport` instead of a SQL connection. eve's dynamic schedules
+store their schedules in a scheduler through `queueScheduleProvider` (see
+[eve on Supabase](/docs/eve#dynamic-schedules)); they need the drain
+scheduler, which returns each schedule's payload.
 
 #### Supabase Queues with Supabase Cron
 

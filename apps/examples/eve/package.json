@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "catalog:",
+    "@valibot/to-json-schema": "catalog:",
     "@workflow/world": "catalog:",
     "@workflow/world-postgres": "catalog:",
     "ai": "catalog:",
