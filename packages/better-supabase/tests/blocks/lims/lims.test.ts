@@ -54,6 +54,16 @@ const validate = (
 ) => schema["~standard"].validate(value) as { issues?: unknown[] };
 
 describe("createLims", () => {
+  it("restores an archived method", async () => {
+    const t = fieldsTransport({ restore_lims_method: () => METHOD });
+    const lims = createLims({ transport: t, tenant: "org-1" });
+
+    expect(await lims.restoreMethod("m1").orThrow()).toMatchObject({
+      key: METHOD.key,
+    });
+    expect(t.calls).toEqual([["restore_lims_method", { method_id: "m1" }]]);
+  });
+
   it("saves, archives and lists methods", async () => {
     const t = fieldsTransport({
       save_lims_method: () => METHOD,

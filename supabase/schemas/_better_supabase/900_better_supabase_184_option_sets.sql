@@ -1,6 +1,6 @@
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:56cbf950001f6d8e6fa9033bc80679579dd3d89498b14078de8370aa5d462f13
+-- @bsb-hash sha256:71554637a6c7f340195695f2a9f86a444de74f9a9b40d784e7d772d383ebf088
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -505,6 +505,47 @@ $$;
 revoke execute on function "better_supabase"."archive_option_set_item"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."archive_option_set_item"(uuid, uuid) to authenticated, service_role;
 
+-- Restores an archived item. Records that moved to a replacement stay there.
+create or replace function "better_supabase"."restore_option_set_item"(item uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_set uuid;
+  v_item uuid := restore_option_set_item.item;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."option_set_id" into v_tenant, v_set
+  from "better_supabase"."option_set_items" x
+  where x."id" = restore_option_set_item.item and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'option_sets.manage'), false)) then
+    raise exception 'not allowed to manage option sets' using errcode = '42501', hint = 'OPTION_SET_FORBIDDEN';
+  end if;
+  update "better_supabase"."option_set_items" x set "archived_at" = null, "updated_at" = now() where x."id" = restore_option_set_item.item;
+  perform "better_supabase".emit_event('option_set_item.restored', jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item), 'option-sets/' || v_set::text, (v_tenant::text)::text, null, 'better-supabase/option-sets');
+  perform better_supabase.audit_event(
+    event_type => 'option_set_item.restored',
+    category => 'configuration',
+    target_type => 'option_set_item',
+    record_id => v_item::text,
+    summary => 'restored an option set item',
+    tenant => (v_tenant::text)::uuid,
+    metadata => jsonb_build_object('organizationId', v_tenant, 'optionSetId', v_set, 'itemId', v_item)
+  );
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_option_set_item"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_option_set_item"(uuid) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -611,3 +652,12 @@ set search_path = ''
 as $$ select "better_supabase"."archive_option_set_item"($1, $2) $$;
 revoke execute on function "api"."archive_option_set_item"(uuid, uuid) from public, anon;
 grant execute on function "api"."archive_option_set_item"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_option_set_item"(item uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_option_set_item"($1) $$;
+revoke execute on function "api"."restore_option_set_item"(uuid) from public, anon;
+grant execute on function "api"."restore_option_set_item"(uuid) to authenticated, service_role;

@@ -54,6 +54,23 @@ const CONSENT = {
 };
 
 describe("createConsents", () => {
+  it("restores an archived purpose", async () => {
+    const { transport, call } = fakeTransport({
+      restore_consent_purpose: PURPOSE,
+    });
+
+    const consents = createConsents({ transport, tenant: "org" });
+
+    expect(await consents.restorePurpose("p1").orThrow()).toMatchObject({
+      id: PURPOSE.id,
+    });
+    expect(call).toHaveBeenLastCalledWith(
+      "better_supabase",
+      "restore_consent_purpose",
+      { purpose_id: "p1" },
+    );
+  });
+
   it("saves purposes for the organization or the whole system", async () => {
     const { transport, call } = fakeTransport({
       save_consent_purpose: PURPOSE,

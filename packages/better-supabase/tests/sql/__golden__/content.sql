@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:2afa5de74c98601cee538b9ea76b4271874f8b616f65dc7098343c0e35d91a3b
+-- @bsb-hash sha256:9ed7fd4519aa3141d44e44b1c0b093b5c6725aca082dc7e52ec52687aa3cd775
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -260,6 +260,43 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_content_entry"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_content_entry"(uuid) to authenticated, service_role;
+
+-- Brings an archived entry back as a draft; publishing it again is a separate
+-- step with its own permission.
+create or replace function "better_supabase"."restore_content_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."content_entries";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."content_entries" x where x."id" = restore_content_entry.entry_id for update;
+  if not found then
+    raise exception 'no such content entry' using errcode = 'P0002', hint = 'CONTENT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'content.write'), false))) then
+    raise exception 'not allowed to restore this entry' using errcode = '42501', hint = 'CONTENT_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', null::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."content_entries" x set
+    "status" = 'draft',
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', null::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_content_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_content_entry"(uuid) to authenticated, service_role;
 
 -- One entry with its translations, or null when there is none the caller reads.
 create or replace function "better_supabase"."get_content_entry"(entry_id uuid)
@@ -924,7 +961,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:aaaae386f2acca193d04ac0bc8230aac9258080e1fda3103c0f312bec0101bde
+-- @bsb-hash sha256:037d136f61269bc1fe90656a7947b70538ea50ede3326185abb2328ee608b277
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1210,6 +1247,53 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_content_entry"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_content_entry"(uuid) to authenticated, service_role;
+
+-- Brings an archived entry back as a draft; publishing it again is a separate
+-- step with its own permission.
+create or replace function "better_supabase"."restore_content_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."content_entries";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."content_entries" x where x."id" = restore_content_entry.entry_id for update;
+  if not found then
+    raise exception 'no such content entry' using errcode = 'P0002', hint = 'CONTENT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'content.write'), false))) then
+    raise exception 'not allowed to restore this entry' using errcode = '42501', hint = 'CONTENT_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = v_row."approval_id"), 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."content_entries" x set
+    "status" = 'draft',
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('content_entry.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'status', v_row."status", 'translationGroupId', v_row."translation_group_id"), 'content-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/content');
+  perform better_supabase.audit_event(
+    event_type => 'content_entry.restored',
+    category => 'data',
+    target_type => 'content_entry',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'restored a content entry',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'status', v_row."status", 'translationGroupId', v_row."translation_group_id")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', (select r."status" from "better_supabase"."approval_requests" r where r."id" = v_row."approval_id"), 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_content_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_content_entry"(uuid) to authenticated, service_role;
 
 -- One entry with its translations, or null when there is none the caller reads.
 create or replace function "better_supabase"."get_content_entry"(entry_id uuid)
@@ -1914,7 +1998,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:cda40e56c2e29af5095c2fbd1cd9956b699e5e0b8c3ea9bda89df5ef19c32174
+-- @bsb-hash sha256:0ff42a6c048f4ad344f6619624296e9e4ba8859e51ecb41c24c7f4c0b10152f5
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2178,6 +2262,43 @@ end;
 $$;
 revoke execute on function "app_private"."archive_content_entry"(uuid) from public, anon;
 grant execute on function "app_private"."archive_content_entry"(uuid) to authenticated, service_role;
+
+-- Brings an archived entry back as a draft; publishing it again is a separate
+-- step with its own permission.
+create or replace function "app_private"."restore_content_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."content_entries";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."content_entries" x where x."id" = restore_content_entry.entry_id for update;
+  if not found then
+    raise exception 'no such content entry' using errcode = 'P0002', hint = 'CONTENT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'content.write'), false))) then
+    raise exception 'not allowed to restore this entry' using errcode = '42501', hint = 'CONTENT_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', null::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "app_private"."content_entries" x set
+    "status" = 'draft',
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', null::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."restore_content_entry"(uuid) from public, anon;
+grant execute on function "app_private"."restore_content_entry"(uuid) to authenticated, service_role;
 
 -- One entry with its translations, or null when there is none the caller reads.
 create or replace function "app_private"."get_content_entry"(entry_id uuid)
@@ -2842,7 +2963,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:d967ae7ae28170f3f575543326ff2893e4bacbc7bef7eaad153e98b5583ab99a
+-- @bsb-hash sha256:06316c0f54209a58f792b8de3bde45528c2c3227c816c7d96598fdaa80d1ab90
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3101,6 +3222,43 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_content_entry"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_content_entry"(uuid) to authenticated, service_role;
+
+-- Brings an archived entry back as a draft; publishing it again is a separate
+-- step with its own permission.
+create or replace function "better_supabase"."restore_content_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."content_entries";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."content_entries" x where x."id" = restore_content_entry.entry_id for update;
+  if not found then
+    raise exception 'no such content entry' using errcode = 'P0002', hint = 'CONTENT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'content.write'), false))) then
+    raise exception 'not allowed to restore this entry' using errcode = '42501', hint = 'CONTENT_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', null::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."content_entries" x set
+    "status" = 'draft',
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', null::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_content_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_content_entry"(uuid) to authenticated, service_role;
 
 -- One entry with its translations, or null when there is none the caller reads.
 create or replace function "better_supabase"."get_content_entry"(entry_id uuid)
@@ -3779,6 +3937,15 @@ as $$ select "better_supabase"."archive_content_entry"($1) $$;
 revoke execute on function "api"."archive_content_entry"(uuid) from public, anon;
 grant execute on function "api"."archive_content_entry"(uuid) to authenticated, service_role;
 
+create or replace function "api"."restore_content_entry"(entry_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_content_entry"($1) $$;
+revoke execute on function "api"."restore_content_entry"(uuid) from public, anon;
+grant execute on function "api"."restore_content_entry"(uuid) to authenticated, service_role;
+
 create or replace function "api"."get_content_entry"(entry_id uuid)
 returns jsonb
 language sql
@@ -3863,7 +4030,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:18b6e3ddd54b9f44c78eaf5f09a7e39d5daa9346838bbca8dc01e1b7bbb3a777
+-- @bsb-hash sha256:d8b394eec88a7a0679e835d9aa81eed30ef919f4947031c14b45859601761c4b
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4113,6 +4280,43 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_content_entry"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_content_entry"(uuid) to authenticated, service_role;
+
+-- Brings an archived entry back as a draft; publishing it again is a separate
+-- step with its own permission.
+create or replace function "better_supabase"."restore_content_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."content_entries";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."content_entries" x where x."id" = restore_content_entry.entry_id for update;
+  if not found then
+    raise exception 'no such content entry' using errcode = 'P0002', hint = 'CONTENT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'content.write'), false))) then
+    raise exception 'not allowed to restore this entry' using errcode = '42501', hint = 'CONTENT_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', null::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."content_entries" x set
+    "status" = better_supabase.as_column_type('draft', (null::"better_supabase"."content_entries")."status"),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', null::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_content_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_content_entry"(uuid) to authenticated, service_role;
 
 -- One entry with its translations, or null when there is none the caller reads.
 create or replace function "better_supabase"."get_content_entry"(entry_id uuid)
@@ -4777,7 +4981,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:b0d9f671208c5a4734d474aee640bef9122965b5b13f4bf39b98e6fe5aefb291
+-- @bsb-hash sha256:5ada2e10f1e1ed61b8f837dd030ef26d66f33f6029ebfee83389d052c9e7c22e
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5036,6 +5240,43 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_content_entry"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_content_entry"(uuid) to authenticated, service_role;
+
+-- Brings an archived entry back as a draft; publishing it again is a separate
+-- step with its own permission.
+create or replace function "better_supabase"."restore_content_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."content_entries";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."content_entries" x where x."id" = restore_content_entry.entry_id for update;
+  if not found then
+    raise exception 'no such content entry' using errcode = 'P0002', hint = 'CONTENT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'content.write'), false))) then
+    raise exception 'not allowed to restore this entry' using errcode = '42501', hint = 'CONTENT_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', null::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."content_entries" x set
+    "status" = 'draft',
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'type', v_row."type", 'locale', v_row."locale", 'slug', v_row."slug", 'title', v_row."title", 'summary', v_row."summary", 'body', v_row."body", 'status', v_row."status", 'publishAt', v_row."publish_at", 'publishedAt', v_row."published_at", 'authorId', v_row."author_id", 'translationGroupId', v_row."translation_group_id", 'coverAttachmentId', v_row."cover_attachment_id", 'approvalId', v_row."approval_id", 'approvalStatus', null::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_content_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_content_entry"(uuid) to authenticated, service_role;
 
 -- One entry with its translations, or null when there is none the caller reads.
 create or replace function "better_supabase"."get_content_entry"(entry_id uuid)

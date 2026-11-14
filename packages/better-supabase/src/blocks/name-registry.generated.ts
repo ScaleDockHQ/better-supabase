@@ -308,7 +308,7 @@ export interface BlockNameRegistry {
       readonly "identifiers": "id" | "tenant" | "asset" | "type" | "value" | "updatedAt";
       readonly "depreciations": "id" | "tenant" | "asset" | "periodStart" | "amount" | "entry" | "createdAt";
     };
-    readonly functions: "archive_asset_location" | "asset_assignment_history" | "asset_depreciate" | "asset_identifier_updated_at" | "asset_location_check_parent" | "asset_locations_at" | "asset_updated_at" | "assets_near" | "assign_asset" | "create_asset" | "create_asset_location" | "dispose_asset" | "due_check_updated_at" | "fill_asset_due_check" | "get_asset" | "get_asset_location" | "guard_asset_meter_reading" | "import_asset" | "import_asset_identifier" | "import_due_check" | "import_meter_reading" | "list_asset_depreciations" | "list_asset_locations" | "list_assets" | "page_assets" | "release_asset" | "run_asset_depreciation" | "set_asset_link" | "update_asset" | "update_asset_location";
+    readonly functions: "archive_asset_location" | "asset_assignment_history" | "asset_depreciate" | "asset_identifier_updated_at" | "asset_location_check_parent" | "asset_locations_at" | "asset_updated_at" | "assets_near" | "assign_asset" | "create_asset" | "create_asset_location" | "dispose_asset" | "due_check_updated_at" | "fill_asset_due_check" | "get_asset" | "get_asset_location" | "guard_asset_meter_reading" | "import_asset" | "import_asset_identifier" | "import_due_check" | "import_meter_reading" | "list_asset_depreciations" | "list_asset_locations" | "list_assets" | "page_assets" | "release_asset" | "restore_asset_location" | "run_asset_depreciation" | "set_asset_link" | "update_asset" | "update_asset_location";
     readonly actions: "read" | "manage" | "assign";
     readonly hooks: "before_asset_assign" | "after_asset_assign";
     readonly entities: {
@@ -634,7 +634,7 @@ export interface BlockNameRegistry {
       readonly "tasks": "id" | "tenant" | "control" | "title" | "assignee" | "intervalDays" | "dueOn" | "lastCollectedAt" | "notifiedFor" | "active" | "createdAt" | "updatedAt";
       readonly "policies": "id" | "tenant" | "key" | "title" | "owner" | "requiresAck" | "currentVersion" | "versionNumber" | "publishedAt" | "archivedAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_control_evidence" | "apply_oscal_profile" | "archive_compliance_policy" | "control_posture" | "export_oscal_assessment_results" | "get_control" | "import_oscal_catalog" | "list_compliance_policies" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "notify_overdue_evidence_tasks" | "publish_compliance_policy" | "remove_control_evidence" | "save_compliance_policy" | "save_control" | "save_control_framework" | "save_evidence_task";
+    readonly functions: "add_control_evidence" | "apply_oscal_profile" | "archive_compliance_policy" | "control_posture" | "export_oscal_assessment_results" | "get_control" | "import_oscal_catalog" | "list_compliance_policies" | "list_control_frameworks" | "list_controls" | "list_evidence_tasks" | "notify_overdue_evidence_tasks" | "publish_compliance_policy" | "remove_control_evidence" | "restore_compliance_policy" | "save_compliance_policy" | "save_control" | "save_control_framework" | "save_evidence_task";
     readonly actions: "read" | "manage" | "collect";
     readonly hooks: never;
     readonly entities: {
@@ -701,7 +701,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "entries": "id" | "tenant" | "type" | "locale" | "slug" | "title" | "summary" | "body" | "status" | "publishAt" | "publishedAt" | "author" | "translationGroup" | "cover" | "approval" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "archive_content_entry" | "content_entry_approved" | "content_entry_go_live" | "create_content_entry" | "get_content_entry" | "list_content_entries" | "public_content_entries" | "public_content_entry" | "publish_content_entry" | "publish_due_content_entries" | "schedule_content_entry" | "update_content_entry";
+    readonly functions: "archive_content_entry" | "content_entry_approved" | "content_entry_go_live" | "create_content_entry" | "get_content_entry" | "list_content_entries" | "public_content_entries" | "public_content_entry" | "publish_content_entry" | "publish_due_content_entries" | "restore_content_entry" | "schedule_content_entry" | "update_content_entry";
     readonly actions: "read" | "write" | "publish";
     readonly hooks: "before_content_entry_publish" | "after_content_entry_publish";
     readonly entities: {
@@ -1529,7 +1529,7 @@ export interface BlockNameRegistry {
       readonly "orders": "id" | "tenant" | "subjectType" | "subjectId" | "medication" | "dose" | "doseUnit" | "route" | "schedule" | "asNeeded" | "asNeededReason" | "maxPerDay" | "startsOn" | "endsOn" | "prescriber" | "source" | "externalId" | "requiresDoubleCheck" | "status" | "stoppedReason" | "signature" | "createdBy" | "createdAt" | "updatedAt";
       readonly "administrations": "id" | "tenant" | "order" | "scheduledAt" | "administeredAt" | "status" | "dose" | "performer" | "checkedBy" | "reason" | "note" | "signature";
     };
-    readonly functions: "approve_medication_order" | "archive_medication" | "import_medication" | "import_medication_orders" | "list_medications" | "mark_missed_medication_administrations" | "medication_chart" | "medication_orders_of" | "pause_medication_order" | "plan_medication_administrations" | "prescribe_medication" | "record_as_needed_administration" | "record_medication_administration" | "save_medication" | "stop_medication_order" | "update_medication_order";
+    readonly functions: "approve_medication_order" | "archive_medication" | "import_medication" | "import_medication_orders" | "list_medications" | "mark_missed_medication_administrations" | "medication_chart" | "medication_orders_of" | "pause_medication_order" | "plan_medication_administrations" | "prescribe_medication" | "record_as_needed_administration" | "record_medication_administration" | "restore_medication" | "save_medication" | "stop_medication_order" | "update_medication_order";
     readonly actions: "read" | "prescribe" | "administer" | "manage";
     readonly hooks: "before_medication_order_prescribe" | "after_medication_order_prescribe" | "before_medication_order_stop" | "after_medication_order_stop" | "before_medication_administration_record" | "after_medication_administration_record";
     readonly entities: {
@@ -1709,7 +1709,7 @@ export interface BlockNameRegistry {
       readonly "sets": "id" | "tenant" | "subjectType" | "field" | "scope" | "key" | "name" | "isDefault" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "items": "id" | "tenant" | "set" | "key" | "systemKey" | "label" | "color" | "icon" | "rank" | "level" | "description" | "archivedAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "archive_option_set_item" | "default_option_set" | "ensure_option_set" | "list_option_sets" | "rank_option_set_item" | "save_option_set" | "save_option_set_item";
+    readonly functions: "archive_option_set_item" | "default_option_set" | "ensure_option_set" | "list_option_sets" | "rank_option_set_item" | "restore_option_set_item" | "save_option_set" | "save_option_set_item";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1836,7 +1836,7 @@ export interface BlockNameRegistry {
       readonly "transitions": "tenant" | "pipeline" | "from" | "to";
       readonly "history": "id" | "tenant" | "subjectType" | "subjectId" | "pipeline" | "fromStage" | "toStage" | "stageName" | "category" | "outcome" | "amount" | "currency" | "actor" | "enteredAt" | "exitedAt";
     };
-    readonly functions: "archive_pipeline" | "archive_pipeline_stage" | "default_pipeline" | "list_pipelines" | "pipeline_board" | "pipeline_health" | "pipeline_stats" | "rank_pipeline_stage" | "save_pipeline" | "save_pipeline_stage" | "set_pipeline_transitions";
+    readonly functions: "archive_pipeline" | "archive_pipeline_stage" | "default_pipeline" | "list_pipelines" | "pipeline_board" | "pipeline_health" | "pipeline_stats" | "rank_pipeline_stage" | "restore_pipeline" | "restore_pipeline_stage" | "save_pipeline" | "save_pipeline_stage" | "set_pipeline_transitions";
     readonly actions: "read" | "manage";
     readonly hooks: "before_pipeline_save" | "after_pipeline_save" | "before_pipeline_stage_save" | "after_pipeline_stage_save" | "before_pipeline_stage_change" | "after_pipeline_stage_change";
     readonly entities: {

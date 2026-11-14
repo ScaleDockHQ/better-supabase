@@ -204,6 +204,8 @@ export interface Pipelines<F extends object = Record<never, never>> {
   }): AsyncResult<Pipeline<F>>;
   /** Archives a pipeline that holds no records. */
   archive(pipelineId: string): AsyncResult<boolean>;
+  /** Brings an archived pipeline back; it is not the default again. */
+  restore(pipelineId: string): AsyncResult<boolean>;
   /** Adds a stage at the end of a pipeline, or changes one. */
   saveStage(input: {
     pipelineId: string;
@@ -224,6 +226,8 @@ export interface Pipelines<F extends object = Record<never, never>> {
     stageId: string;
     moveTo?: string;
   }): AsyncResult<boolean>;
+  /** Brings an archived stage back; its pipeline must be active. */
+  restoreStage(stageId: string): AsyncResult<boolean>;
   /** Replaces the allowed stage changes. An empty list allows every change. */
   setTransitions(input: {
     pipelineId: string;
@@ -491,6 +495,18 @@ export function createPipelines<
       call(
         "archive_pipeline",
         { pipeline: pipelineId },
+        (value) => value === true,
+      ),
+    restore: (pipelineId) =>
+      call(
+        "restore_pipeline",
+        { pipeline: pipelineId },
+        (value) => value === true,
+      ),
+    restoreStage: (stageId) =>
+      call(
+        "restore_pipeline_stage",
+        { stage: stageId },
         (value) => value === true,
       ),
     saveStage: ({ pipelineId, input }) =>

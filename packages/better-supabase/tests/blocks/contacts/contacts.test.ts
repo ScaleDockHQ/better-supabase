@@ -408,6 +408,22 @@ describe("parties block, optional fields", () => {
     ]);
   });
 
+  it("restores a company and a person with the archive functions", async () => {
+    const t = transport({
+      archive_company: () => true,
+      archive_person: () => true,
+    });
+
+    const parties = createContacts({ transport: t });
+
+    expect(await parties.restoreCompany("c1").orThrow()).toBe(true);
+    expect(await parties.restorePerson("p1").orThrow()).toBe(true);
+    expect(t.calls).toEqual([
+      ["archive_company", { id: "c1", archived: false }],
+      ["archive_person", { id: "p1", archived: false }],
+    ]);
+  });
+
   it("passes list filters and restores an archived company", async () => {
     const t = transport({
       list_companies: () => [],

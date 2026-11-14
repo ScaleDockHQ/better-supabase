@@ -46,6 +46,10 @@ const EVENTS: BlockSqlEvents<PipelinesEvents> = {
     subject: "pipelines",
     payload: ["organizationId", "pipelineId", "subjectType"],
   },
+  "pipeline.restored": {
+    subject: "pipelines",
+    payload: ["organizationId", "pipelineId", "subjectType"],
+  },
   "pipeline_stage.created": {
     subject: "pipelines",
     payload: ["organizationId", "pipelineId", "stageId", "key", "category"],
@@ -55,6 +59,10 @@ const EVENTS: BlockSqlEvents<PipelinesEvents> = {
     payload: ["organizationId", "pipelineId", "stageId", "key", "category"],
   },
   "pipeline_stage.archived": {
+    subject: "pipelines",
+    payload: ["organizationId", "pipelineId", "stageId"],
+  },
+  "pipeline_stage.restored": {
     subject: "pipelines",
     payload: ["organizationId", "pipelineId", "stageId"],
   },
@@ -361,6 +369,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "archive_pipeline", args: ["uuid"], returns: "boolean" },
+    { name: "restore_pipeline", args: ["uuid"], returns: "boolean" },
+    { name: "restore_pipeline_stage", args: ["uuid"], returns: "boolean" },
     {
       name: "save_pipeline_stage",
       args: [

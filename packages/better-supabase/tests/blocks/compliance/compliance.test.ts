@@ -586,6 +586,18 @@ describe("createCompliance", () => {
     ]);
   });
 
+  it("restores an archived policy", async () => {
+    const t = fieldsTransport({ restore_compliance_policy: () => BARE_POLICY });
+    const controls = createCompliance({ transport: t });
+
+    expect(await controls.restorePolicy("p2").orThrow()).toMatchObject({
+      id: BARE_POLICY.id,
+    });
+    expect(t.calls).toEqual([
+      ["restore_compliance_policy", { policy_id: "p2" }],
+    ]);
+  });
+
   it("saves, publishes, archives and lists policies", async () => {
     const t = fieldsTransport({
       save_compliance_policy: () => POLICY,

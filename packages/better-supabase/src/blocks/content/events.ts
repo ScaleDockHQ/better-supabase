@@ -24,6 +24,7 @@ export type ContentEvents = {
   readonly "content_entry.unscheduled": ContentEntryEventData;
   readonly "content_entry.published": ContentEntryEventData;
   readonly "content_entry.archived": ContentEntryEventData;
+  readonly "content_entry.restored": ContentEntryEventData;
 };
 
 /** The `content` block's event types, for its manifest and `onBlockEvent`. */
@@ -35,4 +36,5 @@ export const contentEvents: Events<ContentEvents> = defineEvents({
   "content_entry.unscheduled": event<ContentEntryEventData>(),
   "content_entry.published": event<ContentEntryEventData>(),
   "content_entry.archived": event<ContentEntryEventData>(),
+  "content_entry.restored": event<ContentEntryEventData>(),
 });
