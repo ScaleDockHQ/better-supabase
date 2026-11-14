@@ -53,6 +53,18 @@ export {
   type RetentionScope,
 } from "./retention.ts";
 
+export {
+  subjectAccessPlan,
+  subjectAccessRequest,
+  type SubjectAccessBlock,
+  type SubjectAccessGap,
+  type SubjectAccessPlan,
+  type SubjectAccessPlanOptions,
+  type SubjectAccessRequestInput,
+  type SubjectAccessRequestResult,
+  type SubjectAccessStep,
+} from "./subject-access.ts";
+
 export type { LifecycleTable } from "../../sql/modules/data-lifecycle-entries.ts";
 
 export {
