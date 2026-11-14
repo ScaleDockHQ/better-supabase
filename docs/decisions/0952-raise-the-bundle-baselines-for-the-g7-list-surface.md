@@ -28,3 +28,8 @@ Raise the eight entries to the sizes the CI bundle job measured:
 
 No entry is lowered. The `./eve` entry is not part of this change; its baseline
 comes from ADR 1022.
+
+The server baselines of the Next.js example grow too: 285 sizes (raw, gzip or
+brotli) across 240 routes, by about 2.2 KB raw each, from the seven new manifest
+declarations. Each value is the one the CI next-build job measured, and no
+route is lowered.
