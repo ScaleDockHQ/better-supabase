@@ -139,7 +139,7 @@ export function forgetSigningKey(
   forgetters.get(provider)?.(target);
 }
 
-export const ownerKey = (owner: SigningKeyOwner): string =>
+const ownerKey = (owner: SigningKeyOwner): string =>
   `${owner.type}:${owner.id}`;
 
 export const ownerArgs = (

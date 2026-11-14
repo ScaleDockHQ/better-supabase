@@ -496,13 +496,13 @@ end;
 $$;`;
 
 /** The Vault secrets `http_tick` posts with. */
-export const JOBS_TICK_SECRETS = {
+const JOBS_TICK_SECRETS = {
   url: "jobs_tick_url",
   token: "jobs_tick_token",
 } as const;
 
 /** The pg_cron job `blocks.queue.options.httpTick` registers. */
-export const JOBS_TICK_JOB = "bsb_jobs_tick";
+const JOBS_TICK_JOB = "bsb_jobs_tick";
 
 const HTTP_TICK = `-- Supabase Cron as the clock: with blocks.queue.options.httpTick, pg_cron calls
 -- this every minute (job ${JOBS_TICK_JOB}). It posts to the URL in the Vault secret
