@@ -88,7 +88,7 @@ export interface CalendarPage {
  * caller's reminders on them. Both cards read this entry, so the page makes one
  * database call for the calendar data instead of one per read.
  */
-export async function loadCalendarPage(
+async function loadCalendarPage(
   from: string,
   until: string,
 ): Promise<CalendarPage | null> {
