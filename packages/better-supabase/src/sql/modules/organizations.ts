@@ -1028,7 +1028,10 @@ const functionsOf = (
     ([name]) => name !== "delete_organization" || deleteMode(ctx) !== "none",
   ),
   ...(ctx.installed("invitations")
-    ? ([["list_organization_invitations", id]] as const)
+    ? ([
+        ["list_organization_invitations", id],
+        ["page_organization_invitations", `${id}, jsonb`],
+      ] as const)
     : []),
   ...(membershipDisabledAt(ctx) === undefined
     ? []
@@ -1108,7 +1111,9 @@ export const ORGANIZATIONS: BlockSqlDefinition = {
       returns:
         name === "create_organization"
           ? "{id}"
-          : name === "switch_organization" || name === "update_member_roles"
+          : name === "switch_organization" ||
+              name === "update_member_roles" ||
+              name === "page_organization_invitations"
             ? "jsonb"
             : name.startsWith("list_")
               ? "record"

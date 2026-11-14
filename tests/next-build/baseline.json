@@ -575,7 +575,7 @@
     "brotli": 443633
   },
   "/[locale]/(app)/imports/page": {
-    "raw": 1376388,
+    "raw": 1378182,
     "gzip": 440375,
     "brotli": 385264
   },
@@ -760,7 +760,7 @@
     "brotli": 392336
   },
   "/[locale]/(app)/projects/[id]/page": {
-    "raw": 1420045,
+    "raw": 1421839,
     "gzip": 459524,
     "brotli": 401921
   },
@@ -920,9 +920,9 @@
     "brotli": 351219
   },
   "/[locale]/(app)/settings/members/page": {
-    "raw": 1557795,
-    "gzip": 495706,
-    "brotli": 433618
+    "raw": 1560658,
+    "gzip": 496932,
+    "brotli": 434676
   },
   "/[locale]/(app)/settings/numbering/page": {
     "raw": 1526381,
@@ -1225,7 +1225,7 @@
     "brotli": 380152
   },
   "/[locale]/(app)/workflows/runs/page": {
-    "raw": 1544706,
+    "raw": 1545857,
     "gzip": 492928,
     "brotli": 431493
   },

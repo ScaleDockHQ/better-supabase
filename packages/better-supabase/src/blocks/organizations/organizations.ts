@@ -9,12 +9,10 @@ import type {
   RowFields,
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { BulkReport } from "../../core/bulk.ts";
-import type {
-  EntityList,
-  RequiredTenantOption,
-} from "../../core/entity-list.ts";
+import type { EntityList, TenantOption } from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
 import type { RequestContext } from "../../core/plugin.ts";
@@ -214,7 +212,8 @@ export interface OrganizationsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
   SI extends StandardSchemaV1 | undefined = undefined,
   R extends string = string,
-> extends BlockTemporalOptions {
+>
+  extends BlockTemporalOptions, BlockTenantOptions {
   /**
    * The role `owner` looks for; `blocks.organizations.options.ownerRole`.
    * Default `owner`.
@@ -389,23 +388,19 @@ export interface Organizations<
   ): AsyncResult<readonly OrganizationInvitationRow[]>;
   /**
    * One page of the open invitations, with `q` over the email, the `role`
-   * filter and the `expiresAt` or `email` sort (ADR 0923). The list reads the
-   * organization's open invitations once and pages them in memory; the cursor
-   * is valid for the sort and filters it came from.
+   * filter and the `expiresAt` or `email` sort (ADR 0923), read from the SQL
+   * function `page_organization_invitations`.
    */
-  invitationsPage: EntityList<
-    OrganizationInvitationRow,
-    RequiredTenantOption
-  >["page"];
+  invitationsPage: EntityList<OrganizationInvitationRow, TenantOption>["page"];
   /** The roles of the open invitations and how many hold each. */
   invitationsFacets: EntityList<
     OrganizationInvitationRow,
-    RequiredTenantOption
+    TenantOption
   >["facets"];
   /** How many open invitations match the same `q` and filters. */
   invitationsCount: EntityList<
     OrganizationInvitationRow,
-    RequiredTenantOption
+    TenantOption
   >["count"];
   /**
    * The organization page in one call: the caller's role, the members with
@@ -791,7 +786,7 @@ function organizationsClient<
         recordsOf(value, "list_organization_invitations").map(invitationRowOf),
     );
 
-  const invitationReads = invitationList(invitationRows);
+  const invitationReads = invitationList(calls.organizations, options.tenant);
 
   return {
     create({ attributes, ...createOptions }) {

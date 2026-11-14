@@ -1,5 +1,11 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { columnsObject, membershipDisabledAt, fail } from "../shared.ts";
 import { manyRoles, membershipRolesTable } from "./membership-roles.ts";
 import { OPERATIONS, modulePermission } from "./permissions-model.ts";
@@ -178,6 +184,82 @@ begin
   from ${table} i
   where i.${tenant} = organization${open === "" ? "" : ` and ${open}`}${expires === undefined ? "" : ` and i.${expires} >= now()`}
   order by ${expires === undefined ? `i.${id}` : `i.${expires}`} desc;
+end;
+$$;
+${invitationsPage(ctx, open, expires)}`;
+}
+
+/**
+ * `page_organization_invitations`: the open invitations as a keyset page with
+ * sorts, facets and a count (ADR 0749, 0923). It sits beside
+ * `list_organization_invitations`, which the overview and upgraded apps keep.
+ */
+function invitationsPage(
+  ctx: BlockSqlContext,
+  open: string,
+  expires: string | undefined,
+): string {
+  const invitations = ctx.of("invitations");
+  const id = invitations.col("invitations", "id");
+  const tenant = invitations.col("invitations", "tenant");
+  const email = invitations.col("invitations", "email");
+  const role = invitations.col("invitations", "role");
+
+  const expiry =
+    expires === undefined
+      ? `'infinity'::timestamptz`
+      : `coalesce(i.${expires}, 'infinity'::timestamptz)`;
+
+  const byExpiry = [
+    { expr: expiry, dir: "desc", type: "timestamptz" },
+    { expr: `i.${id}`, dir: "desc", type: "uuid" },
+  ] as const;
+
+  const byEmail = [
+    { expr: `lower(i.${email})`, dir: "asc", type: "text" },
+    { expr: `i.${id}`, dir: "asc", type: "uuid" },
+  ] as const;
+
+  const list = {
+    name: "page_organization_invitations",
+    from: invitations.table("invitations"),
+    alias: "i",
+    where: [
+      `i.${tenant} = page_organization_invitations.tenant`,
+      ...(open === "" ? [] : [open]),
+      ...(expires === undefined ? [] : [`i.${expires} >= now()`]),
+      filterAny("role", `i.${role}::text`),
+      `(v_search is null or i.${email} ilike v_search)`,
+    ],
+    keys: byExpiry,
+    sorts: { expiresAt: byExpiry, email: byEmail },
+    facets: { role: `i.${role}::text` },
+    rowJson: `jsonb_build_object('id', i.${id}, 'email', i.${email}, 'role', i.${role}::text, 'expiresAt', ${expires === undefined ? "null" : `i.${expires}`})`,
+    invalid: (message: string): string =>
+      fail("INVITATION_INVALID", message, "22023"),
+  } as const;
+
+  return `
+-- The open invitations of an organization as a keyset page, latest expiry
+-- first. filters is { role (a value or a list), search, sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap } (ADR 0749, 0923).
+create or replace function ${ctx.fn("page_organization_invitations")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_organization_invitations.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(list)}
+begin
+  if not coalesce(better_supabase.member_can((select auth.uid()), tenant, ${modulePermission(invitations, "read", OPERATIONS["invitations.read"])}), false) then
+    ${fail("ORGANIZATION_FORBIDDEN", "Not allowed to list invitations")}
+  end if;
+  ${listBody(list)}
 end;
 $$;
 `;

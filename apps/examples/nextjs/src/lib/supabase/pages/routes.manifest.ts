@@ -45,4 +45,12 @@ export const entityRoutes = [
     detail: undefined,
     messageKeys: ["referrals.title", "referrals.columns.status", "referrals.columns.referrer", "referrals.columns.createdAt", "referrals.facets.status", "referrals.facets.referrer"],
   },
+  {
+    entity: "organizations.invitation",
+    name: "invitations",
+    route: "/members/invitations",
+    api: "/api/invitations/list",
+    detail: undefined,
+    messageKeys: ["invitations.title", "invitations.columns.email", "invitations.columns.role", "invitations.columns.expiresAt", "invitations.facets.role"],
+  },
 ] as const satisfies readonly EntityRouteEntry[];
