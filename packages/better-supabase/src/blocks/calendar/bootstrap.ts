@@ -58,16 +58,16 @@ export function calendarInfoOf(row: Record<string, unknown>): CalendarInfo {
  */
 export async function bootstrapOf(
   row: Record<string, unknown>,
-  expand: (
-    key: string,
-    window: OccurrenceRange,
-  ) => Promise<Result<CalendarOccurrence[]>>,
+  expand: (input: {
+    readonly key: string;
+    readonly window: OccurrenceRange;
+  }) => Promise<Result<CalendarOccurrence[]>>,
   ranges: {
     readonly range: OccurrenceRange;
     readonly upcoming: OccurrenceRange | undefined;
   },
 ): Promise<Result<CalendarBootstrap>> {
-  const month = await expand("monthEvents", ranges.range);
+  const month = await expand({ key: "monthEvents", window: ranges.range });
 
   if (!month.ok) {
     return month;
@@ -76,7 +76,7 @@ export async function bootstrapOf(
   const next =
     ranges.upcoming === undefined
       ? ok<CalendarOccurrence[]>([])
-      : await expand("upcomingEvents", ranges.upcoming);
+      : await expand({ key: "upcomingEvents", window: ranges.upcoming });
 
   if (!next.ok) {
     return next;

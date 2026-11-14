@@ -778,7 +778,7 @@ export function createCalendar<
         AsyncResult.from(() =>
           bootstrapOf(
             row,
-            async (key, window) => {
+            async ({ key, window }) => {
               const events = await allWithFields(
                 fields,
                 recordsOf(row[key], key).map(
