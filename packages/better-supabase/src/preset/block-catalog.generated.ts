@@ -1409,7 +1409,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "team.archived",
         "team.created",
-        "team.deleted",
+        "team.purged",
         "team.updated",
         "team_member.added",
         "team_member.deleted"
