@@ -28,7 +28,11 @@ export const observationsBlock: BlockOf<
   recipes: ["observation-chart"],
   category: "people",
   entities: {
-    observation: { mutability: "state-machine", emits: { create: true } },
+    observation: {
+      mutability: "state-machine",
+      emits: { create: true },
+      offline: true,
+    },
     observation_definition: {
       mutability: "editable",
       emits: { create: true, update: true },

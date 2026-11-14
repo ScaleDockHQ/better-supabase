@@ -28,7 +28,11 @@ export const medicationsBlock: BlockOf<
   recipes: ["medication-chart"],
   category: "people",
   entities: {
-    medication: { mutability: "editable", emits: { update: false } },
+    medication: {
+      mutability: "editable",
+      emits: { update: false },
+      offline: true,
+    },
     medication_order: {
       mutability: "editable",
       emits: { create: true, update: true },

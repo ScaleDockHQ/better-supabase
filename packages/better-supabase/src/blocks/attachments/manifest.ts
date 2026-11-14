@@ -30,6 +30,7 @@ export const attachmentsBlock: BlockOf<
   entities: {
     attachment: {
       mutability: "state-machine",
+      offline: true,
       emits: { create: false, delete: false },
     },
   },

@@ -2909,6 +2909,7 @@
       "rpcTransport",
       "sqlTransport",
       "subjectKey",
+      "webhookEventCatalog",
       "withBlockHooks",
       "wrapTransport"
     ],
@@ -3056,6 +3057,8 @@
       "UniquePort",
       "UsingOptions",
       "VisibleRange",
+      "WebhookCatalogEntry",
+      "WebhookCatalogSource",
       "WithBlockHooksOptions",
       "WithExtraFields"
     ]

@@ -35,14 +35,14 @@ export type InvoicesEvents = {
 
 /** The `invoices` block's event types, for its manifest and `onBlockEvent`. */
 export const invoicesEvents: Events<InvoicesEvents> = defineEvents({
-  "invoice.created": event<InvoiceEventData>(),
+  "invoice.created": event<InvoiceEventData>({ public: true }),
   "invoice.updated": event<InvoiceEventData>(),
   "invoice.deleted": event<InvoiceEventData>(),
-  "invoice.issued": event<InvoiceEventData>(),
-  "invoice.payment_recorded": event<InvoiceEventData>(),
-  "invoice.paid": event<InvoiceEventData>(),
-  "invoice.credited": event<InvoiceEventData>(),
-  "invoice.voided": event<InvoiceEventData>(),
+  "invoice.issued": event<InvoiceEventData>({ public: true }),
+  "invoice.payment_recorded": event<InvoiceEventData>({ public: true }),
+  "invoice.paid": event<InvoiceEventData>({ public: true }),
+  "invoice.credited": event<InvoiceEventData>({ public: true }),
+  "invoice.voided": event<InvoiceEventData>({ public: true }),
   "invoice.uncollected": event<InvoiceEventData>(),
   "invoice.charged": event<InvoiceEventData>(),
   "invoice.totals_corrected": event<InvoiceEventData>(),
