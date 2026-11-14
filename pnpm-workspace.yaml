@@ -88,7 +88,7 @@ catalog:
   "@valibot/to-json-schema": 1.8.0
   "@vercel/analytics": 2.0.1
   "@vercel/blob": 2.9.0
-  "@vercel/connect": 2.5.0
+  "@vercel/connect": 2.5.2
   "@vercel/detect-agent": 1.2.5
   "@vercel/firewall": 1.2.6
   "@vercel/functions": 3.10.1
@@ -138,10 +138,11 @@ catalog:
   # @effect/platform-node.
   effect: 4.1.2
   elysia: 1.4.32
-  # 0.84 and later (and 1.0) peer on @vercel/connect ^2.5.2 or ^2.7.0, and
-  # trustPolicy accepts only 2.5.0 and older until the later releases turn 30
-  # days old (2.7.0 on 2026-11-30; ADR 0848).
-  eve: 0.83.3
+  # A pre-release (AGENTS.md "Pre-release pins"). rc.1 and later peer on
+  # @vercel/connect ^2.7.0, whose @vercel/oidc 4.0.5 trustPolicy rejects until
+  # 2026-11-28; rc.0 peers on ^2.5.2, which pins the trusted @vercel/oidc
+  # 4.0.1 (ADR 1022).
+  eve: 1.0.0-rc.0
   expo: 58.0.23
   expo-constants: 58.0.15
   expo-linking: 58.0.16
@@ -314,7 +315,8 @@ catalogs:
     better-result: ">=3.0.1 <4"
     elysia: ">=1.4.32 <2"
     expo-server: ">=58.1.0 <59"
-    eve: ">=0.83.3 <1"
+    # A pre-release line (AGENTS.md "Pre-release pins"); <2 admits 1.0 stable.
+    eve: ">=1.0.0-rc.0 <2"
     express: ">=5.3.0 <6"
     fastify: ">=5.12.8 <6"
     # Two majors: H3 1 is the h3/v1 entry that Nitro 2 and Nuxt 4 run
@@ -355,7 +357,7 @@ catalogs:
     "@openfeature/server-sdk": ">=1.23.0 <2"
     "@supabase-labs/middleware-openfeature": ">=0.2.0 <0.3"
     "@powersync/common": ">=2.5.0 <3"
-    "@vercel/connect": ">=2.5.0 <3"
+    "@vercel/connect": ">=2.5.2 <3"
     "@vercel/queue": ">=0.11.0 <0.12"
     # 4.0 talks to api.vercel.com over undici 8 and needs Node 22.19 or later.
     "@vercel/sandbox": ">=4.0.0 <5"
