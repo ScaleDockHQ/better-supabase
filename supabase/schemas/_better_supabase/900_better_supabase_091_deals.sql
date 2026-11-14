@@ -1,6 +1,6 @@
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:6fcc8ca47ce610b8f12a78d8c835f405359f469699e2b681ab2ffdb6be8b2eec
+-- @bsb-hash sha256:a0ba96482c12b751427d8fc8d8ecea6944acc56ba459de48352b9d266aa1c9f2
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1001,10 +1001,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."deals";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."deals" x where x."id" = archive_deal.deal;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
@@ -1015,6 +1017,8 @@ begin
   end if;
   if archive_deal.archived then
     perform "better_supabase".emit_event('deal.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'dealId', v_row."id", 'subjectType', 'deal', 'subjectId', v_row."id"::text, 'name', v_row."name"), 'deals/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/deals');
+  elsif v_was is not null then
+    perform "better_supabase".emit_event('deal.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'dealId', v_row."id", 'subjectType', 'deal', 'subjectId', v_row."id"::text, 'name', v_row."name"), 'deals/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/deals');
   end if;
   return true;
 end;

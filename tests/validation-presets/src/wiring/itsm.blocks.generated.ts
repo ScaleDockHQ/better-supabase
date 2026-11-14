@@ -313,6 +313,7 @@ export const blockEvents: Events<BlockEvents> = {
     "ticket.created",
     "ticket.deleted",
     "ticket.reopened",
+    "ticket.restored",
     "ticket.updated",
   ],
 };
@@ -429,6 +430,7 @@ export const blockEventSchemas = {
   "ticket.created": true,
   "ticket.deleted": true,
   "ticket.reopened": true,
+  "ticket.restored": true,
   "ticket.updated": true,
 } as const;
 

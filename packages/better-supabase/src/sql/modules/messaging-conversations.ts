@@ -387,8 +387,10 @@ set search_path = ''
 as $$
 declare
   v_conv ${t("conversations")};
+  v_was timestamptz;
 begin
   select * into v_conv from ${t("conversations")} c where c.${cv("id")} = archive_conversation.conversation;
+  v_was := v_conv.${cv("archivedAt")};
   if not found or not ${fn("can_conversation")}(v_conv.${cv("id")}, 'read') then
     ${fail("MESSAGING_NOT_FOUND", "no such conversation you can read", "P0002")}
   end if;
@@ -404,6 +406,8 @@ begin
   returning * into v_conv;
   if archive_conversation.archived then
     ${conversationRecord(q, "conversation.archived", "v_conv")}
+  elsif v_was is not null then
+    ${conversationRecord(q, "conversation.restored", "v_conv")}
   end if;
   return archive_conversation.archived;
 end;

@@ -218,6 +218,7 @@ describe("tasks block", () => {
       await items.assign({ taskId: "w1", userIds: ["u1", "u2"] }).orThrow(),
     ).toBe(2);
     expect(await items.archive({ taskId: "w1" }).orThrow()).toBe(true);
+    expect(await items.restore("w1").orThrow()).toBe(true);
     expect(await items.remove("w1").orThrow()).toBe(true);
     expect((await items.tree("w1").orThrow())[0]).toMatchObject({
       depth: 0,
@@ -623,12 +624,18 @@ describe("tasks.create with custom values", () => {
       tasks.archive({ taskIds: ["w1", "w2"], archived: false }).orThrow(),
     ).resolves.toEqual({ ids: ["w1"], skipped: ["w2"] });
 
+    await expect(tasks.restore(["w1", "w2"]).orThrow()).resolves.toEqual({
+      ids: ["w1"],
+      skipped: ["w2"],
+    });
+
     await expect(tasks.remove(["w1", "w2"]).orThrow()).resolves.toEqual({
       ids: ["w1", "w2"],
       skipped: [],
     });
 
     expect(t.calls).toEqual([
+      ["archive_tasks", { ids: ["w1", "w2"], archived: false }],
       ["archive_tasks", { ids: ["w1", "w2"], archived: false }],
       ["delete_tasks", { ids: ["w1", "w2"] }],
     ]);

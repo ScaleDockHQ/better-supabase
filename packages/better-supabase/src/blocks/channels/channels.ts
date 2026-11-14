@@ -81,6 +81,8 @@ export interface Channels {
     channelId: string;
     archived?: boolean | undefined;
   }): AsyncResult<boolean>;
+  /** Brings an archived channel back and records `conversation.restored`. */
+  restore(channelId: string): AsyncResult<boolean>;
   /** The caller joins a public channel. */
   join(channelId: string): AsyncResult<boolean>;
   /** The caller leaves; `false` when they weren't a member. */
@@ -195,6 +197,13 @@ export function createChannels(options: ChannelsOptions): Channels {
         "archive_channel",
         { channel: channelId, archived },
         (value) => value === true,
+      ),
+    restore: (channelId) =>
+      call(
+        "archive_channel",
+        { channel: channelId, archived: false },
+        // archive_channel returns the new archived flag, which is false here.
+        () => true,
       ),
     join: (channelId) =>
       call("join_channel", { channel: channelId }, (value) => value === true),

@@ -10,6 +10,7 @@ import { defineEvents, event } from "../../core/event-map.ts";
 export type MessagingEvents = {
   readonly "conversation.created": ConversationEventData;
   readonly "conversation.archived": ConversationEventData;
+  readonly "conversation.restored": ConversationEventData;
   readonly "conversation.member_added": ConversationEventData;
   readonly "conversation.member_removed": ConversationEventData;
   readonly "message.sent": MessageEventData;
@@ -23,6 +24,7 @@ export type MessagingEvents = {
 export const messagingEvents: Events<MessagingEvents> = defineEvents({
   "conversation.created": event<ConversationEventData>(),
   "conversation.archived": event<ConversationEventData>(),
+  "conversation.restored": event<ConversationEventData>(),
   "conversation.member_added": event<ConversationEventData>(),
   "conversation.member_removed": event<ConversationEventData>(),
   "message.sent": event<MessageEventData>(),

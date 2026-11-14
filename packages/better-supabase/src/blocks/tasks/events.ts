@@ -11,6 +11,7 @@ export type TasksEvents = {
   readonly "task.closed": TaskEventData;
   readonly "task.reopened": TaskEventData;
   readonly "task.archived": TaskEventData;
+  readonly "task.restored": TaskEventData;
   readonly "task.deleted": TaskEventData;
 };
 
@@ -22,5 +23,6 @@ export const tasksEvents: Events<TasksEvents> = defineEvents({
   "task.closed": event<TaskEventData>(),
   "task.reopened": event<TaskEventData>(),
   "task.archived": event<TaskEventData>(),
+  "task.restored": event<TaskEventData>(),
   "task.deleted": event<TaskEventData>(),
 });
