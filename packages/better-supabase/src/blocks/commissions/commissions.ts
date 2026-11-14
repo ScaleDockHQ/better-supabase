@@ -6,7 +6,11 @@ import type {
   PageOptions,
 } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
-import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
+import type {
+  CountOptions,
+  EntityListSpec,
+  FacetOptions,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
@@ -424,7 +428,7 @@ export function createCommissions(options: CommissionsOptions): Commissions {
     entity: string,
     surface: typeof commissionListSurface,
     fn: string,
-    rowOf: (row: Record<string, unknown>, name: string) => Item,
+    rowOf: EntityListSpec<Item>["rowOf"],
   ) => entityList({ entity, surface, call, tenant, fn, rowOf });
 
   const plans = listOf(
