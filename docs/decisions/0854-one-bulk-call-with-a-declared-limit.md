@@ -1,4 +1,4 @@
-# 0849: One bulk call with a declared limit
+# 0854: One bulk call with a declared limit
 
 - Status: accepted
 - Date: 2026-11-14

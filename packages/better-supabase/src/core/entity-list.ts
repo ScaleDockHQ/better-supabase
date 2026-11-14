@@ -88,7 +88,7 @@ export interface EntityList<Item, Extra extends object = object> {
 }
 
 /**
- * An `EntityList` with `export` (ADR 0850): what `entityList` builds. A block
+ * An `EntityList` with `export` (ADR 0855): what `entityList` builds. A block
  * that writes its own `page` exports with `exportCsv(page, options)`.
  */
 export interface ExportableEntityList<
@@ -97,7 +97,7 @@ export interface ExportableEntityList<
 > extends EntityList<Item, Extra> {
   /**
    * The rows `page` returns for the same filters as a CSV stream, one page at a
-   * time (ADR 0850).
+   * time (ADR 0855).
    */
   readonly export: (
     ...args: ListArgs<ExportOptions, Extra>

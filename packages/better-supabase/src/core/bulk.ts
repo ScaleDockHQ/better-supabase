@@ -14,7 +14,7 @@ export interface BulkFailure {
 }
 
 /**
- * What every `bulk(ids, action)` returns (ADR 0849): the ids that changed and,
+ * What every `bulk(ids, action)` returns (ADR 0854): the ids that changed and,
  * for each one that did not, the error. The call as a whole fails only for an
  * input the limit rejects.
  */
@@ -28,7 +28,7 @@ export interface BulkOptions {
   readonly limit?: number;
 }
 
-/** The `bulk` method an entity declares (ADR 0849). */
+/** The `bulk` method an entity declares (ADR 0854). */
 export type EntityBulk<Action extends string = string> = (
   ids: readonly string[],
   action: Action,

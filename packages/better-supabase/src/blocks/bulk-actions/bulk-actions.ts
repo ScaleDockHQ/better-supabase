@@ -169,7 +169,7 @@ export interface BulkCall<A extends string = string> {
 
 export interface BulkActions {
   /**
-   * The common bulk call (ADR 0849): one action on `ids` (up to the limit) with
+   * The common bulk call (ADR 0854): one action on `ids` (up to the limit) with
    * `{ succeeded, failed }`. More ids than the limit fail with `BULK_TOO_MANY`;
    * use `start` for them.
    */

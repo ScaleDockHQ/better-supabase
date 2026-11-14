@@ -10,7 +10,7 @@ import { dbError } from "./errors.ts";
 export const EXPORT_ROW_CAP = 100_000;
 
 /**
- * What `export(options)` takes (ADR 0850): the filters, search and sort of
+ * What `export(options)` takes (ADR 0855): the filters, search and sort of
  * `page`, without the cursor, and the CSV columns.
  */
 export interface ExportOptions
@@ -31,7 +31,7 @@ export type ExportPage = (
   options: PageOptions,
 ) => AsyncResult<ListPage<unknown>>;
 
-/** The `export` method an entity declares (ADR 0850). */
+/** The `export` method an entity declares (ADR 0855). */
 export type EntityExport = (options?: ExportOptions) => ReadableStream<string>;
 
 /**

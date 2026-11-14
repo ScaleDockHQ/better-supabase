@@ -26,6 +26,11 @@ export const dataLifecycleBlock: BlockOf<
     data_subject_request: {
       mutability: "state-machine",
       emits: { create: false },
+      personalData: ["requester", "details"],
+      subjectColumn: "subjectId",
+      erase: "keep",
+      retention: "audit",
+      legalHold: true,
     },
   },
   description:
