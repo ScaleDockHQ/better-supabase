@@ -1,92 +1,125 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import type { BlockCall } from "../../../src/core/block-helpers.ts";
 
 import {
-  invitationListSurface,
   invitationList,
+  invitationListSurface,
+  invitationRowOf,
 } from "../../../src/blocks/organizations/invitation-list.ts";
 import { organizationsBlock } from "../../../src/blocks/organizations/manifest.ts";
 import { AsyncResult } from "../../../src/core/result.ts";
 
-const rows = [
-  { id: "1", email: "b@x.com", role: "member" },
-  { id: "2", email: "a@x.com", role: "admin" },
-  { id: "3", email: "c@y.com", role: "member" },
-];
+const page = {
+  items: [
+    {
+      id: "1",
+      email: "a@x.com",
+      role: "admin",
+      expiresAt: "2027-01-01T00:00:00Z",
+    },
+  ],
+  hasMore: true,
+  nextCursor: ["2027-01-01T00:00:00Z", "1"],
+};
 
-const list = invitationList((organizationId) =>
-  AsyncResult.ok(organizationId === "org" ? rows : []),
-);
+function setup() {
+  const call = vi.fn(
+    <T>(
+      _fn: string,
+      _args: Readonly<Record<string, unknown>>,
+      then: (value: unknown) => T | Promise<T>,
+    ) =>
+      AsyncResult.from(async () => ({
+        ok: true as const,
+        data: await then(page),
+        error: null,
+      })),
+  );
 
-describe("the invitation list contract (ADR 0923)", () => {
+  return {
+    call,
+    list: invitationList(call as unknown as BlockCall, undefined),
+  };
+}
+
+describe("the invitation list contract (ADR 0923, 0924)", () => {
   it("is the surface the manifest declares", () => {
     expect(organizationsBlock.entities["invitation"]).toMatchObject(
       invitationListSurface,
     );
   });
 
-  it("filters by role, searches the email and sorts by email", async () => {
-    const page = await list.page({
+  it("reads page_organization_invitations with the filters", async () => {
+    const { call, list } = setup();
+
+    const result = await list.page({
       organizationId: "org",
       q: "x.com",
-      filters: { role: ["member"] },
-    });
-
-    expect(page.ok && page.data.items.map((row) => row.id)).toStrictEqual([
-      "1",
-    ]);
-
-    const sorted = await list.page({
-      organizationId: "org",
       sort: { by: "email" },
+      filters: { role: ["admin"] },
+      limit: 10,
     });
 
-    expect(sorted.ok && sorted.data.items.map((row) => row.id)).toStrictEqual([
-      "2",
-      "1",
-      "3",
-    ]);
+    expect(call).toHaveBeenCalledWith(
+      "page_organization_invitations",
+      {
+        tenant: "org",
+        filters: {
+          sort: "email",
+          role: ["admin"],
+          search: "x.com",
+          limit: 10,
+          paged: true,
+        },
+      },
+      expect.any(Function),
+    );
+    expect(result.ok && result.data.items[0]).toMatchObject({
+      id: "1",
+      role: "admin",
+    });
+    expect(result.ok && result.data.hasMore).toBe(true);
   });
 
-  it("pages with a cursor and counts under the same filters", async () => {
-    const first = await list.page({
-      organizationId: "org",
-      sort: { by: "email" },
-      limit: 2,
-    });
+  it("reads the block's tenant when the call names no organization", async () => {
+    const { call } = setup();
+    const list = invitationList(call as unknown as BlockCall, () => "active");
 
-    expect(first.ok && first.data).toMatchObject({
-      hasMore: true,
-      nextCursor: ["2"],
-    });
+    await list.count();
 
-    const next = await list.page({
-      organizationId: "org",
-      sort: { by: "email" },
-      limit: 2,
-      after: ["2"],
-    });
-
-    expect(next.ok && next.data.items.map((row) => row.id)).toStrictEqual([
-      "3",
-    ]);
-    expect(
-      await list.count({ organizationId: "org", filters: { role: ["admin"] } }),
-    ).toMatchObject({ ok: true, data: { value: 1, exact: true } });
-
-    const facets = await list.facets({ organizationId: "org" });
-
-    expect(facets.ok && facets.data[0]?.values).toStrictEqual([
-      { value: "member", count: { value: 2, exact: true } },
-      { value: "admin", count: { value: 1, exact: true } },
-    ]);
+    expect(call).toHaveBeenCalledWith(
+      "page_organization_invitations",
+      { tenant: "active", filters: { count: true } },
+      expect.any(Function),
+    );
   });
 
-  it("rejects a name the entity does not declare", async () => {
+  it("rejects a name the entity does not declare before any call", async () => {
+    const { call, list } = setup();
+
     expect(
       await list.page({ organizationId: "org", filters: { status: ["x"] } }),
     ).toMatchObject({ ok: false, error: { kind: "invalid_input" } });
     expect(
       await list.page({ organizationId: "org", sort: { by: "role" } }),
     ).toMatchObject({ ok: false });
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it("maps both row shapes", () => {
+    expect(invitationRowOf({ id: "1", email: "a", role: "r" })).toStrictEqual({
+      id: "1",
+      email: "a",
+      role: "r",
+    });
+    expect(
+      invitationRowOf({
+        id: "1",
+        email: "a",
+        role: "r",
+        expires_at: "2027-01-01T00:00:00Z",
+      }).expiresAt?.toString(),
+    ).toBe("2027-01-01T00:00:00Z");
   });
 });

@@ -27,6 +27,7 @@ import { limsBlock } from "../../src/blocks/lims/manifest.ts";
 import { maintenanceBlock } from "../../src/blocks/maintenance/manifest.ts";
 import { manufacturingBlock } from "../../src/blocks/manufacturing/manifest.ts";
 import { meetingsBlock } from "../../src/blocks/meetings/manifest.ts";
+import { organizationsBlock } from "../../src/blocks/organizations/manifest.ts";
 import { passesBlock } from "../../src/blocks/passes/manifest.ts";
 import { payrollExportBlock } from "../../src/blocks/payroll-export/manifest.ts";
 import { periodsBlock } from "../../src/blocks/periods/manifest.ts";
@@ -68,6 +69,7 @@ const BLOCKS = [
   limsBlock,
   maintenanceBlock,
   manufacturingBlock,
+  organizationsBlock,
   periodsBlock,
   referralsBlock,
   passesBlock,
@@ -137,6 +139,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(44);
+    expect(CASES).toHaveLength(45);
   });
 });
