@@ -1,6 +1,6 @@
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:1a110fe27d61ec98ffa89f425f7c322e371d300df795b6543dd8e2acb0793bf5
+-- @bsb-hash sha256:27034d2bd3e42c94d64c2fe41500361b1068b203bd0520bf0cbefa48b28ef552
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -155,11 +155,56 @@ begin
   update "better_supabase"."expense_categories" c set "archived_at" = coalesce(c."archived_at", now()), "updated_at" = now()
     where c."id" = v_row."id"
     returning * into v_row;
+  perform "better_supabase".emit_event('expense_category.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key"), 'expense-categories/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/expenses');
+  perform better_supabase.audit_event(
+    event_type => 'expense_category.archived',
+    category => 'data',
+    target_type => 'expense_category',
+    record_id => v_row."id"::text,
+    summary => 'archived an expense category',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key")
+  );
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_expense_category"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_expense_category"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_expense_category"(category_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."expense_categories"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."expense_categories" c where c."id" = restore_expense_category.category_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.manage'), false)) then
+    raise exception 'no such expense category you can manage' using errcode = 'P0002', hint = 'EXPENSE_CATEGORY_NOT_FOUND';
+  end if;
+  update "better_supabase"."expense_categories" c set "archived_at" = null, "updated_at" = now()
+    where c."id" = v_row."id"
+    returning * into v_row;
+  perform "better_supabase".emit_event('expense_category.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key"), 'expense-categories/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/expenses');
+  perform better_supabase.audit_event(
+    event_type => 'expense_category.restored',
+    category => 'data',
+    target_type => 'expense_category',
+    record_id => v_row."id"::text,
+    summary => 'restored an expense category',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_expense_category"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_expense_category"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_expense_categories"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -883,6 +928,15 @@ set search_path = ''
 as $$ select "better_supabase"."archive_expense_category"($1) $$;
 revoke execute on function "api"."archive_expense_category"(uuid) from public, anon;
 grant execute on function "api"."archive_expense_category"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_expense_category"(category_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_expense_category"($1) $$;
+revoke execute on function "api"."restore_expense_category"(uuid) from public, anon;
+grant execute on function "api"."restore_expense_category"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_expense_categories"(tenant uuid, include_archived boolean default false)
 returns jsonb

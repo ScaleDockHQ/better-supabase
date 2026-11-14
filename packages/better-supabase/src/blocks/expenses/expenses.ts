@@ -260,6 +260,8 @@ export interface Expenses<F extends object = Record<never, never>> {
   /** Creates or updates the category with this key. Needs `expenses.manage`. */
   saveCategory(input: ExpenseCategoryInput): AsyncResult<ExpenseCategory>;
   archiveCategory(categoryId: string): AsyncResult<ExpenseCategory>;
+  /** Makes an archived category available to new expenses again. */
+  restoreCategory(categoryId: string): AsyncResult<ExpenseCategory>;
   categories(options?: {
     readonly includeArchived?: boolean;
   }): AsyncResult<readonly ExpenseCategory[]>;
@@ -644,6 +646,12 @@ export function createExpenses<
         "archive_expense_category",
         { category_id: categoryId },
         category("archive_expense_category"),
+      ),
+    restoreCategory: (categoryId) =>
+      call(
+        "restore_expense_category",
+        { category_id: categoryId },
+        category("restore_expense_category"),
       ),
     categories: (list = {}) =>
       tenant().andThen((organizationId) =>
