@@ -100,6 +100,38 @@ describe("entityPageIndexes", () => {
     ]);
   });
 
+  it("indexes searched columns with a trigram index", () => {
+    const resolved = resolveEntityPage(config(), risks);
+
+    const indexes = entityPageIndexes({
+      ...resolved,
+      surface: { ...resolved.surface, search: ["number", "unknown"] },
+    });
+
+    expect(indexes.filter((index) => index.method === "gin")).toHaveLength(1);
+  });
+
+  it("has no index for a page without a table", () => {
+    const resolved = resolveEntityPage(config(), risks);
+
+    expect(entityPageIndexes({ ...resolved, table: undefined })).toStrictEqual(
+      [],
+    );
+
+    const scale = ENTITY_PAGE_OUTPUTS.find(
+      (output) => output.id === "scale-test",
+    );
+
+    expect(
+      scale?.render({
+        config: config(),
+        pages: [{ ...resolved, table: undefined }],
+        runtime: "better-supabase",
+        pagesDir: "src/lib/supabase/pages",
+      }),
+    ).toStrictEqual([]);
+  });
+
   it("writes one re-runnable statement per index", () => {
     const sql = entityPageIndexSql(config());
 

@@ -1655,7 +1655,7 @@
     "brotli": 685415
   },
   "/api/periods/list/route": {
-    "raw": 2556622,
+    "raw": 2558296,
     "gzip": 774238,
     "brotli": 657308
   },
