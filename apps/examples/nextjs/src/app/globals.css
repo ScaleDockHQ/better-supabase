@@ -156,3 +156,33 @@
     @apply bg-background text-foreground antialiased;
   }
 }
+
+/* React Flow's own light and dark palettes ignore the app theme, so the
+   minimap and controls render as white boxes in dark mode. The extra :root
+   keeps these ahead of the library stylesheet, which loads with the editor. */
+:root .react-flow,
+:root .react-flow.dark {
+  --xy-background-color-default: var(--background);
+  --xy-minimap-background-color-default: var(--card);
+  --xy-minimap-mask-background-color-default: color-mix(
+    in oklab,
+    var(--background) 70%,
+    transparent
+  );
+  --xy-minimap-node-background-color-default: var(--muted-foreground);
+  --xy-controls-button-background-color-default: var(--card);
+  --xy-controls-button-background-color-hover-default: var(--accent);
+  --xy-controls-button-color-default: var(--card-foreground);
+  --xy-controls-button-color-hover-default: var(--accent-foreground);
+  --xy-controls-button-border-color-default: var(--border);
+  --xy-edge-stroke-default: var(--muted-foreground);
+}
+
+:root .react-flow__minimap,
+:root .react-flow__controls-button {
+  border-color: var(--border);
+}
+
+:root .react-flow__controls-button svg {
+  fill: currentColor;
+}

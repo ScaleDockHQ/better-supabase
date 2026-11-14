@@ -114,7 +114,6 @@ function EditorInner({ detail }: { detail: BuilderDetail }) {
 
   const [panel, setPanel] = useState<Panel>("node");
   const [runId, setRunId] = useState<string | null>(null);
-  const [testRuns, setTestRuns] = useState<readonly string[]>([]);
   const [input, setInput] = useState("");
   const [stubs, setStubs] = useState("");
   const clipboard = useRef<ReturnType<typeof copySelection> | null>(null);
@@ -144,25 +143,22 @@ function EditorInner({ detail }: { detail: BuilderDetail }) {
   const { runs } = useWorkflowRuns({
     tenant: detail.tenant,
     schema: "api",
+    mode: "all",
     limit: 50,
   });
 
   const overlay = useWorkflowCanvasRun(runId, { schema: "api" });
 
-  const options = [
-    ...testRuns.map((id, index) => ({
-      value: id,
-      label: t("Test run {n}", { n: String(testRuns.length - index) }),
-    })),
-    ...(runs ?? [])
-      .filter((run) => run.attributes["bsb.definition"] === definition)
-      .map((run) => ({
-        value: run.externalId,
-        label: `${format.dateTime(new Date(run.createdAt.epochMilliseconds), {
-          timeStyle: "medium",
-        })} · ${run.status}`,
-      })),
-  ];
+  const options = (runs ?? [])
+    .filter((run) => run.attributes["bsb.definition"] === definition)
+    .map((run) => ({
+      value: run.externalId,
+      label: `${
+        run.mode === "test" ? `${t("Test run")} · ` : ""
+      }${format.dateTime(new Date(run.createdAt.epochMilliseconds), {
+        timeStyle: "medium",
+      })} · ${run.status}`,
+    }));
 
   const onError = (error: Parameters<typeof errorMessage>[0]) => {
     toast.error(errorMessage(error));
@@ -197,7 +193,6 @@ function EditorInner({ detail }: { detail: BuilderDetail }) {
     onError,
     onSuccess: (id) => {
       setRunId(id);
-      setTestRuns((current) => [id, ...current]);
       setPanel("run");
     },
   });

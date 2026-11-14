@@ -1,6 +1,7 @@
 export {
   createWorkflows,
   type WorkflowRun,
+  type WorkflowRunMode,
   type WorkflowRunRecord,
   type WorkflowRunsQuery,
   type WorkflowRunStatus,

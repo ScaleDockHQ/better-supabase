@@ -140,6 +140,7 @@ const config: KnipConfig = {
         "src/features/audit/components/audit-log-table.tsx",
         "src/features/shop/components/inventory-table.tsx",
         "src/features/notifications/components/notification-list.tsx",
+        // The minimal editor recipe; the page uses workflow-editor.tsx (ADR 0990).
         "src/features/workflows/builder/components/workflow-canvas.tsx",
         "src/features/workflows/components/workflow-runs.tsx",
         // The usage billing action is the example the usage docs link to.

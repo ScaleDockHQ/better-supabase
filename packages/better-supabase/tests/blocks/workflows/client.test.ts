@@ -56,6 +56,23 @@ describe("createWorkflowRunsController", () => {
     unmount();
   });
 
+  it("passes the mode option to the list call", async () => {
+    const list = vi.fn(() => resolved([run("t1")]));
+
+    const { unmount } = mount(
+      createWorkflowRunsController({
+        client: { runs: { list } },
+        auth: fakeAuth(),
+        ports: { topic: fakeTopic().port },
+        mode: "all",
+      }),
+    );
+
+    await flush();
+    expect(list).toHaveBeenCalledWith({ mode: "all" });
+    unmount();
+  });
+
   it("lists the user's own runs once and drops stale answers", async () => {
     const topic = fakeTopic();
     const answer = held([run("late")]);
