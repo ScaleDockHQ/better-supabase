@@ -4,6 +4,7 @@ import type { DonationsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDonations } from "./donations.ts";
 import { donationsEvents } from "./events.ts";
+import { giftListSurface, pledgeListSurface } from "./lists.ts";
 import { givingBinding } from "./record-binding.ts";
 import {
   donationFundInputSchema,
@@ -32,8 +33,12 @@ export const donationsBlock: BlockOf<
   record: givingBinding,
   category: "commerce",
   entities: {
-    donation: { mutability: "state-machine" },
-    pledge: { mutability: "editable", emits: { create: true, update: true } },
+    donation: { ...giftListSurface, mutability: "state-machine" },
+    pledge: {
+      ...pledgeListSurface,
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
     donation_fund: { mutability: "editable", emits: { update: false } },
     donation_receipt: { mutability: "state-machine" },
   },

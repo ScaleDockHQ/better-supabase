@@ -4,6 +4,7 @@ import type { LeasesEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { leasesEvents } from "./events.ts";
 import { createLeases } from "./leases.ts";
+import { leaseListSurface } from "./lists.ts";
 import { leasesSqlOptions } from "./options.ts";
 import { leasesBinding } from "./record-binding.ts";
 import { leaseInputSchema } from "./schemas.ts";
@@ -25,7 +26,13 @@ export const leasesBlock: BlockOf<
   create: createLeases,
   record: leasesBinding,
   category: "commerce",
-  entities: { lease: { mutability: "state-machine", emits: { create: true } } },
+  entities: {
+    lease: {
+      ...leaseListSurface,
+      mutability: "state-machine",
+      emits: { create: true },
+    },
+  },
   concerns: ["lifecycle", "search"],
   description:
     "Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.",

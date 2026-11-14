@@ -1,5 +1,16 @@
 import type { Money } from "../../commerce/money.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type {
+  CountOptions,
+  EntityListSpec,
+  FacetOptions,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
@@ -7,6 +18,7 @@ import type { BlockOptions } from "../shared.ts";
 import { money } from "../../commerce/money.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   COMMISSION_PLAN_KINDS,
@@ -24,6 +36,11 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import {
+  commissionListSurface,
+  commissionPlanListSurface,
+  commissionStatementListSurface,
+} from "./lists.ts";
 
 /** How a plan turns a sale into a commission. */
 export type CommissionPlanKind = (typeof COMMISSION_PLAN_KINDS)[number];
@@ -188,6 +205,14 @@ export interface Commissions {
     readonly archived?: boolean;
     readonly limit?: number;
   }): AsyncResultType<readonly CommissionPlanWithAssignments[]>;
+  /** One keyset page of plans with their assignments, newest first or by `sort`. */
+  planPage(
+    options?: PageOptions,
+  ): AsyncResultType<ListPage<CommissionPlanWithAssignments>>;
+  /** The values of each plan facet and their counts. */
+  planFacets(options?: FacetOptions): AsyncResultType<readonly FacetResult[]>;
+  /** How many plans match the page's filters. */
+  planCount(options?: CountOptions): AsyncResultType<Count>;
   /**
    * Accrues a commission on a sold record and posts it to the ledger. Calling
    * it again for the same seller and record returns the first commission, and a
@@ -202,6 +227,14 @@ export interface Commissions {
   listCommissions(
     list?: CommissionListOptions,
   ): AsyncResultType<readonly Commission[]>;
+  /** One keyset page of accrued commissions, newest first or by `sort`. */
+  commissionPage(options?: PageOptions): AsyncResultType<ListPage<Commission>>;
+  /** The values of each commission facet and their counts. */
+  commissionFacets(
+    options?: FacetOptions,
+  ): AsyncResultType<readonly FacetResult[]>;
+  /** How many commissions match the page's filters. */
+  commissionCount(options?: CountOptions): AsyncResultType<Count>;
   /** Collects a seller's accrued commissions of a range into a statement. */
   buildStatement(input: {
     readonly sellerId: string;
@@ -217,6 +250,16 @@ export interface Commissions {
   listStatements(
     list?: CommissionStatementListOptions,
   ): AsyncResultType<readonly CommissionStatement[]>;
+  /** One keyset page of statements, latest period first or by `sort`. */
+  statementPage(
+    options?: PageOptions,
+  ): AsyncResultType<ListPage<CommissionStatement>>;
+  /** The values of each statement facet and their counts. */
+  statementFacets(
+    options?: FacetOptions,
+  ): AsyncResultType<readonly FacetResult[]>;
+  /** How many statements match the page's filters. */
+  statementCount(options?: CountOptions): AsyncResultType<Count>;
   /**
    * What payroll adds for commissions: the totals of the finalized and paid
    * statements that end in the range, one line per seller and currency.
@@ -354,6 +397,18 @@ function statementOf(value: unknown, fn: string): CommissionStatement {
   };
 }
 
+function planWithAssignmentsOf(
+  row: Record<string, unknown>,
+  fn: string,
+): CommissionPlanWithAssignments {
+  return {
+    ...planOf(row, fn),
+    assignments: Array.isArray(row["assignments"])
+      ? row["assignments"].map((each) => assignmentOf(each, fn))
+      : [],
+  };
+}
+
 const definedOf = (input: object): Record<string, unknown> =>
   Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined),
@@ -369,7 +424,44 @@ export function createCommissions(options: CommissionsOptions): Commissions {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResultType<string> => requireTenant(options.tenant);
 
+  const listOf = <Item>(
+    entity: string,
+    surface: typeof commissionListSurface,
+    fn: string,
+    rowOf: EntityListSpec<Item>["rowOf"],
+  ) => entityList({ entity, surface, call, tenant, fn, rowOf });
+
+  const plans = listOf(
+    "commission_plan",
+    commissionPlanListSurface,
+    "list_commission_plans",
+    planWithAssignmentsOf,
+  );
+
+  const commissions = listOf(
+    "commission",
+    commissionListSurface,
+    "list_commissions",
+    commissionOf,
+  );
+
+  const statements = listOf(
+    "commission_statement",
+    commissionStatementListSurface,
+    "list_commission_statements",
+    statementOf,
+  );
+
   const client: Commissions = {
+    planPage: plans.page,
+    planFacets: plans.facets,
+    planCount: plans.count,
+    commissionPage: commissions.page,
+    commissionFacets: commissions.facets,
+    commissionCount: commissions.count,
+    statementPage: statements.page,
+    statementFacets: statements.facets,
+    statementCount: statements.count,
     savePlan: (input) =>
       tenant().andThen((organizationId) =>
         call(

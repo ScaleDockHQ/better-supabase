@@ -88,6 +88,37 @@ a function that returns the blockers and one that runs when the period closes,
 both taking `(tenant, starts_on, ends_on)`. See `PeriodContribution` for the
 shape.
 
+## Paging a list
+
+`listPeriods` stays as the capped convenience list.
+
+`periodPage` pages periods (ADR 0749). Sorts are `startsOn` and `endsOn`, and the default order is `startsOn`, latest first. Filters are `kind` and `status`, and facets are `kind` and `status`. Each filter takes a list of values and a row matches any of them. `periodFacets` counts the values of each facet under the same filters, and `periodCount` returns `{ value, exact }`.
+
+```ts
+const first = await periods
+  .periodPage({ filters: { kind: ["leave_year"] }, limit: 50 })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await periods
+    .periodPage({
+      filters: { kind: ["leave_year"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
+    .orThrow();
+}
+
+const facets = await periods
+  .periodFacets({ filters: { kind: ["leave_year"] } })
+  .orThrow();
+const total = await periods
+  .periodCount({ filters: { kind: ["leave_year"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter or facet the entity does not declare returns an `invalid_input` error. See [the list contract](/docs/extending/blocks#the-list-contract) for the options.
+
 ## Events
 
 | Event             | Carries                                                        |

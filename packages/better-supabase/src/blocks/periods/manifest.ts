@@ -3,6 +3,7 @@ import type { PeriodsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { periodsEvents } from "./events.ts";
+import { periodListSurface } from "./lists.ts";
 import { createPeriods } from "./periods.ts";
 
 /** The `periods` block's manifest (ADR 0197). */
@@ -20,6 +21,7 @@ export const periodsBlock: BlockOf<
   category: "commerce",
   entities: {
     period: {
+      ...periodListSurface,
       mutability: "state-machine",
       emits: { create: true },
       permissions: {

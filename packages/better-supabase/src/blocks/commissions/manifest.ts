@@ -4,6 +4,11 @@ import type { CommissionsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createCommissions } from "./commissions.ts";
 import { commissionsEvents } from "./events.ts";
+import {
+  commissionListSurface,
+  commissionPlanListSurface,
+  commissionStatementListSurface,
+} from "./lists.ts";
 import { commissionsSqlOptions } from "./options.ts";
 
 /** The `commissions` block's manifest. */
@@ -22,6 +27,7 @@ export const commissionsBlock: BlockOf<
   category: "commerce",
   entities: {
     commission_plan: {
+      ...commissionPlanListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
       permissions: {
@@ -32,8 +38,11 @@ export const commissionsBlock: BlockOf<
       },
     },
     commission_assignment: { mutability: "read-only" },
-    commission: { mutability: "state-machine" },
-    commission_statement: { mutability: "state-machine" },
+    commission: { ...commissionListSurface, mutability: "state-machine" },
+    commission_statement: {
+      ...commissionStatementListSurface,
+      mutability: "state-machine",
+    },
   },
   concerns: ["lifecycle"],
   description:

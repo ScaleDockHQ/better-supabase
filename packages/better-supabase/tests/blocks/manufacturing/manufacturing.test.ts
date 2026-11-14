@@ -392,7 +392,7 @@ describe("createManufacturing", () => {
       ["cancel_production_order", { order_id: "mo2", reason: "Dropped" }],
       [
         "list_production_orders",
-        { tenant: "org-1", filter: { status: "done", limit: 10 } },
+        { tenant: "org-1", filters: { status: "done", limit: 10 } },
       ],
     ]);
   });
@@ -587,5 +587,61 @@ describe("manufacturing schemas and manifest", () => {
       sql: ["manufacturing"],
       category: "commerce",
     });
+  });
+
+  it("pages production orders with their fields, then counts and facets them", async () => {
+    const t = fieldsTransport({
+      list_production_orders: (args) => {
+        const filters = args["filters"] as Record<string, unknown>;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: filters["facet"],
+            values: [{ value: "done", count: { value: 2, exact: true } }],
+          };
+        }
+
+        if (filters["count"] === true) {
+          return { value: 2, exact: true };
+        }
+
+        return { items: [ORDER], hasMore: false };
+      },
+    });
+
+    const manufacturing = createManufacturing({
+      transport: t,
+      tenant: "org-1",
+      fields: Fields,
+    });
+
+    const page = await manufacturing
+      .orderPage({
+        sort: { by: "dueOn" },
+        filters: { status: ["done"], variantId: ["bread"] },
+      })
+      .orThrow();
+
+    const facets = await manufacturing.orderFacets().orThrow();
+    const count = await manufacturing.orderCount().orThrow();
+    const refused = await manufacturing.orderPage({ sort: { by: "nope" } });
+
+    expect(page.items[0]?.id).toBe("mo1");
+    expect(page.hasMore).toBe(false);
+    expect(t.calls[0]).toEqual([
+      "list_production_orders",
+      {
+        tenant: "org-1",
+        filters: {
+          sort: "dueOn",
+          status: ["done"],
+          variantId: ["bread"],
+          paged: true,
+        },
+      },
+    ]);
+    expect(facets[0]?.values[0]?.value).toBe("done");
+    expect(count).toEqual({ value: 2, exact: true });
+    expect(refused.ok).toBe(false);
   });
 });

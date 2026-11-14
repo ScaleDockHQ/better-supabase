@@ -74,6 +74,39 @@ The posting debits `referrals:expense:<unit>` and credits the referrer's
 `referrals:rewards:<referrer>:<unit>`. `void` marks a referral `void` and
 reverses a reward already posted.
 
+## Paging a list
+
+`listReferrals` and `listCodes` stay as the capped convenience lists. A member without `referrals.read` sees only the referrals and codes of their own.
+
+`referralPage` pages referrals (ADR 0749). Sorts are `createdAt`, and the default order is `createdAt`, newest first. Filters are `status` and `referrer`, and facets are `status` and `referrer`. Each filter takes a list of values and a row matches any of them. `referralFacets` counts the values of each facet under the same filters, and `referralCount` returns `{ value, exact }`.
+
+`codePage` pages referral codes (ADR 0749). Sorts are `createdAt`, and the default order is `createdAt`, newest first. Filters are `referrer`, and facets are `referrer`. Each filter takes a list of values and a row matches any of them. `codeFacets` counts the values of each facet under the same filters, and `codeCount` returns `{ value, exact }`.
+
+```ts
+const first = await referrals
+  .referralPage({ filters: { status: ["qualified"] }, limit: 50 })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await referrals
+    .referralPage({
+      filters: { status: ["qualified"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
+    .orThrow();
+}
+
+const facets = await referrals
+  .referralFacets({ filters: { status: ["qualified"] } })
+  .orThrow();
+const total = await referrals
+  .referralCount({ filters: { status: ["qualified"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter or facet the entity does not declare returns an `invalid_input` error. See [the list contract](/docs/extending/blocks#the-list-contract) for the options.
+
 ## Events
 
 | Event                                                          | Carries                                                                                    |

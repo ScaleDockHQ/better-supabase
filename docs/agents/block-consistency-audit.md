@@ -343,12 +343,12 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | catalog                   | commerce      | product                    | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
 | catalog                   | commerce      | product_variant            | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
 | commerce                  | commerce      | commerce                   | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
-| commissions               | commerce      | commission_plan            | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| commissions               | commerce      | commission_plan            | editable      | create, update         | -                      | createdAt, name                          | kind                   | -           | -        | -       | -         |
 | commissions               | commerce      | commission_assignment      | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
-| commissions               | commerce      | commission                 | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
-| commissions               | commerce      | commission_statement       | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
-| donations                 | commerce      | donation                   | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
-| donations                 | commerce      | pledge                     | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| commissions               | commerce      | commission                 | state-machine | -                      | -                      | occurredOn, createdAt, amount            | status, seller         | -           | -        | -       | -         |
+| commissions               | commerce      | commission_statement       | state-machine | -                      | -                      | endsOn, createdAt, total                 | status, seller         | -           | -        | -       | -         |
+| donations                 | commerce      | donation                   | state-machine | -                      | -                      | receivedOn, createdAt                    | status, fundId         | -           | -        | -       | -         |
+| donations                 | commerce      | pledge                     | editable      | create, update         | -                      | createdAt                                | status                 | -           | -        | -       | -         |
 | donations                 | commerce      | donation_fund              | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
 | donations                 | commerce      | donation_receipt           | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | entitlements              | commerce      | entitlement                | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -366,11 +366,11 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | inventory                 | commerce      | purchase_requisition       | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
 | inventory                 | commerce      | inventory_receipt          | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
 | invoices                  | commerce      | invoice                    | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
-| leases                    | commerce      | lease                      | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| leases                    | commerce      | lease                      | state-machine | create                 | -                      | startsOn, endsOn, createdAt              | status, unitId         | -           | -        | -       | -         |
 | ledger                    | commerce      | ledger_account             | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | ledger                    | commerce      | ledger_transaction         | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | ledger                    | commerce      | ledger_hold                | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
-| manufacturing             | commerce      | production_order           | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| manufacturing             | commerce      | production_order           | state-machine | -                      | create                 | dueOn, createdAt, number                 | status                 | -           | -        | -       | -         |
 | manufacturing             | commerce      | bom                        | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
 | manufacturing             | commerce      | bom_component              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | manufacturing             | commerce      | bom_operation              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -380,18 +380,18 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | manufacturing             | commerce      | stock_lot_link             | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | orders                    | commerce      | order                      | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | orders                    | commerce      | cart                       | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
-| periods                   | commerce      | period                     | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| periods                   | commerce      | period                     | state-machine | create                 | -                      | startsOn, endsOn                         | kind, status           | -           | -        | -       | -         |
 | procurement               | commerce      | procurement                | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | promotions                | commerce      | promotion                  | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
-| referrals                 | commerce      | referral_code              | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
-| referrals                 | commerce      | referral                   | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| referrals                 | commerce      | referral_code              | append-only   | create                 | -                      | createdAt                                | referrer               | -           | -        | -       | -         |
+| referrals                 | commerce      | referral                   | state-machine | -                      | -                      | createdAt                                | status, referrer       | -           | -        | -       | -         |
 | reviews                   | commerce      | review                     | state-machine | delete                 | create                 | -                                        | -                      | -           | -        | -       | -         |
 | rfqs                      | commerce      | rfq                        | editable      | create, update         | -                      | number, dueAt                            | status                 | -           | -        | -       | -         |
 | rfqs                      | commerce      | rfq_line                   | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | rfqs                      | commerce      | rfq_supplier               | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | rfqs                      | commerce      | rfq_quote                  | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | rfqs                      | commerce      | rfq_quote_line             | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
-| shipments                 | commerce      | shipment                   | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| shipments                 | commerce      | shipment                   | state-machine | create                 | -                      | createdAt, deliveredAt                   | status, carrier        | -           | -        | -       | -         |
 | shipments                 | commerce      | shipment_package           | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | shipments                 | commerce      | shipment_tracking_event    | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | shipments                 | commerce      | shipment_line              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -877,11 +877,14 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G3
 
 - Scope: List contract rollout: commerce
-- Status: planned
+- Status: PR open #929
 - Branch: `feat/audit-g3`
-- PR: none yet
+- PR: [#929](https://github.com/ScaleDockHQ/better-supabase/pull/929)
 - Findings: EX-1200 to EX-1205, EX-1215, EX-800 to EX-802, EX-811, EX-812, EX-1100 to EX-1105
-- Log: 2026-11-12, planned.
+- Log: 2026-11-12, planned. 2026-11-14, page, facets and count for 11 entities in seven blocks
+  (commissions, donations, leases, manufacturing, periods, referrals, shipments), ADR 0769.
+  Left for a later lane: the ledger, expenses, funding, accounting, banking, billable-time,
+  catalog, inventory, invoices, reviews and tax lists, and `get` for the new entities.
 
 ### Lane G4
 

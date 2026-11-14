@@ -277,24 +277,16 @@ describe("createLeases", () => {
         "list_leases",
         {
           tenant: "org-1",
-          status: "active",
-          unit_id: UNIT,
-          party_type: "contact",
-          party_id: "c1",
-          page_size: 10,
+          filters: {
+            status: "active",
+            unitId: UNIT,
+            partyType: "contact",
+            partyId: "c1",
+            limit: 10,
+          },
         },
       ],
-      [
-        "list_leases",
-        {
-          tenant: "org-1",
-          status: null,
-          unit_id: null,
-          party_type: null,
-          party_id: null,
-          page_size: null,
-        },
-      ],
+      ["list_leases", { tenant: "org-1", filters: {} }],
     ]);
   });
 
@@ -424,8 +416,7 @@ describe("leases block", () => {
 
     expect(loaded.ok).toBe(true);
     expect(fake.calls[0]?.[1]).toMatchObject({
-      party_type: "contact",
-      party_id: "c1",
+      filters: { partyType: "contact", partyId: "c1" },
     });
     expect(leasesBlock.name).toBe("leases");
     expect(leasesBlock.sql).toEqual(["leases"]);
@@ -501,5 +492,39 @@ describe("lease fields", () => {
 
     expect(lease.fields).toEqual({});
     expect(fake.calls[0]?.[1]).not.toHaveProperty("fields");
+  });
+
+  it("reads a keyset page of leases, then its facets and count", async () => {
+    const fake = fakeTransport({
+      list_leases: { items: [LEASE], hasMore: false },
+    });
+
+    const leases = createLeases({ transport: fake.transport, tenant: "org-1" });
+
+    const page = await leases
+      .leasePage({
+        sort: { by: "endsOn", direction: "asc" },
+        filters: { status: ["active", "draft"] },
+      })
+      .orThrow();
+
+    const refused = await leases.leasePage({ filters: { rent: ["1"] } });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.hasMore).toBe(false);
+    expect(fake.calls[0]).toEqual([
+      "list_leases",
+      {
+        tenant: "org-1",
+        filters: {
+          sort: "endsOn",
+          direction: "asc",
+          status: ["active", "draft"],
+          paged: true,
+        },
+      },
+    ]);
+    expect(refused.ok).toBe(false);
+    expect(fake.calls).toHaveLength(1);
   });
 });

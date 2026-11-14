@@ -1,6 +1,7 @@
 import type { ReferralSql } from "./referrals-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { fail, serviceGrant, userGrant } from "../shared.ts";
 import { referralJson } from "./referrals-tables.ts";
 
@@ -51,8 +52,58 @@ export function referralFunctions(q: ReferralSql): string {
       },
     });
 
-  const filter = (alias: string, col: (name: string) => string): string =>
-    `(not v_filters ? 'referrer' or ${alias}.${col("referrer")} = (v_filters ->> 'referrer')::uuid)`;
+  const referralList = {
+    name: "list_referrals",
+    from: referrals,
+    alias: "x",
+    where: [
+      `x.${r("tenant")} = list_referrals.tenant`,
+      `(v_all or x.${r("referrer")} = (select auth.uid()))`,
+      filterAny("referrer", `x.${r("referrer")}`, "uuid"),
+      filterAny("status", `x.${r("status")}`),
+    ],
+    keys: [
+      { expr: `x.${r("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${r("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${r("status")}`, referrer: `x.${r("referrer")}` },
+    rowJson: json.referral("x"),
+    defaultLimit: 100,
+    maxLimit: 500,
+    invalid,
+  } as const;
+
+  const codeList = {
+    name: "list_referral_codes",
+    from: codes,
+    alias: "x",
+    where: [
+      `x.${k("tenant")} = list_referral_codes.tenant`,
+      `(v_all or x.${k("referrer")} = (select auth.uid()))`,
+      filterAny("referrer", `x.${k("referrer")}`, "uuid"),
+    ],
+    keys: [
+      { expr: `x.${k("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${k("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${k("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${k("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { referrer: `x.${k("referrer")}` },
+    rowJson: json.code("x"),
+    defaultLimit: 100,
+    maxLimit: 500,
+    invalid,
+  } as const;
 
   return `
 -- Creates a referral code for a member (the caller by default). Making a code
@@ -260,9 +311,10 @@ end;
 $$;
 ${userGrant(`${fn("void_referral")}(uuid, text)`)}
 
--- An organization's referrals, newest first. filters is { referrer, status,
--- limit }. Needs referrals.read; without it a member sees the referrals of
--- their own codes.
+-- An organization's referrals, newest first. filters is { referrer (a value or
+-- a list), status (a value or a list), sort, direction, facet, count, limit,
+-- after, offset, paged, total, totalCap } (ADR 0749). Needs referrals.read;
+-- without it a member sees the referrals of their own codes.
 create or replace function ${fn("list_referrals")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -274,25 +326,17 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referrals.filters, '{}'::jsonb);
   v_all boolean := ${q.allowed("list_referrals.tenant", q.read)};
+  ${listDeclare(referralList)}
 begin
-  return coalesce((
-    select jsonb_agg(${json.referral("y")} order by y.${r("createdAt")} desc)
-    from (
-      select * from ${referrals} z
-      where z.${r("tenant")} = list_referrals.tenant
-        and (v_all or z.${r("referrer")} = (select auth.uid()))
-        and ${filter("z", r)}
-        and (not v_filters ? 'status' or z.${r("status")} = v_filters ->> 'status')
-      order by z.${r("createdAt")} desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(referralList)}
 end;
 $$;
 ${userGrant(`${fn("list_referrals")}(${idType}, jsonb)`)}
 
--- An organization's referral codes, newest first. filters is { referrer,
--- limit }. Needs referrals.read; without it a member sees their own codes.
+-- An organization's referral codes, newest first. filters is { referrer (a
+-- value or a list), sort, direction, facet, count, limit, after, offset, paged,
+-- total, totalCap } (ADR 0749). Needs referrals.read; without it a member sees
+-- their own codes.
 create or replace function ${fn("list_referral_codes")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -304,18 +348,9 @@ as $$
 declare
   v_filters jsonb := coalesce(list_referral_codes.filters, '{}'::jsonb);
   v_all boolean := ${q.allowed("list_referral_codes.tenant", q.read)};
+  ${listDeclare(codeList)}
 begin
-  return coalesce((
-    select jsonb_agg(${json.code("y")} order by y.${k("createdAt")} desc)
-    from (
-      select * from ${codes} z
-      where z.${k("tenant")} = list_referral_codes.tenant
-        and (v_all or z.${k("referrer")} = (select auth.uid()))
-        and ${filter("z", k)}
-      order by z.${k("createdAt")} desc
-      limit least(greatest(coalesce((v_filters ->> 'limit')::integer, 100), 1), 500)
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(codeList)}
 end;
 $$;
 ${userGrant(`${fn("list_referral_codes")}(${idType}, jsonb)`)}
