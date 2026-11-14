@@ -5798,7 +5798,14 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMessages } from "@/hooks/use-messaging";
 
@@ -5897,30 +5904,40 @@ export function MessageList({
             </EmptyContent>
           </Empty>
         ) : (
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="flex flex-col gap-4 pr-3">
-              {hasOlder ? (
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="ghost"
-                  className="self-center"
-                  onClick={() => void loadOlder()}
+          <MessageScrollerProvider autoScroll>
+            <MessageScroller>
+              <MessageScrollerViewport>
+                <MessageScrollerContent
+                  className="gap-4"
+                  data-testid="messages"
                 >
-                  {t("Load older messages")}
-                </Button>
-              ) : null}
-              <ol className="flex flex-col gap-4" data-testid="messages">
-                {messages.map((message) => (
-                  <MessageItem
-                    key={message.id}
-                    message={message}
-                    onOpenThread={onOpenThread}
-                  />
-                ))}
-              </ol>
-            </div>
-          </ScrollArea>
+                  {hasOlder ? (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="ghost"
+                      className="self-center"
+                      onClick={() => void loadOlder()}
+                    >
+                      {t("Load older messages")}
+                    </Button>
+                  ) : null}
+                  {messages.map((message) => (
+                    <MessageScrollerItem
+                      key={message.id}
+                      messageId={message.id}
+                    >
+                      <MessageItem
+                        message={message}
+                        onOpenThread={onOpenThread}
+                      />
+                    </MessageScrollerItem>
+                  ))}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton />
+            </MessageScroller>
+          </MessageScrollerProvider>
         )}
       </CardContent>
       <CardFooter className="flex-col items-stretch gap-1">
@@ -6246,7 +6263,14 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMessages } from "@/hooks/use-messaging";
@@ -6316,42 +6340,48 @@ export function ThreadPanel({
             <Skeleton className="h-12" />
           </div>
         ) : (
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="flex flex-col gap-4 pr-3">
-              <ol>
-                <MessageItem message={root} />
-              </ol>
-              <Separator />
-              {thread.messages.length === 0 ? (
-                <Empty>
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <MessageSquareIcon />
-                    </EmptyMedia>
-                    <EmptyTitle>{t("No replies yet")}</EmptyTitle>
-                    <EmptyDescription>
-                      {t("Replies stay here, out of the channel.")}
-                    </EmptyDescription>
-                  </EmptyHeader>
-                  <EmptyContent>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => input.current?.focus()}
-                    >
-                      {t("Reply")}
-                    </Button>
-                  </EmptyContent>
-                </Empty>
-              ) : (
-                <ol className="flex flex-col gap-4">
-                  {thread.messages.map((message) => (
-                    <MessageItem key={message.id} message={message} />
-                  ))}
-                </ol>
-              )}
-            </div>
-          </ScrollArea>
+          <MessageScrollerProvider autoScroll>
+            <MessageScroller>
+              <MessageScrollerViewport>
+                <MessageScrollerContent className="gap-4">
+                  <MessageItem message={root} />
+                  <Separator />
+                  {thread.messages.length === 0 ? (
+                    <Empty>
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <MessageSquareIcon />
+                        </EmptyMedia>
+                        <EmptyTitle>{t("No replies yet")}</EmptyTitle>
+                        <EmptyDescription>
+                          {t("Replies stay here, out of the channel.")}
+                        </EmptyDescription>
+                      </EmptyHeader>
+                      <EmptyContent>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => input.current?.focus()}
+                        >
+                          {t("Reply")}
+                        </Button>
+                      </EmptyContent>
+                    </Empty>
+                  ) : (
+                    thread.messages.map((message) => (
+                      <MessageScrollerItem
+                        key={message.id}
+                        messageId={message.id}
+                      >
+                        <MessageItem message={message} />
+                      </MessageScrollerItem>
+                    ))
+                  )}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton />
+            </MessageScroller>
+          </MessageScrollerProvider>
         )}
       </CardContent>
       <CardFooter className="flex-col items-stretch">
@@ -6395,7 +6425,7 @@ import {
   AvatarGroup,
   AvatarGroupCount,
 } from "@/components/ui/avatar";
-import { useSession } from "@/lib/hooks";
+import { useAuth } from "@/lib/hooks";
 
 const SHOWN = 4;
 
@@ -6415,8 +6445,9 @@ export function PresenceAvatars({
   subject: { readonly type: string; readonly id: string };
 }) {
   const t = useExtracted("chat");
-  const session = useSession();
-  const me = session.kind === "user" ? session.user : null;
+  // `useAuth` reads the browser client; `useSession` needs a provider that
+  // the app shell doesn't wrap around its pages.
+  const me = useAuth().user;
 
   const { members } = usePresence(
     viewers,

@@ -30,7 +30,7 @@ import {
   AvatarGroup,
   AvatarGroupCount,
 } from "@/components/ui/avatar";
-import { useSession } from "@/lib/hooks";
+import { useAuth } from "@/lib/hooks";
 
 const SHOWN = 4;
 
@@ -50,8 +50,9 @@ export function PresenceAvatars({
   subject: { readonly type: string; readonly id: string };
 }) {
   const t = useExtracted("chat");
-  const session = useSession();
-  const me = session.kind === "user" ? session.user : null;
+  // `useAuth` reads the browser client; `useSession` needs a provider that
+  // the app shell doesn't wrap around its pages.
+  const me = useAuth().user;
 
   const { members } = usePresence(
     viewers,

@@ -71,6 +71,7 @@ export interface ConversationRow {
   readonly snoozedUntil: string | null;
   readonly botMode: Conversation["botMode"];
   readonly assigneeId: string | null;
+  readonly teamId: string | null;
   readonly preview: string | null;
   readonly lastMessageAt: string | null;
   readonly unread: boolean;
@@ -98,6 +99,7 @@ export function toConversationRow(conversation: Conversation): ConversationRow {
     snoozedUntil: conversation.snoozedUntil?.toString() ?? null,
     botMode: conversation.botMode,
     assigneeId: conversation.assigneeId,
+    teamId: conversation.teamId,
     preview: conversation.preview,
     lastMessageAt: conversation.lastMessageAt?.toString() ?? null,
     unread: conversation.unread ?? false,
@@ -161,6 +163,27 @@ export interface InboxSummary {
   readonly id: string;
   readonly name: string;
   readonly channel: string;
+}
+
+/** A team whose queue conversations can wait in. */
+export interface TeamSummary {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** A stored inbound webhook event, for the replay sheet. */
+export interface InboundEventRow {
+  readonly id: string;
+  readonly adapter: string;
+  readonly status:
+    | "received"
+    | "processing"
+    | "processed"
+    | "ignored"
+    | "failed";
+  readonly error: string | null;
+  readonly attempts: number;
+  readonly receivedAt: string;
 }
 
 /** A canned reply from the message templates of the organization. */

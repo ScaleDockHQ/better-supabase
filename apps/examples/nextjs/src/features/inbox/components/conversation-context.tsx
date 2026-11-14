@@ -19,7 +19,8 @@ import { ContactDeals } from "./contact-deals";
  * The right pane of a conversation: the contact, the conversation's own facts
  * (channel account, priority, first response against the SLA target), the open
  * deals that name the contact (an inbox contact is a CRM person) and the
- * contact's earlier conversations. Orders have no link to a person yet.
+ * contact's earlier conversations. The contact's name opens the CRM person.
+ * Orders have no link to a person yet.
  */
 export function ConversationContextPanel({
   context,
@@ -62,7 +63,13 @@ export function ConversationContextPanel({
     >
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium">
-          {conversation.contactName || t("Visitor")}
+          <Link
+            href={toAppHref(`/crm/contacts/${conversation.contactId}`)}
+            prefetch={false}
+            className="underline-offset-4 hover:underline"
+          >
+            {conversation.contactName || t("Visitor")}
+          </Link>
         </h2>
         <dl className="flex flex-col gap-2 text-sm">
           {facts.map((fact) => (
