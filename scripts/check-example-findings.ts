@@ -2,8 +2,10 @@
 // `docs/agents/block-consistency-audit.md` consistent. It fails when a table
 // has a stray header, a blank row or a duplicate id, when the status counts at
 // the top are stale, when an unfinished row (open, partly fixed or deferred) is
-// named by no lane's Findings line, and when a lane is `merged` while one of
-// its rows is unfinished. A row stated `deferred (needs: ...)` waits on a
+// named by no lane's Findings line, when a lane is `merged` while one of
+// its rows is unfinished, when an id named by a lane's Findings line or by a
+// range in the Progress section has no row (a lost table), and when the row
+// count falls below the committed floor in `example-findings.count`. A row stated `deferred (needs: ...)` waits on a
 // maintainer step and does not block a merged lane. `--write` rewrites the status counts; without it the
 // script only validates. Run with `node scripts/check-example-findings.ts`.
 import { readFileSync, writeFileSync } from "node:fs";
@@ -11,6 +13,7 @@ import { argv, exit } from "node:process";
 
 const FINDINGS = "docs/agents/example-findings.md";
 const AUDIT = "docs/agents/block-consistency-audit.md";
+const COUNT_FILE = "docs/agents/example-findings.count";
 const START = "<!-- example-findings:counts:start -->";
 const END = "<!-- example-findings:counts:end -->";
 
@@ -287,6 +290,50 @@ export const checkLanes = (
   return problems;
 };
 
+const RANGE = /EX-\d+\s+to\s+EX-\d+/g;
+
+// Ids a lane relies on: its Findings lines and every `EX-n to EX-m` range in
+// the Progress section.
+export const namedIds = (
+  lanes: readonly Lane[],
+  tracker: string,
+): ReadonlySet<string> => {
+  const start = tracker.search(/^## Progress$/m);
+  const rest = start === -1 ? "" : tracker.slice(start + 1);
+  const end = rest.search(/^## /m);
+  const progress = end === -1 ? rest : rest.slice(0, end);
+
+  const ranges = [...progress.matchAll(RANGE)].flatMap((match) =>
+    expandIds(match[0]),
+  );
+
+  return new Set([...lanes.flatMap((lane) => lane.findings), ...ranges]);
+};
+
+export const checkMissingRows = (
+  rows: readonly Finding[],
+  named: ReadonlySet<string>,
+): string[] => {
+  const have = new Set(rows.map((row) => row.id));
+  const missing = [...named].filter((id) => !have.has(id));
+
+  return missing.length === 0
+    ? []
+    : [
+        `${missing.length} ids named by a lane have no row in ${FINDINGS} (a table may have been lost in a merge): ${missing.join(", ")}`,
+      ];
+};
+
+export const checkRowFloor = (
+  rows: readonly Finding[],
+  floor: number,
+): string[] =>
+  rows.length < floor
+    ? [
+        `${FINDINGS} has ${rows.length} rows, below the committed floor of ${floor} in ${COUNT_FILE}; restore the lost rows`,
+      ]
+    : [];
+
 export const unfinishedIds = (rows: readonly Finding[]): string[] =>
   rows.filter((row) => UNFINISHED.has(row.state)).map((row) => row.id);
 
@@ -309,7 +356,21 @@ const main = (): void => {
     }
   }
 
-  found.push(...checkLanes(rows, parseLanes(readFileSync(AUDIT, "utf-8"))));
+  const tracker = readFileSync(AUDIT, "utf-8");
+  const lanes = parseLanes(tracker);
+
+  found.push(
+    ...checkLanes(rows, lanes),
+    ...checkMissingRows(rows, namedIds(lanes, tracker)),
+  );
+
+  const floor = Number(readFileSync(COUNT_FILE, "utf-8").trim());
+
+  if (write && rows.length > floor) {
+    writeFileSync(COUNT_FILE, `${rows.length}\n`);
+  } else {
+    found.push(...checkRowFloor(rows, floor));
+  }
 
   if (found.length > 0) {
     console.error(found.join("\n"));
