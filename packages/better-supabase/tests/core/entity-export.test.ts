@@ -82,6 +82,34 @@ describe("exportCsv", () => {
     ).rejects.toMatchObject({ hint: "EXPORT_ROW_CAP" });
   });
 
+  it("passes the filters of page to every call", async () => {
+    const seen: PageOptions[] = [];
+
+    await read(
+      exportCsv(pager(seen), {
+        q: "row",
+        filters: { status: ["open"] },
+        sort: { by: "id", direction: "asc" },
+      }),
+    );
+
+    expect(seen[0]).toMatchObject({
+      q: "row",
+      filters: { status: ["open"] },
+      sort: { by: "id", direction: "asc" },
+    });
+  });
+
+  it("writes an empty row for an item that is not an object", async () => {
+    const text = await read(
+      exportCsv(() =>
+        AsyncResult.ok({ items: [1], hasMore: false, nextCursor: null }),
+      ),
+    );
+
+    expect(text).toContain("\r\n");
+  });
+
   it("answers a route with text/csv", async () => {
     const response = exportResponse(pager(), 'my "file".csv');
 
