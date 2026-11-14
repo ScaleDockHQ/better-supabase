@@ -301,6 +301,8 @@ export interface Donations<F extends object = Record<never, never>> {
   /** Creates or updates the fund with this key. Needs `donations.manage`. */
   saveFund(input: DonationFundInput): AsyncResult<DonationFund>;
   archiveFund(fundId: string): AsyncResult<DonationFund>;
+  /** Makes an archived fund take new gifts again. Needs `donations.manage`. */
+  restoreFund(fundId: string): AsyncResult<DonationFund>;
   funds(options?: {
     readonly includeArchived?: boolean;
   }): AsyncResult<readonly DonationFund[]>;
@@ -806,6 +808,12 @@ export function createDonations<
         "archive_donation_fund",
         { fund_id: fundId },
         fund("archive_donation_fund"),
+      ),
+    restoreFund: (fundId) =>
+      call(
+        "restore_donation_fund",
+        { fund_id: fundId },
+        fund("restore_donation_fund"),
       ),
     funds: (list = {}) =>
       tenant().andThen((organizationId) =>

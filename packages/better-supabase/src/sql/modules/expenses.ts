@@ -52,6 +52,14 @@ const EXPENSE_PAYLOAD = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<ExpensesEvents> = {
+  "expense_category.archived": {
+    subject: "expense-categories",
+    payload: ["organizationId", "id", "key"],
+  },
+  "expense_category.restored": {
+    subject: "expense-categories",
+    payload: ["organizationId", "id", "key"],
+  },
   "expense_report.created": {
     subject: "expense-reports",
     payload: REPORT_PAYLOAD,

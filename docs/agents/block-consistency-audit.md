@@ -926,7 +926,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - PR: none yet
 - Findings: EX-1200 to EX-1205, EX-1215
 - Log: 2026-11-14, lane G7 started from main in `../bsb-audit-g7`.
-  2026-11-14, ADR 0951: `guest`, `work_order`, `incident`, `approval`, `asset`, `case` and `deadline` page, facet and count through sibling `page_*` functions (migration 20270115070007); `guests` and `deadlines` gain `get`. Deferred with reasons in ADR 0951: `tasks`, `posts`, `comments`, approvals `tenantless`, the child and lookup lists, and the ADR 0779 blocks that need a row mapper.
+  2026-11-14, ADR 0951: `guest`, `work_order`, `incident`, `approval`, `asset`, `case` and `deadline` page, facet and count through sibling `page_*` functions (migration 20270116070007); `guests` and `deadlines` gain `get`. Deferred with reasons in ADR 0951: `tasks`, `posts`, `comments`, approvals `tenantless`, the child and lookup lists, and the ADR 0779 blocks that need a row mapper.
 
 ### Lane H
 
@@ -978,11 +978,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane I
 
 - Scope: Archive, restore and purge everywhere
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-i`
 - PR: none yet
 - Findings: EX-1206, EX-1207, EX-1230 (verb adoption)
 - Log: 2026-11-12, planned.
+- Log: 2026-11-14, started from main in `../bsb-audit-i`. Scale measured: 251 block folders, 94 files mention archive. Category PRs are not yet split; none opened.
 
 ### Lane L
 

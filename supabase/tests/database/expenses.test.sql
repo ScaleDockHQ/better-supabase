@@ -3,7 +3,7 @@
 -- report that the policy checks on submit, the owner approves it through the
 -- approvals block, which books it on the ledger, and then reimburses it.
 begin;
-select plan(23);
+select plan(25);
 
 select set_config(
   'request.jwt.claims',
@@ -23,6 +23,17 @@ select throws_ok(
   '22023',
   'a key is lowercase letters, digits and underscores',
   'a category key is lowercase'
+);
+
+select isnt(
+  better_supabase.archive_expense_category(current_setting('test.meals')::uuid) ->> 'archivedAt',
+  null,
+  'archiving a category sets archivedAt'
+);
+select is(
+  better_supabase.restore_expense_category(current_setting('test.meals')::uuid) ->> 'archivedAt',
+  null,
+  'restoring a category clears archivedAt'
 );
 
 select set_config(

@@ -56,6 +56,7 @@ import {
   leaveDependencies,
   periodFunctions,
 } from "./leave-periods.ts";
+import { typeArchiveFunctions } from "./leave-type-archive.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -788,30 +789,7 @@ end;
 $$;
 ${userGrant(`${fn("save_leave_type")}(${idType}, text, text, text, boolean, boolean, numeric, numeric, text, boolean)`)}
 
--- Hides a type from new requests; its requests and ledger stay.
-create or replace function ${fn("archive_leave_type")}(type_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_row ${types}%rowtype;
-begin
-  select * into v_row from ${types} x where x.${ty("id")} = archive_leave_type.type_id for update;
-  if not found then
-    ${fail("LEAVE_TYPE_NOT_FOUND", "leave type not found", "P0002")}
-  end if;
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${ty("tenant")}`, manage)}) then
-    ${forbidden("not allowed to manage leave types")}
-  end if;
-  update ${types} x set ${ty("archivedAt")} = coalesce(x.${ty("archivedAt")}, now()), ${ty("updatedAt")} = now()
-    where x.${ty("id")} = v_row.${ty("id")}
-    returning * into v_row;
-  return ${typeJson("v_row")};
-end;
-$$;
-${userGrant(`${fn("archive_leave_type")}(uuid)`)}
+${typeArchiveFunctions({ ctx, fail, forbidden, manage, typeJson })}
 
 create or replace function ${fn("list_leave_types")}(tenant ${idType}, archived boolean default false)
 returns jsonb
