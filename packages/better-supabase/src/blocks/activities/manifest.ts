@@ -27,6 +27,7 @@ export const activitiesBlock: BlockOf<
   entities: {
     activity: {
       mutability: "editable",
+      offline: true,
       emits: { create: true, update: true, delete: true },
     },
   },

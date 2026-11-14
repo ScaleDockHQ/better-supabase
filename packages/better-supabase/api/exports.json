@@ -2898,6 +2898,7 @@
       "rpcTransport",
       "sqlTransport",
       "subjectKey",
+      "webhookEventCatalog",
       "withBlockHooks",
       "wrapTransport"
     ],
@@ -3031,6 +3032,8 @@
       "UniquePort",
       "UsingOptions",
       "VisibleRange",
+      "WebhookCatalogEntry",
+      "WebhookCatalogSource",
       "WithBlockHooksOptions",
       "WithExtraFields"
     ]
@@ -3341,6 +3344,7 @@
   "./list": {
     "values": [
       "decodeFilterQuery",
+      "defineEntityForm",
       "defineEntityListQuery",
       "defineEntityPage",
       "defineListQuery",
@@ -3353,6 +3357,13 @@
       "UNSET"
     ],
     "types": [
+      "EntityColumn",
+      "EntityDetail",
+      "EntityDetailSection",
+      "EntityFieldKind",
+      "EntityForm",
+      "EntityFormField",
+      "EntityFormParse",
       "EntityListParse",
       "EntityListQuery",
       "EntityListQueryOptions",
@@ -4992,7 +5003,7 @@
       "EveContextRunner",
       "EveDispatchOptions",
       "EveDocumentBackend",
-      "EveDynamicRunArgs",
+      "EveDynamicRunParams",
       "EveDynamicSchedules",
       "EveDynamicTargetHandle",
       "EveInteractiveAuthorization",

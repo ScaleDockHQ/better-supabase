@@ -307,7 +307,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | workflows                 | automation    | workflow_run               | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | acknowledgements          | collaboration | acknowledgement            | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
 | acknowledgements          | collaboration | acknowledgement_assignment | append-only   | create, delete         | -                      | -                                        | -                      | -           | -        | -       | -         |
-| attachments               | collaboration | attachment                 | state-machine | -                      | create, delete         | -                                        | -                      | -           | -        | -       | -         |
+| attachments               | collaboration | attachment                 | state-machine | -                      | create, delete         | -                                        | -                      | -           | -        | y       | -         |
 | channels                  | collaboration | channel                    | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | collaboration             | collaboration | collaboration              | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | comments                  | collaboration | comment                    | append-only   | -                      | create, delete         | -                                        | -                      | -           | -        | -       | -         |
@@ -427,7 +427,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | forms                     | content       | form                       | editable      | create                 | update                 | createdAt, title, key                    | status                 | -           | -        | -       | -         |
 | signatures                | content       | signature_request          | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | templates                 | content       | template                   | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
-| activities                | crm           | activity                   | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| activities                | crm           | activity                   | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | y       | -         |
 | contacts                  | crm           | company                    | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | contacts                  | crm           | person                     | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | contracts                 | crm           | contract                   | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -489,7 +489,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | subjects                  | identity      | subject_member             | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
 | subjects                  | identity      | subject                    | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | inbox                     | messaging     | inbox                      | editable      | -                      | create, update         | -                                        | -                      | -           | -        | -       | -         |
-| notifications             | messaging     | notification               | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| notifications             | messaging     | notification               | state-machine | create                 | -                      | -                                        | -                      | -           | -        | y       | -         |
 | push                      | messaging     | push                       | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | care                      | people        | care                       | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | care-plans                | people        | care_plan                  | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -509,10 +509,10 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | learning                  | people        | learning                   | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | leave                     | people        | leave_request              | editable      | update                 | -                      | -                                        | -                      | -           | -        | -       | -         |
 | leave                     | people        | leave_type                 | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
-| medications               | people        | medication                 | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
+| medications               | people        | medication                 | editable      | -                      | update                 | -                                        | -                      | -           | -        | y       | -         |
 | medications               | people        | medication_order           | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | medications               | people        | medication_administration  | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
-| observations              | people        | observation                | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
+| observations              | people        | observation                | state-machine | create                 | -                      | -                                        | -                      | -           | -        | y       | -         |
 | observations              | people        | observation_definition     | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | payroll-export            | people        | payroll_run                | state-machine | create                 | delete                 | periodFrom, createdAt                    | status                 | -           | -        | -       | -         |
 | payroll-export            | people        | payroll_line               | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -542,15 +542,15 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | domains                   | tenancy       | hostname                   | state-machine | create, delete         | -                      | hostname, createdAt                      | kind, verified         | -           | -        | -       | -         |
 | legal-entities            | tenancy       | legal_entity               | editable      | create, update         | -                      | code, name                               | isDefault              | -           | -        | -       | -         |
 | legal-entities            | tenancy       | legal_entity_setting       | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
-| memberships               | tenancy       | membership                 | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| memberships               | tenancy       | membership                 | read-only     | -                      | -                      | -                                        | -                      | -           | -        | y       | -         |
 | organizations             | tenancy       | organization               | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
 | organizations             | tenancy       | invitation                 | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
-| profiles                  | tenancy       | profile                    | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| profiles                  | tenancy       | profile                    | read-only     | -                      | -                      | -                                        | -                      | -           | -        | y       | -         |
 | reserved-slugs            | tenancy       | reserved_slug              | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | saas                      | tenancy       | saa                        | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | settings                  | tenancy       | organization_setting       | editable      | update                 | create                 | -                                        | -                      | -           | -        | -       | -         |
 | settings                  | tenancy       | platform_setting           | editable      | update                 | create                 | -                                        | -                      | -           | -        | -       | -         |
-| teams                     | tenancy       | team                       | editable      | create, update, purge  | -                      | -                                        | -                      | -           | -        | -       | -         |
+| teams                     | tenancy       | team                       | editable      | create, update, purge  | -                      | -                                        | -                      | -           | -        | y       | -         |
 | advisories                | work          | advisory                   | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | advisories                | work          | advisory_product           | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | advisories                | work          | advisory_product_version   | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -615,6 +615,15 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | tasks                     | work          | checklist_item             | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
 | undo                      | work          | undo                       | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | warranty                  | work          | warranty_claim             | state-machine | create                 | -                      | createdAt, amount                        | status                 | -           | -        | -       | -         |
+
+The webhook event catalog: the events each block marks `public` (`event<T>({ public: true })`, ADR 0919).
+
+| Block         | Public events                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| invoices      | invoice.created, invoice.credited, invoice.issued, invoice.paid, invoice.payment_recorded, invoice.voided                                                                                                                                                                                                                                                                                                                                                  |
+| orders        | fulfillment.delivered, fulfillment.shipped, order.cancelled, order.completed, order.fulfilled, order.paid, order.placed, order.refunded, return.received, return.requested                                                                                                                                                                                                                                                                                 |
+| shipments     | shipment.cancelled, shipment.created, shipment.labeled, shipment.proof_recorded, shipment.return_received, shipment.status_changed                                                                                                                                                                                                                                                                                                                         |
+| organizations | invitation.accepted, invitation.created, invitation.declined, invitation.resent, invitation.revoked, invitation.updated, organization.created, organization.deleted, organization.member_added, organization.member_left, organization.member_removed, organization.member_resumed, organization.member_suspended, organization.ownership_transferred, organization.role_added, organization.role_changed, organization.role_removed, organization.updated |
 
 <!-- entity-matrix:end -->
 
@@ -999,11 +1008,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M2
 
 - Scope: Generated columns, detail frame and forms
-- Status: planned
-- Branch: `feat/audit-m2`
-- PR: none yet
-- Findings: EX-1262, EX-1263, EX-033, EX-034
+- Status: merged
+- Branch: `feat/audit-lane-m2`
+- PR: [#954](https://github.com/ScaleDockHQ/better-supabase/pull/954)
+- Findings: EX-1262, EX-1263, EX-002 (columns)
 - Log: 2026-11-12, planned.
+- Log: 2026-11-14, lane M2 started from main (52233c484c) in `../bsb-audit-M2`. One PR: the `columns`, `detail` and `forms` outputs, `defineEntityForm` and its types in `better-supabase/list`, ADR 0869. No SQL change, so no migration. EX-1262, EX-1263 and EX-002 fixed, the header-sort row (033) is partly fixed (a free multi-column sort is a library change) and the ReUI `Filters` row (034) stays deferred, so both leave this lane. Also fixed `check:naming` (`ListArgs`, `EveDynamicRunArgs`). Merged as [#954](https://github.com/ScaleDockHQ/better-supabase/pull/954).
 
 ### Lane M3
 
@@ -1020,7 +1030,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-m4`
 - PR: none yet
-- Findings: EX-1294, EX-1327, EX-813, EX-024 (once the instant allow list is empty)
+- Findings: EX-1294, EX-1327, EX-813, EX-024 (once the instant allow list is empty), EX-033 and EX-034 (header sort on the generated columns, ReUI `Filters` state; moved from M2)
 - Log: 2026-11-12, planned.
 
 ### Lane O1
@@ -1046,11 +1056,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane O3
 
 - Scope: Offline, public events, impersonation actor, flags, invitations
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-o3`
 - PR: none yet
 - Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329, EX-510
-- Log: 2026-11-12, planned.
+- Log: 2026-11-12, planned. 2026-11-14, in progress: stacked PRs 1318+1320 (offline declaration, public events; PR #952), 1321+510 (acting member, impersonation in the example), 1328+1329 (entity flags, invitations).
 
 ### Lane P
 
