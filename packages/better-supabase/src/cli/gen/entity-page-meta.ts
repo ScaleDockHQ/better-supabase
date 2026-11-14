@@ -301,6 +301,9 @@ export const MANIFEST_OUTPUT: EntityPageOutput = {
             `    route: ${q(entry.page.route.replace(/(.)\/$/, "$1"))},`,
             `    api: ${q(`/api/${entry.name}/list`)},`,
             `    detail: ${entry.page.sections === undefined ? "undefined" : `${camelOf(entry.name)}Detail.route`},`,
+            ...(entry.page.export === undefined
+              ? []
+              : [`    export: ${q(`/api/${entry.name}/export`)},`]),
             `    messageKeys: ${literal(entityPageMessageKeys(entry))},`,
             "  },",
           ]),

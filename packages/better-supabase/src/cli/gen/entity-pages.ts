@@ -447,6 +447,87 @@ const LIST_ROUTE: EntityPageOutput = {
   },
 };
 
+/**
+ * `<appDir>/api/<name>/export/route.ts`: the CSV download of a page that sets
+ * `export`. It parses the list query's `q`, `sort` and filters and streams
+ * `exportResponse` over the entity's `page`, so the file holds the rows the
+ * list shows under the same filters (ADR 0880).
+ */
+const EXPORT_ROUTE: EntityPageOutput = {
+  apiVersion: 1,
+  id: "export-route",
+  render(context) {
+    const settings = context.config.gen.entityPages;
+
+    const server = settings?.server ?? {
+      module: "@/lib/supabase/server-core",
+      export: "bsbCore",
+    };
+
+    const appDir =
+      settings?.appDir ??
+      (existsSync(posix.join(context.config.root, "src")) ? "src/app" : "app");
+
+    return context.pages.flatMap((entry): GeneratedFile[] => {
+      const { export: exporting } = entry.page;
+
+      if (exporting === undefined) {
+        return [];
+      }
+
+      const path = posix.join(appDir, "api", entry.name, "export", "route.ts");
+
+      const list = `${camelOf(entry.name)}List`;
+
+      const module = posix
+        .relative(posix.dirname(path), listModulePath(context, entry.name))
+        .replace(/\.ts$/, "");
+
+      const columns = exporting.columns ?? entry.page.columns;
+
+      const options = [
+        "...query.value",
+        ...(columns === undefined || columns.length === 0
+          ? []
+          : [`columns: [${columns.map(q).join(", ")}]`]),
+        ...(exporting.maxRows === undefined
+          ? []
+          : [`maxRows: ${String(exporting.maxRows)}`]),
+      ];
+
+      return [
+        {
+          path,
+          contents: [
+            GENERATED_HEADER,
+            `import { exportResponse } from ${q(runtimeSubpath(context.runtime, "blocks"))};`,
+            `import { ${list} } from ${q(module)};`,
+            server.export === "bsb"
+              ? `import { bsb } from ${q(server.module)};`
+              : `import { ${server.export} as bsb } from ${q(server.module)};`,
+            "",
+            `/** \`GET /api/${entry.name}/export\`: \`${entry.page.entity}\` as CSV under the list's filters. */`,
+            "export const GET = bsb.route((request, { db }) => {",
+            `  const query = ${list}.parse(request.nextUrl.searchParams);`,
+            "",
+            "  if (!query.ok) {",
+            "    return Response.json({ issues: query.issues }, { status: 400 });",
+            "  }",
+            "",
+            "  return exportResponse(",
+            `    (options) => db.${entry.reads}.${entry.page.methods?.page ?? "page"}(options),`,
+            `    ${q(exporting.filename ?? `${entry.name}.csv`)},`,
+            `    { ${options.join(", ")} },`,
+            "  );",
+            "});",
+            "",
+          ].join("\n"),
+        },
+      ];
+    });
+  },
+};
+
 const lit = (value: string): string => `'${value.replaceAll("'", "''")}'`;
 
 /**
@@ -551,6 +632,7 @@ export const ENTITY_PAGE_OUTPUTS: readonly EntityPageOutput[] = [
   FORM_OUTPUT,
   SEED_OUTPUT,
   NAVIGATION_OUTPUT,
+  EXPORT_ROUTE,
   MANIFEST_OUTPUT,
 ];
 

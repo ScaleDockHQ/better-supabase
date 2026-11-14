@@ -103,6 +103,8 @@ export default defineConfig({
           // Nav area: gen writes `periods.navigation.ts` and `routes.manifest.ts`. The periods block
           // exports no input schema, so the page sets no `seed`.
           area: "finance",
+          // CSV download: gen writes `/api/periods/export` and lists it in `routes.manifest.ts` (ADR 0880).
+          export: { filename: "periods.csv" },
         }),
       ],
       server: { module: "@/lib/supabase/server", export: "bsb" },

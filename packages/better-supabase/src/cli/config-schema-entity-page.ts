@@ -18,6 +18,13 @@ interface EntityPageInput {
   seed?:
     | { demo?: number | undefined; tiers?: string[] | undefined }
     | undefined;
+  export?:
+    | {
+        filename?: string | undefined;
+        columns?: string[] | undefined;
+        maxRows?: number | undefined;
+      }
+    | undefined;
 }
 
 const positive = v.pipe(v.number(), v.integer(), v.minValue(1));
@@ -59,6 +66,13 @@ export const entityPageSchema: v.GenericSchema<EntityPageInput> =
       v.strictObject({
         demo: v.optional(positive),
         tiers: v.optional(v.array(v.string())),
+      }),
+    ),
+    export: v.optional(
+      v.strictObject({
+        filename: v.optional(v.string()),
+        columns: v.optional(v.array(v.string())),
+        maxRows: v.optional(positive),
       }),
     ),
   });

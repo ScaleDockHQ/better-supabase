@@ -59,6 +59,22 @@ export interface EntityPage {
     readonly demo?: number;
     readonly tiers?: readonly string[];
   };
+  /**
+   * Adds a CSV download route over the page's filters: `gen` writes `GET
+   * /api/<name>/export`, which reads the list query's `q`, `sort` and filters
+   * and streams `exportResponse` over the entity's `page` (ADR 0880).
+   */
+  readonly export?: {
+    /** The download's file name. Default `<name>.csv`. */
+    readonly filename?: string;
+    /**
+     * The CSV columns, in order. Default: `columns`, else the first page's
+     * keys.
+     */
+    readonly columns?: readonly string[];
+    /** The most rows written. Default 100000 (`EXPORT_ROW_CAP`). */
+    readonly maxRows?: number;
+  };
 }
 
 /** What `defineEntityPage` takes: an `EntityPage` without its version. */
