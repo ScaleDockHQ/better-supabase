@@ -121,7 +121,7 @@ blocks: {
 An account has a `code` that is unique in the organization, a `type`
 (`asset`, `liability`, `equity`, `income` or `expense`), a subtype, an
 optional parent and currency, and `reconcilable`. `archiveAccount` hides an
-account from new entries. An account with posted lines keeps its type and
+account from new entries and `restoreAccount(accountId)` brings it back. An account with posted lines keeps its type and
 currency, and an account mapped to a role, a journal or a tax code can't be
 archived (`ACCOUNTING_ACCOUNT_IN_USE`).
 

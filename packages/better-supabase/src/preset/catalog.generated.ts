@@ -15961,6 +15961,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "collection.created",
           "collection.archived",
+          "collection.restored",
           "collection.entry_added",
           "collection.entry_removed",
           "saved_item.reminded"
@@ -16493,6 +16494,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "deal.closed",
           "deal.reopened",
           "deal.archived",
+          "deal.restored",
           "deal.deleted"
         ]
       }
@@ -31449,6 +31451,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "conversation.created",
           "conversation.archived",
+          "conversation.restored",
           "conversation.member_added",
           "conversation.member_removed",
           "message.sent",
@@ -35380,6 +35383,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "task.closed",
           "task.reopened",
           "task.archived",
+          "task.restored",
           "task.deleted"
         ]
       },

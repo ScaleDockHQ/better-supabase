@@ -127,9 +127,9 @@ await tasks
   .orThrow();
 ```
 
-### Archive or remove many items
+### Archive, restore or remove many items
 
-`archive({ taskIds, archived })` and `remove(taskIds)` take a list and run as one statement each, so the access check runs once for the whole set and each records its events as before. They return `{ ids, skipped }`: `ids` are the items that changed, and `skipped` are the ids that don't exist or that you can't edit. Calling with an id list in a loop is no longer needed. In SQL they are `archive_tasks(ids uuid[], archived boolean)` and `delete_tasks(ids uuid[])`, which return the same shape as jsonb.
+`archive({ taskIds, archived })`, `restore(taskIds)` and `remove(taskIds)` take a list and run as one statement each, so the access check runs once for the whole set and each records its events as before. They return `{ ids, skipped }`: `ids` are the items that changed, and `skipped` are the ids that don't exist or that you can't edit. Calling with an id list in a loop is no longer needed. In SQL they are `archive_tasks(ids uuid[], archived boolean)` and `delete_tasks(ids uuid[])`, which return the same shape as jsonb.
 
 ```ts
 const { ids, skipped } = await tasks.archive({ taskIds }).orThrow();
@@ -179,10 +179,10 @@ Columns you add to `tasks` with `alter table` in your own schema files are field
 
 ## Events
 
-| Event                                                                                             | Data                                                                                                 |
-| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `task.created`, `task.updated`, `task.assigned`, `task.reopened`, `task.archived`, `task.deleted` | `organizationId`, `taskId`, `subjectType`, `subjectId`, `title`, `fields`, `assigneeIds`, `addedIds` |
-| `task.closed`                                                                                     | the same, with `state` and `closeReason`                                                             |
+| Event                                                                                                              | Data                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `task.created`, `task.updated`, `task.assigned`, `task.reopened`, `task.archived`, `task.restored`, `task.deleted` | `organizationId`, `taskId`, `subjectType`, `subjectId`, `title`, `fields`, `assigneeIds`, `addedIds` |
+| `task.closed`                                                                                                      | the same, with `state` and `closeReason`                                                             |
 
 `blocks.tasks.events.payload` adds columns of the task row to an event, such as `{ "task.created": { customerId: "customer_id" } }` ([details](/docs/extending/events)).
 

@@ -17,7 +17,7 @@ pnpm better-supabase add workflow-sdk ai-chat memory knowledge credentials inbox
 pnpm better-supabase add approvals queue
 ```
 
-`eve` is an optional peer (`>=1.0.0-rc.0 <2`), a 1.0 release candidate until
+`eve` is an optional peer (`>=1.0.0-rc.13 <2`), a 1.0 release candidate until
 1.0 ships. The entry types eve structurally
 and imports nothing from it at load time; the memory provider loads
 `eve/tools` the first time it builds its tools. eve runs on Node, so the
@@ -70,8 +70,9 @@ SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 
 eve 1.0 runs its sessions on the Workflow SDK it bundles and loads the World
 by name; it refuses a World built for another `@workflow/*` major at startup.
-eve 1.0.0-rc.0 bundles Workflow 5.2, which reads the 5.1 protocol the World
-speaks (`WORKFLOW_WORLD_PROTOCOL`). The
+eve 1.0.0-rc.13 bundles Workflow 5.5, which reads the 5.2 protocol the World
+speaks (`WORKFLOW_WORLD_PROTOCOL`), and needs a World with atomic start
+hooks, which the World inherits from `@workflow/world-postgres`. The
 [Workflow SDK page](/docs/blocks/workflow-sdk) lists the other variables.
 
 ## Sign-in on eve routes
@@ -346,7 +347,8 @@ export default defineSchedule({
   run: queueDynamicSchedules({
     queue: scheduleRuns,
     provider: memberSchedules,
-    // The key is the definition's path under agent/schedules/.
+    // The key is the collection name: the definition's `id`, or its path
+    // under agent/schedules/ when it sets none.
     collections: { requests },
   }),
 });
@@ -366,8 +368,11 @@ Every minute, `queueDynamicSchedules` calls `runSchedules`, then drains
 `eve_schedules`. For each run it reads the schedule again and skips it when
 it was paused or deleted after it was enqueued, validates the stored payload
 with `inputSchema` (unless `preparePayload` shaped it), calls the
-definition's `auth` with the creator and then its `run`. Sessions start
-through the minute schedule's `to()`, as the creator. A send without an
+definition's `auth` with the creator and then its `run`. Both receive eve's
+`schedule` handle, whose `disable()` and `delete()` act on the schedule that
+fired, and `auth` may return only `{ attributes }` to run as the stored
+creator. Sessions start through the minute schedule's `to()`, as the
+creator. A send without an
 `idempotencyKey` gets one from the occurrence and the message, so a retried
 run reaches the session the first attempt started. `null` from `auth`, a
 different creator, an invalid payload or an unknown collection fail the
@@ -389,7 +394,8 @@ payloads.
 
 eve gives a provider its delivery target only during a management call, and
 fires a timed run only through its own Vercel Queues route, so a provider has
-no public way to hand eve a run at the scheduled minute. `queueDynamicSchedules`
+no public way to hand eve a run at the scheduled minute (still true in
+1.0.0-rc.13). `queueDynamicSchedules`
 runs the definition's `auth` and `run` itself instead. Runs fire at the next
 minute tick, and a session it starts is an ordinary session of the minute
 schedule: `ctx.session.schedule` names that schedule, not the dynamic one, and
@@ -628,9 +634,8 @@ contacts.
 - `queueSchedules` starts the sessions from the eve schedule's own task, so
   a drain is bounded by `budgetMs` (50 seconds by default). Jobs left over
   wait for the next minute.
-- The tested range starts at eve 1.0.0-rc.0. Later release candidates peer on
-  `@vercel/connect` 2.7 and bundle Workflow 5.5; the floor moves to them with
-  the Workflow 5.5 upgrade (ADR 1022).
+- The tested range starts at eve 1.0.0-rc.13, which peers on
+  `@vercel/connect` 2.7 and bundles Workflow 5.5 (ADR 1023).
 
 ## Queue schedulers
 

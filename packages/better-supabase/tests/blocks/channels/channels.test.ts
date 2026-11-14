@@ -81,6 +81,7 @@ describe("createChannels", () => {
     ).toBeUndefined();
     expect(await channels.archive({ channelId: "c1" }).orThrow()).toBe(true);
     await channels.archive({ channelId: "c1", archived: false }).orThrow();
+    expect(await channels.restore("c1").orThrow()).toBe(true);
     expect(await channels.join("c1").orThrow()).toBe(true);
     expect(await channels.leave("c1").orThrow()).toBe(false);
     expect(

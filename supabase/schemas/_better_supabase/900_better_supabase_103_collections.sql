@@ -1,6 +1,6 @@
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:9e7dd280efb41fe14e4d963a44b6dcaf0fae9f416f10af6f067941271eb66111
+-- @bsb-hash sha256:f34e434e2a5360c2191856d5e21def78ebd550bd741de7b8a22505498bf22d0f
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -285,6 +285,8 @@ begin
   where x."id" = v_row."id";
   if coalesce(archive_collection.archived, true) and v_row."archived_at" is null then
     perform "better_supabase".emit_event('collection.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'collectionId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'collections/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/collections');
+  elsif not coalesce(archive_collection.archived, true) and v_row."archived_at" is not null then
+    perform "better_supabase".emit_event('collection.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'collectionId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'collections/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/collections');
   end if;
   return true;
 end;

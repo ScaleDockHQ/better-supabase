@@ -526,7 +526,7 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -544,6 +544,12 @@ export const WORKFLOW_SDK_WORLD: BlockSqlDefinition = {
       from: 3,
       description:
         "The World tables follow @workflow/world-postgres 5.1: timestamps become timestamptz (read as UTC), hooks gain claims_token, runs gain start_hook_cbor and job_prefix, and workflow_start_hook_admissions is new. workflow_open_hooks returns metadata_cbor, which the World decodes.",
+      sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "The World tables follow @workflow/world-postgres 5.2: workflow_job_lock_holders is new (migration 0030), closed to the API roles like the other World tables.",
       sql: () => "",
     },
   ],

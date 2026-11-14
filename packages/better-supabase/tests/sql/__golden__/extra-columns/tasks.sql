@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:e9cb4115d77c5d9f42c71ff39d8600a936f4376c6cc0bad3c73f1843db605075
+-- @bsb-hash sha256:e3265ebf2733a7e092cf90f85312c8cea6905479b2dc859ee8bfbbe992ce130b
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -629,10 +629,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."tasks";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."tasks" x where x."id" = archive_task.task;
   update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
@@ -640,6 +642,8 @@ begin
     return false;
   end if;
   if archive_task.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -660,10 +664,13 @@ as $$
 declare
   v_row "better_supabase"."tasks";
   v_ids uuid[] := '{}';
+  v_was uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select coalesce(array_agg(x."id"), '{}') into v_was from "better_supabase"."tasks" x
+  where x."id" = any (coalesce(archive_tasks.ids, '{}')) and x."archived_at" is not null;
   for v_row in
     with changed as (
       update "better_supabase"."tasks" x set "archived_at" = case when archive_tasks.archived then coalesce(x."archived_at", now()) end
@@ -674,6 +681,8 @@ begin
   loop
     v_ids := array_append(v_ids, v_row."id");
     if archive_tasks.archived then
+      null;
+    elsif v_row."id" = any (v_was) then
       null;
     end if;
   end loop;

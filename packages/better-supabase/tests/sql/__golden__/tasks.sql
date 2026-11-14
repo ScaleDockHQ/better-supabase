@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:7c9443bfd782d3b7a29ff23f92f31cab5093878ead46e2558bd3a8fee4458ce3
+-- @bsb-hash sha256:e11d349e30e2e1e253508a4adbd2c4922557245c1827f445ac6833d8e37af152
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -624,10 +624,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."tasks";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."tasks" x where x."id" = archive_task.task;
   update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
@@ -635,6 +637,8 @@ begin
     return false;
   end if;
   if archive_task.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -655,10 +659,13 @@ as $$
 declare
   v_row "better_supabase"."tasks";
   v_ids uuid[] := '{}';
+  v_was uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select coalesce(array_agg(x."id"), '{}') into v_was from "better_supabase"."tasks" x
+  where x."id" = any (coalesce(archive_tasks.ids, '{}')) and x."archived_at" is not null;
   for v_row in
     with changed as (
       update "better_supabase"."tasks" x set "archived_at" = case when archive_tasks.archived then coalesce(x."archived_at", now()) end
@@ -669,6 +676,8 @@ begin
   loop
     v_ids := array_append(v_ids, v_row."id");
     if archive_tasks.archived then
+      null;
+    elsif v_row."id" = any (v_was) then
       null;
     end if;
   end loop;
@@ -1219,7 +1228,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:c316b4b0009b0203871e5a2a2de80455d3089925464dc93010ad3907adf9bd96
+-- @bsb-hash sha256:94b5177534220f9906d6911e36d4cf7b8791080f3846f684f8f21bcea30516df
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1895,10 +1904,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."tasks";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."tasks" x where x."id" = archive_task.task;
   update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
@@ -1907,6 +1918,8 @@ begin
   end if;
   if archive_task.archived then
     perform "better_supabase".emit_event('task.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  elsif v_was is not null then
+    perform "better_supabase".emit_event('task.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   end if;
   return true;
 end;
@@ -1926,10 +1939,13 @@ as $$
 declare
   v_row "better_supabase"."tasks";
   v_ids uuid[] := '{}';
+  v_was uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select coalesce(array_agg(x."id"), '{}') into v_was from "better_supabase"."tasks" x
+  where x."id" = any (coalesce(archive_tasks.ids, '{}')) and x."archived_at" is not null;
   for v_row in
     with changed as (
       update "better_supabase"."tasks" x set "archived_at" = case when archive_tasks.archived then coalesce(x."archived_at", now()) end
@@ -1941,6 +1957,8 @@ begin
     v_ids := array_append(v_ids, v_row."id");
     if archive_tasks.archived then
       perform "better_supabase".emit_event('task.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+    elsif v_row."id" = any (v_was) then
+      perform "better_supabase".emit_event('task.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
     end if;
   end loop;
   return jsonb_build_object(
@@ -2633,7 +2651,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:81f2a96c650c6d23b9bc19eec256a04735db18aae362a2673f4d55819444fad0
+-- @bsb-hash sha256:2a6dcb8cdd690dd34f0939feba11709a6f964aa68fb129cf40611a231f6c17ba
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3261,10 +3279,12 @@ set search_path = ''
 as $$
 declare
   v_row "app_private"."tasks";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "app_private"."tasks" x where x."id" = archive_task.task;
   update "app_private"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
@@ -3272,6 +3292,8 @@ begin
     return false;
   end if;
   if archive_task.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -3292,10 +3314,13 @@ as $$
 declare
   v_row "app_private"."tasks";
   v_ids uuid[] := '{}';
+  v_was uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select coalesce(array_agg(x."id"), '{}') into v_was from "app_private"."tasks" x
+  where x."id" = any (coalesce(archive_tasks.ids, '{}')) and x."archived_at" is not null;
   for v_row in
     with changed as (
       update "app_private"."tasks" x set "archived_at" = case when archive_tasks.archived then coalesce(x."archived_at", now()) end
@@ -3306,6 +3331,8 @@ begin
   loop
     v_ids := array_append(v_ids, v_row."id");
     if archive_tasks.archived then
+      null;
+    elsif v_row."id" = any (v_was) then
       null;
     end if;
   end loop;
@@ -3856,7 +3883,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:dd281fa32f775d702088acfe7230b76ab084cc32b5058555aa4d8ea6625bab1c
+-- @bsb-hash sha256:4b5eebdc71fd693a4b5aff90862dc55e7d4b8374e46633ba920f26a929cff1cf
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4479,10 +4506,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."tasks";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."tasks" x where x."id" = archive_task.task;
   update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
@@ -4490,6 +4519,8 @@ begin
     return false;
   end if;
   if archive_task.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -4510,10 +4541,13 @@ as $$
 declare
   v_row "better_supabase"."tasks";
   v_ids uuid[] := '{}';
+  v_was uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select coalesce(array_agg(x."id"), '{}') into v_was from "better_supabase"."tasks" x
+  where x."id" = any (coalesce(archive_tasks.ids, '{}')) and x."archived_at" is not null;
   for v_row in
     with changed as (
       update "better_supabase"."tasks" x set "archived_at" = case when archive_tasks.archived then coalesce(x."archived_at", now()) end
@@ -4524,6 +4558,8 @@ begin
   loop
     v_ids := array_append(v_ids, v_row."id");
     if archive_tasks.archived then
+      null;
+    elsif v_row."id" = any (v_was) then
       null;
     end if;
   end loop;
@@ -5264,7 +5300,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:9121e2cc1f2a70ca9db5c1f0be172b76256167c27d4a48a582144bb9731f7ef5
+-- @bsb-hash sha256:92f1e1cc42327507ed7b21a09210e5aa2732b980bea3bd0ac0d6258d37ff87cc
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5870,10 +5906,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."tasks";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."tasks" x where x."id" = archive_task.task;
   update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
@@ -5881,6 +5919,8 @@ begin
     return false;
   end if;
   if archive_task.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -5901,10 +5941,13 @@ as $$
 declare
   v_row "better_supabase"."tasks";
   v_ids uuid[] := '{}';
+  v_was uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select coalesce(array_agg(x."id"), '{}') into v_was from "better_supabase"."tasks" x
+  where x."id" = any (coalesce(archive_tasks.ids, '{}')) and x."archived_at" is not null;
   for v_row in
     with changed as (
       update "better_supabase"."tasks" x set "archived_at" = case when archive_tasks.archived then coalesce(x."archived_at", now()) end
@@ -5915,6 +5958,8 @@ begin
   loop
     v_ids := array_append(v_ids, v_row."id");
     if archive_tasks.archived then
+      null;
+    elsif v_row."id" = any (v_was) then
       null;
     end if;
   end loop;
@@ -6465,7 +6510,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:47a2f12c1e57ec31384cad182cb02ff328c433d49a5d18712726ed302e68cf15
+-- @bsb-hash sha256:d8b88a28199cd089747b1a82baaa93c853c7de10216f583a31beccc63309f5d6
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7088,10 +7133,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."tasks";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."tasks" x where x."id" = archive_task.task;
   update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false))
   returning * into v_row;
@@ -7099,6 +7146,8 @@ begin
     return false;
   end if;
   if archive_task.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return true;
@@ -7119,10 +7168,13 @@ as $$
 declare
   v_row "better_supabase"."tasks";
   v_ids uuid[] := '{}';
+  v_was uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select coalesce(array_agg(x."id"), '{}') into v_was from "better_supabase"."tasks" x
+  where x."id" = any (coalesce(archive_tasks.ids, '{}')) and x."archived_at" is not null;
   for v_row in
     with changed as (
       update "better_supabase"."tasks" x set "archived_at" = case when archive_tasks.archived then coalesce(x."archived_at", now()) end
@@ -7133,6 +7185,8 @@ begin
   loop
     v_ids := array_append(v_ids, v_row."id");
     if archive_tasks.archived then
+      null;
+    elsif v_row."id" = any (v_was) then
       null;
     end if;
   end loop;

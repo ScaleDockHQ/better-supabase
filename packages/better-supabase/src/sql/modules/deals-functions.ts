@@ -750,7 +750,9 @@ set search_path = ''
 as $$
 declare
   v_row ${t("deals")};
+  v_was timestamptz;
 begin
+  select x.${d("archivedAt")} into v_was from ${t("deals")} x where x.${d("id")} = archive_deal.deal;
   update ${t("deals")} x set ${d("archivedAt")} = case when archive_deal.archived then coalesce(x.${d("archivedAt")}, now()) end
   where x.${d("id")} = archive_deal.deal and ${editable("x")}
   returning * into v_row;
@@ -759,6 +761,8 @@ begin
   end if;
   if archive_deal.archived then
     ${recordDeal("deal.archived", `v_row.${d("id")}`, `v_row.${d("tenant")}`, `v_row.${d("name")}`)}
+  elsif v_was is not null then
+    ${recordDeal("deal.restored", `v_row.${d("id")}`, `v_row.${d("tenant")}`, `v_row.${d("name")}`)}
   end if;
   return true;
 end;

@@ -303,7 +303,7 @@ export function MemberTable({
     ALL_ROLES,
   );
 
-  const { members, pending, setRole, remove } = useMembers({
+  const { members, pending, setRole, setRoles, remove } = useMembers({
     organizationId,
     load: loadOrganizationMembers,
     initial,
@@ -424,16 +424,18 @@ export function MemberTable({
     }
 
     setApplying(true);
+
+    const result = await setRoles({ userIds: [...selected], role: bulkRole });
     let changed = 0;
 
-    for (const userId of selected) {
-      const result = await setRole({ userId, role: bulkRole });
+    if (result.ok) {
+      changed = result.data.succeeded.length;
 
-      if (result.ok) {
-        changed += 1;
-      } else {
-        toast.error(errorMessage(result.error));
+      for (const failure of result.data.failed) {
+        toast.error(errorMessage(failure.error));
       }
+    } else {
+      toast.error(errorMessage(result.error));
     }
 
     setApplying(false);

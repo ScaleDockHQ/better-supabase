@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:0e3e16ac09d6a5ff28c730b177fa008c891ef8d14708a4b37f374597e440ad85
+-- @bsb-hash sha256:72504c369bd8d8c1989e09cfec616a74bfd1cbab3e8b0681a67efa74aa52db48
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -285,6 +285,8 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id";
   if coalesce(archive_collection.archived, true) and v_row."archived_at" is null then
+    null;
+  elsif not coalesce(archive_collection.archived, true) and v_row."archived_at" is not null then
     null;
   end if;
   return true;
@@ -981,7 +983,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:0339ef97761deffbb3b3e5ff5d35bf90bb45c0027230f2e19422924f05347251
+-- @bsb-hash sha256:f0283f7c88d7e706c53c44701e524fa9b5c79852578e7dc352262c53cd84c632
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1266,6 +1268,8 @@ begin
   where x."id" = v_row."id";
   if coalesce(archive_collection.archived, true) and v_row."archived_at" is null then
     perform "better_supabase".emit_event('collection.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'collectionId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'collections/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/collections');
+  elsif not coalesce(archive_collection.archived, true) and v_row."archived_at" is not null then
+    perform "better_supabase".emit_event('collection.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'collectionId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'collections/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/collections');
   end if;
   return true;
 end;
@@ -1964,7 +1968,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:635fd979b21b17f08311860b0adacd964f21b6ae925d59e02de542f8bfb1024c
+-- @bsb-hash sha256:b8ed485e5221903ba12224a04b7499ef285270d0debfbe52e6e76334c65fe819
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2253,6 +2257,8 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id";
   if coalesce(archive_collection.archived, true) and v_row."archived_at" is null then
+    null;
+  elsif not coalesce(archive_collection.archived, true) and v_row."archived_at" is not null then
     null;
   end if;
   return true;
@@ -2949,7 +2955,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:8fa95cd5b237b733a4356b32528c75ff4fd4e760b334d040f2aaec045fb18a41
+-- @bsb-hash sha256:fab7f47a483b750e43e305e55123600a0cb8fce250d8af06a190c8ea8ba745b0
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3233,6 +3239,8 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id";
   if coalesce(archive_collection.archived, true) and v_row."archived_at" is null then
+    null;
+  elsif not coalesce(archive_collection.archived, true) and v_row."archived_at" is not null then
     null;
   end if;
   return true;
@@ -4110,7 +4118,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:53acd6678b290b2591a237f97bd082960e8c5aef04f0dac06c4a1ef3afd00688
+-- @bsb-hash sha256:e35625bc555a437ff7ecedc95bff29ba71a0c5749c4fa2283e247dc630c99886
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4384,6 +4392,8 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id";
   if coalesce(archive_collection.archived, true) and v_row."archived_at" is null then
+    null;
+  elsif not coalesce(archive_collection.archived, true) and v_row."archived_at" is not null then
     null;
   end if;
   return true;
@@ -5080,7 +5090,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:3d7db74766949d69c7009b9a7112da349ac1f425efbc7442a8a7e4e920ed1747
+-- @bsb-hash sha256:68b5f0055c87743a8946e306e946c0e7d81dfe811f4946d705bd6dbb784eb63c
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5364,6 +5374,8 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id";
   if coalesce(archive_collection.archived, true) and v_row."archived_at" is null then
+    null;
+  elsif not coalesce(archive_collection.archived, true) and v_row."archived_at" is not null then
     null;
   end if;
   return true;

@@ -76,6 +76,13 @@ exports[`createMessaging > calls every function with snake_case arguments 1`] = 
     },
   ],
   [
+    "archive_conversation",
+    {
+      "archived": false,
+      "conversation": "c1",
+    },
+  ],
+  [
     "list_conversations",
     {
       "kinds": [

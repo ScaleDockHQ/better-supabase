@@ -44,6 +44,10 @@ const EVENTS: BlockSqlEvents<MessagingEvents> = {
     subject: "conversations",
     payload: [...CONVERSATION],
   },
+  "conversation.restored": {
+    subject: "conversations",
+    payload: [...CONVERSATION],
+  },
   "conversation.member_added": {
     subject: "conversations",
     payload: [...CONVERSATION, "userId"],
