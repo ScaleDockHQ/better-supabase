@@ -11,6 +11,7 @@ import {
   dateFormatter,
   requirePermission,
 } from "@/features/sales/components/overview-support";
+import { loadLookups } from "@/features/warehouse/warehouse-queries";
 
 import { createRfq } from "../rfqs-actions";
 import { loadRfqs } from "../rfqs-queries";
@@ -114,7 +115,12 @@ export async function RfqOverview({ query }: { query: BlockListQuery }) {
 
 // skeleton: renders from props and translations, so nothing of its own suspends
 export async function CreateRfqDialog() {
-  const t = await getExtracted("rfqs");
+  const [t, lookups] = await Promise.all([
+    getExtracted("rfqs"),
+    settle(loadLookups),
+  ]);
+
+  const variants = lookups.kind === "ok" ? lookups.data.variants : [];
 
   return (
     <ActionDialog
@@ -141,6 +147,15 @@ export async function CreateRfqDialog() {
         },
         { name: "dueOn", label: t("Quotes due by"), kind: "date" },
         { name: "description", label: t("First line"), kind: "text" },
+        {
+          name: "variantId",
+          label: t("Product variant of the first line"),
+          kind: "select",
+          options: variants.map((variant) => ({
+            value: variant.id,
+            label: `${variant.sku} ${variant.title}`,
+          })),
+        },
         {
           name: "quantity",
           label: t("Quantity"),

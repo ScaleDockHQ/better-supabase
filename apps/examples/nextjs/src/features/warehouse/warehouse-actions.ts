@@ -1,6 +1,6 @@
 "use server";
 
-import { ok } from "better-supabase";
+import { err, invalidInput, ok } from "better-supabase";
 import * as v from "valibot";
 
 import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
@@ -10,6 +10,7 @@ import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
 import { WAREHOUSE_TAG } from "./warehouse-cache";
+import { openOrderLines } from "./warehouse-queries";
 
 const TAGS = [WAREHOUSE_TAG, SHOP_TAG, MANUFACTURING_TAG];
 
@@ -278,5 +279,104 @@ export const postCycleCount = bsb.action(
     await refreshCaller(auth, TAGS);
 
     return ok(true);
+  },
+);
+
+/**
+ * Holds stock of a variant for a document line; what isn't available waits on
+ * backorder. A pick list is made from a document's open allocations (EX-1110).
+ */
+export const createAllocation = bsb.action(
+  {
+    input: v.object({
+      variantId: Id,
+      locationId: Id,
+      quantity: Decimal,
+      documentType: Name,
+      documentId: Id,
+    }),
+    requireTenant: true,
+    permission: "inventory.reserve",
+  },
+  async (input, { tenant: organizationId, db, auth }) => {
+    const allocated = await db.inventory.allocate({
+      organizationId,
+      input: {
+        variantId: input.variantId,
+        locationId: input.locationId,
+        quantity: Number(input.quantity),
+        documentType: input.documentType,
+        documentId: input.documentId,
+        lineId: crypto.randomUUID(),
+      },
+    });
+
+    if (!allocated.ok) {
+      return allocated;
+    }
+
+    await refreshCaller(auth, TAGS);
+
+    return ok({ id: allocated.data.id });
+  },
+);
+
+/** Makes a pick list from the open allocations of one document. */
+export const createPickList = bsb.action(
+  {
+    input: v.object({ locationId: Id, documentType: Name, documentId: Id }),
+    requireTenant: true,
+    permission: "warehouse.manage",
+  },
+  async (input, { db, auth }) => {
+    const list = await db.warehouse.createPickList(input);
+
+    if (!list.ok) {
+      return list;
+    }
+
+    await refreshCaller(auth, TAGS);
+
+    return ok({ id: list.data.id });
+  },
+);
+
+/**
+ * Receives what a placed purchase order still owes, line by line, into one
+ * goods receipt that the putaway tab then suggests bins for (EX-1111).
+ */
+export const receiveOrder = bsb.action(
+  {
+    input: v.object({ purchaseOrderId: Id }),
+    requireTenant: true,
+    permission: "inventory.purchase",
+  },
+  async ({ purchaseOrderId }, { db, auth }) => {
+    const lines = await openOrderLines(purchaseOrderId);
+
+    if (lines.length === 0) {
+      return err(
+        invalidInput("Nothing is left to receive on this order.", [
+          {
+            path: ["purchaseOrderId"],
+            code: "ORDER_FULLY_RECEIVED",
+            message: "Pick an order that still owes units.",
+          },
+        ]),
+      );
+    }
+
+    const received = await db.inventory.receivePurchaseOrder({
+      purchaseOrderId,
+      lines,
+    });
+
+    if (!received.ok) {
+      return received;
+    }
+
+    await refreshCaller(auth, TAGS);
+
+    return ok({ receiptId: received.data.receiptId ?? null });
   },
 );

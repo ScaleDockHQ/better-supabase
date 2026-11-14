@@ -1154,6 +1154,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 - Findings: EX-805, EX-818, EX-1106, EX-1110 to EX-1113, EX-701
 - Log: 2026-11-14, planned.
 - Log: 2026-11-14, started in `../bsb-findings-x8`.
+- Log: 2026-11-14, EX-805, EX-701, EX-1106 and EX-1110 to EX-1113 fixed (two read functions, migration `20270108120000`, ADR 1009); EX-818 deferred (needs: anonymous sign-ins with a captcha in every Supabase project).
 
 ### Lane X9
 

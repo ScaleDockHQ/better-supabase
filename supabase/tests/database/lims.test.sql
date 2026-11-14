@@ -4,7 +4,7 @@
 -- specification result opens a nonconformity case and blocks the release. The
 -- Globex owner (…a3) sees none of it. Run with `supabase test db`.
 begin;
-select plan(16);
+select plan(18);
 
 select is(
   (select count(*) from pg_catalog.pg_tables
@@ -80,6 +80,16 @@ select throws_ok(
   '22023',
   null,
   'an instrument without a valid qualification is refused'
+);
+select is(
+  better_supabase.list_qualified_instruments('00000000-0000-4000-8000-000000000001'),
+  jsonb_build_array(current_setting('test.asset')),
+  'the qualified instruments are the holders of the calibration'
+);
+select is(
+  better_supabase.list_qualified_instruments('00000000-0000-4000-8000-000000000001', current_date - 60),
+  '[]'::jsonb,
+  'no instrument held the calibration before it was granted'
 );
 select is(
   (better_supabase.record_lims_result(

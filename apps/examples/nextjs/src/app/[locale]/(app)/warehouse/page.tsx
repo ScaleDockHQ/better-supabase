@@ -11,8 +11,11 @@ import { PermissionGate } from "@/features/user/components/permission-gate";
 import {
   CountOverview,
   CreateCountPlanDialog,
+  CreateAllocationDialog,
+  CreatePickListDialog,
   CreateRuleDialog,
   CreateWaveDialog,
+  ReceiveOrderDialog,
   PickOverview,
   PutawayOverview,
   WarehouseListSkeleton,
@@ -57,8 +60,19 @@ export default function WarehousePage({
               <Suspense fallback={null}>
                 <PermissionGate permission="warehouse.manage">
                   <div className="flex flex-wrap gap-2">
+                    {view === "picks" ? (
+                      <>
+                        <CreatePickListDialog />
+                        <CreateAllocationDialog />
+                      </>
+                    ) : null}
                     {view === "waves" ? <CreateWaveDialog /> : null}
-                    {view === "putaway" ? <CreateRuleDialog /> : null}
+                    {view === "putaway" ? (
+                      <>
+                        <CreateRuleDialog />
+                        <ReceiveOrderDialog />
+                      </>
+                    ) : null}
                     {view === "counts" ? (
                       <>
                         <CreateCountPlanDialog />

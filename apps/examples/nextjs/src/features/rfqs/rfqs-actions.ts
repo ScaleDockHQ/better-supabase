@@ -31,6 +31,7 @@ export const createRfq = bsb.action(
       dueOn: Optional,
       notes: Optional,
       description: Optional,
+      variantId: Optional,
       quantity: Optional,
     }),
     requireTenant: true,
@@ -52,6 +53,7 @@ export const createRfq = bsb.action(
           : [
               {
                 description: input.description,
+                ...given("variantId", input.variantId),
                 quantity:
                   Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
               },
@@ -68,18 +70,22 @@ export const createRfq = bsb.action(
   },
 );
 
-/** Adds a line to a draft; the block replaces all lines on an update. */
+/**
+ * Adds a line to a draft; the block replaces all lines on an update. A line
+ * that names a variant lets the award create a purchase order (EX-1112).
+ */
 export const addRfqLine = bsb.action(
   {
     input: v.object({
       rfqId: Id,
       description: Name,
+      variantId: Optional,
       quantity: Whole(1, 1_000_000),
     }),
     requireTenant: true,
     permission: "rfqs.write",
   },
-  async ({ rfqId, description, quantity }, { db, auth }) => {
+  async ({ rfqId, description, variantId, quantity }, { db, auth }) => {
     const current = await db.rfqs.getRfq(rfqId);
 
     if (!current.ok) {
@@ -96,7 +102,7 @@ export const addRfqLine = bsb.action(
           ...given("variantId", line.variantId),
           ...given("unit", line.unit),
         })),
-        { description, quantity },
+        { description, quantity, ...given("variantId", variantId) },
       ],
     });
 

@@ -221,6 +221,39 @@ end;
 $$;
 ${userGrant(`${fn("list_revenue_recognition")}(${id}, text, text)`)}
 
+-- Every schedule of the tenant, newest first, with the months it spreads over
+-- and the part already recognized (posted rows), for a list that needs no
+-- source. limit_count is 1 to 500 (default 100). Needs accounting.read.
+create or replace function ${fn("list_revenue_recognition_schedules")}(tenant ${id}, limit_count integer default 100)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not ${sql.allowed("list_revenue_recognition_schedules.tenant", sql.read)} then
+    ${sql.forbidden("ACCOUNTING_RECOGNITION", "not allowed to read revenue recognition")}
+  end if;
+  return coalesce((
+    select jsonb_agg(x.item order by x.created_at desc, x.id desc) from (
+      select z.${s("id")} as id, z.${s("createdAt")} as created_at, jsonb_build_object(
+        'id', z.${s("id")}, 'source_type', z.${s("sourceType")}, 'source_id', z.${s("sourceId")}, 'line_ref', z.${s("lineRef")},
+        'amount', z.${s("amount")}::text, 'currency', z.${s("currency")}, 'starts_on', z.${s("startsOn")}, 'ends_on', z.${s("endsOn")},
+        'deferral_entry_id', z.${s("deferralEntry")},
+        'rows', (select count(*) from ${rows} y where y.${r("schedule")} = z.${s("id")}),
+        'recognized', coalesce((select sum(y.${r("amount")}) from ${rows} y where y.${r("schedule")} = z.${s("id")} and y.${r("status")} = 'posted'), 0)::text) as item
+      from ${schedules} z
+      where z.${s("tenant")} = list_revenue_recognition_schedules.tenant
+      order by z.${s("createdAt")} desc, z.${s("id")} desc
+      limit least(greatest(coalesce(list_revenue_recognition_schedules.limit_count, 100), 1), 500)
+    ) x
+  ), '[]'::jsonb);
+end;
+$$;
+${userGrant(`${fn("list_revenue_recognition_schedules")}(${id}, integer)`)}
+
 -- The entry that moves a schedule's amount out of revenue into deferred
 -- revenue when it starts.
 create or replace function ${fn("accounting_recognition_deferral_lines")}(source_id text)
@@ -336,6 +369,11 @@ export function recognitionContract(
         {
           name: "list_revenue_recognition",
           args: ["{id}", "text", "text"],
+          returns: "jsonb",
+        },
+        {
+          name: "list_revenue_recognition_schedules",
+          args: ["{id}", "integer"],
           returns: "jsonb",
         },
       ]

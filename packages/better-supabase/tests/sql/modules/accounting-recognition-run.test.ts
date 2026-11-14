@@ -55,6 +55,7 @@ declare
   v_schedule jsonb;
   v_again jsonb;
   v_period jsonb;
+  v_list jsonb;
 begin
   ${SERVICE}
   perform better_supabase.setup_accounting('${TENANT}', 'EUR');
@@ -76,6 +77,10 @@ begin
   end if;
   if (select count(*) from better_supabase.accounting_recognition_rows where status = 'pending') <> 2 then
     raise exception 'later months should stay pending';
+  end if;
+  v_list := better_supabase.list_revenue_recognition_schedules('${TENANT}');
+  if jsonb_array_length(v_list) <> 1 or v_list -> 0 ->> 'rows' <> '3' or v_list -> 0 ->> 'recognized' <> '413' then
+    raise exception 'schedule list %', v_list;
   end if;
 end;
 $$;`),

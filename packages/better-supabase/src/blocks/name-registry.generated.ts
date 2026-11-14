@@ -1448,7 +1448,7 @@ export interface BlockNameRegistry {
       readonly "samples": "id" | "tenant" | "number" | "sequence" | "title" | "kind" | "lot" | "receivedOn" | "status" | "notes" | "rejectionReason" | "completedAt" | "releasedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "results": "id" | "tenant" | "sample" | "method" | "value" | "outcome" | "instrument" | "submission" | "case" | "note" | "testedBy" | "testedAt" | "createdAt";
     };
-    readonly functions: "archive_lims_method" | "complete_sample" | "get_sample" | "instrument_status" | "list_lims_methods" | "list_samples" | "record_lims_result" | "register_sample" | "reject_sample" | "release_sample" | "save_lims_method";
+    readonly functions: "archive_lims_method" | "complete_sample" | "get_sample" | "instrument_status" | "list_lims_methods" | "list_qualified_instruments" | "list_samples" | "record_lims_result" | "register_sample" | "reject_sample" | "release_sample" | "save_lims_method";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_lims_sample_register" | "after_lims_sample_register" | "before_lims_result_record" | "after_lims_result_record";
     readonly entities: {

@@ -276,6 +276,11 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["{id}", "uuid", "date"],
       returns: "jsonb",
     },
+    {
+      name: "list_qualified_instruments",
+      args: ["{id}", "date"],
+      returns: "jsonb",
+    },
   ];
 }
 
