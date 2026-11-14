@@ -632,10 +632,11 @@ export const replayInboundEvent = bsb.action(
 
     const owned = await sqlResult(() =>
       connection.data.admin.queryRaw<{ id: string }>(
-        `select e.id from better_supabase.inbox_inbound_events e
+        `update better_supabase.inbox_inbound_events e set attempts = 0
          where e.id = $2
            and (e.tenant_id = $1
-             or e.inbox_id in (select id from better_supabase.inboxes where tenant_id = $1))`,
+             or e.inbox_id in (select id from better_supabase.inboxes where tenant_id = $1))
+         returning e.id`,
         [tenant, eventId],
       ),
     );

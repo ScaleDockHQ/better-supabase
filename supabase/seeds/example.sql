@@ -50,11 +50,11 @@ where m.conversation_id = c.id
   and c.thread_id = 'sim:whatsapp:31612345678';
 
 -- A WhatsApp webhook event the handler failed on, for the replay sheet on /inbox.
--- available_at keeps it out of the pending queue until someone replays it.
-insert into better_supabase.inbox_inbound_events (tenant_id, adapter, external_id, inbox_id, body, status, error, attempts, received_at, available_at)
+-- It has used all its attempts, so the pending queue skips it until someone replays it.
+insert into better_supabase.inbox_inbound_events (tenant_id, adapter, external_id, inbox_id, body, status, error, attempts, received_at)
 values (
   '00000000-0000-4000-8000-000000000001', 'whatsapp', 'wamid.seed-failed', '00000000-0000-4000-8000-00000000e004',
-  '{"object":"whatsapp_business_account","entry":[]}', 'failed', 'The handler timed out', 2, now() - interval '3 hours', now() + interval '10 years'
+  '{"object":"whatsapp_business_account","entry":[]}', 'failed', 'The handler timed out', 5, now() - interval '3 hours'
 );
 
 insert into better_supabase.inbox_message_templates (tenant_id, inbox_id, name, channel, language, body) values
