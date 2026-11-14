@@ -53,7 +53,7 @@ Lane X2b closes two example findings that need a library change.
 - The example's `/calendar` reads `loadCalendarPage` once; the month card and the
   reminders card both use that entry, so the page makes one calendar call instead
   of the calendar reads of both cards.
-- `20270107130000_x2b_search_calendar.sql` carries both functions.
+- `20270110130000_x2b_search_calendar.sql` carries both functions.
 
 ## Alternatives considered
 

@@ -1093,7 +1093,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 - Findings: EX-1504, EX-1508
 - Log: 2026-11-14, planned.
 - Log: 2026-11-14, started in `../bsb-findings-x2b`.
-- Log: 2026-11-14, EX-1504 measured (the per-type limit moves nothing; scoring only full-text matches takes `search_global` from 0.9 to 1.0 s down to 0.51 s) and EX-1508 fixed (`calendar.bootstrap`). ADR 0950, migration `20270107130000`.
+- Log: 2026-11-14, EX-1504 measured (the per-type limit moves nothing; scoring only full-text matches takes `search_global` from 0.9 to 1.0 s down to 0.51 s) and EX-1508 fixed (`calendar.bootstrap`). ADR 0950, migration `20270110130000`.
 
 ### Lane X3
 
