@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:f20a9714e21ef62ce01d6dbf2c545e3ba5843ae1210b3c6abd1eac628d669017
+-- @bsb-hash sha256:8c1c67040cb6b29e70302cd582ee22450a17303ccb3a37599517fd4665c42fa2
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -689,6 +689,87 @@ grant execute on function "better_supabase"."extend_data_subject_request"(uuid, 
 grant execute on function "better_supabase"."fulfil_data_subject_request"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."refuse_data_subject_request"(uuid, text) to authenticated, service_role;
 grant execute on function "better_supabase"."list_data_subject_requests"(uuid, text, boolean) to authenticated, service_role;
+
+-- Erases the data of the request's person across the modules' tables that
+-- declare a lifecycle erase mode (ADR 0903). delete removes the rows, anonymize
+-- sets the personal columns to null and keeps the row, keep leaves it. A table
+-- under an active legal hold is untouched and listed under held. The request
+-- must be a verified, open erasure; fulfil_data_subject_request closes it.
+create or replace function "better_supabase"."erase_data_subject"(request_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."data_subject_requests";
+  v_count bigint;
+  v_removed jsonb := '{}'::jsonb;
+  v_blanked jsonb := '{}'::jsonb;
+  v_kept jsonb := '{}'::jsonb;
+  v_held jsonb := '{}'::jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."data_subject_requests" x where x."id" = erase_data_subject.request_id for update;
+  if v_row."id" is null then
+    raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'data_lifecycle.export'), false)) then
+    raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
+  end if;
+  if v_row."kind" <> 'erasure' then
+    raise exception 'only an erasure request is executed' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+  if v_row."closed_at" is not null then
+    raise exception 'the request is already fulfilled or refused' using errcode = '55000', hint = 'DSAR_CLOSED';
+  end if;
+  if v_row."verified_at" is null then
+    raise exception 'verify the requester''s identity first' using errcode = '55000', hint = 'DSAR_UNVERIFIED';
+  end if;
+  if v_row."subject_type" is null then
+    raise exception 'an erasure request names the record to erase' using errcode = '22023', hint = 'DSAR_INVALID';
+  end if;
+
+  if "better_supabase"."is_held"('audit', v_row."tenant_id"::text) then
+    select count(*) into v_count from "better_supabase"."data_subject_requests" x where x."tenant_id"::text = v_row."tenant_id"::text and x."subject_type" = v_row."subject_type" and x."subject_id" = v_row."subject_id";
+    v_held := v_held || jsonb_build_object('better_supabase.data_subject_requests', v_count);
+  else
+    select count(*) into v_count from "better_supabase"."data_subject_requests" x where x."tenant_id"::text = v_row."tenant_id"::text and x."subject_type" = v_row."subject_type" and x."subject_id" = v_row."subject_id";
+      v_kept := v_kept || jsonb_build_object('better_supabase.data_subject_requests', v_count);
+  end if;
+
+  if "better_supabase"."is_held"('audit', v_row."tenant_id"::text) then
+    select count(*) into v_count from "better_supabase"."field_changes" x where x."tenant_id"::text = v_row."tenant_id"::text and x."subject_type" = v_row."subject_type" and x."subject_id" = v_row."subject_id";
+    v_held := v_held || jsonb_build_object('better_supabase.field_changes', v_count);
+  else
+    with blank as (update "better_supabase"."field_changes" x set "old_value" = null, "new_value" = null, "changed_by" = null where x."tenant_id"::text = v_row."tenant_id"::text and x."subject_type" = v_row."subject_type" and x."subject_id" = v_row."subject_id" returning 1) select count(*) into v_count from blank;
+      v_blanked := v_blanked || jsonb_build_object('better_supabase.field_changes', v_count);
+  end if;
+
+  if "better_supabase"."is_held"('personal_data', v_row."tenant_id"::text) then
+    select count(*) into v_count from "better_supabase"."consents" x where x."tenant_id"::text = v_row."tenant_id"::text and x."subject_type" = v_row."subject_type" and x."subject_id" = v_row."subject_id";
+    v_held := v_held || jsonb_build_object('better_supabase.consents', v_count);
+  else
+    with blank as (update "better_supabase"."consents" x set "grantor_id" = null, "withdrawn_reason" = null, "signature_id" = null where x."tenant_id"::text = v_row."tenant_id"::text and x."subject_type" = v_row."subject_type" and x."subject_id" = v_row."subject_id" returning 1) select count(*) into v_count from blank;
+      v_blanked := v_blanked || jsonb_build_object('better_supabase.consents', v_count);
+  end if;
+
+  if "better_supabase"."is_held"('personal_data', v_row."tenant_id"::text) then
+    select count(*) into v_count from "better_supabase"."consent_signals" x where x."tenant_id"::text = v_row."tenant_id"::text and x."subject_type" = v_row."subject_type" and x."subject_id" = v_row."subject_id";
+    v_held := v_held || jsonb_build_object('better_supabase.consent_signals', v_count);
+  else
+    with gone as (delete from "better_supabase"."consent_signals" x where x."tenant_id"::text = v_row."tenant_id"::text and x."subject_type" = v_row."subject_type" and x."subject_id" = v_row."subject_id" returning 1) select count(*) into v_count from gone;
+      v_removed := v_removed || jsonb_build_object('better_supabase.consent_signals', v_count);
+  end if;
+  return jsonb_build_object('removed', v_removed, 'blanked', v_blanked, 'kept', v_kept, 'held', v_held);
+end;
+$$;
+
+revoke execute on function "better_supabase"."erase_data_subject"(uuid) from public, anon;
+grant execute on function "better_supabase"."erase_data_subject"(uuid) to authenticated, service_role;
 
 
 
@@ -3221,6 +3302,15 @@ set search_path = ''
 as $$ select "better_supabase"."list_data_subject_requests"($1, $2, $3) $$;
 revoke execute on function "api"."list_data_subject_requests"(uuid, text, boolean) from public, anon;
 grant execute on function "api"."list_data_subject_requests"(uuid, text, boolean) to authenticated, service_role;
+
+create or replace function "api"."erase_data_subject"(request_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."erase_data_subject"($1) $$;
+revoke execute on function "api"."erase_data_subject"(uuid) from public, anon;
+grant execute on function "api"."erase_data_subject"(uuid) to authenticated, service_role;
 
 create or replace function "api"."data_restore_tables"()
 returns jsonb

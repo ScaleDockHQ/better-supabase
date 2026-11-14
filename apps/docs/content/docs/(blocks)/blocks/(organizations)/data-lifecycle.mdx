@@ -607,9 +607,44 @@ const { delete: remove, anonymize, keep } = data.plan.erasure;
 An erasure never deletes the rows of an append-only entity: `field_history` and
 `consent` declare `anonymize`, and `data_subject_request` declares `keep`. An
 entity that declares `personalData` without a `subjectColumn`, or an append-only
-one that would be deleted, appears in `plan.gaps`. The plan does not run the
-erasure; your purge job reads `plan.erasure`, and a legal hold still makes
-`fulfilDataSubjectRequest` refuse.
+one that would be deleted, appears in `plan.gaps`.
+
+### Execute the erasure
+
+`executeErasure` runs a verified, open erasure request over every installed
+module table that declares an erase mode, in one transaction, and returns what it
+did by `schema.table`.
+
+```ts
+const result = await lifecycle
+  .executeErasure({ requestId: data.request.id })
+  .orThrow();
+
+// result.removed: rows deleted         { "better_supabase.consent_signals": 2 }
+// result.blanked: rows kept, columns set to null
+// result.kept:    rows a legal duty keeps
+// result.held:    rows left alone because a legal hold covers them
+
+await lifecycle
+  .fulfilDataSubjectRequest({
+    requestId: data.request.id,
+    resolution: "Erased; the audit trail is kept.",
+  })
+  .orThrow();
+```
+
+A table whose retention kind has an active [legal hold](#retention-policies-and-legal-holds)
+is untouched and listed under `held`, so you can report it to the requester
+instead of failing the request. The request stays open until you fulfil it. The
+call needs the `data_lifecycle.export` permission or the service role, and it
+only reaches the request's own organization and the one person it names. It
+fails with `DSAR_UNVERIFIED` before the identity check, `DSAR_INVALID` for a
+request that is not an erasure and `DSAR_CLOSED` for a closed one.
+
+The shipped tables that take part are `consents` and `field_changes` (personal
+columns set to null), `data_subject_requests` (kept) and `consent_signals`
+(deleted). Run `better-supabase upgrade` and apply the migration it generates to
+add `erase_data_subject`.
 
 ## Events
 

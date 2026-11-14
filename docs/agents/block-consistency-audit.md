@@ -247,7 +247,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 
 | Category      | Blocks | Entities | editable | append-only | state-machine | read-only |
 | ------------- | ------ | -------- | -------- | ----------- | ------------- | --------- |
-| admin         | 7      | 14       | 5        | 1           | 7             | 1         |
+| admin         | 7      | 15       | 5        | 1           | 7             | 2         |
 | ai            | 12     | 13       | 5        | 3           | 1             | 4         |
 | automation    | 11     | 11       | 3        | 2           | 1             | 5         |
 | collaboration | 13     | 21       | 7        | 5           | 8             | 1         |
@@ -272,6 +272,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | compliance                | admin         | evidence_task              | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
 | compliance                | admin         | compliance_policy          | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
 | consents                  | admin         | consent                    | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| consents                  | admin         | consent_signal             | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | consents                  | admin         | consent_purpose            | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | data-lifecycle            | admin         | data_export                | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | data-lifecycle            | admin         | organization               | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |

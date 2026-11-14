@@ -108,12 +108,30 @@ export interface BlockSqlTableSpec {
   readonly yieldsToExtra?: readonly string[];
 }
 
+export interface BlockSqlTableErase {
+  /**
+   * `delete` removes the rows, `anonymize` blanks `personal`, `keep` leaves
+   * them.
+   */
+  readonly mode: "delete" | "anonymize" | "keep";
+  /** The logical nullable columns `anonymize` sets to null. */
+  readonly personal?: readonly string[];
+  /** The retention kind a legal hold is checked against. */
+  readonly retention?: string;
+}
+
 export interface BlockSqlTableLifecycle {
   readonly user?: string;
   readonly tenant?: string;
   readonly purge?: boolean;
   readonly omit?: readonly string[];
   readonly export?: boolean;
+  /**
+   * What an erasure request does to the table's rows for one person, who is
+   * named by the `subjectType` and `subjectId` columns (ADR 0903). It matches
+   * the `erase` of the manifest entity.
+   */
+  readonly erase?: BlockSqlTableErase;
   /**
    * Columns that hold a `credential_ref`. Exports leave them out, and the
    * organization purger revokes each ref that carries the row's tenant through
