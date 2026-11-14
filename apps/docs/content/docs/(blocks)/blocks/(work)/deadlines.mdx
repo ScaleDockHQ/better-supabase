@@ -291,6 +291,33 @@ create trigger filing_facts_deadlines
   );
 ```
 
+## Reading deadlines
+
+`get(deadlineId)` returns one deadline, `list` is the capped convenience list,
+and `page` is the full list contract (ADR 0749, 0949). It takes `sort`,
+`filters` whose values are lists, `after` and `limit`, and returns
+`{ items, hasMore, nextCursor }`. Sorts are `dueOn` (the default, soonest first,
+deadlines with no date last) and `createdAt`. Filters are `subjectType`,
+`subjectId`, `groupKey`, `period`, `state`, `result`, `provisional` and
+`dueBefore` (a date), and the facets are `state`, `result` and `groupKey`.
+Deadlines declare no text search, so `q` returns `invalid_input`. The reads run
+with the caller's rights, so the read policy decides the rows. The SQL functions
+are `page_deadlines` and `get_deadline`.
+
+```ts
+const soon = await deadlines
+  .page({
+    filters: { state: ["pending"], dueBefore: ["2027-01-01"] },
+    sort: { by: "dueOn" },
+  })
+  .orThrow();
+
+const facets = await deadlines.facets().orThrow();
+const total = await deadlines.count({ filters: { result: ["due"] } }).orThrow();
+```
+
+A cursor belongs to the sort it came from.
+
 ## Upgrading from version 1
 
 `better-supabase upgrade` converts version 1 rules (`anchor`, `offset`,

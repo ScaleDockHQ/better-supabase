@@ -93,6 +93,36 @@ search on name, tag and serial number, and pages with `before`. `asset(id)`
 adds the location path and the booking resources and open work items that
 name the asset.
 
+## Page through assets
+
+`assets` is the capped convenience list. `page` is the full list contract
+(ADR 0749, 0949) over the block tenant's assets the caller can read. It takes
+`sort`, `filters` whose values are lists, `q`, `after` and `limit`, and returns
+`{ items, hasMore, nextCursor }`. Sorts are `createdAt` (the default, newest
+first) and `name`. Filters are `kind`, `status`, `assigneeType`, `assigneeId`,
+`locationId` and `includeSublocations`, the facets are `status` and `kind`, and
+`q` searches the name, tag and serial number. With `locationId`,
+`includeSublocations: ["true"]` also reads the assets below the location. An
+asset has no `get` of this name: `asset(assetId)` is its detail read. The SQL
+function is `page_assets`.
+
+```ts
+const vans = await assets
+  .page({
+    filters: { kind: ["vehicle"], status: ["active"] },
+    sort: { by: "name" },
+    q: "van",
+  })
+  .orThrow();
+
+const facets = await assets.facets().orThrow();
+const total = await assets
+  .count({ filters: { locationId: [siteId] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from.
+
 ## Assignment
 
 `assign(assetId, assignee)` assigns an asset to a member

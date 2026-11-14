@@ -3,7 +3,14 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type {
   OptimizedStops,
@@ -19,6 +26,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { optimizeLocated } from "../../core/route-optimizer.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -36,6 +44,7 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
+import { workOrderListSurface } from "./lists.ts";
 import { WORK_ORDER_PRIORITIES, WORK_ORDER_STATUSES } from "./statuses.ts";
 
 export interface DispatchOptions<
@@ -275,6 +284,16 @@ export interface Dispatch<F extends object = Record<never, never>> {
   /** `null` when it doesn't exist or the caller can't read it. */
   get(id: string): AsyncResult<WorkOrder<F> | null>;
   list(options?: WorkOrderListOptions): AsyncResult<readonly WorkOrder<F>[]>;
+  /**
+   * One keyset page of work orders, in the order of `sort` (newest first by
+   * default): the rows, `hasMore` and a `nextCursor` to pass as `after`. Needs
+   * `dispatch.read`.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<WorkOrder<F>>>;
+  /** The work orders per status or priority, under the page's filters. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many work orders match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
   board(options: DispatchBoardOptions): AsyncResult<DispatchBoard<F>>;
   /** The technician's day plan; `technicianId` defaults to the caller. */
   technicianDay(input: {
@@ -393,6 +412,15 @@ export function createDispatch<
     "work order fields",
   );
 
+  const orders = entityList({
+    entity: "work_order",
+    surface: workOrderListSurface,
+    call,
+    tenant,
+    fn: "page_work_orders",
+    rowOf: workOrderOf,
+  });
+
   const one =
     (fn: string) =>
     (value: unknown): WorkOrder =>
@@ -494,6 +522,14 @@ export function createDispatch<
           (value) => workOrdersOf(value, "list_work_orders"),
         ).andThen(fields.rows),
       ),
+    page: (pageOptions) =>
+      orders
+        .page(pageOptions)
+        .andThen((page) =>
+          fields.rows(page.items).map((items) => ({ ...page, items })),
+        ),
+    facets: orders.facets,
+    count: orders.count,
     board: (board) =>
       tenant().andThen((organizationId) =>
         call(

@@ -4,6 +4,7 @@ import type { GuestsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { guestsEvents } from "./events.ts";
 import { createGuests } from "./guests.ts";
+import { guestListSurface } from "./lists.ts";
 import { guestsSqlOptions } from "./options.ts";
 import { guestsBinding } from "./record-binding.ts";
 import { guestGrantSchema, guestInviteSchema } from "./schemas.ts";
@@ -29,7 +30,7 @@ export const guestsBlock: BlockOf<
   record: guestsBinding,
   category: "collaboration",
   entities: {
-    guest: { mutability: "state-machine" },
+    guest: { ...guestListSurface, mutability: "state-machine" },
     guest_grant: { mutability: "state-machine", emits: { create: true } },
   },
   concerns: ["lifecycle"],

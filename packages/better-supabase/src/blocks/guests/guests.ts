@@ -1,6 +1,13 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { GuestAction } from "../../core/guest-actions.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -10,6 +17,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { GUEST_ACTIONS } from "../../core/guest-actions.ts";
 import {
   applyTemporal,
@@ -24,6 +32,7 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
+import { guestListSurface } from "./lists.ts";
 
 export type { GuestAction } from "../../core/guest-actions.ts";
 
@@ -136,6 +145,18 @@ export interface Guests {
   revoke(guestId: string): AsyncResult<Guest>;
   /** The tenant's guests, newest first. Needs `guests.read`. */
   list(options?: GuestListOptions): AsyncResult<readonly Guest[]>;
+  /** One guest by id. Needs `guests.read`. */
+  get(guestId: string): AsyncResult<Guest>;
+  /**
+   * One keyset page of guests, in the order of `sort` (newest first by
+   * default): the rows, `hasMore` and a `nextCursor` to pass as `after`. Needs
+   * `guests.read`.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<Guest>>;
+  /** The guests per status, under the page's filters. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many guests match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
   /**
    * Lets a guest reach one record. Needs `guests.manage`; the record must be in
    * the guest's organization.
@@ -221,6 +242,15 @@ export function createGuests(options: GuestsOptions): Guests {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
+  const guests = entityList({
+    entity: "guest",
+    surface: guestListSurface,
+    call,
+    tenant,
+    fn: "page_guests",
+    rowOf: guestOf,
+  });
+
   const client: Guests = {
     invite: (input) =>
       tenant().andThen((organizationId) =>
@@ -270,6 +300,13 @@ export function createGuests(options: GuestsOptions): Guests {
             ),
         ),
       ),
+    get: (guestId) =>
+      call("get_guest", { guest_id: guestId }, (value) =>
+        guestOf(value, "get_guest"),
+      ),
+    page: guests.page,
+    facets: guests.facets,
+    count: guests.count,
     grant: ({ guestId, subject, input = {} }) =>
       call(
         "grant_guest_access",

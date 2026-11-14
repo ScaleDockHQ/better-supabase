@@ -82,6 +82,29 @@ await createGuests({ transport }).accept(token).orThrow();
 `revoke(guestId)` stops every grant and drops the invite token. Inviting the
 email again restores the guest.
 
+## Reading guests
+
+`list` is the capped convenience list, `get(guestId)` returns one guest, and
+`page` is the full list contract (ADR 0749, 0949). It takes `sort`, `filters`
+whose values are lists (a row matches any of a filter's values), `after` and
+`limit`, and returns `{ items, hasMore, nextCursor }`. Sorts are `createdAt`
+(the default, newest first) and `email`. The filter and the facet are `status`.
+Guests declare no text search, so `q` returns `invalid_input`. The reads need
+`guests.read` and call the SQL function `page_guests`.
+
+```ts
+const invited = await guests
+  .page({ filters: { status: ["invited"] }, sort: { by: "email" } })
+  .orThrow();
+
+const facets = await guests.facets().orThrow();
+
+// `exact` is false when the count stopped at its cap.
+const total = await guests.count({ filters: { status: ["active"] } }).orThrow();
+```
+
+A cursor belongs to the sort it came from.
+
 ## Grant records
 
 ```ts

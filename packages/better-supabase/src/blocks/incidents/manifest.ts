@@ -4,6 +4,7 @@ import type { IncidentsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { incidentsEvents } from "./events.ts";
 import { createIncidents } from "./incidents.ts";
+import { incidentListSurface } from "./lists.ts";
 import {
   incidentChangesSchema,
   incidentInputSchema,
@@ -32,6 +33,7 @@ export const incidentsBlock: BlockOf<
   category: "work",
   entities: {
     incident: {
+      ...incidentListSurface,
       mutability: "editable",
       emits: { create: false, update: true },
     },

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:f049eb1785445a3bafe8ec04b20b2875859048266458485b4d358abe7d893909
+-- @bsb-hash sha256:18e105a4562f5352817b0e23f4d37b430e6ddb9d68d6188aa4deaf4881eb6fa2
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1153,6 +1153,289 @@ $$;
 revoke execute on function "better_supabase"."list_cases"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_cases"(uuid, jsonb) to authenticated, service_role;
 
+-- The organization's cases as a keyset page (ADR 0749, 0949), newest first.
+-- filters is { kind (keys), status, severity, source, owner, stage (each a
+-- value or a list of them), overdue (open cases past dueOn), search, sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_cases"(tenant uuid, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_cases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_cases.tenant is not null and coalesce(better_supabase.can('tenant', page_cases.tenant, 'cases.read'), false))) then
+    raise exception 'not allowed to read cases' using errcode = '42501', hint = 'CASE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(v_filters) <> 'object' then
+    raise exception 'filters must be an object' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'owner') = 'array' then v_filters -> 'owner' when jsonb_typeof(v_filters -> 'owner') in ('string', 'number') then jsonb_build_array(v_filters -> 'owner') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'owner and stage must be uuids' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'severity', 'source') then
+      raise exception 'facet is one of status, severity, source' using errcode = '22023', hint = 'CASE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'severity' then (x."severity")::text when 'source' then (x."source")::text end) as v
+      from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'dueOn') then
+    raise exception 'sort is one of createdAt, dueOn' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."due_on", 'infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."due_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."due_on", 'infinity'::date) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date), x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."due_on", 'infinity'::date) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_cases"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_cases"(uuid, jsonb) to authenticated, service_role;
+
 -- How many cases there are per severity, source, stage, kind or root cause,
 -- most first (a Pareto), optionally of one kind and opened between since and
 -- until. Returns [{ key, count }]; a case without a value counts under null.
@@ -1304,7 +1587,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:45203975b1b335b8823ab0bf3f36ff61e106851bdf4bf1e889ce78ed4f49875d
+-- @bsb-hash sha256:b99b54484fcba0a23334978df82ddac5faa4056eda8d90d6d091353a22637d11
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2822,6 +3105,289 @@ $$;
 revoke execute on function "better_supabase"."list_cases"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_cases"(uuid, jsonb) to authenticated, service_role;
 
+-- The organization's cases as a keyset page (ADR 0749, 0949), newest first.
+-- filters is { kind (keys), status, severity, source, owner, stage (each a
+-- value or a list of them), overdue (open cases past dueOn), search, sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_cases"(tenant uuid, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_cases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_cases.tenant is not null and coalesce(better_supabase.can('tenant', page_cases.tenant, 'cases.read'), false))) then
+    raise exception 'not allowed to read cases' using errcode = '42501', hint = 'CASE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(v_filters) <> 'object' then
+    raise exception 'filters must be an object' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'owner') = 'array' then v_filters -> 'owner' when jsonb_typeof(v_filters -> 'owner') in ('string', 'number') then jsonb_build_array(v_filters -> 'owner') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'owner and stage must be uuids' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'severity', 'source') then
+      raise exception 'facet is one of status, severity, source' using errcode = '22023', hint = 'CASE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'severity' then (x."severity")::text when 'source' then (x."source")::text end) as v
+      from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'dueOn') then
+    raise exception 'sort is one of createdAt, dueOn' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."due_on", 'infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."due_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."due_on", 'infinity'::date) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date), x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."due_on", 'infinity'::date) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_cases"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_cases"(uuid, jsonb) to authenticated, service_role;
+
 -- How many cases there are per severity, source, stage, kind or root cause,
 -- most first (a Pareto), optionally of one kind and opened between since and
 -- until. Returns [{ key, count }]; a case without a value counts under null.
@@ -2978,7 +3544,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:b8ace8e8a6bca4937b1dfc427117bb0e0a3e5b3efcfc227fbca0aa67a53047ff
+-- @bsb-hash sha256:450015dc2729daf4593086bc8fecb673083e2fa853ce51e9dcdf915a7a248d84
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4135,6 +4701,289 @@ $$;
 revoke execute on function "app_private"."list_cases"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."list_cases"(uuid, jsonb) to authenticated, service_role;
 
+-- The organization's cases as a keyset page (ADR 0749, 0949), newest first.
+-- filters is { kind (keys), status, severity, source, owner, stage (each a
+-- value or a list of them), overdue (open cases past dueOn), search, sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_cases"(tenant uuid, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_cases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_cases.tenant is not null and coalesce(better_supabase.can('tenant', page_cases.tenant, 'cases.read'), false))) then
+    raise exception 'not allowed to read cases' using errcode = '42501', hint = 'CASE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(v_filters) <> 'object' then
+    raise exception 'filters must be an object' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'owner') = 'array' then v_filters -> 'owner' when jsonb_typeof(v_filters -> 'owner') in ('string', 'number') then jsonb_build_array(v_filters -> 'owner') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'owner and stage must be uuids' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'severity', 'source') then
+      raise exception 'facet is one of status, severity, source' using errcode = '22023', hint = 'CASE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'severity' then (x."severity")::text when 'source' then (x."source")::text end) as v
+      from "app_private"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "app_private"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "app_private"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'dueOn') then
+    raise exception 'sort is one of createdAt, dueOn' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "app_private"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "app_private"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "app_private"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "app_private"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "app_private"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."due_on", 'infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."due_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."due_on", 'infinity'::date) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "app_private"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date), x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."due_on", 'infinity'::date) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "app_private"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_cases"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_cases"(uuid, jsonb) to authenticated, service_role;
+
 -- How many cases there are per severity, source, stage, kind or root cause,
 -- most first (a Pareto), optionally of one kind and opened between since and
 -- until. Returns [{ key, count }]; a case without a value counts under null.
@@ -4286,7 +5135,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:7663291379ea04b94a90478cf1ee77f1587ee07c7c5f91a80dc161b2159f4cb4
+-- @bsb-hash sha256:a30d46fe75047842db07ced47f641d23402d1c138f82a0570b8caeef7ded4dd9
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5438,6 +6287,289 @@ $$;
 revoke execute on function "better_supabase"."list_cases"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_cases"(uuid, jsonb) to authenticated, service_role;
 
+-- The organization's cases as a keyset page (ADR 0749, 0949), newest first.
+-- filters is { kind (keys), status, severity, source, owner, stage (each a
+-- value or a list of them), overdue (open cases past dueOn), search, sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_cases"(tenant uuid, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_cases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_cases.tenant is not null and coalesce(better_supabase.can('tenant', page_cases.tenant, 'cases.read'), false))) then
+    raise exception 'not allowed to read cases' using errcode = '42501', hint = 'CASE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(v_filters) <> 'object' then
+    raise exception 'filters must be an object' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'owner') = 'array' then v_filters -> 'owner' when jsonb_typeof(v_filters -> 'owner') in ('string', 'number') then jsonb_build_array(v_filters -> 'owner') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'owner and stage must be uuids' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'severity', 'source') then
+      raise exception 'facet is one of status, severity, source' using errcode = '22023', hint = 'CASE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'severity' then (x."severity")::text when 'source' then (x."source")::text end) as v
+      from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'dueOn') then
+    raise exception 'sort is one of createdAt, dueOn' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."due_on", 'infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."due_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."due_on", 'infinity'::date) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date), x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."due_on", 'infinity'::date) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_cases"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_cases"(uuid, jsonb) to authenticated, service_role;
+
 -- How many cases there are per severity, source, stage, kind or root cause,
 -- most first (a Pareto), optionally of one kind and opened between since and
 -- until. Returns [{ key, count }]; a case without a value counts under null.
@@ -5778,6 +6910,16 @@ as $$ select "better_supabase"."list_cases"($1, $2) $$;
 revoke execute on function "api"."list_cases"(uuid, jsonb) from public, anon;
 grant execute on function "api"."list_cases"(uuid, jsonb) to authenticated, service_role;
 
+create or replace function "api"."page_cases"(tenant uuid, filters jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_cases"($1, $2) $$;
+revoke execute on function "api"."page_cases"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_cases"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "api"."case_stats"(tenant uuid, kind text default null, since date default null, until date default null, group_by text default 'severity')
 returns jsonb
 language sql
@@ -5814,7 +6956,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:7917ef5271430e6f258840765d0faffbe3891456dc55c0a64be7cfc64b6ef88f
+-- @bsb-hash sha256:cbaead5085ea88a9d602ea09a8b0aa7fdf4f8480ba8fa37d3b52d278ed38e757
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6950,6 +8092,289 @@ $$;
 revoke execute on function "better_supabase"."list_cases"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_cases"(uuid, jsonb) to authenticated, service_role;
 
+-- The organization's cases as a keyset page (ADR 0749, 0949), newest first.
+-- filters is { kind (keys), status, severity, source, owner, stage (each a
+-- value or a list of them), overdue (open cases past dueOn), search, sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_cases"(tenant uuid, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_cases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_cases.tenant is not null and coalesce(better_supabase.can('tenant', page_cases.tenant, 'cases.read'), false))) then
+    raise exception 'not allowed to read cases' using errcode = '42501', hint = 'CASE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(v_filters) <> 'object' then
+    raise exception 'filters must be an object' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'owner') = 'array' then v_filters -> 'owner' when jsonb_typeof(v_filters -> 'owner') in ('string', 'number') then jsonb_build_array(v_filters -> 'owner') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'owner and stage must be uuids' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'severity', 'source') then
+      raise exception 'facet is one of status, severity, source' using errcode = '22023', hint = 'CASE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'severity' then (x."severity")::text when 'source' then (x."source")::text end) as v
+      from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'dueOn') then
+    raise exception 'sort is one of createdAt, dueOn' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."due_on", 'infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."due_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."due_on", 'infinity'::date) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date), x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."due_on", 'infinity'::date) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."cases" x
+      where x."tenant_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."tenant_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_cases"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_cases"(uuid, jsonb) to authenticated, service_role;
+
 -- How many cases there are per severity, source, stage, kind or root cause,
 -- most first (a Pareto), optionally of one kind and opened between since and
 -- until. Returns [{ key, count }]; a case without a value counts under null.
@@ -7101,7 +8526,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:23499259b2f2ec8e8d32eb3a40d112ed8be3c419f569180e2531412a063646a9
+-- @bsb-hash sha256:7dc9fd58a0eff3cbbda9690474ee27d9cf00c96985ad95b0931ab5bf6cec49e8
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8252,6 +9677,289 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_cases"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."list_cases"(uuid, jsonb) to authenticated, service_role;
+
+-- The organization's cases as a keyset page (ADR 0749, 0949), newest first.
+-- filters is { kind (keys), status, severity, source, owner, stage (each a
+-- value or a list of them), overdue (open cases past dueOn), search, sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_cases"(tenant uuid, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_cases.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (page_cases.tenant is not null and coalesce(better_supabase.can('tenant', page_cases.tenant, 'cases.read'), false))) then
+    raise exception 'not allowed to read cases' using errcode = '42501', hint = 'CASE_FORBIDDEN';
+  end if;
+  if jsonb_typeof(v_filters) <> 'object' then
+    raise exception 'filters must be an object' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'owner') = 'array' then v_filters -> 'owner' when jsonb_typeof(v_filters -> 'owner') in ('string', 'number') then jsonb_build_array(v_filters -> 'owner') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') or exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'owner and stage must be uuids' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'severity', 'source') then
+      raise exception 'facet is one of status, severity, source' using errcode = '22023', hint = 'CASE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'severity' then (x."severity")::text when 'source' then (x."source")::text end) as v
+      from "better_supabase"."cases" x
+      where x."org_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."org_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."cases" x
+      where x."org_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."org_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'dueOn') then
+    raise exception 'sort is one of createdAt, dueOn' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."org_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."org_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."org_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."org_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."org_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."org_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."org_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."org_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."org_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."org_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date) >= (v_after ->> 0)::date and ((coalesce(x."due_on", 'infinity'::date) > (v_after ->> 0)::date) or (coalesce(x."due_on", 'infinity'::date) = (v_after ->> 0)::date and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."due_on", 'infinity'::date) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CASE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'kindId', x."kind_id", 'number', x."number", 'title', x."title", 'description', x."description", 'severity', x."severity", 'source', x."source", 'reporterId', x."reporter_id", 'reporterContact', x."reporter_contact", 'ownerId', x."owner_id", 'occurredAt', x."occurred_at", 'detectedAt', x."detected_at", 'dueOn', x."due_on", 'pipelineId', x."pipeline_id", 'stageId', x."stage_id", 'stageEnteredAt', x."stage_entered_at", 'status', x."status", 'rootCause', x."root_cause", 'rootCauseSubmissionId', x."root_cause_submission_id", 'effective', x."effective", 'effectivenessDueOn', x."effectiveness_due_on", 'effectivenessNote', x."effectiveness_note", 'effectivenessSubmissionId', x."effectiveness_submission_id", 'closedAt', x."closed_at", 'closedBy', x."closed_by", 'closeNote', x."close_note", 'rank', x."rank", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", 'infinity'::date))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."cases" x
+      where x."org_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."org_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", 'infinity'::date), x."id") < ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."due_on", 'infinity'::date) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."cases" x
+      where x."org_id" = page_cases.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind_id" in (select y."id" from "better_supabase"."case_kinds" y where y."org_id" = page_cases.tenant and (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or y."key" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[]))))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'severity' is not null and jsonb_typeof(v_filters -> 'severity') <> 'null' and not (jsonb_typeof(v_filters -> 'severity') = 'array' and jsonb_array_length(v_filters -> 'severity') = 0)) or x."severity" = any((case when jsonb_typeof(v_filters -> 'severity') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'severity')) else array[v_filters ->> 'severity'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source" = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'owner' is not null and jsonb_typeof(v_filters -> 'owner') <> 'null' and not (jsonb_typeof(v_filters -> 'owner') = 'array' and jsonb_array_length(v_filters -> 'owner') = 0)) or x."owner_id" = any((case when jsonb_typeof(v_filters -> 'owner') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'owner')) else array[v_filters ->> 'owner'] end)::uuid[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage_id" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::uuid[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{overdue,0}', v_filters ->> 'overdue'), '') = 'true', false) or (x."status" = 'open' and x."due_on" < current_date))
+        and (v_search is null or x."title" ilike v_search or x."number" ilike v_search or x."description" ilike v_search or x."root_cause" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_cases"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_cases"(uuid, jsonb) to authenticated, service_role;
 
 -- How many cases there are per severity, source, stage, kind or root cause,
 -- most first (a Pareto), optionally of one kind and opened between since and

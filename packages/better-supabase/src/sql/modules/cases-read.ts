@@ -1,6 +1,15 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { CasesSql } from "./cases-sql.ts";
 
+import {
+  filterAny,
+  filterFlag,
+  filterHasInvalid,
+  filterSet,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { pageSize, userGrant } from "../shared.ts";
 import { casesSql } from "./cases-sql.ts";
 import { CASE_STATS_GROUPS } from "./cases-values.ts";
@@ -66,6 +75,48 @@ function reads(ctx: BlockSqlContext, q: CasesSql): string {
       : []),
     `x.${c("rootCause")} ilike v_search`,
   ].join(" or ");
+
+  const createdKeys = [
+    { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${c("id")}`, dir: "desc", type: "uuid" },
+  ] as const;
+
+  const pageList = {
+    name: "page_cases",
+    from: cases,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = page_cases.tenant`,
+      `x.${c("archivedAt")} is null`,
+      `(not ${filterSet("kind")} or x.${c("kind")} in (select y.${k("id")} from ${kinds} y where y.${k("tenant")} = page_cases.tenant and ${filterAny("kind", `y.${k("key")}`)}))`,
+      filterAny("status", `x.${c("status")}`),
+      filterAny("severity", `x.${c("severity")}`),
+      filterAny("source", `x.${c("source")}`),
+      filterAny("owner", `x.${c("owner")}`, "uuid"),
+      filterAny("stage", `x.${c("stage")}`, "uuid"),
+      `(not ${filterFlag("overdue")} or (x.${c("status")} = 'open' and x.${c("dueOn")} < current_date))`,
+      `(v_search is null or ${search})`,
+    ],
+    keys: createdKeys,
+    sorts: {
+      createdAt: createdKeys,
+      dueOn: [
+        {
+          expr: `coalesce(x.${c("dueOn")}, 'infinity'::date)`,
+          dir: "asc",
+          type: "date",
+        },
+        { expr: `x.${c("id")}`, dir: "desc", type: "uuid" },
+      ],
+    },
+    facets: {
+      status: `x.${c("status")}`,
+      severity: `x.${c("severity")}`,
+      source: `x.${c("source")}`,
+    },
+    rowJson: caseJson("x"),
+    invalid: q.invalid,
+  } as const;
 
   const groups = CASE_STATS_GROUPS.map((group) => `'${group}'`).join(", ");
 
@@ -165,6 +216,37 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_cases")}(${idType}, jsonb)`)}
+
+-- The organization's cases as a keyset page (ADR 0749, 0949), newest first.
+-- filters is { kind (keys), status, severity, source, owner, stage (each a
+-- value or a list of them), overdue (open cases past dueOn), search, sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_cases")}(tenant ${idType}, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_cases.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(pageList)}
+begin
+  if not ${q.allowed("page_cases.tenant", q.read)} then
+    ${q.forbidden("not allowed to read cases")}
+  end if;
+  if jsonb_typeof(v_filters) <> 'object' then
+    ${q.invalid("filters must be an object")}
+  end if;
+  if ${filterHasInvalid("owner")} or ${filterHasInvalid("stage")} then
+    ${q.invalid("owner and stage must be uuids")}
+  end if;
+  ${listBody(pageList)}
+end;
+$$;
+${userGrant(`${fn("page_cases")}(${idType}, jsonb)`)}
 
 -- How many cases there are per severity, source, stage, kind or root cause,
 -- most first (a Pareto), optionally of one kind and opened between since and
