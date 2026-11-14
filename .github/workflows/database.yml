@@ -139,7 +139,7 @@ jobs:
 
       - name: World conformance
         # Runs the @workflow/world-testing suite against the Supabase World (ADR 0210). The
-        # peer range allows 5.1.x only, so the catalog pin is both ends of the range.
+        # peer range allows 5.2.x only, so the catalog pin is both ends of the range.
         # The stack's connection string comes from the dotenv file at the repo root.
         run: >-
           pnpm exec dotenv -e .env.development.local --

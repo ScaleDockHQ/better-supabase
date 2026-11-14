@@ -678,8 +678,9 @@ export interface QueueDynamicSchedulesOptions {
   /** The provider the definitions pass to `defineDynamicSchedules`. */
   readonly provider: EveScheduleProvider;
   /**
-   * The definitions by collection name: the definition's file path under
-   * `agent/schedules/`, such as `requests` for `agent/schedules/requests.ts`.
+   * The definitions by collection name: the definition's `id`, or its file path
+   * under `agent/schedules/` when it sets none, such as `requests` for
+   * `agent/schedules/requests.ts`.
    */
   readonly collections: Readonly<Record<string, EveDynamicSchedules>>;
   /** Stop claiming after this many ms. Default: 50 000. */

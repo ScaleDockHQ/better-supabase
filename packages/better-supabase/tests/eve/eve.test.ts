@@ -818,6 +818,14 @@ describe("persistSessions", () => {
       ctx,
     );
     await hooks["content.completed"](text("p2", "hi", "reply"), ctx);
+    await hooks["content.completed"](
+      event(
+        "content.completed",
+        { partId: "p3", kind: "text", value: "from the turn", phase: "reply" },
+        "t1",
+      ),
+      ctx,
+    );
     await hooks["turn.settled"](
       event("turn.settled", { turnId: "t1", outcome: "completed" }, "t1"),
       ctx,
@@ -856,6 +864,11 @@ describe("persistSessions", () => {
         metadata: { interim: true },
       },
       { id: "t1:p2", role: "assistant", parts: [{ type: "text", text: "hi" }] },
+      {
+        id: "t1:p3",
+        role: "assistant",
+        parts: [{ type: "text", text: "from the turn" }],
+      },
     ]);
     const [first] = saved[0]!.args as [{ options: unknown }];
 
@@ -1075,10 +1088,12 @@ describe("eve on the Supabase World", () => {
 
       const source = await readFile(join(chunks, file), "utf-8");
 
+      // Workflow 5.5's bundle inlines the constant; its range warning for
+      // WORKFLOW_SPEC_VERSION still names the highest version it runs.
       for (const match of source.matchAll(
-        /SPEC_VERSION_MAX_SUPPORTED:\(\)=>(\d+)/g,
+        /SPEC_VERSION_MAX_SUPPORTED:\(\)=>(\d+)|expected an integer from \d+ to (\d+)/g,
       )) {
-        versions.add(Number(match[1]));
+        versions.add(Number(match[1] ?? match[2]));
       }
     }
 
