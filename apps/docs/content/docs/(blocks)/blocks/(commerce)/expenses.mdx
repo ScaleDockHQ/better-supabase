@@ -138,21 +138,22 @@ archived category. `submit` fails with `EXPENSE_POLICY_VIOLATION` while there
 are findings, and otherwise opens an approval. Lines can't change while the
 report is submitted; a rejected report can be edited and submitted again.
 
-| Method                               | Returns                                             |
-| ------------------------------------ | --------------------------------------------------- |
-| `saveCategory(input)`                | the category, created or updated by key             |
-| `archiveCategory(categoryId)`        | the archived category                               |
-| `categories({ includeArchived })`    | categories                                          |
-| `create(input)`                      | the caller's draft report                           |
-| `addLine(reportId, line)`            | the line                                            |
-| `updateLine(lineId, update)`         | the line                                            |
-| `removeLine(lineId)`                 | the report without the line                         |
-| `check(reportId)`                    | the spend policy findings, empty when it may submit |
-| `submit(reportId)`                   | the report with its approval                        |
-| `reimburse(reportId, input)`         | the reimbursed report                               |
-| `cancel(reportId)`                   | the cancelled report                                |
-| `get(reportId)`                      | the report with its lines                           |
-| `list({ status, userId, everyone })` | reports, newest first                               |
+| Method                               | Returns                                                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `saveCategory(input)`                | the category, created or updated by key                                                                            |
+| `archiveCategory(categoryId)`        | the archived category                                                                                              |
+| `restoreCategory(categoryId)`        | the restored category (records `expense_category.restored`; `archiveCategory` records `expense_category.archived`) |
+| `categories({ includeArchived })`    | categories                                                                                                         |
+| `create(input)`                      | the caller's draft report                                                                                          |
+| `addLine(reportId, line)`            | the line                                                                                                           |
+| `updateLine(lineId, update)`         | the line                                                                                                           |
+| `removeLine(lineId)`                 | the report without the line                                                                                        |
+| `check(reportId)`                    | the spend policy findings, empty when it may submit                                                                |
+| `submit(reportId)`                   | the report with its approval                                                                                       |
+| `reimburse(reportId, input)`         | the reimbursed report                                                                                              |
+| `cancel(reportId)`                   | the cancelled report                                                                                               |
+| `get(reportId)`                      | the report with its lines                                                                                          |
+| `list({ status, userId, everyone })` | reports, newest first                                                                                              |
 
 ## Approval and the ledger
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:08eb71ff44e9513639272f285c826f5ec308700b9e4828a2be7a393a117cc080
+-- @bsb-hash sha256:a7450367a3c519f76256ce93e8871ef354785736d0c0132ede0b7fdb2a065cf7
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -442,11 +442,43 @@ begin
   update "better_supabase"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_leave_type"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_leave_type"(uuid) to authenticated, service_role;
+
+-- Makes an archived type available to new requests again.
+create or replace function "better_supabase"."restore_leave_type"(type_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."leave_types"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."leave_types" x where x."id" = restore_leave_type.type_id for update;
+  if not found then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
+    raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  update "better_supabase"."leave_types" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_leave_type"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_leave_type"(uuid) to authenticated, service_role;
+
 
 create or replace function "better_supabase"."list_leave_types"(tenant uuid, archived boolean default false)
 returns jsonb
@@ -1014,7 +1046,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:8e34139a771754a373690e65f0e2db11d22ef34441c6f41f51f9d3601eb981f0
+-- @bsb-hash sha256:e8970b5523113f96a17c617b5604009a59cf00aaf6d2a2103043c8b6fe9580c1
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1510,11 +1542,61 @@ begin
   update "better_supabase"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
+  perform "better_supabase".emit_event('leave_type.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'name', v_row."name"), 'leave-types/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
+  perform better_supabase.audit_event(
+    event_type => 'leave_type.archived',
+    category => 'data',
+    target_type => 'leave_type',
+    record_id => v_row."id"::text,
+    summary => 'archived leave type' || ' ' || v_row."name",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'name', v_row."name")
+  );
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_leave_type"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_leave_type"(uuid) to authenticated, service_role;
+
+-- Makes an archived type available to new requests again.
+create or replace function "better_supabase"."restore_leave_type"(type_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."leave_types"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."leave_types" x where x."id" = restore_leave_type.type_id for update;
+  if not found then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
+    raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  update "better_supabase"."leave_types" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  perform "better_supabase".emit_event('leave_type.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'name', v_row."name"), 'leave-types/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
+  perform better_supabase.audit_event(
+    event_type => 'leave_type.restored',
+    category => 'data',
+    target_type => 'leave_type',
+    record_id => v_row."id"::text,
+    summary => 'restored leave type' || ' ' || v_row."name",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'name', v_row."name")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_leave_type"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_leave_type"(uuid) to authenticated, service_role;
+
 
 create or replace function "better_supabase"."list_leave_types"(tenant uuid, archived boolean default false)
 returns jsonb
@@ -2193,7 +2275,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:9eba7d6c7b5c9a9d6eccaf25c2ffca9ef98d28f58f74a29212cc7526860f04cc
+-- @bsb-hash sha256:1828cc00571d22c14d0de394125be19c26c0d532f4d56b3af461d2a88e9e8635
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2639,11 +2721,43 @@ begin
   update "app_private"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."archive_leave_type"(uuid) from public, anon;
 grant execute on function "app_private"."archive_leave_type"(uuid) to authenticated, service_role;
+
+-- Makes an archived type available to new requests again.
+create or replace function "app_private"."restore_leave_type"(type_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."leave_types"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."leave_types" x where x."id" = restore_leave_type.type_id for update;
+  if not found then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
+    raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  update "app_private"."leave_types" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."restore_leave_type"(uuid) from public, anon;
+grant execute on function "app_private"."restore_leave_type"(uuid) to authenticated, service_role;
+
 
 create or replace function "app_private"."list_leave_types"(tenant uuid, archived boolean default false)
 returns jsonb
@@ -3211,7 +3325,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:a50fd60b871487d0b6d553eae33933e935b2040175f0461323711daa13bdc697
+-- @bsb-hash sha256:a6da241bc4701d659951b7807152cf043bc75d9a66bb6acb6fcf190dea28c3c9
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3652,11 +3766,43 @@ begin
   update "better_supabase"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_leave_type"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_leave_type"(uuid) to authenticated, service_role;
+
+-- Makes an archived type available to new requests again.
+create or replace function "better_supabase"."restore_leave_type"(type_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."leave_types"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."leave_types" x where x."id" = restore_leave_type.type_id for update;
+  if not found then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
+    raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  update "better_supabase"."leave_types" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_leave_type"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_leave_type"(uuid) to authenticated, service_role;
+
 
 create or replace function "better_supabase"."list_leave_types"(tenant uuid, archived boolean default false)
 returns jsonb
@@ -4289,6 +4435,15 @@ as $$ select "better_supabase"."archive_leave_type"($1) $$;
 revoke execute on function "api"."archive_leave_type"(uuid) from public, anon;
 grant execute on function "api"."archive_leave_type"(uuid) to authenticated, service_role;
 
+create or replace function "api"."restore_leave_type"(type_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_leave_type"($1) $$;
+revoke execute on function "api"."restore_leave_type"(uuid) from public, anon;
+grant execute on function "api"."restore_leave_type"(uuid) to authenticated, service_role;
+
 create or replace function "api"."list_leave_types"(tenant uuid, archived boolean default false)
 returns jsonb
 language sql
@@ -4371,7 +4526,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:f3fb9043cdcf15e9806cbc51da8d57705e95990eb7f63ccb45f08629620a694d
+-- @bsb-hash sha256:067e5e08e333eb2aadae6e35fd49cd0cde1a346d3e910c07cbc50ef9a6f44477
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4804,11 +4959,43 @@ begin
   update "better_supabase"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_leave_type"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_leave_type"(uuid) to authenticated, service_role;
+
+-- Makes an archived type available to new requests again.
+create or replace function "better_supabase"."restore_leave_type"(type_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."leave_types"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."leave_types" x where x."id" = restore_leave_type.type_id for update;
+  if not found then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leave.manage'), false)) then
+    raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  update "better_supabase"."leave_types" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_leave_type"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_leave_type"(uuid) to authenticated, service_role;
+
 
 create or replace function "better_supabase"."list_leave_types"(tenant uuid, archived boolean default false)
 returns jsonb
@@ -5364,7 +5551,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:ac383c3c591e1a68e947f6285a3862dc9770dec0f923a923fb04a2e99276b230
+-- @bsb-hash sha256:6d93482a53197066cf4ea52673a9b687c142af8efbf133b6b0bfa3ba3ed4a26c
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5805,11 +5992,43 @@ begin
   update "better_supabase"."leave_types" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_leave_type"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_leave_type"(uuid) to authenticated, service_role;
+
+-- Makes an archived type available to new requests again.
+create or replace function "better_supabase"."restore_leave_type"(type_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."leave_types"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."leave_types" x where x."id" = restore_leave_type.type_id for update;
+  if not found then
+    raise exception 'leave type not found' using errcode = 'P0002', hint = 'LEAVE_TYPE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leave.manage'), false)) then
+    raise exception 'not allowed to manage leave types' using errcode = '42501', hint = 'LEAVE_FORBIDDEN';
+  end if;
+  update "better_supabase"."leave_types" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'paid', v_row."paid", 'tracked', v_row."tracked", 'allowance', v_row."allowance"::text, 'carryoverMax', v_row."carryover_max"::text, 'color', v_row."color", 'autoApprove', v_row."auto_approve", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_leave_type"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_leave_type"(uuid) to authenticated, service_role;
+
 
 create or replace function "better_supabase"."list_leave_types"(tenant uuid, archived boolean default false)
 returns jsonb

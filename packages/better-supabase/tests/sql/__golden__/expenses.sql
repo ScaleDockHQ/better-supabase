@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:e6972ed03dbeac3d9ef1c621944274cf3a162c93739eb0de8199974c0365e10e
+-- @bsb-hash sha256:f370bfc56b80704c2b3eb4018e0b17a41114bed247eb110674f5608319767ea0
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -159,11 +159,38 @@ begin
   update "better_supabase"."expense_categories" c set "archived_at" = coalesce(c."archived_at", now()), "updated_at" = now()
     where c."id" = v_row."id"
     returning * into v_row;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_expense_category"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_expense_category"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_expense_category"(category_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."expense_categories"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."expense_categories" c where c."id" = restore_expense_category.category_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.manage'), false)) then
+    raise exception 'no such expense category you can manage' using errcode = 'P0002', hint = 'EXPENSE_CATEGORY_NOT_FOUND';
+  end if;
+  update "better_supabase"."expense_categories" c set "archived_at" = null, "updated_at" = now()
+    where c."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_expense_category"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_expense_category"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_expense_categories"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -769,7 +796,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:38da72a3daf716ddecef96169fe3c9dd82191018b5be31df6b1be7a2d4e36868
+-- @bsb-hash sha256:63282b0ed63dd342f5666d098090edee2e99c0ce364755931fb6ecb0fbb0d061
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -924,11 +951,56 @@ begin
   update "better_supabase"."expense_categories" c set "archived_at" = coalesce(c."archived_at", now()), "updated_at" = now()
     where c."id" = v_row."id"
     returning * into v_row;
+  perform "better_supabase".emit_event('expense_category.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key"), 'expense-categories/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/expenses');
+  perform better_supabase.audit_event(
+    event_type => 'expense_category.archived',
+    category => 'data',
+    target_type => 'expense_category',
+    record_id => v_row."id"::text,
+    summary => 'archived an expense category',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key")
+  );
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_expense_category"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_expense_category"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_expense_category"(category_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."expense_categories"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."expense_categories" c where c."id" = restore_expense_category.category_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.manage'), false)) then
+    raise exception 'no such expense category you can manage' using errcode = 'P0002', hint = 'EXPENSE_CATEGORY_NOT_FOUND';
+  end if;
+  update "better_supabase"."expense_categories" c set "archived_at" = null, "updated_at" = now()
+    where c."id" = v_row."id"
+    returning * into v_row;
+  perform "better_supabase".emit_event('expense_category.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key"), 'expense-categories/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/expenses');
+  perform better_supabase.audit_event(
+    event_type => 'expense_category.restored',
+    category => 'data',
+    target_type => 'expense_category',
+    record_id => v_row."id"::text,
+    summary => 'restored an expense category',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_expense_category"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_expense_category"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_expense_categories"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -1642,7 +1714,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:64ee8c14dd4ef8cce9e827d344a90853d5aed63c62e1dd98583352d0003f585e
+-- @bsb-hash sha256:aa89aeeb6e95952831860078dd89851d503cbf2bfdde910e7951c2e7096cda41
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1805,11 +1877,38 @@ begin
   update "app_private"."expense_categories" c set "archived_at" = coalesce(c."archived_at", now()), "updated_at" = now()
     where c."id" = v_row."id"
     returning * into v_row;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."archive_expense_category"(uuid) from public, anon;
 grant execute on function "app_private"."archive_expense_category"(uuid) to authenticated, service_role;
+
+create or replace function "app_private"."restore_expense_category"(category_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."expense_categories"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."expense_categories" c where c."id" = restore_expense_category.category_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.manage'), false)) then
+    raise exception 'no such expense category you can manage' using errcode = 'P0002', hint = 'EXPENSE_CATEGORY_NOT_FOUND';
+  end if;
+  update "app_private"."expense_categories" c set "archived_at" = null, "updated_at" = now()
+    where c."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."restore_expense_category"(uuid) from public, anon;
+grant execute on function "app_private"."restore_expense_category"(uuid) to authenticated, service_role;
 
 create or replace function "app_private"."list_expense_categories"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -2415,7 +2514,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:ad7407e022cd6dd12d49c940ec0184109ee121060cb50cecc1b1a45730e961b4
+-- @bsb-hash sha256:bbb2a82394052b1f64847a24f9f6c4aebf18ce30bbc0ae7aa73005c59289f4fd
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2573,11 +2672,38 @@ begin
   update "better_supabase"."expense_categories" c set "archived_at" = coalesce(c."archived_at", now()), "updated_at" = now()
     where c."id" = v_row."id"
     returning * into v_row;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_expense_category"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_expense_category"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_expense_category"(category_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."expense_categories"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."expense_categories" c where c."id" = restore_expense_category.category_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.manage'), false)) then
+    raise exception 'no such expense category you can manage' using errcode = 'P0002', hint = 'EXPENSE_CATEGORY_NOT_FOUND';
+  end if;
+  update "better_supabase"."expense_categories" c set "archived_at" = null, "updated_at" = now()
+    where c."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_expense_category"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_expense_category"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_expense_categories"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -3188,6 +3314,15 @@ as $$ select "better_supabase"."archive_expense_category"($1) $$;
 revoke execute on function "api"."archive_expense_category"(uuid) from public, anon;
 grant execute on function "api"."archive_expense_category"(uuid) to authenticated, service_role;
 
+create or replace function "api"."restore_expense_category"(category_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_expense_category"($1) $$;
+revoke execute on function "api"."restore_expense_category"(uuid) from public, anon;
+grant execute on function "api"."restore_expense_category"(uuid) to authenticated, service_role;
+
 create or replace function "api"."list_expense_categories"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
@@ -3308,7 +3443,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:4526cc397f1736e8d07d506b53a83b63368c2a3b5691baa834461bbb6b628171
+-- @bsb-hash sha256:259158666a5b8d4add3ed26a164ab2de9f5c6b606593738d5e3fdec5a052dbeb
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3458,11 +3593,38 @@ begin
   update "better_supabase"."expense_categories" c set "archived_at" = coalesce(c."archived_at", now()), "updated_at" = now()
     where c."id" = v_row."id"
     returning * into v_row;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_expense_category"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_expense_category"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_expense_category"(category_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."expense_categories"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."expense_categories" c where c."id" = restore_expense_category.category_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'expenses.manage'), false)) then
+    raise exception 'no such expense category you can manage' using errcode = 'P0002', hint = 'EXPENSE_CATEGORY_NOT_FOUND';
+  end if;
+  update "better_supabase"."expense_categories" c set "archived_at" = null, "updated_at" = now()
+    where c."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_expense_category"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_expense_category"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_expense_categories"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -4068,7 +4230,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:b9df612ed607ce8559f5e915072c442faf806e7d4ac6558cd76f7adb739297cb
+-- @bsb-hash sha256:0ea4aa92b3cc19a0b2f7be1d04102167a6a0015411541b9851db2119e75f7a87
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4226,11 +4388,38 @@ begin
   update "better_supabase"."expense_categories" c set "archived_at" = coalesce(c."archived_at", now()), "updated_at" = now()
     where c."id" = v_row."id"
     returning * into v_row;
+  null;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."archive_expense_category"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_expense_category"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_expense_category"(category_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."expense_categories"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."expense_categories" c where c."id" = restore_expense_category.category_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'expenses.manage'), false)) then
+    raise exception 'no such expense category you can manage' using errcode = 'P0002', hint = 'EXPENSE_CATEGORY_NOT_FOUND';
+  end if;
+  update "better_supabase"."expense_categories" c set "archived_at" = null, "updated_at" = now()
+    where c."id" = v_row."id"
+    returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'currency', v_row."currency", 'limitAmount', v_row."limit_amount"::text, 'receiptOver', v_row."receipt_over"::text, 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_expense_category"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_expense_category"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_expense_categories"(tenant uuid, include_archived boolean default false)
 returns jsonb

@@ -107,6 +107,7 @@ describe("createQualifications", () => {
       save_qualification_type: () => TYPE,
       list_qualification_types: () => [TYPE, BARE_TYPE],
       archive_qualification_type: () => ({ ...TYPE, archivedAt: AT }),
+      restore_qualification_type: () => TYPE,
     });
 
     const qualifications = createQualifications({ transport: t });
@@ -143,6 +144,8 @@ describe("createQualifications", () => {
       .orThrow();
 
     const archived = await qualifications.archiveType("t1").orThrow();
+    const restored = await qualifications.restoreType("t1").orThrow();
+    expect(restored.archivedAt).toBeUndefined();
 
     expect(saved).toMatchObject({
       validForMonths: 12,
@@ -191,6 +194,7 @@ describe("createQualifications", () => {
       ],
       ["list_qualification_types", { tenant: "org-1", include_archived: true }],
       ["archive_qualification_type", { type_id: "t1" }],
+      ["restore_qualification_type", { type_id: "t1" }],
     ]);
   });
 

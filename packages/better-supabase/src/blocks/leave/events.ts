@@ -37,6 +37,17 @@ export interface LeaveAdjustedEventData {
   readonly period: number;
 }
 
+/**
+ * `leave_type.archived` and `leave_type.restored`: a leave type left or came
+ * back to new requests.
+ */
+export interface LeaveTypeEventData {
+  readonly organizationId: string;
+  /** The leave type. */
+  readonly id: string;
+  readonly name: string;
+}
+
 /** The events of the `leave` block: type to data. */
 export type LeaveEvents = {
   readonly "leave_request.requested": LeaveRequestEventData;
@@ -48,6 +59,8 @@ export type LeaveEvents = {
   /** Approved leave was split around a gap; the event names the new part. */
   readonly "leave_request.split": LeaveRequestEventData;
   readonly "leave_balance.adjusted": LeaveAdjustedEventData;
+  readonly "leave_type.archived": LeaveTypeEventData;
+  readonly "leave_type.restored": LeaveTypeEventData;
 };
 
 /** The `leave` block's event types, for its manifest and `onBlockEvent`. */
@@ -59,4 +72,6 @@ export const leaveEvents: Events<LeaveEvents> = defineEvents({
   "leave_request.updated": event<LeaveRequestEventData>(),
   "leave_request.split": event<LeaveRequestEventData>(),
   "leave_balance.adjusted": event<LeaveAdjustedEventData>(),
+  "leave_type.archived": event<LeaveTypeEventData>(),
+  "leave_type.restored": event<LeaveTypeEventData>(),
 });
