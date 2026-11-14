@@ -15,7 +15,7 @@ import { contextClaims } from "../../src/auth/delegation.ts";
 import { createAiChat } from "../../src/blocks/ai-chat/index.ts";
 import { createApprovals } from "../../src/blocks/approvals/index.ts";
 import { createMemory, sqlTransport } from "../../src/blocks/memory/index.ts";
-import { createQueue } from "../../src/blocks/queue/index.ts";
+import { createQueue, sqlScheduler } from "../../src/blocks/queue/index.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import { vaultCredentials } from "../../src/credentials/index.ts";
@@ -25,7 +25,10 @@ import {
   ConnectionAuthorizationRequiredError,
   credentialAuth,
   eveAgentJob,
+  eveScheduleRun,
   persistSessions,
+  queueDynamicSchedules,
+  queueScheduleProvider,
   queueSchedules,
   scheduleAgent,
   supabaseDocumentBackend,
@@ -119,37 +122,61 @@ describe.skipIf(!live)("better-supabase/eve", () => {
         session: { id: "sess_live", auth: { current: auth, initiator: auth } },
       };
 
-      const turn = { turnId: "t1", sequence: 0 };
+      const scope = { turnId: "t1" };
 
       const twice = async (deliver: () => Promise<void>) => {
         await deliver();
         await deliver();
       };
 
-      await twice(() => hooks["session.started"]({ data: {} }, ctx));
-      await twice(() => hooks["turn.started"]({ data: turn }, ctx));
       await twice(() =>
-        hooks["message.received"](
-          { data: { ...turn, sequence: 1, message: "Plan my week" } },
+        hooks["session.started"]({ type: "session.started", data: {} }, ctx),
+      );
+      await twice(() =>
+        hooks["turn.started"](
+          { type: "turn.started", scope, data: { turnId: "t1" } },
           ctx,
         ),
       );
       await twice(() =>
-        hooks["message.completed"](
+        hooks["delivery.consumed"](
           {
+            type: "delivery.consumed",
+            scope,
             data: {
-              ...turn,
-              sequence: 2,
-              stepIndex: 0,
-              message: "Here is a plan",
-              finishReason: "stop",
+              deliveryId: "d1",
+              turnId: "t1",
+              parts: [{ kind: "text", text: "Plan my week" }],
             },
           },
           ctx,
         ),
       );
       await twice(() =>
-        hooks["turn.completed"]({ data: { ...turn, sequence: 3 } }, ctx),
+        hooks["content.completed"](
+          {
+            type: "content.completed",
+            scope,
+            data: {
+              partId: "p1",
+              runId: "r1",
+              kind: "text",
+              value: "Here is a plan",
+              phase: "reply",
+            },
+          },
+          ctx,
+        ),
+      );
+      await twice(() =>
+        hooks["turn.settled"](
+          {
+            type: "turn.settled",
+            scope,
+            data: { turnId: "t1", outcome: "completed" },
+          },
+          ctx,
+        ),
       );
 
       await s.service();
@@ -166,8 +193,8 @@ describe.skipIf(!live)("better-supabase/eve", () => {
           [chatId],
         ),
       ).toEqual([
-        { id: "t1:1", role: "user", format: "canonical", parent_id: null },
-        { id: "t1:0:2", role: "assistant", format: "eve", parent_id: "t1:1" },
+        { id: "t1:d1", role: "user", format: "canonical", parent_id: null },
+        { id: "t1:p1", role: "assistant", format: "eve", parent_id: "t1:d1" },
       ]);
       expect(
         await s.rows(
@@ -275,7 +302,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
         connection: "linear",
       });
 
-      expect(perUser).toMatchObject({ credentialOwner: "user" });
+      expect(perUser).toMatchObject({ principalType: "user" });
       await expect(
         perUser.getToken({ principal: user, connection }),
       ).rejects.toBeInstanceOf(ConnectionAuthorizationRequiredError);
@@ -428,7 +455,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
       const respond = (responder: string): EveApprovalResponseContext => ({
         request: {
           callId: "call_appr",
-          requestId: "input_1",
+          interactionId: "input_1",
           principal: auth,
           toolName: "create_task",
         },
@@ -523,6 +550,144 @@ describe.skipIf(!live)("better-supabase/eve", () => {
           auth: { ...member(owner.id, tenant), subject: owner.id },
         },
       ]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("stores eve's dynamic schedules on the drain scheduler and fires each due run once", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "queue"], {
+        modules: {
+          queue: { options: { backend: "table", scheduler: "drain" } },
+        },
+      });
+      const owner = await s.user("owner");
+      const tenant = await s.organization(owner);
+      await s.service();
+
+      const scheduler = sqlScheduler(s.sql, { mode: "drain" });
+
+      const queue = createQueue({
+        sql: s.sql,
+        scheduler,
+        queues: { eve_schedules: eveScheduleRun },
+      });
+
+      const provider = queueScheduleProvider({
+        scheduler,
+        tenantOf: (scope) => (typeof scope === "string" ? undefined : scope[0]),
+      });
+
+      const ctx = {
+        abortSignal: new AbortController().signal,
+        collection: "requests",
+        namespace: `eve-it-${crypto.randomUUID().slice(0, 8)}`,
+        operationId: "op_1",
+        target: { key: "planner" },
+      };
+
+      const created = await provider.create(ctx, {
+        name: "digest",
+        expression: {
+          type: "cron",
+          cron: "0 9 * * *",
+          timezone: "Europe/Amsterdam",
+        },
+        payload: {
+          eve: { application: "planner", collection: "requests", version: 3 },
+          envelope: {
+            version: 3,
+            payload: { task: "Send the digest" },
+            scope: [tenant, owner.id],
+            principal: {
+              type: "user",
+              authenticator: "supabase",
+              principalId: owner.id,
+            },
+          },
+        },
+      });
+
+      expect(await provider.get(ctx, "digest")).toEqual(created);
+      expect((await provider.list(ctx, {})).data).toEqual([created]);
+      expect(
+        await s.rows(
+          "select tenant, timezone from better_supabase.job_schedules where job_name = $1",
+          [`eve:requests:${ctx.namespace}:digest`],
+        ),
+      ).toEqual([{ tenant, timezone: "Europe/Amsterdam" }]);
+
+      await s.client.query(
+        `update better_supabase.job_schedules
+         set next_run = date_trunc('milliseconds', now()) - interval '1 minute'
+         where job_name = $1`,
+        [`eve:requests:${ctx.namespace}:digest`],
+      );
+
+      const sent: { message: string; auth: EveSessionAuth | null }[] = [];
+
+      const requests = {
+        inputSchema: {
+          "~standard": { validate: (value: unknown) => ({ value }) },
+        },
+        auth: () => ({ attributes: { tenantId: tenant } }),
+        run: async ({
+          payload,
+          to,
+        }: {
+          payload: { task: string };
+          to: (
+            channel: never,
+            target: never,
+          ) => { send(message: string): Promise<unknown> };
+        }) => {
+          await to(
+            { name: "slack" } as never,
+            { channelId: "C1" } as never,
+          ).send(payload.task);
+        },
+      };
+
+      const tick = async () => {
+        const tasks: Promise<unknown>[] = [];
+
+        queueDynamicSchedules({ queue, provider, collections: { requests } })({
+          to: (): EveTargetHandle => ({
+            send: (message, { auth }) => {
+              sent.push({ message, auth });
+
+              return Promise.resolve({ sessionId: "sess_1" });
+            },
+          }),
+          appAuth: member("app", tenant),
+          waitUntil: (task) => {
+            tasks.push(task);
+          },
+        });
+
+        await Promise.all(tasks);
+      };
+
+      await tick();
+      await tick();
+
+      expect(sent).toEqual([
+        {
+          message: "Send the digest",
+          auth: {
+            authenticator: "supabase",
+            principalType: "user",
+            principalId: owner.id,
+            attributes: { tenantId: tenant },
+          },
+        },
+      ]);
+      expect((await provider.disable(ctx, "digest")).state).toBe("inactive");
+      expect(await provider.delete(ctx, "digest")).toBe(true);
+      expect((await provider.list(ctx, {})).data).toEqual([]);
     } finally {
       await s.close();
     }

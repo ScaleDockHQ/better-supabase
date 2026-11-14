@@ -4,53 +4,52 @@ import type { EveSessionAuth, EveSessionContext } from "./types.ts";
 
 import { stableUuid } from "./ids.ts";
 
+/** A v27 session event: its type, the turn or run it belongs to, and its data. */
 interface EveEvent<T> {
-  readonly type?: string;
+  readonly type: string;
+  readonly scope?: { readonly turnId?: string; readonly runId?: string };
   readonly data: T;
-  readonly meta?: { readonly id?: string; readonly at?: string };
 }
 
-interface TurnData {
-  readonly turnId: string;
-  readonly sequence: number;
-}
+/** A part of what a person sent, as `delivery.consumed` carries it. */
+type EveUserPart =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: string };
 
-/** Hook handlers for eve's `defineHook({ events })`. */
+/** Hook handlers for eve's `defineHook({ events })`, on stream version 27. */
 export interface EveSessionHooks {
   "session.started"(
     event: EveEvent<unknown>,
     ctx: EveSessionContext,
   ): Promise<void>;
   "turn.started"(
-    event: EveEvent<TurnData>,
+    event: EveEvent<{ readonly turnId: string }>,
     ctx: EveSessionContext,
   ): Promise<void>;
-  "message.received"(
-    event: EveEvent<TurnData & { readonly message: string }>,
+  "delivery.consumed"(
+    event: EveEvent<{
+      readonly deliveryId: string;
+      readonly turnId: string;
+      readonly parts: readonly EveUserPart[];
+    }>,
     ctx: EveSessionContext,
   ): Promise<void>;
-  "message.completed"(
-    event: EveEvent<
-      TurnData & {
-        readonly message: string;
-        readonly stepIndex: number;
-        readonly finishReason: string;
-      }
-    >,
+  "content.completed"(
+    event: EveEvent<{
+      readonly partId: string;
+      readonly runId: string;
+      readonly kind: string;
+      readonly value?: unknown;
+      readonly phase: string;
+    }>,
     ctx: EveSessionContext,
   ): Promise<void>;
-  "turn.completed"(
-    event: EveEvent<TurnData>,
-    ctx: EveSessionContext,
-  ): Promise<void>;
-  "turn.failed"(
-    event: EveEvent<
-      TurnData & { readonly code: string; readonly message: string }
-    >,
-    ctx: EveSessionContext,
-  ): Promise<void>;
-  "turn.cancelled"(
-    event: EveEvent<TurnData>,
+  "turn.settled"(
+    event: EveEvent<{
+      readonly turnId: string;
+      readonly outcome: string;
+      readonly error?: { readonly code: string; readonly message: string };
+    }>,
     ctx: EveSessionContext,
   ): Promise<void>;
 }
@@ -75,6 +74,19 @@ export function chatIdOf(sessionId: string): Promise<string> {
 
 const streamOf = (sessionId: string, turnId: string): string =>
   `eve:${sessionId}:${turnId}`;
+
+const textOf = (parts: readonly EveUserPart[]): string =>
+  parts
+    .flatMap((part) =>
+      part.kind === "text" && "text" in part ? [part.text] : [],
+    )
+    .join("\n");
+
+const FINAL_STATES: Readonly<Record<string, FinalRunState>> = {
+  completed: "completed",
+  failed: "failed",
+  cancelled: "cancelled",
+};
 
 /**
  * Hook handlers that copy an eve session into the canonical chat tables, so the
@@ -141,28 +153,6 @@ export function persistSessions(
     return chatIdOf(ctx.session.id);
   };
 
-  const release = async (
-    ctx: EveSessionContext,
-    turnId: string,
-    status: FinalRunState,
-    error?: string,
-  ): Promise<void> => {
-    const chatId = await knownChat(ctx);
-
-    if (chatId === undefined) {
-      return;
-    }
-
-    await chats.runs
-      .release({
-        chatId,
-        streamId: streamOf(ctx.session.id, turnId),
-        status,
-        ...(error === undefined ? {} : { error }),
-      })
-      .orThrow();
-  };
-
   return {
     "session.started": async (_event, ctx) => {
       await chatFor(ctx);
@@ -182,29 +172,41 @@ export function persistSessions(
         })
         .orThrow();
     },
-    "message.received": async (event, ctx) => {
+    "delivery.consumed": async (event, ctx) => {
       const chatId = await chatFor(ctx);
+      const text = textOf(event.data.parts);
 
-      if (chatId === undefined || event.data.message.length === 0) {
+      if (chatId === undefined || text.length === 0) {
         return;
       }
 
-      const id = `${event.data.turnId}:${String(event.data.sequence)}`;
       await chats.messages
         .appendUser({
           chatId,
           message: {
-            id,
+            id: `${event.data.turnId}:${event.data.deliveryId}`,
             role: "user",
-            parts: [{ type: "text", text: event.data.message }],
+            parts: [{ type: "text", text }],
           },
         })
         .orThrow();
     },
-    "message.completed": async (event, ctx) => {
+    "content.completed": async (event, ctx) => {
+      const { kind, value, phase, partId } = event.data;
+      const turnId = event.scope?.turnId;
+
+      if (
+        kind !== "text" ||
+        typeof value !== "string" ||
+        value.length === 0 ||
+        turnId === undefined
+      ) {
+        return;
+      }
+
       const chatId = await knownChat(ctx);
 
-      if (chatId === undefined || event.data.message.length === 0) {
+      if (chatId === undefined) {
         return;
       }
 
@@ -214,17 +216,14 @@ export function persistSessions(
         return;
       }
 
-      const id = `${event.data.turnId}:${String(event.data.stepIndex)}:${String(event.data.sequence)}`;
       await chats.messages
         .saveAssistant({
           chatId,
           message: {
-            id,
+            id: `${turnId}:${partId}`,
             role: "assistant",
-            parts: [{ type: "text", text: event.data.message }],
-            ...(event.data.finishReason === "tool-calls"
-              ? { metadata: { interim: true } }
-              : {}),
+            parts: [{ type: "text", text: value }],
+            ...(phase === "reply" ? {} : { metadata: { interim: true } }),
           },
           options: {
             parentId: chat.leafId,
@@ -236,16 +235,26 @@ export function persistSessions(
         })
         .orThrow();
     },
-    "turn.completed": (event, ctx) =>
-      release(ctx, event.data.turnId, "completed"),
-    "turn.failed": (event, ctx) =>
-      release(
-        ctx,
-        event.data.turnId,
-        "failed",
-        `${event.data.code}: ${event.data.message}`,
-      ),
-    "turn.cancelled": (event, ctx) =>
-      release(ctx, event.data.turnId, "cancelled"),
+    "turn.settled": async (event, ctx) => {
+      const status = FINAL_STATES[event.data.outcome];
+      const chatId = status === undefined ? undefined : await knownChat(ctx);
+
+      if (status === undefined || chatId === undefined) {
+        return;
+      }
+
+      const { error } = event.data;
+
+      await chats.runs
+        .release({
+          chatId,
+          streamId: streamOf(ctx.session.id, event.data.turnId),
+          status,
+          ...(error === undefined
+            ? {}
+            : { error: `${error.code}: ${error.message}` }),
+        })
+        .orThrow();
+    },
   };
 }

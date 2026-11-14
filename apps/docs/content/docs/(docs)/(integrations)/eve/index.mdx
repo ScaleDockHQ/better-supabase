@@ -1,6 +1,6 @@
 ---
 title: eve on Supabase
-description: Run eve agents on Supabase with the Workflow World on Postgres, Supabase sign-in on eve routes, tools that run as the user, approvals, queue schedules, MCP and OpenAPI connections over credential providers, memory, sessions in the chat tables and the inbox as a channel.
+description: Run eve agents on Supabase with the Workflow World on Postgres, Supabase sign-in on eve routes, tools that run as the user, approvals, queue schedules, dynamic schedules on the queue block, MCP and OpenAPI connections over credential providers, memory, sessions in the chat tables and the inbox as a channel.
 ---
 
 `better-supabase/eve` connects [eve](https://eve.dev/docs) agents to the
@@ -17,7 +17,8 @@ pnpm better-supabase add workflow-sdk ai-chat memory knowledge credentials inbox
 pnpm better-supabase add approvals queue
 ```
 
-`eve` is an optional peer (`>=0.83.3 <1`). The entry types eve structurally
+`eve` is an optional peer (`>=1.0.0-rc.0 <2`), a 1.0 release candidate until
+1.0 ships. The entry types eve structurally
 and imports nothing from it at load time; the memory provider loads
 `eve/tools` the first time it builds its tools. eve runs on Node, so the
 entry is Node-only, like the World. The inbox channel also needs `chat`
@@ -36,6 +37,9 @@ entry is Node-only, like the World. The inbox channel also needs `chat`
 | `agentJobHandler`         | `drain()` or a queue route                      | starts a session for one `eve` queue job, as the job's user                  |
 | `jobAuth`                 | `to(...).send(..., { auth })`                   | the session auth for a job: its user as a Supabase principal, else the app's |
 | `eveAgentJob`             | `createQueue({ queues })`                       | the Standard Schema of an `eve` queue job                                    |
+| `queueScheduleProvider`   | `defineDynamicSchedules({ provider })`          | stores eve's dynamic schedules in a queue block scheduler                    |
+| `queueDynamicSchedules`   | `defineSchedule({ run })`                       | fires the due dynamic schedules into their definition's `auth` and `run`     |
+| `eveScheduleRun`          | `createQueue({ queues })`                       | the Standard Schema of an `eve_schedules` queue job                          |
 | `credentialAuth`          | `defineMcpClientConnection({ auth })`           | reads connection tokens from Vault, Vercel Connect or your provider          |
 | `openApiAuth`             | `defineOpenAPIConnection({ auth })`             | the same tokens for an OpenAPI service, sent as a bearer token               |
 | `tenantArgument`          | a connection's `toolCall.providedArguments`     | fills one argument with the session's organization, hidden from the model    |
@@ -64,9 +68,10 @@ export default defineAgent({
 SUPABASE_DB_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
 ```
 
-eve runs its sessions on the `workflow` package your app installs next to it.
-The World speaks the `@workflow/world` protocol in `WORKFLOW_WORLD_PROTOCOL`,
-so keep `workflow` on a release that speaks the same one. The
+eve 1.0 runs its sessions on the Workflow SDK it bundles and loads the World
+by name; it refuses a World built for another `@workflow/*` major at startup.
+eve 1.0.0-rc.0 bundles Workflow 5.2, which reads the 5.1 protocol the World
+speaks (`WORKFLOW_WORLD_PROTOCOL`). The
 [Workflow SDK page](/docs/blocks/workflow-sdk) lists the other variables.
 
 ## Sign-in on eve routes
@@ -134,6 +139,7 @@ every query runs under row-level security. The token carries the agent's
 calls from the user's own.
 
 ```ts title="agent/tools/add_note.ts"
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import { supabaseTool } from "better-supabase/eve";
 import { defineTool } from "eve/tools";
 import * as v from "valibot";
@@ -145,7 +151,10 @@ export default defineTool(
     server,
     agent: "assistant",
     description: "Adds a note to one of the organization's customers",
-    inputSchema: v.object({ customerId: v.string(), body: v.string() }),
+    // eve sends the model the input's JSON Schema.
+    inputSchema: toStandardJsonSchema(
+      v.object({ customerId: v.string(), body: v.string() }),
+    ),
     async execute({ customerId, body }, { db, context }) {
       const note = await db.notes
         .create({ customerId, body, organizationId: context.tenant ?? "" })
@@ -269,6 +278,123 @@ await scheduleAgent(
 proactive target. A job without a user runs as eve's app principal. To
 drain the queue from your own route instead, pass
 `agentJobHandler({ channels }, args)` to `drain`.
+
+## Dynamic schedules
+
+eve's `defineDynamicSchedules` (from `eve/experimental/schedules`) lets
+members and the model create, list, update, pause and delete schedules while
+the agent runs, with eve's management tools, `scope`, approvals and its
+`auth` check of the creator before each run. `queueScheduleProvider` stores
+those schedules in a [queue block](/docs/blocks/queue) scheduler, and
+`queueDynamicSchedules` fires them from a minute schedule, the way eve's
+application-managed scheduling pattern does.
+
+```ts title="agent/lib/server.ts"
+import { createQueue, sqlScheduler } from "better-supabase/blocks/queue";
+import { eveScheduleRun, queueScheduleProvider } from "better-supabase/eve";
+
+const scheduler = sqlScheduler(postgres.admin, { mode: "drain" });
+
+export const memberSchedules = queueScheduleProvider({
+  scheduler,
+  // The scope below is [tenant, member].
+  tenantOf: (scope) => (Array.isArray(scope) ? scope[0] : undefined),
+});
+
+export const scheduleRuns = createQueue({
+  sql: postgres.admin,
+  scheduler,
+  queues: { eve_schedules: eveScheduleRun },
+});
+```
+
+```ts title="agent/schedules/requests.ts"
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
+import { defineDynamicSchedules } from "eve/experimental/schedules";
+import * as v from "valibot";
+
+import eve from "../channels/eve";
+import { memberSchedules } from "../lib/server";
+
+export default defineDynamicSchedules({
+  inputSchema: toStandardJsonSchema(v.object({ task: v.string() })),
+  provider: memberSchedules,
+  scope: ({ session }) => {
+    const auth = session.auth.current;
+    const tenant = auth?.attributes.tenantId;
+
+    return auth?.principalType === "user" && typeof tenant === "string"
+      ? [tenant, auth.principalId]
+      : null;
+  },
+  // findMember is application code: it looks up the creator's current access
+  // and returns null to fail the run without a retry.
+  auth: ({ principal }) => findMember(principal.principalId),
+  run: ({ payload, to }) => to(eve, {}).send(payload.task),
+});
+```
+
+```ts title="agent/schedules/dispatch.ts"
+import { queueDynamicSchedules } from "better-supabase/eve";
+import { defineSchedule } from "eve/schedules";
+
+import { memberSchedules, scheduleRuns } from "../lib/server";
+import requests from "./requests";
+
+export default defineSchedule({
+  cron: "* * * * *",
+  run: queueDynamicSchedules({
+    queue: scheduleRuns,
+    provider: memberSchedules,
+    // The key is the definition's path under agent/schedules/.
+    collections: { requests },
+  }),
+});
+```
+
+Each eve schedule is one queue block schedule named
+`eve:<collection>:<namespace>:<name>`, whose payload holds eve's record: the
+timing, state, timestamps and eve's stored payload with the creator and
+scope. A `single` time becomes the cron of its local minute, hour, day and
+month, and completes after its run. `get`, `list`, `update`, `enable`,
+`disable` and `delete` read and write those schedules, always inside eve's
+collection and namespace. `tenantOf` reads the tenant from the scope eve
+resolved, so `unscheduleAll({ tenant })` removes a tenant's schedules with
+the rest of its data.
+
+Every minute, `queueDynamicSchedules` calls `runSchedules`, then drains
+`eve_schedules`. For each run it reads the schedule again and skips it when
+it was paused or deleted after it was enqueued, validates the stored payload
+with `inputSchema` (unless `preparePayload` shaped it), calls the
+definition's `auth` with the creator and then its `run`. Sessions start
+through the minute schedule's `to()`, as the creator. A send without an
+`idempotencyKey` gets one from the occurrence and the message, so a retried
+run reaches the session the first attempt started. `null` from `auth`, a
+different creator, an invalid payload or an unknown collection fail the
+occurrence for good and call `occurrence.failed`; a thrown error retries the
+job, and the last attempt calls `occurrence.failed` too. A run that finishes
+calls `occurrence.dispatched` with the session ids. eve's `invoke` (a
+manual run) delivers through the target eve passes with the call.
+
+The provider needs a scheduler that lists schedules with their payloads,
+because eve's `update` keeps the stored payload, `invoke` delivers it and
+`get` returns the timing and state: the drain scheduler
+(`blocks.queue.options.scheduler: "drain"`, or `sqlScheduler(sql, { mode:
+"drain" })` and `transportScheduler`). It pairs with Supabase Queues and
+Vercel Queues alike. pg_cron keeps only the command, in UTC and without a
+tenant, and Vercel Schedules returns no payloads, so the provider throws a
+`TypeError` for a scheduler that can't list and an `unsupported`
+`DbException` (`EVE_SCHEDULE_PAYLOAD_UNREADABLE`) for one that lists without
+payloads.
+
+eve gives a provider its delivery target only during a management call, and
+fires a timed run only through its own Vercel Queues route, so a provider has
+no public way to hand eve a run at the scheduled minute. `queueDynamicSchedules`
+runs the definition's `auth` and `run` itself instead. Runs fire at the next
+minute tick, and a session it starts is an ordinary session of the minute
+schedule: `ctx.session.schedule` names that schedule, not the dynamic one, and
+the session could ask for input that nobody answers, so give scheduled work
+tools that don't wait for a person.
 
 ## Connections
 
@@ -404,13 +530,15 @@ export default defineHook({
 });
 ```
 
-| eve event                                         | Written                                                                  |
-| ------------------------------------------------- | ------------------------------------------------------------------------ |
-| `session.started`                                 | an `ai_chats` row with the id `chatIdOf(sessionId)`, owned by the user   |
-| `turn.started`                                    | an `ai_runs` row with the engine `eve`                                   |
-| `message.received`                                | the user message, in the canonical format                                |
-| `message.completed`                               | the assistant message, format `eve`, with eve's event as the native copy |
-| `turn.completed`, `turn.failed`, `turn.cancelled` | the run's status: `completed`, `failed` or `cancelled`                   |
+The handlers follow eve's session events (stream version 27):
+
+| eve event           | Written                                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------------------------- |
+| `session.started`   | an `ai_chats` row with the id `chatIdOf(sessionId)`, owned by the user                                    |
+| `turn.started`      | an `ai_runs` row with the engine `eve`                                                                    |
+| `delivery.consumed` | the text the user sent, in the canonical format, with the id `<turnId>:<deliveryId>`                      |
+| `content.completed` | each text part, format `eve`, with eve's event as the native copy; a part that isn't the reply is interim |
+| `turn.settled`      | the run's status from the outcome: `completed`, `failed` or `cancelled`                                   |
 
 Each write is keyed by the event, so a redelivered event stores nothing
 new. The chat id is a UUID derived from the session id, so a client that
@@ -486,7 +614,7 @@ contacts.
 
 ## Limitations
 
-- A `turn.started` that eve redelivers after its `turn.completed` opens a
+- A `turn.started` that eve redelivers after its `turn.settled` opens a
   second run row. Redeliveries before the turn ends are idempotent.
 - The adapter keeps no eve session id or stream index of its own: the chat
   id comes from the session id, and a resumed session reads from stream
@@ -500,9 +628,9 @@ contacts.
 - `queueSchedules` starts the sessions from the eve schedule's own task, so
   a drain is bounded by `budgetMs` (50 seconds by default). Jobs left over
   wait for the next minute.
-- The tested range ends before 1.0. eve 1.0 release candidates keep the
-  `AuthFn` contract `supabaseAuth` and `supabaseJwtAuth` follow; the range
-  moves to 1.0 once the rest of the entry is checked against it.
+- The tested range starts at eve 1.0.0-rc.0. Later release candidates peer on
+  `@vercel/connect` 2.7 and bundle Workflow 5.5; the floor moves to them with
+  the Workflow 5.5 upgrade (ADR 1022).
 
 ## Queue schedulers
 
@@ -513,4 +641,5 @@ contacts.
 nothing and the runs reach the queue another way (see
 [Queues and schedulers](/docs/blocks/queue#queues-and-schedulers)).
 `ScheduleProvider` from `better-supabase/blocks/queue` is the port a
-scheduler implements.
+scheduler implements, and the one `queueScheduleProvider` stores eve's dynamic
+schedules in.
