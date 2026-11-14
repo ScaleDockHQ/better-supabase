@@ -10,6 +10,10 @@ import {
 import { Link } from "@/i18n/navigation";
 
 /** The back link is the static shell; the project streams in. */
+// Next.js validates in development that a navigation here paints without
+// waiting on uncached work; tests/instant-routes.spec.ts checks it in a build.
+export const instant = true;
+
 export default function ProjectRecordPage({
   params,
 }: PageProps<"/[locale]/projects/[id]">) {

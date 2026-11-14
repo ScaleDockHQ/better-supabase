@@ -383,7 +383,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/appraisals",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -401,7 +401,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/approvals",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -599,7 +599,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/beta",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -608,7 +608,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/calendar/availability",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -626,7 +626,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/calendar",
     maxCalls: 12,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -635,7 +635,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/care-alerts",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -644,7 +644,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/care-plans",
     maxCalls: 6,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -653,7 +653,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -662,7 +662,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/care",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -671,7 +671,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/cases",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -680,7 +680,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/chat",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -689,7 +689,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/community",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -698,7 +698,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/compliance",
     maxCalls: 9,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -707,7 +707,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -716,7 +716,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -725,7 +725,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/courses",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -995,7 +995,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/dam",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1040,7 +1040,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1058,7 +1058,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/documents",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1067,7 +1067,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1076,7 +1076,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/drive",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1085,7 +1085,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/field/day",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1094,7 +1094,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/field/dispatch",
     maxCalls: 7,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1103,7 +1103,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/field/shipments",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1130,7 +1130,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/forbidden",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1139,7 +1139,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1148,7 +1148,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/forms",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1166,7 +1166,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/imports",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1193,7 +1193,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/inspections",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1202,7 +1202,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/knowledge",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1265,7 +1265,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/manufacturing",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1274,7 +1274,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/medications",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1283,7 +1283,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/meetings",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1292,7 +1292,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/metrics",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1301,7 +1301,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/my-work",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1319,7 +1319,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/notifications",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: true,
   },
   {
@@ -1328,7 +1328,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/observations",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1337,7 +1337,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/",
     maxCalls: 11,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1355,7 +1355,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/people/hiring",
     maxCalls: 8,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1409,7 +1409,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/people/time",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1418,7 +1418,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/prescriptions",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1427,7 +1427,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/production",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1436,7 +1436,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1526,7 +1526,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1535,7 +1535,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/rules",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1544,7 +1544,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/access-requests",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1553,7 +1553,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/ai-providers",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1562,7 +1562,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/api-keys",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1571,7 +1571,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/audit",
     maxCalls: 9,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: true,
   },
   {
@@ -1580,7 +1580,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/billing",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1607,7 +1607,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/custom-fields",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1733,7 +1733,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/integrations",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1769,7 +1769,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1778,7 +1778,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/members",
     maxCalls: 8,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1787,7 +1787,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/organization",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1796,7 +1796,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1805,7 +1805,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/preferences",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1814,7 +1814,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/privacy",
     maxCalls: 8,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1823,7 +1823,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/profile",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1832,7 +1832,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1841,7 +1841,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/roles",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1850,7 +1850,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/security",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1859,7 +1859,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/signing-keys",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1868,7 +1868,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/sso",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1877,7 +1877,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1886,7 +1886,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/teams",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1895,7 +1895,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/settings/webhooks",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -1904,7 +1904,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/shifts",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -2066,7 +2066,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: null,
     maxCalls: 12,
     maxWaves: 3,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -2075,7 +2075,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/shop/orders",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: true,
   },
   {
@@ -2084,7 +2084,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/shop",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -2111,7 +2111,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/templates",
     maxCalls: 5,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -2138,7 +2138,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/trash",
     maxCalls: 6,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -2192,7 +2192,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/work/grid",
     maxCalls: 8,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: false,
   },
   {
@@ -2201,7 +2201,7 @@ export const ROUTES: readonly RouteEntry[] = [
     url: "/work",
     maxCalls: 8,
     maxWaves: 2,
-    instant: false,
+    instant: true,
     scale: true,
   },
   {
