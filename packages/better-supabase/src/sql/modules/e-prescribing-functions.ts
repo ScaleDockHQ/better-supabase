@@ -1,7 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { pageSize, userGrant } from "../shared.ts";
+import {
+  filterAny,
+  filterSet,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
+import { userGrant } from "../shared.ts";
 import { prescribingSql } from "./e-prescribing-sql.ts";
 import { PRESCRIPTION_STATUSES } from "./e-prescribing-values.ts";
 import { medicationTimeZone } from "./medications-shared.ts";
@@ -19,6 +25,40 @@ export function prescribingFunctions(ctx: BlockSqlContext): string {
   const orders = medications.table("orders");
   const catalog = medications.table("medications");
   const today = `(now() at time zone ${sqlString(medicationTimeZone(medications))})::date`;
+
+  const createdKeys = [
+    { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+  ] as const;
+
+  const pageList = {
+    name: "list_prescriptions",
+    from: prescriptions,
+    alias: "x",
+    where: [
+      `x.${p("tenant")} = list_prescriptions.tenant`,
+      filterAny("orderId", `x.${p("order")}`, "uuid"),
+      filterAny("subjectType", `x.${p("subjectType")}`),
+      filterAny("subjectId", `x.${p("subjectId")}`),
+      filterAny("status", `x.${p("status")}`),
+      filterAny("prescriberId", `x.${p("prescriber")}`, "uuid"),
+    ],
+    keys: createdKeys,
+    sorts: {
+      createdAt: createdKeys,
+      signedAt: [
+        {
+          expr: `coalesce(x.${p("signedAt")}, '-infinity'::timestamptz)`,
+          dir: "desc",
+          type: "timestamptz",
+        },
+        { expr: `x.${p("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${p("status")}` },
+    rowJson: sql.json("x"),
+    invalid: sql.invalid,
+  } as const;
 
   return `
 -- What a signed prescription freezes: the order's dose, schedule and bounds with
@@ -274,9 +314,10 @@ end;
 $$;
 ${userGrant(`${fn("get_prescription")}(uuid)`)}
 
--- The organization's prescriptions, newest first. filters is { orderId,
--- subjectType, subjectId, status, prescriberId, limit, offset }. Needs
--- e_prescribing.read.
+-- The organization's prescriptions, newest first (ADR 0749). filters is {
+-- orderId, subjectType, subjectId, status, prescriberId (each a value or a list
+-- of them), sort, direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }. Needs e_prescribing.read.
 create or replace function ${fn("list_prescriptions")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -287,27 +328,18 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_prescriptions.filters, '{}'::jsonb);
+  ${listDeclare(pageList)}
 begin
   if not ${sql.allowed("list_prescriptions.tenant", sql.read)} then
     ${sql.forbidden("not allowed to read prescriptions")}
   end if;
-  if v_filters ->> 'status' is not null and v_filters ->> 'status' not in (${list(PRESCRIPTION_STATUSES)}) then
+  if ${filterSet("status")} and exists (
+    select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'status') = 'array' then v_filters -> 'status' else jsonb_build_array(v_filters ->> 'status') end) s(v)
+    where s.v not in (${list(PRESCRIPTION_STATUSES)})
+  ) then
     ${sql.invalid("status is draft, signed, sent, dispensed or cancelled")}
   end if;
-  return coalesce((
-    select jsonb_agg(${sql.json("q")} order by q.${p("createdAt")} desc, q.${p("id")})
-    from (
-      select y.* from ${prescriptions} y
-      where y.${p("tenant")} = list_prescriptions.tenant
-        and (v_filters ->> 'orderId' is null or y.${p("order")} = (v_filters ->> 'orderId')::uuid)
-        and (v_filters ->> 'subjectType' is null or y.${p("subjectType")} = v_filters ->> 'subjectType')
-        and (v_filters ->> 'subjectId' is null or y.${p("subjectId")} = v_filters ->> 'subjectId')
-        and (v_filters ->> 'status' is null or y.${p("status")} = v_filters ->> 'status')
-        and (v_filters ->> 'prescriberId' is null or y.${p("prescriber")} = (v_filters ->> 'prescriberId')::uuid)
-      order by y.${p("createdAt")} desc, y.${p("id")}
-      limit ${pageSize("(v_filters ->> 'limit')::int", 50, 200)} offset greatest(coalesce((v_filters ->> 'offset')::int, 0), 0)
-    ) q
-  ), '[]'::jsonb);
+  ${listBody(pageList)}
 end;
 $$;
 ${userGrant(`${fn("list_prescriptions")}(${idType}, jsonb)`)}

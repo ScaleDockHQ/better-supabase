@@ -128,6 +128,38 @@ signature. A `before` hook can refuse it.
 | `PRESCRIPTION_DELIVERY_FAILED` | the gateway threw; the prescription stays signed         |
 | `PRESCRIPTION_CANCEL_FAILED`   | the gateway couldn't withdraw a sent prescription        |
 
+## Paging a list
+
+`list` is the capped convenience list. `prescriptionPage` is the full contract for prescriptions (ADR 0749, 0779): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt` and `signedAt`, and the default order is `createdAt` (newest first); filters are `status`, `orderId`, `subjectType`, `subjectId` and `prescriberId`; facets are `status`.
+
+```ts
+const first = await prescribing
+  .prescriptionPage({ filters: { status: ["draft", "signed"] }, limit: 50 })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await prescribing
+    .prescriptionPage({
+      filters: { status: ["draft", "signed"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
+    .orThrow();
+}
+
+// How many rows each facet value holds under the same filters.
+const facets = await prescribing
+  .prescriptionFacets({ filters: { status: ["draft", "signed"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await prescribing
+  .prescriptionCount({ filters: { status: ["draft", "signed"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the prescription does not declare returns an `invalid_input` error.
+
 ## Without the client
 
 `db.ePrescribing` is this client. Code that does not go through `bsb.db()`

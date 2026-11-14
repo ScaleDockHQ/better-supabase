@@ -1,6 +1,13 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RecordRef } from "../../schema/types.ts";
@@ -8,6 +15,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
@@ -23,6 +31,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { enrollmentListSurface } from "./lists.ts";
 
 export interface EnrollmentsOptions
   extends BlockTemporalOptions, BlockTenantOptions {
@@ -231,6 +240,24 @@ export interface Enrollments {
    * `enrollments.read`, the caller's own.
    */
   list(filter?: EnrollmentsFilter): AsyncResult<readonly Enrollment[]>;
+  /**
+   * One enrollment; `not_found` when it does not exist or the caller may not
+   * read it.
+   */
+  get(enrollmentId: string): AsyncResult<Enrollment>;
+  /**
+   * One keyset page of the organization's enrollments, most recently changed
+   * first (or in the order of `sort`), with `hasMore` and a `nextCursor` to
+   * pass as `after`. Without `enrollments.read`, the caller's own.
+   */
+  enrollmentPage(options?: PageOptions): AsyncResult<ListPage<Enrollment>>;
+  /**
+   * The values of each facet of enrollments and their counts, under the page's
+   * filters.
+   */
+  enrollmentFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many enrollments match the page's filters. */
+  enrollmentCount(options?: CountOptions): AsyncResult<Count>;
   /** Marks a step done; completing the last step completes the enrollment. */
   complete(input: {
     enrollmentId: string;
@@ -448,7 +475,25 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
       one("set_enrollment_dates"),
     );
 
+  const enrollments = entityList({
+    entity: "enrollment",
+    surface: enrollmentListSurface,
+    call,
+    tenant,
+    fn: "page_enrollments",
+    rowOf: enrollmentOf,
+  });
+
   const client: Enrollments = {
+    get: (enrollmentId) =>
+      call(
+        "get_enrollment",
+        { enrollment_id: enrollmentId },
+        one("get_enrollment"),
+      ),
+    enrollmentPage: enrollments.page,
+    enrollmentFacets: enrollments.facets,
+    enrollmentCount: enrollments.count,
     saveProgram: (program) =>
       tenant().andThen((organizationId) =>
         call(

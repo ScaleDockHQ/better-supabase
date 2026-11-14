@@ -9,6 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { ensureExclusion } from "../exclusion.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import {
   addForeignKey,
   fail,
@@ -376,6 +377,42 @@ function functions(ctx: BlockSqlContext): string {
   const withNonce = (row: string): string =>
     `${passJson(row)} || jsonb_build_object('nonce', ${row}.${p("nonce")})`;
 
+  const createdKeys = [
+    { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${p("id")}`, dir: "desc", type: "uuid" },
+  ] as const;
+
+  const pageList = {
+    name: "page_passes",
+    from: passes,
+    alias: "x",
+    where: [
+      `x.${p("tenant")} = page_passes.tenant`,
+      filterAny("holderUserId", `x.${p("holderUser")}`, "uuid"),
+      filterAny("status", passStatus("x")),
+    ],
+    keys: createdKeys,
+    sorts: {
+      createdAt: createdKeys,
+      validFrom: [
+        { expr: `x.${p("validFrom")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${p("id")}`, dir: "desc", type: "uuid" },
+      ],
+      validUntil: [
+        {
+          expr: `coalesce(x.${p("validUntil")}, 'infinity'::timestamptz)`,
+          dir: "asc",
+          type: "timestamptz",
+        },
+        { expr: `x.${p("id")}`, dir: "desc", type: "uuid" },
+      ],
+    },
+    facets: { status: passStatus("x") },
+    rowJson: passJson("x"),
+    invalid: (message: string): string =>
+      fail("PASS_INVALID", message, "22023"),
+  } as const;
+
   const checkInJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}::text, 'passId', ${row}.${k("pass")}, 'resourceId', ${row}.${k("resource")}, 'bookingId', ${row}.${k("booking")}, 'gate', ${scan(row, "gate")}, 'method', ${row}.${k("method")}, 'admitted', ${row}.${k("admitted")}, 'reason', ${row}.${k("reason")}, 'checkedInBy', ${scan(row, "checkedInBy")}, 'createdAt', ${row}.${k("createdAt")})`;
 
@@ -708,6 +745,29 @@ end;
 $$;
 ${userGrant(`${fn("list_passes")}(${idType}, uuid, text, text, text, timestamptz, integer)`)}
 
+-- A tenant's passes as a keyset page, newest first (ADR 0749, 0779). filters is
+-- { holderUserId, status (each a value or a list of them), sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_passes")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_passes.filters, '{}'::jsonb);
+  ${listDeclare(pageList)}
+begin
+  if not ${allowed("page_passes.tenant", read)} then
+    ${fail("PASS_FORBIDDEN", "not allowed to read passes")}
+  end if;
+  ${listBody(pageList)}
+end;
+$$;
+${userGrant(`${fn("page_passes")}(${idType}, jsonb)`)}
+
 -- The caller's own live passes with their nonces, for a wallet screen.
 create or replace function ${fn("my_passes")}()
 returns jsonb
@@ -829,6 +889,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "uuid", "text", "text", "text", "timestamptz", "integer"],
       returns: "jsonb",
     },
+    { name: "page_passes", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "my_passes", args: [], returns: "jsonb" },
     {
       name: "list_pass_check_ins",

@@ -254,6 +254,38 @@ validity. It is off by default because existing data may already overlap.
 every scan, and `pass.credit_used` and `pass.credit_refunded` for class
 credits. The [events page](/docs/extending/events) lists their payloads.
 
+## Paging a list
+
+`list` is the capped convenience list. `passPage` is the full contract for passes (ADR 0749, 0779): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `validFrom` and `validUntil`, and the default order is `createdAt` (newest first); filters are `status` and `holderUserId`; facets are `status`.
+
+```ts
+const first = await passes
+  .passPage({ filters: { status: ["active"] }, limit: 50 })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await passes
+    .passPage({
+      filters: { status: ["active"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
+    .orThrow();
+}
+
+// How many rows each facet value holds under the same filters.
+const facets = await passes
+  .passFacets({ filters: { status: ["active"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await passes
+  .passCount({ filters: { status: ["active"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the pass does not declare returns an `invalid_input` error.
+
 ## Without the client
 
 `db.passes` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
