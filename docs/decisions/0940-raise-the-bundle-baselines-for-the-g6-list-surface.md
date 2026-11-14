@@ -21,6 +21,11 @@ Raise the four entries to the sizes the CI bundle job measured:
 | `./blocks/access-requests` | 29679           | 32911          |
 | `./blocks/forms`           | 39651           | 42843          |
 
+The next-build baselines grow too: the raw First Load JS of 246 routes by about
+100 B each, and the raw server chunks of 269 routes by about 1.4 KB each, from
+the four new manifest declarations. Each value is the one the CI next-build job
+measured, and no route is lowered.
+
 ## Alternatives considered
 
 Keeping `entityList` out of each block's client would avoid the growth, but
