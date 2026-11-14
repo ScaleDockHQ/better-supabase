@@ -544,7 +544,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | legal-entities            | tenancy       | legal_entity_setting       | editable      | -                      | update                 | -                                        | -                        | -           | -        | -       | -         |
 | memberships               | tenancy       | membership                 | read-only     | -                      | -                      | -                                        | -                        | -           | -        | y       | -         |
 | organizations             | tenancy       | organization               | editable      | create, update, delete | -                      | -                                        | -                        | -           | -        | -       | -         |
-| organizations             | tenancy       | invitation                 | editable      | create, update         | -                      | -                                        | -                        | -           | -        | -       | -         |
+| organizations             | tenancy       | invitation                 | editable      | create, update         | -                      | expiresAt, email                         | role                     | email       | -        | -       | -         |
 | profiles                  | tenancy       | profile                    | read-only     | -                      | -                      | -                                        | -                        | -           | -        | y       | -         |
 | reserved-slugs            | tenancy       | reserved_slug              | read-only     | -                      | -                      | -                                        | -                        | -           | -        | -       | -         |
 | saas                      | tenancy       | saa                        | read-only     | -                      | -                      | -                                        | -                        | -           | -        | -       | -         |
@@ -1028,11 +1028,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M3
 
 - Scope: Generated seed, nav, route manifest, coverage, message keys
-- Status: planned
-- Branch: `feat/audit-m3`
-- PR: none yet
-- Findings: EX-1264, EX-1267, EX-1268
-- Log: 2026-11-12, planned.
+- Status: merged
+- Branch: `feat/audit-lane-m3`
+- PR: [#957](https://github.com/ScaleDockHQ/better-supabase/pull/957)
+- Findings: none (the three partly fixed rows moved to lane M4)
+- Log: 2026-11-14, lane M3 started from main (522f461335) in `../bsb-audit-M3`. One PR: the `seed`, `navigation` and `manifest` outputs in `better-supabase/list`'s generator, ADR 0879. No SQL change, so no migration. EX-1264, EX-1267 and EX-1268 are partly fixed (the generator side is done) and moved to lane M4. Merged as [#957](https://github.com/ScaleDockHQ/better-supabase/pull/957).
 
 ### Lane M4
 
@@ -1040,7 +1040,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: planned
 - Branch: `feat/audit-m4`
 - PR: none yet
-- Findings: EX-1294, EX-1327, EX-813, EX-024 (once the instant allow list is empty), EX-033 and EX-034 (header sort on the generated columns, ReUI `Filters` state; moved from M2)
+- Findings: EX-1264, EX-1267, EX-1268 (moved from M3: example seed rows, the coverage map and the empty-translation check), EX-1294, EX-1327, EX-813, EX-024 (once the instant allow list is empty), EX-033 and EX-034 (header sort on the generated columns, ReUI `Filters` state; moved from M2)
 - Log: 2026-11-12, planned.
 
 ### Lane O1
@@ -1068,9 +1068,9 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Scope: Offline, public events, impersonation actor, flags, invitations
 - Status: in progress
 - Branch: `feat/audit-o3`
-- PR: none yet
+- PR: #952, #956, #958
 - Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329, EX-510
-- Log: 2026-11-12, planned. 2026-11-14, in progress: stacked PRs 1318+1320 (offline declaration, public events; PR #952), 1321+510 (acting member, impersonation in the example), 1328+1329 (entity flags, invitations).
+- Log: 2026-11-12, planned. 2026-11-14, all three PRs merged, the lane stays in progress until the partial rows close: PR #952 (1318+1320, offline declaration and public events), PR #956 (1321+510, acting member and impersonation in the example), PR #958 (1328+1329, entity flags and the invitation list). EX-1318 stays partial (stream queries are hand-written) and EX-1329 stays partial (no SQL list function).
 
 ### Lane P
 
