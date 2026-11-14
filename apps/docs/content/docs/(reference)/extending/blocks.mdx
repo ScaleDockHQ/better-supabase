@@ -542,7 +542,7 @@ are exported from `better-supabase/blocks`.
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `bulk(ids, action, options)`      | Runs an action on distinct ids and returns `{ succeeded, failed: [{ id, error }] }`. More ids than the entity's `bulk.limit` (500 by default) fail with `BULK_TOO_MANY` before anything runs.                                       |
 | `export(options)`                 | Streams the rows of `page` under the same `q`, `filters` and `sort` as CSV, one page at a time, as a `ReadableStream<string>`. A list built with `entityList` has it; a block with its own `page` calls `exportCsv(page, options)`. |
-| `{ jobId }` and `jobs.get(jobId)` | A long call returns `{ jobId: "<kind>:<id>" }`. `createJobs({ bulk, import })` reads the kind off the id and returns one `JobResult`: `status`, `progress`, `result`, `error` and `done`.                                           |
+| `{ jobId }` and `jobs.get(jobId)` | A long call returns `{ jobId: "<kind>:<id>" }`. `createJobs({ bulk, import, export, workflow })` reads the kind off the id and returns one `JobResult`: `status`, `progress`, `result`, `error` and `done`.                         |
 | `importTarget`                    | A manifest field with the import entities the block takes rows for. `importTargetsOf(blocks)` from `better-supabase/blocks/imports` lists them.                                                                                     |
 
 An entity declares its part in the manifest with `bulk: { limit, actions }` and

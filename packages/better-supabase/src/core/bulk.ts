@@ -93,6 +93,54 @@ export function bulk<Action extends string>(
   });
 }
 
+/**
+ * The `BulkReport` of a set function that returns the ids it changed and the
+ * ids it skipped (`TaskSetResult`): one call for the whole list, a skipped id
+ * is `not_found` in `failed`. The limit applies as in `bulk`.
+ */
+export function bulkOfSet(
+  ids: readonly string[],
+  run: (
+    ids: readonly string[],
+  ) => PromiseLike<
+    Result<{
+      readonly ids: readonly string[];
+      readonly skipped: readonly string[];
+    }>
+  >,
+  options: BulkOptions = {},
+): AsyncResult<BulkReport> {
+  return AsyncResult.from(async (): Promise<Result<BulkReport>> => {
+    const unique = [...new Set(ids)];
+    const rejected = checkBulkLimit(unique, options.limit);
+
+    if (rejected) {
+      return err(rejected);
+    }
+
+    if (unique.length === 0) {
+      return ok({ succeeded: [], failed: [] });
+    }
+
+    const result = await run(unique);
+
+    if (!result.ok) {
+      return result;
+    }
+
+    return ok({
+      succeeded: [...result.data.ids],
+      failed: result.data.skipped.map((id) => ({
+        id,
+        error: dbError(
+          "not_found",
+          "No such row, or the caller cannot change it",
+        ),
+      })),
+    });
+  });
+}
+
 /** A per-row result as the `bulk-actions` SQL functions return it. */
 export interface BulkRowLike {
   readonly id: string;

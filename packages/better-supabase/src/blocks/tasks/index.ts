@@ -13,6 +13,7 @@ export {
   type TaskListOptions,
   type TaskNode,
   type TaskRecurrence,
+  type TaskBulkAction,
   type TaskSetResult,
   type Tasks,
   type TasksOptions,
