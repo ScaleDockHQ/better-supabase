@@ -30,6 +30,9 @@ has a [conformance kit](/docs/extending/conformance).
 | [`PaymentProvider`](#paymentprovider)                   | `stripePayments(options)`                                                          | the commerce blocks                                                                |
 | [`TaxProvider`](#taxprovider)                           | `fixedRates(options)`, `stripeTax(options)`                                        | the commerce blocks                                                                |
 | [`ShippingProvider`](#shipmentcarrier)                  | `flatRateCarrier(options)`                                                         | `createShipments(client, { carriers })`                                            |
+| [`DomainProvider`](#domainprovider)                     | `vercelDomainProvider(sdk, options)`                                               | `createDomainsAdmin({ transport, provider })`                                      |
+| [`KeyProvider`](#keyprovider)                           | `vaultKeyProvider()`, `vercelKmsKeyProvider(kms)`                                  | `createSigningKeys({ transport, keys })`                                           |
+| [`FileStore`](#filestore)                               | `supabaseFileStore(storage)`, `vercelBlobStore(blob)`                              | `createAttachments({ files })`, `createDrive({ files })`                           |
 | [`RouteOptimizer`](#routeoptimizer)                     | `nearestNeighbourOptimizer()`, `fetchRouteOptimizer(options)`                      | `optimizeRoute(technicianId, day, { optimizer })`                                  |
 | [`BankFeed`](#bankfeed)                                 | none (bring your bank or aggregator)                                               | `syncFeed(accountId, feed, sync)`                                                  |
 | [`PayrollExportFormat`](#payrollexportformat)           | `csvPayrollFormat(options)`                                                        | `exportRun(runId, format)`                                                         |
@@ -593,3 +596,39 @@ logger (pino, consola) or `silentLogger` in tests.
 ```ts
 export const betterSupabase = createSupabase(schema, { logger: pino() });
 ```
+
+## DomainProvider
+
+Puts an organization's hostname on your hosting platform for the
+[domains block](/docs/blocks/domains#hosting-platforms). It has
+`apiVersion: 1`, a `name`, and `add`, `verify`, `remove` and `status`, each
+taking the hostname. A status carries `verified` and the platform's own
+verification `records`, which the app shows next to the block's TXT record.
+`createDomainsAdmin({ provider })` calls `verify` only after the TXT check
+passes, and fails with `DOMAIN_PROVIDER_UNVERIFIED` until the platform agrees.
+`vercelDomainProvider(sdk, { projectId, teamId })` implements it over
+`@vercel/sdk`. `testDomainProvider` is its conformance kit.
+
+## KeyProvider
+
+Signs for the [signing-keys block](/docs/blocks/signing-keys). It has
+`apiVersion: 1`, a `name`, `sign({ owner, data })` for a raw signature and
+`signJwt({ owner, claims, header })` for a compact JWS whose `alg` and `kid`
+the provider sets, plus an optional `noteExp` when its published key set must
+keep a key until a token expires. `vaultKeyProvider` is the default and keeps
+the private keys in Supabase Vault (ADR 0033); `vercelKmsKeyProvider(kms, {
+issuer })` signs in Vercel KMS, so the private key never reaches the app.
+`testKeyProvider` is its conformance kit.
+
+## FileStore
+
+Holds the bytes of the [attachments](/docs/blocks/attachments#files-in-vercel-blob)
+and [drive](/docs/blocks/drive) blocks. It has `apiVersion: 1`, a `name`,
+`put`, `get`, `delete` and `signedUrl`, each taking a bucket and a path, and
+the optional `head` and `signedUploadUrl` the blocks use to confirm an upload
+and to let a browser upload directly. Postgres still decides who may upload
+and read: the blocks reserve the path through the SQL module first, and a
+store other than Supabase Storage confirms an upload through the service role
+with the size and type `head` reads. `supabaseFileStore(storage)` is the
+default and `vercelBlobStore(blob)` keeps the bytes in Vercel Blob.
+`testFileStore` is its conformance kit.

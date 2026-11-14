@@ -7,6 +7,7 @@
     "eve",
     "flags-sdk",
     "vercel-sandbox",
+    "vercel",
     "[Workflow SDK](/docs/blocks/workflow-sdk)"
   ]
 }
