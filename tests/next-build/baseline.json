@@ -367,7 +367,7 @@
   "/[locale]/(app)/customers/[id]/page": {
     "raw": 1498995,
     "gzip": 484941,
-    "brotli": 422004
+    "brotli": 423124
   },
   "/[locale]/(app)/customers/page": {
     "raw": 1586502,
