@@ -8,12 +8,15 @@ import type {
 import type { OpsListQuery } from "@/components/ops-list/ops-list-params";
 
 import { agentsBlock } from "@/features/agents/agents-server";
-import { ASSISTANT_AGENT, opsTenant } from "@/features/assistant/assistant-ops";
+import { ASSISTANT_AGENT, opsAccess } from "@/features/assistant/assistant-ops";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { guardrailsBlock } from "./guardrails-server";
 
 const PAGE_SIZE = 25;
+
+/** The rules a decision can name; the log filters by one of them or by outcome. */
+const RULES = ["injection", "pii", "topic", "tool_depth"] as const;
 
 const STAGES: readonly GuardrailStage[] = ["input", "output"];
 
@@ -55,13 +58,14 @@ async function targets(
  * system's.
  */
 export async function getPolicyCards(): Promise<readonly PolicyCard[]> {
-  const organizationId = await opsTenant("ai_chat.manage");
+  const access = await opsAccess("ai_chat.manage");
+  const organizationId = access.allowed ? access.organizationId : undefined;
 
   if (organizationId === undefined) {
     return [];
   }
 
-  const guardrails = guardrailsBlock();
+  const guardrails = guardrailsBlock(access);
 
   return Promise.all(
     (await targets(organizationId)).flatMap((target) =>
@@ -99,8 +103,8 @@ export interface DecisionRow {
 }
 
 /**
- * One page of the decision log: filtered by decision, searched by agent or
- * reason.
+ * One page of the decision log: filtered by outcome (`block`) or by rule
+ * (`rule:pii`), searched by agent or reason.
  */
 export async function getDecisionPage(
   query: OpsListQuery,
@@ -108,11 +112,14 @@ export async function getDecisionPage(
   readonly items: readonly DecisionRow[];
   readonly nextCursor: string | null;
 }> {
-  const organizationId = await opsTenant("ai_chat.manage");
+  const access = await opsAccess("ai_chat.manage");
+  const organizationId = access.allowed ? access.organizationId : undefined;
 
   if (organizationId === undefined) {
     return { items: [], nextCursor: null };
   }
+
+  const rule = RULES.find((code) => query.filter === `rule:${code}`);
 
   const decision =
     query.filter === "allow" ||
@@ -121,7 +128,7 @@ export async function getDecisionPage(
       ? query.filter
       : undefined;
 
-  const entries = await guardrailsBlock()
+  const entries = await guardrailsBlock(access)
     .decisions.list({
       organizationId,
       limit: 200,
@@ -132,6 +139,11 @@ export async function getDecisionPage(
   const needle = query.q.toLowerCase();
 
   const rows = entries
+    .filter(
+      (entry) =>
+        rule === undefined ||
+        entry.reasons.some((reason) => reason.code === rule),
+    )
     .map((entry) => ({
       id: entry.id,
       agent: entry.agent,

@@ -116,6 +116,28 @@ and a check that cannot run blocks the stage unless you set `failOpen`.
 | `list_guardrail_decisions(tenant, agent, decision, limit)`        | service |
 | `purge_guardrail_decisions()`                                     | service |
 
+## Check the caller
+
+The block runs as the service role, so it does not know who is asking. When
+you serve a signed-in caller, pass `access` and the block refuses what the
+caller may not touch:
+
+```ts
+const guardrails = createAiGuardrails({
+  transport,
+  access: {
+    organizationId: activeOrganizationId,
+    allowed: can(permissions, "ai_chat.manage"),
+    permission: "ai_chat.manage",
+  },
+});
+```
+
+Every method fails with a `forbidden` error when the caller has no organization
+or lacks the permission. A call must name the caller's organization in `organizationId`, and `decisions.purge`, which deletes across organizations, is refused.
+Without `access` the block trusts its caller, as before, so a background job or
+the assistant's own runtime can keep using an unscoped client.
+
 ## Without the client
 
 ```ts title="lib/guardrails.ts"

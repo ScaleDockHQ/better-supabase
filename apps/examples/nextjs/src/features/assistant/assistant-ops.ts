@@ -1,4 +1,6 @@
 import "server-only";
+import type { AiAccess } from "better-supabase/blocks/prompts";
+
 import { tenantOf } from "better-supabase/next";
 
 import type { Permission } from "@/features/user/user-permissions";
@@ -8,25 +10,29 @@ import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 
 /**
- * The tenant a read of a service-role block (prompts, evals, guardrails) may
- * serve, or `undefined` when the caller has no active organization or lacks
- * `permission`. Those blocks bypass RLS, so every read checks this itself; the
- * page's menu entry only decides whether the proxy lets the request through.
+ * The caller the service-role AI blocks act for: the active organization and
+ * whether the caller holds `permission`. Passed as the blocks' `access`, it
+ * makes them refuse another organization's prompts, datasets, runs and log.
  */
-export async function opsTenant(
-  permission: Permission,
-): Promise<string | undefined> {
+export async function opsAccess(permission: Permission): Promise<AiAccess> {
   const [session, permissions] = await Promise.all([
     getSession(),
     getPermissions(),
   ]);
 
-  const organizationId = tenantOf(session);
-
-  return organizationId && can(permissions, permission)
-    ? organizationId
-    : undefined;
+  return {
+    organizationId: tenantOf(session),
+    allowed: can(permissions, permission),
+    permission,
+  };
 }
+
+/** The access of a server action that already passed `requireTenant`. */
+export const actionAccess = (tenant: string, permission: string): AiAccess => ({
+  organizationId: tenant,
+  allowed: true,
+  permission,
+});
 
 /** The prompt name of the assistant's system instructions. */
 export const ASSISTANT_PROMPT = "assistant.system";

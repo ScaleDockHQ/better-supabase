@@ -8,6 +8,15 @@ export const USAGE_WINDOW = 200;
 const num = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;
 
+/** The ranges the page offers, in days; `0` is every run in the window. */
+export const USAGE_RANGES = [7, 30, 90, 0] as const;
+
+export type UsageRange = (typeof USAGE_RANGES)[number];
+
+/** The range a `range` search param names. */
+export const usageRangeOf = (value: string): UsageRange =>
+  USAGE_RANGES.find((range) => String(range) === value) ?? 0;
+
 export interface ModelSpend {
   readonly id: string;
   readonly model: string;
@@ -31,6 +40,8 @@ export interface AiUsage {
   readonly cachedInputTokens: number;
   readonly costMicroUsd: number;
   readonly capped: boolean;
+  /** The range the numbers cover, in days; `0` for every run in the window. */
+  readonly range: UsageRange;
   readonly models: readonly ModelSpend[];
   readonly days: readonly DaySpend[];
 }
@@ -38,12 +49,26 @@ export interface AiUsage {
 /**
  * The token and cost ledger of the caller's newest runs, by model and by day.
  * `ai_runs` rows carry the usage and the gateway's cost, so this reads them as
- * they are; there is no usage rollup in the block (EX-318).
+ * they are; there is no usage rollup in the block (EX-318). `range` keeps the
+ * runs of the last N days (EX-306); a per-user rollup needs a block read that
+ * spans an organization, because `ai_runs` is readable by its owner only.
  */
-export async function getAiUsage(): Promise<AiUsage> {
+export async function getAiUsage(range: UsageRange = 0): Promise<AiUsage> {
   const { supabase } = await bsbCore.context();
 
-  const runs = await aiRuns(supabase).list({ limit: USAGE_WINDOW }).orThrow();
+  const window = await aiRuns(supabase).list({ limit: USAGE_WINDOW }).orThrow();
+
+  const since =
+    range === 0
+      ? undefined
+      : Temporal.Now.instant().subtract({ hours: range * 24 });
+
+  const runs =
+    since === undefined
+      ? window
+      : window.filter(
+          (run) => Temporal.Instant.compare(run.startedAt, since) >= 0,
+        );
 
   const models = new Map<string, Omit<ModelSpend, "id" | "model">>();
   const days = new Map<string, { costUsd: number; runs: number }>();
@@ -93,7 +118,8 @@ export async function getAiUsage(): Promise<AiUsage> {
     outputTokens,
     cachedInputTokens,
     costMicroUsd,
-    capped: runs.length >= USAGE_WINDOW,
+    capped: window.length >= USAGE_WINDOW,
+    range,
     models: [...models]
       .map(([model, spent]) => ({ id: model, model, ...spent }))
       .toSorted((a, b) => b.costMicroUsd - a.costMicroUsd),

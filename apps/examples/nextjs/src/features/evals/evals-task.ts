@@ -8,6 +8,12 @@ import { env } from "@/env";
 const text = (value: unknown): string =>
   typeof value === "string" ? value : JSON.stringify(value ?? "");
 
+/** The model name a run records when no AI Gateway key is set (EX-302). */
+export const SCRIPTED_MODEL = "scripted";
+
+/** Whether a run answers from the script instead of a model. */
+export const isScripted = (): boolean => !env.AI_GATEWAY_API_KEY;
+
 /** A stable number from an id and a version, so a demo run repeats. */
 function bucket(id: string, version: number): number {
   let hash = version;
@@ -37,7 +43,7 @@ export async function answerFor({
   item: EvalItem;
   version: number;
 }): Promise<string> {
-  if (!env.AI_GATEWAY_API_KEY) {
+  if (isScripted()) {
     const expected = text(item.expected);
 
     return bucket(item.id, version) === 0 && version < 2

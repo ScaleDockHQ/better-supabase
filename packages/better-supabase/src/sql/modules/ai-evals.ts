@@ -311,6 +311,28 @@ end;
 $$;
 ${serviceGrant(`${fn("create_eval_dataset")}(text, ${id}, text)`)}
 
+-- The dataset with that id, or null. The service role's caller compares its
+-- tenant with the dataset's before it touches the items.
+create or replace function ${fn("get_eval_dataset")}(dataset uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${datasets}%rowtype;
+begin
+  select x.* into v_row from ${datasets} x where x.${d("id")} = get_eval_dataset.dataset;
+  if not found then
+    return null;
+  end if;
+  return ${datasetJson("v_row")};
+end;
+$$;
+${serviceGrant(`${fn("get_eval_dataset")}(uuid)`)}
+
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most ${maxItems}.
 create or replace function ${fn("add_eval_items")}(dataset uuid, items jsonb)

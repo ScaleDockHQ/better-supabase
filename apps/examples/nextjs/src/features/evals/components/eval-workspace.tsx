@@ -1,11 +1,13 @@
 import { getExtracted } from "next-intl/server";
 import { notFound } from "next/navigation";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import type { EvalParams } from "../evals-search-params";
 
 import { getEvalWorkspace } from "../evals-queries";
+import { isScripted } from "../evals-task";
 import { EvalItemsCard } from "./eval-items-card";
 import { EvalResults } from "./eval-results";
 import { EvalRunForm } from "./eval-run-form";
@@ -41,6 +43,16 @@ export async function EvalWorkspace({
           )}
         </p>
       </div>
+      {isScripted() ? (
+        <Alert>
+          <AlertTitle>{t("Scripted runs")}</AlertTitle>
+          <AlertDescription>
+            {t(
+              "No AI Gateway key is set, so a run answers from a script and is recorded as scripted. The pass rate measures the script, not a model.",
+            )}
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <EvalRunForm
         name={name}
         versions={workspace.versions}

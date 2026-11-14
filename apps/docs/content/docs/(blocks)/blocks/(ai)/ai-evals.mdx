@@ -129,6 +129,7 @@ one assertion per scorer (`equals`, `is-json` and `llm-rubric`). Write it to
 | Function                                                                | Who     |
 | ----------------------------------------------------------------------- | ------- |
 | `create_eval_dataset(name, tenant, description)`                        | service |
+| `get_eval_dataset(dataset)`                                             | service |
 | `add_eval_items(dataset, items)`                                        | service |
 | `add_eval_items_from_feedback(dataset, rating, since)`                  | service |
 | `list_eval_items(dataset, after, pending_for, limit)`                   | service |
@@ -136,6 +137,28 @@ one assertion per scorer (`equals`, `is-json` and `llm-rubric`). Write it to
 | `record_eval_result(run, item, output, scores, error, latency_ms)`      | service |
 | `finish_eval_run(run, status)`                                          | service |
 | `compare_eval_runs(base, candidate, tolerance)`                         | service |
+
+## Check the caller
+
+The block runs as the service role, so it does not know who is asking. When
+you serve a signed-in caller, pass `access` and the block refuses what the
+caller may not touch:
+
+```ts
+const evals = createAiEvals({
+  transport,
+  access: {
+    organizationId: activeOrganizationId,
+    allowed: can(permissions, "ai_chat.manage"),
+    permission: "ai_chat.manage",
+  },
+});
+```
+
+Every method fails with a `forbidden` error when the caller has no organization
+or lacks the permission. A dataset or run of another organization, or of none, reads as `not_found`, and `datasets.get` returns a dataset so you can check its organization yourself.
+Without `access` the block trusts its caller, as before, so a background job or
+the assistant's own runtime can keep using an unscoped client.
 
 ## Without the client
 

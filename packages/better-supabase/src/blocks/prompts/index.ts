@@ -1,3 +1,5 @@
+export type { AiAccess } from "../ai-access.ts";
+
 export {
   type Prompt,
   type PromptOptions,
