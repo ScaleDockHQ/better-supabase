@@ -1655,8 +1655,8 @@
     "brotli": 685415
   },
   "/api/periods/list/route": {
-    "raw": 2558296,
-    "gzip": 774238,
+    "raw": 2561230,
+    "gzip": 776277,
     "brotli": 657308
   },
   "/api/pipelines/[id]/overview/route": {
