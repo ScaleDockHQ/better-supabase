@@ -19,7 +19,7 @@ interface EraseEntry {
 }
 
 /** The hold kind an entry uses when it declares no retention class. */
-export const ERASE_DEFAULT_KIND = "personal_data";
+const ERASE_DEFAULT_KIND = "personal_data";
 
 /**
  * The tables an erasure reaches (ADR 0903): every installed module table whose
