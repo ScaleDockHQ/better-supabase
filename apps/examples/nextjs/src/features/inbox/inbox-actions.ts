@@ -1,7 +1,7 @@
 "use server";
 
 import type { Result } from "better-supabase";
-import type { ConversationFilter } from "better-supabase/blocks/inbox";
+import type { PageOptions } from "better-supabase/blocks";
 
 import { dbError, err, ok } from "better-supabase";
 import { after } from "next/server";
@@ -23,6 +23,7 @@ import type {
   TeamSummary,
 } from "./inbox-types";
 
+import { inboxReads } from "./inbox-reads";
 import {
   AssigneeFilter,
   ConversationStatus,
@@ -49,10 +50,10 @@ async function answerLater(...args: HelpArgs): Promise<void> {
   await answerHelp(...args);
 }
 
-/** `ConversationFilter` without `readonly`, built field by field. */
-type DraftFilter = {
-  -readonly [K in keyof ConversationFilter]: ConversationFilter[K];
-};
+/** The page options of the queue, built field by field. */
+type DraftPage = {
+  -readonly [K in keyof PageOptions]: PageOptions[K];
+} & { tenant: string };
 
 const PAGE_SIZE = 40;
 const Id = v.pipe(v.string(), v.uuid());
@@ -112,33 +113,28 @@ export const loadConversations = bsb.action(
     requireTenant: true,
   },
   async ({ status, assignee, channel, q, cursor }, { tenant, db }) => {
-    const filter: DraftFilter = { status, limit: PAGE_SIZE };
-
-    if (assignee !== "anyone") {
-      filter.assignee = assignee;
-    }
-
-    if (channel !== "") {
-      filter.inboxId = channel;
-    }
+    // An empty list is no filter, so "anyone" and no channel pass nothing.
+    const options: DraftPage = {
+      tenant,
+      limit: PAGE_SIZE,
+      filters: {
+        status: [status],
+        assignee: assignee === "anyone" ? [] : [assignee],
+        channel: channel === "" ? [] : [channel],
+      },
+    };
 
     if (q !== "") {
-      filter.search = q;
+      options.q = q;
     }
 
     if (cursor !== undefined) {
-      filter.cursor = {
-        id: cursor.id,
-        lastMessageAt:
-          cursor.lastMessageAt === null
-            ? null
-            : Temporal.Instant.from(cursor.lastMessageAt),
-      };
+      options.after = [cursor.id, cursor.lastMessageAt ?? ""];
     }
 
-    const listed = await db.inbox.conversations.list({ tenant, filter });
+    const listed = await inboxReads(db).page(options);
 
-    return listed.ok ? ok(listed.data.map(toConversationRow)) : listed;
+    return listed.ok ? ok(listed.data.items) : listed;
   },
 );
 

@@ -1,7 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { getOpenInvitations } from "../organization-invitations";
-import { InvitationsGrid } from "./invitations-grid";
+import { InvitationsGridLazy } from "./invitations-grid-lazy";
 
 /**
  * The open invitations the `organizations` block lists through
@@ -10,7 +10,7 @@ import { InvitationsGrid } from "./invitations-grid";
 export async function InvitationsOverview() {
   const rows = await getOpenInvitations().catch(() => null);
 
-  return <InvitationsGrid rows={rows} />;
+  return <InvitationsGridLazy rows={rows} />;
 }
 
 export function InvitationsOverviewSkeleton() {

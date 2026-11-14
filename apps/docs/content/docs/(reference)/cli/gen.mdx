@@ -275,7 +275,7 @@ stays small. For a page named `risks`, the run writes:
 | `pages/risks.list.ts` next to `output`            | `risksList`, a `defineEntityListQuery` over the declared surface                                                    |
 | `<appDir>/api/risks/list/route.ts`                | The `GET` handler that parses the URL, runs the list and answers 400 with the issues                                |
 | `<stamp>_better_supabase_entity_page_indexes.sql` | A migration with one `create index if not exists` per sort, facet and searched column that is a column of the table |
-| `<scaleDir>/scale_list_risks.test.sql`            | A pgTAP file that plans each sort and facet with sequential scans off                                               |
+| `<scaleDir>/scale_list_risks.test.sql`            | A pgTAP file that plans each sort and facet with sequential, bitmap and sort plans off                              |
 | `pages/risks.columns.ts`                          | `risksColumns` with the label, kind, sort and filter of each `columns` entry (only with `columns`)                  |
 | `pages/risks.detail.ts`                           | `risksDetail`: the route, the `sections` and `href(id)` (only with `sections`)                                      |
 | `pages/risks.form.ts`                             | `risksCreateForm` and `risksEditForm` over the block's input and change schemas (only when the block exports them)  |

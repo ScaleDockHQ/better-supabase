@@ -164,6 +164,73 @@ export default defineConfig({
           columns: ["title", "severity", "status", "startedAt"],
           area: "operations",
         }),
+        // The customers overview (EX-014, EX-001): an app table, so the entity is named
+        // `app.customers` and its reads module answers `page` and `facets` over
+        // `customerList` (ADR 0893). RLS decides the rows, so the table has a tenant column
+        // for the indexes and the route passes no tenant.
+        defineEntityPage({
+          entity: "app.customers",
+          route: "/customers",
+          name: "customers",
+          columns: ["name", "status", "createdAt"],
+          area: "sales",
+          app: {
+            surface: {
+              sorts: ["name", "newest"],
+              facets: ["status"],
+              search: ["name"],
+            },
+            table: {
+              name: "customers",
+              tenant: "organization_id",
+              columns: {
+                name: "name",
+                newest: "created_at",
+                createdAt: "created_at",
+                status: "status",
+              },
+            },
+            reads: {
+              module: "@/features/customers-list/customers-reads",
+              export: "customersReads",
+            },
+          },
+        }),
+        // The inbox queue (EX-410): `conversations.list` declares no list surface, so the
+        // queue is an app entity and `inboxReads` answers `page` and `facets` over it. The
+        // list takes the tenant per call, which the generated route reads from the request.
+        defineEntityPage({
+          entity: "app.inbox",
+          route: "/inbox",
+          name: "inbox",
+          tenantOption: "tenant",
+          columns: ["subject", "status", "lastMessageAt"],
+          area: "messaging",
+          app: {
+            surface: {
+              sorts: ["lastMessageAt"],
+              facets: ["status"],
+              filters: ["status", "assignee", "channel"],
+              search: true,
+            },
+            table: {
+              schema: "better_supabase",
+              name: "inbox_conversations",
+              tenant: "tenant_id",
+              columns: {
+                subject: "subject",
+                lastMessageAt: "last_message_at",
+                status: "status",
+                assignee: "assignee_id",
+                channel: "inbox_id",
+              },
+            },
+            reads: {
+              module: "@/features/inbox/inbox-reads",
+              export: "inboxReads",
+            },
+          },
+        }),
       ],
       server: { module: "@/lib/supabase/server", export: "bsb" },
       scaleDir: "../../../supabase/tests/scale",

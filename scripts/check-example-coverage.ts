@@ -127,11 +127,13 @@ export const checkEntityRoutes = (
     const block = page.entity.split(".")[0] ?? "";
     const entry = coverage[block];
 
-    if (!entry) {
+    // An app entity (`app.<key>`, ADR 0890) belongs to no block, so the map has
+    // no entry for it; only its page has to exist.
+    if (block !== "app" && !entry) {
       problems.push(
         `Entity page ${page.entity} has no entry for block "${block}" in block-coverage.ts`,
       );
-    } else if (!routesOf(entry).includes(page.route)) {
+    } else if (entry && !routesOf(entry).includes(page.route)) {
       problems.push(
         `Entity page ${page.entity} (${page.route}) is not listed under block "${block}" in block-coverage.ts`,
       );

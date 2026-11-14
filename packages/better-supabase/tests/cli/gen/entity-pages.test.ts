@@ -231,6 +231,9 @@ describe("emitEntityPages", () => {
 
     expect(scale).toContain("select plan(5);");
     expect(scale).toContain("set local enable_seqscan = off;");
+    expect(scale).toContain("set local enable_sort = off;");
+    expect(scale).toContain("set local enable_incremental_sort = off;");
+    expect(scale).toContain("set local enable_bitmapscan = off;");
     expect(scale).toContain('order by "residual_score", id limit 50');
     expect(scale).toContain('group by "status"');
   });

@@ -7,6 +7,7 @@ import { bsbShell } from "@/lib/supabase/server-shell";
 import type { ConversationRow } from "./inbox-types";
 
 import { INBOX_TAG } from "./inbox-cache";
+import { inboxReads } from "./inbox-reads";
 import { toConversationRow } from "./inbox-types";
 
 /** The open conversations of the active organization, newest activity first. */
@@ -20,11 +21,13 @@ export async function getConversations(): Promise<readonly ConversationRow[]> {
     return [];
   }
 
-  const conversations = await db.inbox.conversations
-    .list({ tenant, filter: { limit: 40 } })
-    .orThrow();
+  const page = await inboxReads(db).page({ tenant, limit: 40 });
 
-  return conversations.map(toConversationRow);
+  if (!page.ok) {
+    throw new Error(page.error.message);
+  }
+
+  return page.data.items;
 }
 
 /** What sits beside a thread: the conversation and the contact's history. */

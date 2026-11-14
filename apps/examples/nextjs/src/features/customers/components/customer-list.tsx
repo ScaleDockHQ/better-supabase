@@ -19,22 +19,7 @@ export async function CustomerList() {
 
   return (
     <div className="flex flex-col gap-4">
-      <CustomerRecordList
-        initial={{
-          items: page.items.map((customer) => ({
-            id: customer.id,
-            name: customer.name,
-            status: customer.status,
-            logoUrl: customer.logoUrl,
-            notes: customer._count.notes,
-            lastNoteAt: customer._max.notes.createdAt,
-          })),
-          nextCursor: page.nextCursor,
-          facetCounts: page.facetCounts,
-          facetCountsCapped: page.facetCountsCapped === true,
-        }}
-        canWrite={writer}
-      />
+      <CustomerRecordList initial={page} canWrite={writer} />
       {writer ? null : (
         <p className="text-sm text-muted-foreground">
           {t("Only admins can add customers.")}
