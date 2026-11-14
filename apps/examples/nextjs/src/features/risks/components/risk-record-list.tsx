@@ -84,9 +84,10 @@ function ReviewCell({ row }: RiskCell) {
 
 /**
  * The risk register on the list kit: the URL holds the search, the status,
- * category and band filters and the keyset cursor; the list route serves every
- * state but the default first page, which the server renders. The block orders
- * by residual score, so there is no sort control.
+ * category and band filters, the sort and the keyset cursor; the register route
+ * serves every state but the default first page, which the server renders. The
+ * sorts are the ones the block declares (the generated `risksList` checks
+ * them).
  */
 export function RiskRecordList({
   initial,
@@ -114,7 +115,7 @@ export function RiskRecordList({
   return (
     <RecordListView
       list={list}
-      endpoint="/api/risks/list"
+      endpoint="/api/risks/register"
       initial={initial}
       columns={columns}
       facets={[
@@ -137,7 +138,11 @@ export function RiskRecordList({
           valueLabel: capitalized,
         },
       ]}
-      sorts={[]}
+      sorts={[
+        { value: "residualScore", label: t("Residual score") },
+        { value: "number", label: t("Number") },
+        { value: "nextReviewOn", label: t("Next review") },
+      ]}
       searchLabel={t("Search risks")}
       emptyIcon={<ShieldAlertIcon />}
       emptyTitle={t("No risks found")}

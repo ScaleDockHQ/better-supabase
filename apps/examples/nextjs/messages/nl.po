@@ -24096,6 +24096,11 @@ msgctxt "risks.ep8Oy7"
 msgid "Next review"
 msgstr "Volgende review"
 
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.b-peaU"
+msgid "Residual score"
+msgstr "Restscore"
+
 #: src/features/risks/components/risk-detail.tsx
 msgctxt "risks.SzG9JL"
 msgid "Treatment"

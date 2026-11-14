@@ -104,6 +104,44 @@ export default defineConfig({
           // exports no input schema, so the page sets no `seed`.
           area: "finance",
         }),
+        // The risk register (EX-1001). The block's `category` field takes one of the
+        // block's configured categories, which a generated demo value cannot know, so the
+        // page sets no `seed`.
+        defineEntityPage({
+          entity: "risks.risk",
+          route: "/risks",
+          columns: ["title", "category", "status", "residualScore"],
+          sections: ["overview", "assessments"],
+          area: "quality",
+        }),
+        // The dispatch board: the block's input schema asks only for a title, so the page
+        // seeds five demo work orders (`work-orders.seed.ts`, applied by `pnpm db:seed:pages`).
+        defineEntityPage({
+          entity: "dispatch.work_order",
+          route: "/field/dispatch",
+          name: "work-orders",
+          columns: ["title", "status", "priority", "startsAt"],
+          area: "operations",
+          seed: { demo: 5, tiers: ["demo"] },
+        }),
+        // The sales overviews of phase 6 (EX-607). Their blocks export no input schema,
+        // so neither page sets `seed`.
+        defineEntityPage({
+          entity: "commissions.commission",
+          route: "/crm/commissions",
+          name: "commissions",
+          methods: { page: "commissionPage", facets: "commissionFacets" },
+          columns: ["status", "seller", "amount", "occurredOn"],
+          area: "sales",
+        }),
+        defineEntityPage({
+          entity: "referrals.referral",
+          route: "/crm/referrals",
+          name: "referrals",
+          methods: { page: "referralPage", facets: "referralFacets" },
+          columns: ["status", "referrer", "createdAt"],
+          area: "sales",
+        }),
       ],
       server: { module: "@/lib/supabase/server", export: "bsb" },
       scaleDir: "../../../supabase/tests/scale",

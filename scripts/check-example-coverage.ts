@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { argv, exit } from "node:process";
 
 import type { CoverageEntry } from "../apps/examples/nextjs/coverage/block-coverage.ts";
+import type { EntityRouteText } from "./entity-routes.ts";
 
 import {
   BLOCK_COVERAGE,
@@ -14,6 +15,7 @@ import {
 } from "../apps/examples/nextjs/coverage/block-coverage.ts";
 import { PRESET_CATALOG } from "../packages/better-supabase/src/preset/catalog.generated.ts";
 import { PRESET_NAMES } from "../packages/better-supabase/src/preset/presets.ts";
+import { readEntityRoutes } from "./entity-routes.ts";
 
 const APP = "apps/examples/nextjs/src/app/[locale]";
 const GROUPS = ["(app)", "(auth)", "(public)"] as const;
@@ -109,15 +111,52 @@ export const checkCoverage = (
   return { problems, planned, covered, noUi };
 };
 
+/**
+ * The pages declared in `gen.entityPages` (ADR 0859) name their list route in
+ * the generated manifest. The block that owns the entity must list that route
+ * in the coverage map, so a declared page never has no screen on paper.
+ */
+export const checkEntityRoutes = (
+  routes: readonly EntityRouteText[] = readEntityRoutes(),
+  coverage: Readonly<Record<string, CoverageEntry>> = BLOCK_COVERAGE,
+  root = APP,
+): readonly string[] => {
+  const problems: string[] = [];
+
+  for (const page of routes) {
+    const block = page.entity.split(".")[0] ?? "";
+    const entry = coverage[block];
+
+    if (!entry) {
+      problems.push(
+        `Entity page ${page.entity} has no entry for block "${block}" in block-coverage.ts`,
+      );
+    } else if (!routesOf(entry).includes(page.route)) {
+      problems.push(
+        `Entity page ${page.entity} (${page.route}) is not listed under block "${block}" in block-coverage.ts`,
+      );
+    }
+
+    if (!routeExists(page.route, root)) {
+      problems.push(
+        `Entity page ${page.entity} lists ${page.route}, which has no page.tsx`,
+      );
+    }
+  }
+
+  return problems;
+};
+
 if (argv[1] === import.meta.filename) {
   const report = checkCoverage();
+  const pageProblems = checkEntityRoutes();
 
   console.log(
     `Example coverage: ${report.covered} blocks on a screen, ${report.noUi} without UI, ${report.planned} planned.`,
   );
 
-  if (report.problems.length > 0) {
-    for (const problem of report.problems) {
+  if (report.problems.length > 0 || pageProblems.length > 0) {
+    for (const problem of [...report.problems, ...pageProblems]) {
       console.error(problem);
     }
 

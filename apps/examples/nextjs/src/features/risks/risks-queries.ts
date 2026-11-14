@@ -1,9 +1,6 @@
 import "server-only";
-import type { PageOptions } from "better-supabase/blocks";
-
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
-import * as v from "valibot";
 
 import type {
   RecordListPage,
@@ -14,7 +11,7 @@ import { bsb } from "@/lib/supabase/server";
 
 import type { BandTone, RiskRow } from "./risk-rows";
 
-import { riskList } from "./risk-list";
+import { riskList, riskPageOptions } from "./risk-list";
 import { tonesOf, toRiskRows } from "./risk-rows";
 
 export type { BandTone, RiskRow };
@@ -42,8 +39,6 @@ async function settle<T>(load: () => Promise<T | null>): Promise<Loaded<T>> {
 
 const PAGE_SIZE = 50;
 
-type PageDraft = { -readonly [K in keyof PageOptions]: PageOptions[K] };
-
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
 /**
@@ -54,33 +49,8 @@ export async function readRiskPage(
   db: Db,
   query: RecordListUrlQuery,
 ): Promise<RecordListPage<RiskRow>> {
-  const options: PageDraft = { limit: PAGE_SIZE };
-  const filters: Record<string, readonly string[]> = {};
-
-  for (const key of ["status", "category", "band"]) {
-    const values = query.facets[key];
-
-    if (values !== undefined && values.length > 0) {
-      filters[key] = values;
-    }
-  }
-
-  const after = query.after === undefined ? undefined : cursorOf(query.after);
-
-  if (query.q !== undefined) {
-    options.q = query.q;
-  }
-
-  if (Object.keys(filters).length > 0) {
-    options.filters = filters;
-  }
-
-  if (after !== undefined) {
-    options.after = after;
-  }
-
   const [page, matrices] = await Promise.all([
-    db.risks.page(options).orThrow(),
+    db.risks.page(riskPageOptions(query, PAGE_SIZE)).orThrow(),
     db.risks.matrices().orThrow(),
   ]);
 
@@ -89,18 +59,6 @@ export async function readRiskPage(
     nextCursor:
       page.nextCursor === null ? null : JSON.stringify(page.nextCursor),
   };
-}
-
-const cursorSchema = v.array(v.string());
-
-function cursorOf(value: string): readonly string[] | undefined {
-  try {
-    const parsed = v.safeParse(cursorSchema, JSON.parse(value));
-
-    return parsed.success ? parsed.output : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 async function loadRegister(): Promise<RecordListPage<RiskRow> | null> {
