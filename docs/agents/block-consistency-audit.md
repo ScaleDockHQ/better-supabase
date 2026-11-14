@@ -1092,7 +1092,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 - Scope: Admin and billing (a maintainer sets Stripe test keys in the three Vercel environments)
 - Status: in progress
 - Branch: `feat/findings-x4`
-- PR: none yet
+- PR: #924
 - Findings: EX-1608, EX-502, EX-507, EX-516
 - Log: 2026-11-14, planned.
 - Log: 2026-11-14, started in `bsb-findings-x4`.
