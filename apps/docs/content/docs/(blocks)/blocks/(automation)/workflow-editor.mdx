@@ -23,7 +23,7 @@ better-supabase add workflow-editor   # adds workflows, tenant and access as wel
 | `workflow_webhook_tokens`    | The SHA-256 of each webhook trigger's token; only the service role reads it                                                                    |
 | `workflow_credentials`       | A tenant's credentials by `kind` and `name`, as a `credential_ref`; never the secret itself                                                    |
 | `workflow_step_templates`    | The steps your deployment provides, which the canvas offers as its palette                                                                     |
-| `workflow_node_runs`         | The status, attempts, output and error of each node of a run                                                                                   |
+| `workflow_node_runs`         | The status, attempts, input, output and error of each node of a run                                                                            |
 | `workflow_alerts`            | Alerts on a definition's failed runs, or runs that stay unfinished past a threshold                                                            |
 | `workflow_alert_fires`       | Which alert fired for which run, so each fires once; only the service role reads it                                                            |
 
@@ -139,6 +139,26 @@ config, input, results })`, and `graphStarter({ nodeKinds, nodes })` binds
 one Workflow SDK step per kind. A branching kind takes the `true` branch when
 its output is truthy. A test run returns the node's stub, as it does for a
 step.
+
+A kind that sets `waits: true` pauses the run after its step, for work that
+finishes later, such as a human task or a child run. The engine registers a
+hook named `nodeWaitToken(runKey, node)` before it calls the node, calls the
+node (the work starts and the call returns), waits for the hook, then calls
+the node a second time with `call.resumed = { payload, output }`, where
+`output` is the first call's result and `payload` is what resumed the hook.
+The second call returns the node's final output. `executeGraph` needs
+`runtime.waitFor({ node, kind, token, runKey })` to register the hook
+(`createHook({ token })`), and `compileGraph` emits the same calls for
+dynamic workflows. Resume the run with `approvalWaiter.wake(token, payload)`
+from the code that knows the work is done: a server action for a task, an
+outbox consumer for a child run's end. A test run returns the stub and never
+waits.
+
+With `nodeRunReporter`, pass `{ waits: true }` on the first call so the node
+shows as `waiting` in `workflow_node_runs`, and report the second call
+normally to mark it `completed`. The step's input is recorded with the
+`running` status, so the run detail shows what each node received next to
+what it returned (`nodeRuns.list` returns it as `input`).
 
 ### Filter conditions
 
@@ -492,6 +512,7 @@ const token = await builder.triggers.rotateToken(triggerId).orThrow(); // shown 
 | `schedule` | `triggers.syncSchedule(trigger)` creates a [workflows schedule](/docs/blocks/workflows#schedules) from `config.cron` through the `workflows` option |
 | `form`     | Your form calls `run()`; `config.schema` holds its fields                                                                                           |
 | `chat`     | Your chat calls `run()`                                                                                                                             |
+| `event`    | `subscribeEventTriggers(betterSupabase, builder)` starts a run for each block event whose type is `config.event` (or a `prefix.*` pattern)          |
 
 ```ts title="app/api/hooks/workflows/[token]/route.ts"
 export const POST = (request: Request) =>
@@ -503,6 +524,33 @@ disabled token and `405` for a method other than `POST`. A body that is not
 JSON arrives as `{ body: "<text>" }`. An `Idempotency-Key`
 header keys the start, so a retried delivery starts one run. Only the
 token's SHA-256 is stored; rotating it ends the old one.
+
+### Start from block events
+
+An `event` trigger names a block event in `config.event`, such as
+`contact.created` or the pattern `task.*`. Subscribe once at start-up, with a
+builder that has a `service` transport and a `start`:
+
+```ts title="instrumentation.ts"
+import { subscribeEventTriggers } from "better-supabase/blocks/workflow-editor";
+
+subscribeEventTriggers(betterSupabase, serviceBuilder, {
+  onError: ({ error, eventType }) =>
+    console.warn(`${eventType}: ${error.message}`),
+});
+```
+
+The subscription listens through `betterSupabase.events.on("block", ...)`, so
+it only observes: a trigger that fails to start goes to `onError` and never
+changes the result of the work that emitted the event. For each event,
+`builder.triggers.fire(event)` finds the enabled triggers that match and
+starts one run each. The run's input is `{ type, data, tenant, subject, time }`
+and its key is the trigger plus the event, so a redelivered event starts one
+run. Triggers of a tenant's definitions fire only for that tenant's events;
+a system definition fires for every tenant. The subscriber sees events of its
+own process; to react to events written by other processes, use an
+automation on the outbox, below. An app whose own enum types the trigger
+kind adds the value `event` to it.
 
 ### Start from outbox events
 

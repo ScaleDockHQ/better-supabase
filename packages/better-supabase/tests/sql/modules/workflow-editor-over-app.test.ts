@@ -151,7 +151,7 @@ const BLOCKS: AnyBlocksConfig = {
 const BUILDER = `
 create type public.version_state as enum ('draft', 'published', 'archived');
 create type public.version_owner as enum ('user', 'organization');
-create type public.hook_kind as enum ('manual', 'webhook', 'schedule', 'form', 'chat');
+create type public.hook_kind as enum ('manual', 'webhook', 'schedule', 'form', 'chat', 'event');
 create type public.alert_event as enum ('failed', 'slow');
 
 create table public.flow_versions (

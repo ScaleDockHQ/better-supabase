@@ -54,6 +54,12 @@ export interface WorkflowNodeKindInfo {
   readonly kind: string;
   /** Whether its edges take a `true` or `false` branch on its output. */
   readonly branches?: boolean;
+  /**
+   * Whether a node of this kind waits after its step: the run pauses on a hook
+   * (`nodeWaitToken(runKey, node)`) until the app resumes it, and the payload
+   * becomes the node's output. A human task and a sub-workflow wait this way.
+   */
+  readonly waits?: boolean;
   /** Problems with a node of this kind, as messages; empty when it may run. */
   readonly validate?: (node: WorkflowGraphNode) => readonly string[];
 }
@@ -553,6 +559,14 @@ export interface ValidateGraphOptions {
    * neither built in nor here is an error.
    */
   readonly nodes?: Iterable<WorkflowNodeKindInfo>;
+}
+
+/** Whether a node of `kind` waits, given the app's own kinds. */
+export function waitsOn(
+  kind: string,
+  nodes: ReadonlyMap<string, WorkflowNodeKindInfo>,
+): boolean {
+  return nodes.get(kind)?.waits === true;
 }
 
 /** Whether a node of `kind` branches, given the app's own kinds. */
