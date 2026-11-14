@@ -1237,6 +1237,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "PASS_BOOKINGS_MISSING": "Install the bookings block to tie passes to bookings or resources.",
   "PASS_FORBIDDEN": "Not allowed to issue passes.",
   "PASS_HOLDER_NOT_FOUND": "The holder does not exist.",
+  "PASS_INVALID": "After and offset are two ways to page; pass one.",
   "PASS_JWKS_MISSING": "Pass jwks missing.",
   "PASS_METHOD_INVALID": "Method is qr, nfc or manual.",
   "PASS_NOT_FOUND": "Pass not found.",

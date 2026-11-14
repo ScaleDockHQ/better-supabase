@@ -4,6 +4,7 @@ import type { EPrescribingEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createEPrescribing } from "./e-prescribing.ts";
 import { ePrescribingEvents } from "./events.ts";
+import { prescriptionListSurface } from "./lists.ts";
 
 /** The `e-prescribing` block's manifest (ADR 0029). */
 export const ePrescribingBlock: BlockOf<
@@ -19,7 +20,11 @@ export const ePrescribingBlock: BlockOf<
   recipes: [],
   category: "people",
   entities: {
-    prescription: { mutability: "state-machine", emits: { create: true } },
+    prescription: {
+      ...prescriptionListSurface,
+      mutability: "state-machine",
+      emits: { create: true },
+    },
   },
   concerns: ["lifecycle"],
   description:

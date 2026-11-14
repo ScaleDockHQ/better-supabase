@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -349,6 +350,33 @@ function build(ctx: BlockSqlContext): string {
   const runJson = (row: string, withLines: boolean): string =>
     `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'periodFrom', ${row}.${r("periodFrom")}, 'periodTo', ${row}.${r("periodTo")}, 'label', ${row}.${r("label")}, 'status', ${row}.${r("status")}, 'format', ${row}.${r("format")}, 'checksum', ${row}.${r("checksum")}, 'exportedAt', ${row}.${r("exportedAt")}, 'exportedBy', ${row}.${r("exportedBy")}, 'createdBy', ${row}.${r("createdBy")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}, 'lineCount', (select count(*) from ${lines} y where y.${l("run")} = ${row}.${r("id")})${withLines ? `, 'lines', ${linesOf(row)}` : ""})`;
 
+  const periodKeys = [
+    { expr: `x.${r("periodFrom")}`, dir: "desc", type: "date" },
+    { expr: `x.${r("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+  ] as const;
+
+  const pageList = {
+    name: "page_payroll_runs",
+    from: runs,
+    alias: "x",
+    where: [
+      `x.${r("tenant")} = page_payroll_runs.tenant`,
+      filterAny("status", `x.${r("status")}::text`),
+    ],
+    keys: periodKeys,
+    sorts: {
+      periodFrom: periodKeys,
+      createdAt: [
+        { expr: `x.${r("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${r("status")}::text` },
+    rowJson: runJson("x", false),
+    invalid,
+  } as const;
+
   const record = (
     type: "payroll_run.created" | "payroll_run.exported",
     summary: string,
@@ -582,6 +610,29 @@ end;
 $$;
 ${userGrant(`${fn("list_payroll_runs")}(${idType})`)}
 
+-- The organization's runs as a keyset page, newest period first (ADR 0749,
+-- 0779). filters is { status (a value or a list of them), sort, direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_payroll_runs")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_payroll_runs.filters, '{}'::jsonb);
+  ${listDeclare(pageList)}
+begin
+  if not ${allowed("page_payroll_runs.tenant", read)} then
+    ${forbidden}
+  end if;
+  ${listBody(pageList)}
+end;
+$$;
+${userGrant(`${fn("page_payroll_runs")}(${idType}, jsonb)`)}
+
 -- Locks a draft run after its file was rendered: keeps the format and the
 -- SHA-256 of the file. Exporting the same file again returns the run.
 create or replace function ${fn("mark_payroll_run_exported")}(run_id uuid, format text, checksum text)
@@ -645,6 +696,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "refresh_payroll_run", args: ["uuid"], returns: "jsonb" },
     { name: "get_payroll_run", args: ["uuid"], returns: "jsonb" },
     { name: "list_payroll_runs", args: ["{id}"], returns: "jsonb" },
+    { name: "page_payroll_runs", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "mark_payroll_run_exported",
       args: ["uuid", "text", "text"],

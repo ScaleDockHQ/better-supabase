@@ -5,13 +5,18 @@ import { appraisalsBlock } from "../../src/blocks/appraisals/manifest.ts";
 import { contentBlock } from "../../src/blocks/content/manifest.ts";
 import { coursesBlock } from "../../src/blocks/courses/manifest.ts";
 import { damBlock } from "../../src/blocks/dam/manifest.ts";
+import { ePrescribingBlock } from "../../src/blocks/e-prescribing/manifest.ts";
+import { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts";
 import { inspectionsBlock } from "../../src/blocks/inspections/manifest.ts";
 import { legalEntitiesBlock } from "../../src/blocks/legal-entities/manifest.ts";
 import { limsBlock } from "../../src/blocks/lims/manifest.ts";
 import { maintenanceBlock } from "../../src/blocks/maintenance/manifest.ts";
 import { meetingsBlock } from "../../src/blocks/meetings/manifest.ts";
+import { passesBlock } from "../../src/blocks/passes/manifest.ts";
+import { payrollExportBlock } from "../../src/blocks/payroll-export/manifest.ts";
 import { rfqsBlock } from "../../src/blocks/rfqs/manifest.ts";
 import { risksBlock } from "../../src/blocks/risks/manifest.ts";
+import { sequencesBlock } from "../../src/blocks/sequences/manifest.ts";
 import { tillsBlock } from "../../src/blocks/tills/manifest.ts";
 import { warehouseBlock } from "../../src/blocks/warehouse/manifest.ts";
 import { warrantyBlock } from "../../src/blocks/warranty/manifest.ts";
@@ -24,13 +29,18 @@ const BLOCKS = [
   contentBlock,
   coursesBlock,
   damBlock,
+  ePrescribingBlock,
+  enrollmentsBlock,
   inspectionsBlock,
   legalEntitiesBlock,
   limsBlock,
   maintenanceBlock,
+  passesBlock,
+  payrollExportBlock,
   meetingsBlock,
   rfqsBlock,
   risksBlock,
+  sequencesBlock,
   tillsBlock,
   warehouseBlock,
   warrantyBlock,
@@ -91,6 +101,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(17);
+    expect(CASES).toHaveLength(22);
   });
 });
