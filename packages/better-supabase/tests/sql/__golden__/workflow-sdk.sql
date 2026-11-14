@@ -1,12 +1,12 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:acc398a25d0c500020d734d27b6458bc345a0cbdf812ea47f955ef4fef8f78f4
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-block workflow-sdk@5 managed
+-- @bsb-hash sha256:309f92e9d2d216b6400f1b38ac5e2a606b560aadf987647b827901705ae9724a
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.1.1).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -84,6 +84,12 @@ create table workflow.workflow_invocations (
 );
 
 create index workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
+
+create table workflow.workflow_job_lock_holders (
+  "worker_id" text not null,
+  "renewed_at" timestamp with time zone not null default now(),
+  constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
+);
 
 create table workflow.workflow_runs (
   "id" character varying not null,
@@ -210,6 +216,9 @@ grant all on workflow.workflow_hooks to service_role;
 alter table workflow.workflow_invocations enable row level security;
 revoke all on workflow.workflow_invocations from public, anon, authenticated;
 grant all on workflow.workflow_invocations to service_role;
+alter table workflow.workflow_job_lock_holders enable row level security;
+revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
+grant all on workflow.workflow_job_lock_holders to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -497,7 +506,7 @@ grant execute on function "better_supabase"."workflow_open_hooks"(text, text, in
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:95b691234a95724d704e47a84fd1131c7f868fe00130224f170ad02e8578357b
+-- @bsb-hash sha256:1e002a84dd0a80f2f53cd475a5d2a2eede07d1540b85a1565261c2a8358c723e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -516,19 +525,19 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 4, 'managed')
+values ('workflow-sdk', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:acc398a25d0c500020d734d27b6458bc345a0cbdf812ea47f955ef4fef8f78f4
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-block workflow-sdk@5 managed
+-- @bsb-hash sha256:309f92e9d2d216b6400f1b38ac5e2a606b560aadf987647b827901705ae9724a
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.1.1).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -606,6 +615,12 @@ create table workflow.workflow_invocations (
 );
 
 create index workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
+
+create table workflow.workflow_job_lock_holders (
+  "worker_id" text not null,
+  "renewed_at" timestamp with time zone not null default now(),
+  constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
+);
 
 create table workflow.workflow_runs (
   "id" character varying not null,
@@ -732,6 +747,9 @@ grant all on workflow.workflow_hooks to service_role;
 alter table workflow.workflow_invocations enable row level security;
 revoke all on workflow.workflow_invocations from public, anon, authenticated;
 grant all on workflow.workflow_invocations to service_role;
+alter table workflow.workflow_job_lock_holders enable row level security;
+revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
+grant all on workflow.workflow_job_lock_holders to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -1019,7 +1037,7 @@ grant execute on function "better_supabase"."workflow_open_hooks"(text, text, in
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:95b691234a95724d704e47a84fd1131c7f868fe00130224f170ad02e8578357b
+-- @bsb-hash sha256:1e002a84dd0a80f2f53cd475a5d2a2eede07d1540b85a1565261c2a8358c723e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1038,15 +1056,15 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 4, 'managed')
+values ('workflow-sdk', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:f41c90623b2fb3b218536fc30146deb9cfaa485f2826a7b60af784cba616aabe
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-block workflow-sdk@5 managed
+-- @bsb-hash sha256:f688965bb9de5c7bb0b01fa6685673769feb907733d66d0c44d325324384fab1
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1055,7 +1073,7 @@ grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
--- The Workflow SDK World's tables (@workflow/world-postgres 5.1.1).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -1133,6 +1151,12 @@ create table workflow.workflow_invocations (
 );
 
 create index workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
+
+create table workflow.workflow_job_lock_holders (
+  "worker_id" text not null,
+  "renewed_at" timestamp with time zone not null default now(),
+  constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
+);
 
 create table workflow.workflow_runs (
   "id" character varying not null,
@@ -1259,6 +1283,9 @@ grant all on workflow.workflow_hooks to service_role;
 alter table workflow.workflow_invocations enable row level security;
 revoke all on workflow.workflow_invocations from public, anon, authenticated;
 grant all on workflow.workflow_invocations to service_role;
+alter table workflow.workflow_job_lock_holders enable row level security;
+revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
+grant all on workflow.workflow_job_lock_holders to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -1546,7 +1573,7 @@ grant execute on function "app_private"."workflow_open_hooks"(text, text, intege
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:95b691234a95724d704e47a84fd1131c7f868fe00130224f170ad02e8578357b
+-- @bsb-hash sha256:1e002a84dd0a80f2f53cd475a5d2a2eede07d1540b85a1565261c2a8358c723e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1565,19 +1592,19 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 4, 'managed')
+values ('workflow-sdk', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
--- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:e6e09abbe6f814dd20a18acddc1039f9f19508d4285d7c000a16f3eb624752e7
--- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.1) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
+-- @bsb-block workflow-sdk@5 managed
+-- @bsb-hash sha256:0532e7f90e7fefe194d88f8454918e9fb48c5b2e03f0f3154fb43b237a6c4167
+-- The tables of the Workflow SDK World (@workflow/world-postgres 5.2.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
--- The Workflow SDK World's tables (@workflow/world-postgres 5.1.1).
+-- The Workflow SDK World's tables (@workflow/world-postgres 5.2.0).
 -- Only the service role reads them: the app reads runs from workflow_runs in
 -- the workflows module.
 create schema if not exists workflow;
@@ -1655,6 +1682,12 @@ create table workflow.workflow_invocations (
 );
 
 create index workflow_invocations_pending ON workflow.workflow_invocations USING btree (run_id, sequence) WHERE (responded_at IS NULL);
+
+create table workflow.workflow_job_lock_holders (
+  "worker_id" text not null,
+  "renewed_at" timestamp with time zone not null default now(),
+  constraint "workflow_job_lock_holders_pkey" PRIMARY KEY (worker_id)
+);
 
 create table workflow.workflow_runs (
   "id" character varying not null,
@@ -1781,6 +1814,9 @@ grant all on workflow.workflow_hooks to service_role;
 alter table workflow.workflow_invocations enable row level security;
 revoke all on workflow.workflow_invocations from public, anon, authenticated;
 grant all on workflow.workflow_invocations to service_role;
+alter table workflow.workflow_job_lock_holders enable row level security;
+revoke all on workflow.workflow_job_lock_holders from public, anon, authenticated;
+grant all on workflow.workflow_job_lock_holders to service_role;
 alter table workflow.workflow_run_keys enable row level security;
 revoke all on workflow.workflow_run_keys from public, anon, authenticated;
 grant all on workflow.workflow_run_keys to service_role;
@@ -2136,7 +2172,7 @@ grant execute on function "api"."workflow_open_hooks"(text, text, integer) to se
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block-data workflow-sdk
--- @bsb-hash sha256:95b691234a95724d704e47a84fd1131c7f868fe00130224f170ad02e8578357b
+-- @bsb-hash sha256:1e002a84dd0a80f2f53cd475a5d2a2eede07d1540b85a1565261c2a8358c723e
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2155,6 +2191,6 @@ end
 $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('workflow-sdk', 4, 'managed')
+values ('workflow-sdk', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -288,6 +288,7 @@ describe("options", () => {
     expect(manifest).toMatchObject({ version: WORKFLOW_WORLD_PROTOCOL });
     const world = createWorld();
     expect(typeof world.queue).toBe("function");
+    expect(world.queueAuthMode).toBe("skip");
     await world.close();
   });
 });

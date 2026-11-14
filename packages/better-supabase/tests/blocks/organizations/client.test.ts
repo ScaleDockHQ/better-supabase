@@ -174,10 +174,15 @@ function members(
       resolved(true as const),
   );
 
+  const updateMemberRoles = vi.fn(
+    (input: { organizationId: string; userIds: readonly string[] }) =>
+      resolved({ succeeded: [...input.userIds], failed: [] }),
+  );
+
   const onChanged = vi.fn();
 
   const controller = createMembersController<{ userId: string; role: Role }>({
-    client: { updateMemberRole, removeMember },
+    client: { updateMemberRole, updateMemberRoles, removeMember },
     auth,
     organizationId: "org-1",
     load,
@@ -190,6 +195,7 @@ function members(
     rows,
     load,
     updateMemberRole,
+    updateMemberRoles,
     removeMember,
     onChanged,
     controller,
@@ -255,6 +261,53 @@ describe("createMembersController", () => {
     expect(view().error?.message).toBe("not allowed");
     expect(onChanged).not.toHaveBeenCalled();
     unmount();
+  });
+
+  it("changes many roles in one call and puts back the refused ones", async () => {
+    const { updateMemberRoles, onChanged, controller } = members();
+    const { view, unmount } = mount(controller);
+    await flush();
+    updateMemberRoles.mockReturnValueOnce(
+      resolved({
+        succeeded: ["u-1"],
+        failed: [{ id: "u-2", error: { kind: "forbidden", message: "no" } }],
+      }) as never,
+    );
+
+    const result = await view().setRoles({
+      userIds: ["u-1", "u-2"],
+      role: "admin",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(updateMemberRoles).toHaveBeenCalledOnce();
+    expect(view().members?.map((member) => member.role)).toEqual([
+      "admin",
+      "member",
+    ]);
+    expect(view().pending).toEqual([]);
+    expect(onChanged).toHaveBeenCalledOnce();
+    unmount();
+  });
+
+  it("puts every role back when the whole call fails", async () => {
+    const { updateMemberRoles, controller } = members();
+    const { view, unmount } = mount(controller);
+    await flush();
+    updateMemberRoles.mockReturnValueOnce(failed("not allowed"));
+    expect(
+      (await view().setRoles({ userIds: ["u-2"], role: "admin" })).ok,
+    ).toBe(false);
+    expect(view().members?.[1]?.role).toBe("member");
+    expect(view().error?.message).toBe("not allowed");
+    unmount();
+
+    const idle = members({ organizationId: null });
+    const idleView = mount(idle.controller);
+    expect(
+      await idleView.view().setRoles({ userIds: ["u-2"], role: "admin" }),
+    ).toMatchObject({ ok: false });
+    idleView.unmount();
   });
 
   it("removes a member, then loads the table again", async () => {
