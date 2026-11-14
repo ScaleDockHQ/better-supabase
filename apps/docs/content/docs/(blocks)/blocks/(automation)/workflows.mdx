@@ -233,6 +233,10 @@ export function Component(props: { organizationId: string }) {
 }
 ```
 
+## Reading a run as a job
+
+`workflows.jobs` is the `workflow` source of `createJobs`, so `jobs.get("workflow:<run id>")` returns the common `JobResult`. A `queued` run is `pending`, a `waiting` run is `running`, a `completed` run has the run as `result`, and a `failed` or `cancelled` run is `failed` with `WORKFLOW_RUN_FAILED` or `WORKFLOW_RUN_CANCELLED`. The engine starts runs, so there is no start call. A run the caller cannot see is `not_found`.
+
 ## Schedules
 
 Workflow schedules sit between job schedules and per-user AI tasks; see

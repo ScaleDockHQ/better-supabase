@@ -2,6 +2,7 @@ import type { ExtraFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
+import type { JobSource } from "../../core/jobs.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { RunState } from "../../core/run-state.ts";
@@ -11,6 +12,8 @@ import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import { blockFields, extraFieldsArg } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { assertCron, nextCronRun } from "../../core/cron.ts";
+import { dbError } from "../../core/errors.ts";
+import { jobResultOf } from "../../core/jobs.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -258,6 +261,13 @@ export interface WorkflowsHooks<F extends object = Record<never, never>> {
 
 /** `F` is the extra run columns `options.fields` describes. */
 export interface Workflows<F extends object = Record<never, never>> {
+  /**
+   * The `workflow` job kind for `createJobs` (ADR 0852): a run as a job result.
+   * `queued` is `pending`, `waiting` is `running`, `cancelled` is `failed` with
+   * the hint `WORKFLOW_RUN_CANCELLED`; `result` is the run once it completed.
+   * `null` for a run the caller cannot see.
+   */
+  readonly jobs: JobSource;
   readonly runs: {
     /** The runs the caller may read, newest first. */
     list(query?: WorkflowRunsQuery): AsyncResult<readonly WorkflowRun<F>[]>;
@@ -521,6 +531,44 @@ export function createWorkflows<
     });
 
   const client: Workflows<F> = {
+    jobs: {
+      get: (id) =>
+        client.runs.get(id).map((run) => {
+          if (run === undefined) {
+            return null;
+          }
+
+          const status =
+            run.status === "queued"
+              ? "pending"
+              : run.status === "waiting"
+                ? "running"
+                : run.status === "cancelled"
+                  ? "failed"
+                  : run.status;
+
+          return jobResultOf("workflow", run.id, {
+            status,
+            ...(run.status === "completed" ? { result: run } : {}),
+            ...(status === "failed"
+              ? {
+                  error: dbError(
+                    "raised",
+                    run.status === "cancelled"
+                      ? "The run was cancelled"
+                      : (run.error ?? "The run failed"),
+                    {
+                      hint:
+                        run.status === "cancelled"
+                          ? "WORKFLOW_RUN_CANCELLED"
+                          : "WORKFLOW_RUN_FAILED",
+                    },
+                  ),
+                }
+              : {}),
+          });
+        }),
+    },
     runs: {
       list: (query = {}) =>
         call(
@@ -758,6 +806,7 @@ export function createWorkflows<
   const logger = options.logger ? { logger: options.logger } : {};
 
   return {
+    jobs: client.jobs,
     runs: withBlockHooks(client.runs, hooks.runs, {
       block: "workflows.runs",
       ...logger,

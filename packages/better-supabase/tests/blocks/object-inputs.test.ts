@@ -244,6 +244,7 @@ const POSITIONAL = new Set<string>([
   "reminders/reminders.ts:list",
   "reminders/schedule.ts:markSent",
   "service-accounts/service-accounts.ts:list",
+  "tasks/tasks.ts:bulk",
   "teams/teams.ts:list",
   "rename-block.ts:count",
   "rename-block.ts:load",
