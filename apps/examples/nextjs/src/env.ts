@@ -30,6 +30,8 @@ const {
   BSB_REMOTE_CACHE_DIR,
   STRIPE_SECRET_KEY,
   STRIPE_WEBHOOK_SECRET,
+  STRIPE_PRICE_PRO,
+  STRIPE_PRICE_ENTERPRISE,
   DATABASE_URL,
 } = process.env;
 
@@ -75,6 +77,10 @@ export const env = createEnv({
     // without them, Checkout, the portal and seat sync need them.
     STRIPE_SECRET_KEY: v.optional(v.string()),
     STRIPE_WEBHOOK_SECRET: v.optional(v.string()),
+    // The test-mode Stripe price ids of the paid plans in `public.plans`; the plan picker
+    // starts Checkout for a plan whose price is set.
+    STRIPE_PRICE_PRO: v.optional(v.string()),
+    STRIPE_PRICE_ENTERPRISE: v.optional(v.string()),
     // The Postgres connection the queue drain and Stripe processing routes use.
     DATABASE_URL: v.optional(v.string()),
   },
@@ -97,6 +103,8 @@ export const env = createEnv({
     BSB_REMOTE_CACHE_DIR,
     STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET,
+    STRIPE_PRICE_PRO,
+    STRIPE_PRICE_ENTERPRISE,
     DATABASE_URL,
   },
   emptyStringAsUndefined: true,

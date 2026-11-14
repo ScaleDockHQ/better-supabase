@@ -1710,6 +1710,15 @@ export const ROUTES: readonly RouteEntry[] = [
     scale: false,
   },
   {
+    route: "/settings/marketplace/[resource]",
+    archetype: "detail",
+    url: null,
+    maxCalls: 8,
+    maxWaves: 2,
+    instant: true,
+    scale: false,
+  },
+  {
     route: "/settings/integrations/[id]",
     archetype: "detail",
     url: null,

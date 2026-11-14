@@ -316,6 +316,22 @@ values
   ('00000000-0000-4000-8000-0000005c0002', '00000000-0000-4000-8000-000000000001', 'Ticket tracker', 'https://mcp.acme.test/tickets/sse', 'sse', 'none', array[]::text[], false)
 on conflict do nothing;
 
+-- A Vercel Marketplace installation linked to the first organization, with two
+-- resources, so /settings/marketplace and its resource page render rows.
+insert into better_supabase.marketplace_plans (id, name)
+values ('free', 'Free'), ('pro', 'Pro')
+on conflict do nothing;
+
+insert into better_supabase.marketplace_installations (id, configuration_id, team_id, tenant, status)
+values ('00000000-0000-4000-8000-0000000b0001', 'icfg_acme_demo', 'team_acme_demo', '00000000-0000-4000-8000-000000000001', 'active')
+on conflict do nothing;
+
+insert into better_supabase.marketplace_resources (id, installation_id, external_id, name, plan_id, status, tenant)
+values
+  ('00000000-0000-4000-8000-0000000b0011', '00000000-0000-4000-8000-0000000b0001', 'res_acme_primary', 'Primary database', 'pro', 'ready', '00000000-0000-4000-8000-000000000001'),
+  ('00000000-0000-4000-8000-0000000b0012', '00000000-0000-4000-8000-0000000b0001', 'res_acme_staging', 'Staging database', 'free', 'pending', '00000000-0000-4000-8000-000000000001')
+on conflict do nothing;
+
 -- A credit ledger: one pool the organization buys credits into, one balance it spends from.
 do $$
 declare
