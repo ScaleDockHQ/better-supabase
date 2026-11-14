@@ -110,6 +110,28 @@ describe("exportCsv", () => {
     expect(text).toContain("\r\n");
   });
 
+  it("stops when a page has more rows but no cursor", async () => {
+    const text = await read(
+      exportCsv(() =>
+        AsyncResult.ok({
+          items: [{ id: "1" }],
+          hasMore: true,
+          nextCursor: null,
+        }),
+      ),
+    );
+
+    expect(text).toBe("id\r\n1\r\n");
+  });
+
+  it("keeps formulas when escaping is off", async () => {
+    const text = await read(
+      exportCsv(pager(), { escapeFormulas: false, pageSize: 10 }),
+    );
+
+    expect(text).toContain("=SUM(A1)");
+  });
+
   it("answers a route with text/csv", async () => {
     const response = exportResponse(pager(), 'my "file".csv');
 

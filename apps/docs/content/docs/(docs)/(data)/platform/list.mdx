@@ -499,17 +499,19 @@ export default defineConfig({
 });
 ```
 
-| Field     | Meaning                                                                                       |
-| --------- | --------------------------------------------------------------------------------------------- |
-| `entity`  | The block entity as `<block>.<entity>`. The block manifest supplies the surface.              |
-| `route`   | The page's route in the app. The last segment names the generated files unless `name` is set. |
-| `name`    | The file stem of the generated files. Defaults to the last segment of `route`.                |
-| `reads`   | The expression under `db` that holds the reads. Defaults to the block name.                   |
-| `methods` | The `page` and `facets` method names on `reads`. Default `page` and `facets`.                 |
-| `list`    | `pageSize` and `maxPageSize` of the generated list query.                                     |
+| Field      | Meaning                                                                                       |
+| ---------- | --------------------------------------------------------------------------------------------- |
+| `entity`   | The block entity as `<block>.<entity>`. The block manifest supplies the surface.              |
+| `route`    | The page's route in the app. The last segment names the generated files unless `name` is set. |
+| `name`     | The file stem of the generated files. Defaults to the last segment of `route`.                |
+| `reads`    | The expression under `db` that holds the reads. Defaults to the block name.                   |
+| `methods`  | The `page` and `facets` method names on `reads`. Default `page` and `facets`.                 |
+| `list`     | `pageSize` and `maxPageSize` of the generated list query.                                     |
+| `columns`  | The logical columns of the list, in order. `gen` writes `pages/<name>.columns.ts` from them.  |
+| `sections` | The sections of the detail page, in order. `gen` writes `pages/<name>.detail.ts` from them.   |
 
-`area`, `columns`, `sections` and `seed` are accepted today and read by later generators (columns,
-detail pages, seed rows and navigation), so a page descriptor does not change when those land.
+`area` and `seed` are accepted today and read by later generators (seed rows and navigation), so a
+page descriptor does not change when those land.
 
 The generated module calls `defineEntityListQuery` with the entity's surface. It has no database
 access of its own: `parse` checks the URL, `schema` checks typed input as a Standard Schema, and `run`
@@ -544,3 +546,45 @@ A ReUI filter tree works too. `parse` reads the `filter` parameter (`encodeFilte
 filter, to the same `filters`. An `or` group, a nested group, a negated rule, another operator or a
 field that appears twice comes back as an issue, because the entity's `page` filters by lists of
 values only.
+
+### Columns, detail and forms
+
+`columns` lists logical columns of the entity's table (`number`, `nextReviewOn`). `gen` stops with
+`config_invalid` and names the table's columns when one is not a column. Each entry of the generated
+`<name>Columns` has the row `key`, the database `column`, a readable `label`, a `kind` (`text`,
+`number`, `boolean`, `date`, `datetime`, `uuid`, `enum` or `json`, from the block's input schema or the
+name) and, when the entity declares one, the `sort` and `filter` with the same name. A header click
+therefore maps to a named sort, and a facet to a column, without a list of your own.
+
+```ts
+import { risksColumns } from "@/lib/supabase/pages/risks.columns";
+
+const sortable = risksColumns.filter((column) => "sort" in column);
+```
+
+`sections` lists the parts of the record's page as lowercase words joined by `-`. `<name>Detail`
+holds the `route` (`/risks/:id`), the `sections` with their labels and `href(id)`.
+
+A page whose block exports an input schema also gets `pages/<name>.form.ts`, with
+`<name>CreateForm` and, when the block exports a change schema, `<name>EditForm`. Each is a
+`defineEntityForm` over the fields of the schema the action validates, so the form and the action
+cannot drift. `parse` reads `FormData` or a record into the action's input: numbers and booleans are
+converted, an empty optional field is left out, an empty nullable field is `null`, and each problem
+comes back as an issue with the field's path. The action's own schema stays the authority.
+
+```ts
+import { risksCreateForm } from "@/lib/supabase/pages/risks.form";
+
+export async function createRisk(data: FormData) {
+  const input = risksCreateForm.parse(data);
+
+  if (!input.ok) {
+    return { issues: input.issues };
+  }
+
+  return db.risks.create(input.value).orThrow();
+}
+```
+
+The Next.js example declares `columns` and `sections` on its periods page, so
+`src/lib/supabase/pages/periods.columns.ts` and `periods.detail.ts` are generated output.

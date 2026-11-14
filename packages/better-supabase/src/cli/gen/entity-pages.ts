@@ -10,6 +10,11 @@ import { PRESET_CATALOG } from "../../preset/index.ts";
 import { resolveBlock } from "../../sql/index.ts";
 import { CliError } from "../core/errors.ts";
 import { GENERATED_HEADER } from "./emit.ts";
+import {
+  COLUMNS_OUTPUT,
+  DETAIL_OUTPUT,
+  FORM_OUTPUT,
+} from "./entity-page-ui.ts";
 import { camelOf } from "./renamed-blocks.ts";
 import { q, runtimeSubpath } from "./shared.ts";
 
@@ -52,6 +57,10 @@ export interface ResolvedEntityPage {
   readonly entityKey: string;
   readonly surface: EntityListSurfaceDecl;
   readonly table: EntityPageTable | undefined;
+  /** The input schemas of the entity's block, which the form output reads. */
+  readonly schemas:
+    | NonNullable<PresetCatalogManifest["entitySchemas"]>[string]
+    | undefined;
   /** The expression under `db` that holds the entity's reads. */
   readonly reads: string;
 }
@@ -160,6 +169,7 @@ export function resolveEntityPage(
     entityKey,
     surface,
     table,
+    schemas: manifest.entitySchemas?.[entityKey],
     reads: page.reads ?? camelOf(block),
   };
 }
@@ -523,11 +533,17 @@ const SCALE_TEST: EntityPageOutput = {
   },
 };
 
-/** The outputs the generator runs, in order. Lanes M2 to M4 append theirs. */
+/**
+ * The outputs the generator runs, in order. Lane M2 added columns, detail and
+ * forms; M3 and M4 append theirs.
+ */
 export const ENTITY_PAGE_OUTPUTS: readonly EntityPageOutput[] = [
   LIST_QUERY,
   LIST_ROUTE,
   SCALE_TEST,
+  COLUMNS_OUTPUT,
+  DETAIL_OUTPUT,
+  FORM_OUTPUT,
 ];
 
 /** Every file the entity pages generate, or none without `gen.entityPages`. */

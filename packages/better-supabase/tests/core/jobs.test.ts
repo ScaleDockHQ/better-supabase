@@ -6,6 +6,7 @@ import {
   jobResultOf,
   parseJobId,
 } from "../../src/core/jobs.ts";
+import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
 
 describe("jobs", () => {
@@ -41,6 +42,15 @@ describe("jobs", () => {
       result: null,
       error: null,
     });
+  });
+
+  it("returns the error of the source", async () => {
+    const failing = createJobs({
+      bulk: { get: () => AsyncResult.err(dbError("timeout", "Too slow")) },
+    });
+    const result = await failing.get("bulk:r1");
+
+    expect(!result.ok && result.error.kind).toBe("timeout");
   });
 
   it("is not_found for an id the source does not know", async () => {

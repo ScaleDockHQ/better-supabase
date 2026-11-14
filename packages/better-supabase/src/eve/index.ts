@@ -48,7 +48,7 @@ export {
   type EveContextOptions,
   type EveContextRunner,
   type EveDispatchOptions,
-  type EveDynamicRunArgs,
+  type EveDynamicRunParams,
   type EveDynamicSchedules,
   type EveDynamicTargetHandle,
   type EveInteractiveAuthorization,

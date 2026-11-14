@@ -51,7 +51,7 @@ export interface RequiredTenantOption {
  * The arguments of a read: the options are required when `Extra` has a required
  * key.
  */
-export type ListArgs<
+export type ListCallParams<
   Options extends object,
   Extra extends object,
 > = object extends Extra
@@ -75,15 +75,15 @@ export type CountOptions = Pick<PageOptions, "q" | "filters">;
 export interface EntityList<Item, Extra extends object = object> {
   /** One keyset page, in the order of `sort` (the entity's default without it). */
   readonly page: (
-    ...args: ListArgs<PageOptions, Extra>
+    ...args: ListCallParams<PageOptions, Extra>
   ) => AsyncResult<ListPage<Item>>;
   /** The values of each facet and how many rows hold each, under the filters. */
   readonly facets: (
-    ...args: ListArgs<FacetOptions, Extra>
+    ...args: ListCallParams<FacetOptions, Extra>
   ) => AsyncResult<readonly FacetResult[]>;
   /** How many rows match; `exact` is `false` when the count stopped at a cap. */
   readonly count: (
-    ...args: ListArgs<CountOptions, Extra>
+    ...args: ListCallParams<CountOptions, Extra>
   ) => AsyncResult<Count>;
 }
 
