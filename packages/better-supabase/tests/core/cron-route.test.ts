@@ -42,4 +42,53 @@ describe("cronRoute", () => {
       expect(await response.json()).toEqual({ instance: "/api/cron" });
     }
   });
+
+  describe('caller: "vercel-schedule"', () => {
+    const scheduled = { "ce-type": "com.vercel.schedule.v1beta" };
+
+    it("accepts a Vercel schedule run without the secret", async () => {
+      const open = cronRoute(
+        { name: "drain", secret: undefined, caller: "vercel-schedule" },
+        () => Promise.resolve(new Response("ran")),
+      );
+
+      const response = await open(
+        new Request("https://app.test/api/cron", {
+          method: "POST",
+          headers: scheduled,
+        }),
+      );
+
+      expect(await response.text()).toBe("ran");
+      expect(
+        (await open(new Request("https://app.test/api/cron"))).status,
+      ).toBe(401);
+    });
+
+    it("keeps the secret for other callers when one is set", async () => {
+      const both = cronRoute(
+        { name: "drain", secret: "s3cret", caller: "vercel-schedule" },
+        () => Promise.resolve(new Response("ran")),
+      );
+
+      for (const headers of [scheduled, { authorization: "Bearer s3cret" }]) {
+        const response = await both(
+          new Request("https://app.test/api/cron", { method: "POST", headers }),
+        );
+
+        expect(response.status).toBe(200);
+      }
+
+      expect(
+        (
+          await both(
+            new Request("https://app.test/api/cron", {
+              method: "POST",
+              headers: { "ce-type": "com.vercel.queue.v2beta" },
+            }),
+          )
+        ).status,
+      ).toBe(401);
+    });
+  });
 });

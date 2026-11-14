@@ -118,6 +118,8 @@ export { testPlugin } from "./kits/plugin.ts";
 
 export { testQueueProvider } from "./kits/queue-provider.ts";
 
+export { testScheduleProvider } from "./kits/schedule-provider.ts";
+
 export { testSupportSessionStore } from "./kits/support-session-store.ts";
 
 export {
@@ -199,6 +201,8 @@ export type { TestIncomingDestinationOptions } from "./kits/incoming-destination
 export type { TestPluginOptions } from "./kits/plugin.ts";
 
 export type { TestQueueProviderOptions } from "./kits/queue-provider.ts";
+
+export type { TestScheduleProviderOptions } from "./kits/schedule-provider.ts";
 
 export type { TestSupportSessionStoreOptions } from "./kits/support-session-store.ts";
 

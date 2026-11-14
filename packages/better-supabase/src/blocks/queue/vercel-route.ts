@@ -6,8 +6,21 @@ import type {
   Queue,
   QueueSchemas,
   RunJobOptions,
+  ScheduledRun,
 } from "./types.ts";
 import type { VercelQueueMetadata } from "./vercel-queue.ts";
+import type {
+  VercelScheduleQueueMessage,
+  VercelScheduleRun,
+} from "./vercel-schedules.ts";
+
+import { isRecord } from "../../core/guards.ts";
+import { BLOCK_SCHEDULE_PREFIX, BLOCK_TICKS_QUEUE } from "./block-schedules.ts";
+import {
+  isVercelScheduleMessage,
+  vercelScheduleNameFrom,
+  vercelScheduleRunOf,
+} from "./vercel-schedules.ts";
 
 /** What a `retry` callback of `@vercel/queue` returns. */
 export type VercelRetryDirective =
@@ -148,8 +161,14 @@ function consumerOf<Q extends QueueSchemas, C>(
       throw new TypeError(`No handler for the Vercel Queues topic "${queue}"`);
     }
 
-    // SAFETY: vercelQueueProvider sends { payload, max_attempts } on every topic it writes.
-    const body = (message ?? {}) as QueueMessageBody;
+    const scheduled = isVercelScheduleMessage(message)
+      ? scheduledMessageOf(message)
+      : undefined;
+
+    // vercelQueueProvider sends { payload, max_attempts } on every topic it writes.
+    const body: QueueMessageBody =
+      scheduled === undefined ? (message ?? {}) : scheduled.body;
+
     const maxAttempts = body.max_attempts ?? 5;
 
     deliveries += 1;
@@ -162,6 +181,7 @@ function consumerOf<Q extends QueueSchemas, C>(
         attempts: metadata.deliveryCount,
         enqueuedAt: metadata.createdAt,
         message: body,
+        ...(scheduled === undefined ? {} : { schedule: scheduled.run }),
       },
       handler: run,
       ...options,
@@ -200,4 +220,142 @@ function consumerOf<Q extends QueueSchemas, C>(
       },
     },
   };
+}
+
+/** What a Vercel schedule message carries for the job it runs. */
+interface ScheduledMessage {
+  /** The queue the run goes to; unset when the message doesn't say. */
+  readonly queue: string | undefined;
+  readonly body: QueueMessageBody;
+  readonly probe: string | undefined;
+  readonly run: ScheduledRun & VercelScheduleRun;
+}
+
+/**
+ * A block timer's tick from its schedule name, `block:<block>.<timer>`. Block
+ * names have no dots, so the first one ends the block.
+ */
+function blockTickOf(
+  name: string,
+): { readonly block: string; readonly name: string } | undefined {
+  if (!name.startsWith(BLOCK_SCHEDULE_PREFIX)) {
+    return undefined;
+  }
+
+  const rest = name.slice(BLOCK_SCHEDULE_PREFIX.length);
+  const dot = rest.indexOf(".");
+
+  return dot <= 0
+    ? undefined
+    : { block: rest.slice(0, dot), name: rest.slice(dot + 1) };
+}
+
+/**
+ * Reads a schedule message: the job body `vercelScheduler` stored as the
+ * payload, or, for a static schedule without one, a block timer's tick named by
+ * the schedule (`block:<block>.<timer>`, encoded) or an empty payload.
+ */
+function scheduledMessageOf(
+  message: VercelScheduleQueueMessage,
+): ScheduledMessage {
+  const run = vercelScheduleRunOf(message);
+
+  if (run === null) {
+    throw new TypeError(
+      `The Vercel schedule run ${message.executionId} has an invalid scheduledAt "${message.scheduledAt}"`,
+    );
+  }
+
+  const stored = message.payload;
+
+  if (isRecord(stored) && Object.hasOwn(stored, "payload")) {
+    const name =
+      typeof stored["name"] === "string"
+        ? stored["name"]
+        : (vercelScheduleNameFrom(message.name) ?? message.name);
+
+    return {
+      queue: typeof stored["queue"] === "string" ? stored["queue"] : undefined,
+      // SAFETY: vercelScheduler stores { payload, max_attempts, name, queue, probe? }.
+      body: stored,
+      probe: typeof stored["probe"] === "string" ? stored["probe"] : undefined,
+      run: { ...run, name },
+    };
+  }
+
+  const name = vercelScheduleNameFrom(message.name) ?? message.name;
+  const tick = blockTickOf(name);
+
+  return {
+    queue: tick === undefined ? undefined : BLOCK_TICKS_QUEUE,
+    body: { payload: tick ?? stored ?? {}, max_attempts: 5 },
+    probe: undefined,
+    run: { ...run, name },
+  };
+}
+
+export interface VercelScheduleBridgeRouteOptions {
+  /** `new QueueClient()` from `@vercel/queue`, or the module itself. */
+  readonly client: VercelQueueCallbackClient;
+  /** Seconds before a failed enqueue comes back. Default 30. */
+  readonly retryAfter?: number;
+  /** The lock on each message while the run is enqueued. Default 60. */
+  readonly visibilityTimeoutSeconds?: number;
+  /** Gets every error; the message then comes back after `retryAfter`. */
+  readonly onError?: (error: DbError, run: VercelScheduleRun) => void;
+  /** Gets each run whose probe reported no work, which is skipped. */
+  readonly onSkip?: (run: VercelScheduleRun) => void;
+}
+
+/**
+ * The route on the bridge topic of `vercelScheduler(Schedules, { bridge })`,
+ * for Vercel Schedules with a Supabase queue: for each run it checks the
+ * schedule's probe with `schedule_has_work`, then enqueues the run with
+ * `jobs.enqueueScheduledRun`, once per `executionId`. A false probe skips that
+ * run only; the next run asks again. A static schedule on the topic runs a
+ * block timer, named `block:<block>.<timer>`, on `block_ticks`.
+ */
+export function vercelScheduleBridgeRoute<Q extends QueueSchemas>(
+  jobs: Queue<Q>,
+  options: VercelScheduleBridgeRouteOptions,
+): (request: Request) => Promise<Response> {
+  const handler: CallbackHandler = async (message) => {
+    if (!isVercelScheduleMessage(message)) {
+      throw new TypeError(
+        "The bridge topic carries Vercel schedule runs; this message is not one",
+      );
+    }
+
+    const scheduled = scheduledMessageOf(message);
+
+    if (scheduled.queue === undefined) {
+      throw new TypeError(
+        `The Vercel schedule "${message.name}" names no queue: write it with jobs.schedule, or name a block timer`,
+      );
+    }
+
+    const result = await jobs.enqueueScheduledRun({
+      name: scheduled.run.name,
+      queue: scheduled.queue,
+      payload: scheduled.body.payload,
+      executionId: scheduled.run.executionId,
+      maxAttempts: scheduled.body.max_attempts ?? 5,
+      ...(scheduled.probe === undefined ? {} : { probe: scheduled.probe }),
+    });
+
+    if (!result.ok) {
+      options.onError?.(result.error, scheduled.run);
+
+      throw new Error(result.error.message, { cause: result.error });
+    }
+
+    if (result.data === null) {
+      options.onSkip?.(scheduled.run);
+    }
+  };
+
+  return options.client.handleCallback(handler, {
+    visibilityTimeoutSeconds: options.visibilityTimeoutSeconds ?? 60,
+    retry: () => ({ afterSeconds: options.retryAfter ?? 30 }),
+  });
 }

@@ -82,8 +82,48 @@ export type {
 export {
   pgmqPublicBackend,
   sqlQueueProvider,
+  sqlScheduler,
   transportQueueProvider,
+  transportScheduler,
 } from "./backends.ts";
+
+export {
+  isVercelScheduleMessage,
+  parseVercelScheduleRun,
+  VERCEL_SCHEDULE_EVENT_TYPE,
+  vercelCronOf,
+  vercelNamespaceOf,
+  vercelScheduleNameFrom,
+  vercelScheduleNameOf,
+  vercelScheduleRunOf,
+} from "./vercel-schedules.ts";
+
+export type {
+  VercelScheduleQueueMessage,
+  VercelScheduleRun,
+} from "./vercel-schedules.ts";
+
+export { vercelScheduler, vercelSchedulesErrorOf } from "./vercel-scheduler.ts";
+
+export type {
+  VercelSchedule,
+  VercelScheduleBody,
+  VercelScheduleExpression,
+  VercelSchedulerOptions,
+  VercelSchedulesClient,
+  VercelScheduleWrite,
+} from "./vercel-scheduler.ts";
+
+export { vercelScheduleConfig } from "./vercel-schedule-config.ts";
+
+export type {
+  VercelPrivateFunction,
+  VercelScheduleConfig,
+  VercelScheduleConfigOptions,
+  VercelScheduledTimer,
+  VercelScheduledWorker,
+  VercelStaticSchedule,
+} from "./vercel-schedule-config.ts";
 
 export {
   vercelIdempotencyKey,
@@ -95,6 +135,7 @@ export {
 } from "./vercel-queue.ts";
 
 export type {
+  VercelBatchSendResult,
   VercelQueueProviderOptions,
   VercelQueueClient,
   VercelQueueMetadata,
@@ -107,7 +148,11 @@ export { withDeadLetters } from "./dead-letters.ts";
 
 export type { DeadLetterSink } from "./dead-letters.ts";
 
-export { vercelQueueNodeRoute, vercelQueueRoute } from "./vercel-route.ts";
+export {
+  vercelQueueNodeRoute,
+  vercelQueueRoute,
+  vercelScheduleBridgeRoute,
+} from "./vercel-route.ts";
 
 export type {
   VercelNodeRequest,
@@ -116,17 +161,23 @@ export type {
   VercelQueueNodeCallbackClient,
   VercelQueueRouteOptions,
   VercelRetryDirective,
+  VercelScheduleBridgeRouteOptions,
 } from "./vercel-route.ts";
+
+export type { CronCaller } from "../../core/cron-route.ts";
 
 export type {
   DeadJobRow,
   DueSchedule,
+  QueueBatchMessage,
   QueueProvider,
   QueueMessageBody,
   QueueMessageRow,
   QueueRpcClient,
   QueueStats,
   QueuePurgeOptions,
+  ScheduleProvider,
+  SqlSchedulerOptions,
   StoredSchedule,
   TransportQueueProviderOptions,
 } from "./backends.ts";
@@ -163,9 +214,14 @@ export type {
   RunSchedulesOptions,
   ScheduleDefinition,
   ScheduleDefinitions,
+  ScheduledRun,
+  ScheduledRunInput,
   ScheduleFilter,
   ScheduleInfo,
   ScheduleOptions,
+  SchedulesRouteOptions,
+  SchedulesRouteResult,
+  UnscheduleOptions,
   WorkOptions,
 } from "./types.ts";
 

@@ -22,7 +22,10 @@ import type {
   InviteRequest,
 } from "../../src/blocks/organizations/index.ts";
 import type { Profiles } from "../../src/blocks/profiles/index.ts";
-import type { QueueProvider } from "../../src/blocks/queue/index.ts";
+import type {
+  QueueProvider,
+  ScheduleProvider,
+} from "../../src/blocks/queue/index.ts";
 import type { ShippingProvider } from "../../src/blocks/shipments/index.ts";
 import type {
   IncomingDestination,
@@ -108,6 +111,9 @@ import { createProfiles } from "../../src/blocks/profiles/index.ts";
 import {
   pgmqPublicBackend,
   sqlQueueProvider,
+  sqlScheduler,
+  transportScheduler,
+  vercelScheduler,
 } from "../../src/blocks/queue/index.ts";
 import { flatRateCarrier } from "../../src/blocks/shipments/index.ts";
 import { trashExtension } from "../../src/blocks/trash/index.ts";
@@ -168,6 +174,11 @@ describe("extension interfaces", () => {
     expectTypeOf(sqlQueueProvider).returns.toExtend<QueueProvider>();
     expectTypeOf(pgmqPublicBackend).returns.toExtend<QueueProvider>();
     expectTypeOf<QueueProvider["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(sqlScheduler).returns.toExtend<ScheduleProvider>();
+    expectTypeOf(transportScheduler).returns.toExtend<ScheduleProvider>();
+    expectTypeOf(vercelScheduler).returns.toExtend<ScheduleProvider>();
+    expectTypeOf<QueueProvider>().toExtend<ScheduleProvider>();
+    expectTypeOf<ScheduleProvider["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(sqlSupportStore).returns.toExtend<SupportSessionStore>();
     expectTypeOf<SupportSessionStore["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf<NotificationChannel["apiVersion"]>().toEqualTypeOf<1>();

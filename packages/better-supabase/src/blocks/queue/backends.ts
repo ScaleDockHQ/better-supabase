@@ -86,14 +86,76 @@ interface UntypedQueueClient {
 }
 
 /**
+ * What decides when a schedule fires, apart from the queue that holds its runs
+ * (`createQueue({ scheduler })`). `sqlScheduler` and `transportScheduler`
+ * (Supabase Cron, or the drain scheduler) and `vercelScheduler` (Vercel
+ * Schedules) ship with the package; `testScheduleProvider` from
+ * `better-supabase/testing` checks another one. Every `QueueProvider` is one
+ * too, which is the scheduler `createQueue` uses without the option.
+ */
+export interface ScheduleProvider {
+  readonly apiVersion: 1;
+  readonly name: string;
+  /**
+   * The queues the scheduler can deliver runs to, which `createQueue` checks:
+   * `"sql"` when it enqueues inside the database (pg_cron), `"vercel-queues"`
+   * when it publishes to the job's topic. Unset: any queue, through
+   * `runSchedules` or a bridge route.
+   */
+  readonly delivers?: "sql" | "vercel-queues";
+  schedule(
+    name: string,
+    cron: string,
+    queue: string,
+    payload: unknown,
+    timeZone: string,
+    nextRun: Temporal.Instant,
+    tenant?: string,
+    probe?: string,
+  ): Promise<void>;
+  /**
+   * `false` when no schedule has the name. `tenant` is the one it was written
+   * with, for a scheduler that keeps each tenant's schedules apart.
+   */
+  unschedule(name: string, tenant?: string): Promise<boolean>;
+  /**
+   * Schedules by name prefix and tenant. Absent when the scheduler can't list
+   * them.
+   */
+  listSchedules?(filter: ScheduleFilter): Promise<readonly StoredSchedule[]>;
+  /**
+   * Removes a tenant's schedules and returns how many. Absent when the
+   * scheduler can't.
+   */
+  unscheduleTenant?(tenant: string): Promise<number>;
+  /** Leases due schedules (the drain scheduler); absent or empty otherwise. */
+  dueSchedules?(lease: number, batch: number): Promise<readonly DueSchedule[]>;
+  /**
+   * Moves a schedule from `ran` to `next`; `false` when it changed since the
+   * claim.
+   */
+  advanceSchedule?(
+    name: string,
+    ran: Temporal.Instant,
+    next: Temporal.Instant,
+  ): Promise<boolean>;
+}
+
+/** One message of a `sendBatch`, with the arguments `send` takes. */
+export interface QueueBatchMessage {
+  readonly payload: unknown;
+  readonly delay: number;
+  readonly maxAttempts: number;
+  readonly dedupeKey?: string | undefined;
+}
+
+/**
  * Where `createQueue` stores jobs. `sqlQueueProvider` (the `jobs` SQL module
  * module, on pgmq or its table backend) and `pgmqPublicBackend` ship with the
  * package; `testQueueProvider` from `better-supabase/testing` checks another
  * one.
  */
-export interface QueueProvider {
-  readonly apiVersion: 1;
-  readonly name: string;
+export interface QueueProvider extends ScheduleProvider {
   /** Whether `extend` works, so long-running batches keep their lease. */
   readonly leases: boolean;
   send(
@@ -108,6 +170,20 @@ export interface QueueProvider {
      */
     dedupe?: "always" | "waiting",
   ): Promise<number>;
+  /**
+   * Sends `messages` to one queue in one call. Each entry is the message's id,
+   * or the error that refused it. Absent when the backend sends one at a time.
+   */
+  sendBatch?(
+    queue: string,
+    messages: readonly QueueBatchMessage[],
+  ): Promise<readonly (number | Error)[]>;
+  /**
+   * Whether a schedule probe (a SQL function without arguments that returns
+   * boolean) reports work, through `better_supabase.schedule_has_work`. Absent
+   * when the backend has no database to ask.
+   */
+  hasWork?(probe: string): Promise<boolean>;
   /**
    * Sends once per `dedupeKey`, counting archived messages too; `duplicate`
    * when one existed. Absent when the backend can't.
@@ -162,44 +238,12 @@ export interface QueueProvider {
    * the SQL default. Returns how many. Absent when the backend can't.
    */
   purge?(queue: string, options: QueuePurgeOptions): Promise<number>;
-  schedule(
-    name: string,
-    cron: string,
-    queue: string,
-    payload: unknown,
-    timeZone: string,
-    nextRun: Temporal.Instant,
-    tenant?: string,
-    probe?: string,
-  ): Promise<void>;
-  unschedule(name: string): Promise<boolean>;
-  /**
-   * Schedules by name prefix and tenant. Absent when the backend can't list
-   * them.
-   */
-  listSchedules?(filter: ScheduleFilter): Promise<readonly StoredSchedule[]>;
   /**
    * The queues among `queues` that have a job to claim now, so a drain skips
    * the empty ones. Absent when the backend can't tell; the drain then claims
    * from every queue.
    */
   readyQueues?(queues: readonly string[]): Promise<readonly string[]>;
-  /**
-   * Removes a tenant's schedules and returns how many. Absent when the backend
-   * can't.
-   */
-  unscheduleTenant?(tenant: string): Promise<number>;
-  /** Leases due schedules (the drain scheduler); absent or empty with pg_cron. */
-  dueSchedules?(lease: number, batch: number): Promise<readonly DueSchedule[]>;
-  /**
-   * Moves a schedule from `ran` to `next`; `false` when it changed since the
-   * claim.
-   */
-  advanceSchedule?(
-    name: string,
-    ran: Temporal.Instant,
-    next: Temporal.Instant,
-  ): Promise<boolean>;
 }
 
 interface ScheduleListRow {
@@ -391,6 +435,14 @@ export function sqlQueueProvider(
 
       return onceOf(row);
     },
+    async hasWork(probe) {
+      const [row] = await sql.queryRaw<{ work: boolean | null }>(
+        "select better_supabase.schedule_has_work($1) as work",
+        [probe],
+      );
+
+      return row?.work !== false;
+    },
     read: (queue, lease, batch) =>
       sql.queryRaw<QueueMessageRow>(
         "select * from better_supabase.claim_jobs($1, $2, $3)",
@@ -574,6 +626,7 @@ const PARAMS = {
     "probe",
   ],
   unschedule_job: ["job_name"],
+  schedule_has_work: ["probe"],
   list_schedules: ["name_prefix", "for_tenant"],
   unschedule_tenant: ["tenant"],
   claim_due_schedules: ["lease", "batch"],
@@ -696,6 +749,8 @@ export function transportQueueProvider(
           )
         )[0],
       ),
+    hasWork: async (probe) =>
+      (await call("schedule_has_work", probe)) !== false,
     read: (queue, lease, batch) =>
       rows<QueueMessageRow>("claim_jobs", queue, lease, batch),
     readyQueues: async (queues) =>
@@ -781,6 +836,83 @@ export function transportQueueProvider(
     advanceSchedule: (name, ran, next) =>
       bool("advance_schedule", name, ran.toString(), next.toString()),
   };
+}
+
+/** Options for `sqlScheduler` and `transportScheduler`. */
+export interface SqlSchedulerOptions {
+  /**
+   * The `blocks.queue.options.scheduler` the SQL module was installed with.
+   * `"pg_cron"` (the default) enqueues each run inside the database, so it only
+   * pairs with a SQL queue. `"drain"` keeps due schedules in `job_schedules`
+   * for `runSchedules`, which sends them through any queue.
+   */
+  readonly mode?: "pg_cron" | "drain";
+  /** Dates a schedule's first run. */
+  readonly now?: () => Temporal.Instant;
+}
+
+/** The schedule half of a SQL queue provider, for `createQueue({ scheduler })`. */
+function schedulerOf(
+  provider: QueueProvider,
+  options: SqlSchedulerOptions,
+): ScheduleProvider {
+  const mode = options.mode ?? "pg_cron";
+
+  const listSchedules = provider.listSchedules?.bind(provider);
+  const unscheduleTenant = provider.unscheduleTenant?.bind(provider);
+  // pg_cron enqueues each run itself, so only the drain leases due schedules.
+  const drain = mode === "drain";
+
+  const dueSchedules = drain
+    ? provider.dueSchedules?.bind(provider)
+    : undefined;
+
+  const advanceSchedule = drain
+    ? provider.advanceSchedule?.bind(provider)
+    : undefined;
+
+  return {
+    apiVersion: 1,
+    name: `${provider.name}-${drain ? "drain" : "pg-cron"}`,
+    ...(drain ? {} : { delivers: "sql" as const }),
+    schedule: provider.schedule.bind(provider),
+    unschedule: provider.unschedule.bind(provider),
+    ...(listSchedules ? { listSchedules } : {}),
+    ...(unscheduleTenant ? { unscheduleTenant } : {}),
+    ...(dueSchedules ? { dueSchedules } : {}),
+    ...(advanceSchedule ? { advanceSchedule } : {}),
+  };
+}
+
+/**
+ * Supabase Cron (pg_cron) or the drain scheduler of the `jobs` SQL module over
+ * a service SQL connection, apart from the queue. Pair `{ mode: "drain" }` with
+ * Vercel Queues: `runSchedules` (or `jobs.schedulesRoute`) sends each due run
+ * to its topic.
+ */
+export function sqlScheduler(
+  sql: SqlClient,
+  options: SqlSchedulerOptions = {},
+): ScheduleProvider {
+  return schedulerOf(sqlQueueProvider(sql, options.now), options);
+}
+
+/**
+ * `sqlScheduler` over a `BlockTransport`, such as a service-role `rpcTransport`
+ * over the wrappers `blocks.queue.api` writes.
+ */
+export function transportScheduler(
+  transport: BlockTransport,
+  options: SqlSchedulerOptions &
+    Pick<TransportQueueProviderOptions, "schema"> = {},
+): ScheduleProvider {
+  return schedulerOf(
+    transportQueueProvider(transport, {
+      ...(options.schema === undefined ? {} : { schema: options.schema }),
+      ...(options.now === undefined ? {} : { now: options.now }),
+    }),
+    options,
+  );
 }
 
 /** Throws for a feature the transport doesn't support. */

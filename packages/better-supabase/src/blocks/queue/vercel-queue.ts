@@ -1,4 +1,5 @@
 import type {
+  QueueBatchMessage,
   QueueProvider,
   QueueMessageBody,
   QueueMessageRow,
@@ -6,7 +7,6 @@ import type {
 import type { Job } from "./types.ts";
 
 import { DbException, dbError } from "../../core/errors.ts";
-import { sqlOnly } from "./backends.ts";
 
 /** What the backend reads of `@vercel/queue`'s message metadata. */
 export interface VercelQueueMetadata {
@@ -35,6 +35,14 @@ export interface VercelQueueClient {
       readonly headers?: Readonly<Record<string, string>>;
     },
   ): PromiseLike<{ readonly messageId: string | null }>;
+  /**
+   * Up to 100 messages in one request (`sendBatch` in `@vercel/queue` 0.11).
+   * Without it, `runSchedules` sends one message at a time.
+   */
+  sendBatch?(
+    topic: string,
+    messages: readonly ({ readonly payload: unknown } & VercelSendOptions)[],
+  ): PromiseLike<readonly VercelBatchSendResult[]>;
   receive?(
     topic: string,
     consumerGroup: string,
@@ -55,6 +63,16 @@ export interface VercelQueueClient {
     },
   ): PromiseLike<VercelReceiveResult>;
 }
+
+/** One message's outcome in a `sendBatch`, in the order sent. */
+export type VercelBatchSendResult =
+  | { readonly status: "sent"; readonly messageId: string }
+  | { readonly status: "deferred"; readonly messageId: null }
+  | {
+      readonly status: "failed";
+      readonly statusCode: number;
+      readonly error: string;
+    };
 
 /** What `receive` answers: `ok`, or why nothing was processed. */
 export type VercelReceiveResult =
@@ -257,7 +275,9 @@ interface Held {
  * acknowledges it and `fail` throws so the topic redelivers it after the retry
  * delay. Vercel Queues has no dead letters, schedules or ids that fit a number,
  * so ids are local handles, a message past `maxAttempts` is acknowledged and
- * dropped, and schedules need the SQL backend.
+ * dropped, and schedules need a scheduler: `createQueue({ scheduler })` with
+ * `vercelScheduler(Schedules)`, or `sqlScheduler(sql, { mode: "drain" })`. With
+ * a client that has `sendBatch`, `runSchedules` sends due runs in batches.
  */
 export function vercelQueueProvider(
   client: VercelQueueClient,
@@ -293,6 +313,7 @@ export function vercelQueueProvider(
   };
 
   const key = (job: Job): string => `${job.queue}:${job.id}`;
+  const sendBatch = client.sendBatch?.bind(client);
 
   return {
     apiVersion: 1,
@@ -307,6 +328,49 @@ export function vercelQueueProvider(
 
       return handleOf(sent.messageId);
     },
+    ...(sendBatch === undefined
+      ? {}
+      : {
+          async sendBatch(
+            queue: string,
+            messages: readonly QueueBatchMessage[],
+          ): Promise<(number | Error)[]> {
+            const topic = vercelTopicOf(queue);
+
+            const results = await sendBatch(
+              topic,
+              await Promise.all(
+                messages.map(async (message) => ({
+                  payload: {
+                    payload: message.payload ?? {},
+                    max_attempts: message.maxAttempts,
+                  },
+                  ...(await vercelSendOptionsOf(
+                    message.delay,
+                    message.dedupeKey,
+                    options,
+                  )),
+                })),
+              ),
+            );
+
+            return messages.map((_, index) => {
+              const result = results[index];
+
+              if (result === undefined) {
+                return new Error(
+                  `Vercel Queues answered no result for message ${String(index)} on ${topic}`,
+                );
+              }
+
+              return result.status === "failed"
+                ? new Error(
+                    `Vercel Queues refused a message on ${topic} (${String(result.statusCode)}): ${result.error}`,
+                  )
+                : handleOf(result.messageId);
+            });
+          },
+        }),
     read(queue, lease, batch) {
       const rows: QueueMessageRow[] = [];
       const receive = client.receive?.bind(client);
@@ -422,7 +486,16 @@ export function vercelQueueProvider(
           ),
         ),
       ),
-    schedule: () => sqlOnly("schedule"),
-    unschedule: () => sqlOnly("unschedule"),
+    schedule: () => noSchedules(),
+    unschedule: () => noSchedules(),
   };
+}
+
+function noSchedules(): never {
+  throw new DbException(
+    dbError(
+      "invalid_request",
+      'Vercel Queues keeps no schedules: pass createQueue({ scheduler: vercelScheduler(Schedules) }), or sqlScheduler(sql, { mode: "drain" })',
+    ),
+  );
 }

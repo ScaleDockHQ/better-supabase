@@ -236,7 +236,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   qualifications:
     "add_qualification_requirement archive_qualification_type grant_qualification list_qualification_requirements list_qualification_types notify_expiring_qualifications qualification_gaps qualifications_of qualified_holders remove_qualification_requirement revoke_qualification save_qualification_type",
   queue:
-    "advance_schedule claim_due_schedules claim_jobs claim_lease complete_job complete_lease enqueue_job enqueue_job_once extend_job_lease extend_lease_claim fail_job job_queue_stats list_dead_jobs list_schedules purge_job_archive ready_job_queues release_lease_claim replay_dead_job retry_dead_jobs schedule_job unschedule_job unschedule_tenant",
+    "advance_schedule claim_due_schedules claim_jobs claim_lease complete_job complete_lease enqueue_job enqueue_job_once extend_job_lease extend_lease_claim fail_job job_queue_stats list_dead_jobs list_schedules purge_job_archive ready_job_queues release_lease_claim replay_dead_job retry_dead_jobs schedule_has_work schedule_job unschedule_job unschedule_tenant",
   quotes:
     "create_quote decide_quote expire_quotes list_quotes_for_subject portal_quote public_quote quote_version quote_versions respond_to_portal_quote respond_to_quote revise_quote send_quote set_quote_lines update_quote withdraw_quote",
   rank: "move rebalance_ranks",
