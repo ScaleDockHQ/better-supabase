@@ -3,6 +3,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { importWaves } from "../../blocks/imports/waves.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import {
   ensureCheck,
   fail,
@@ -82,6 +83,33 @@ function build(ctx: BlockSqlContext): string {
 
   const runJson = (alias: string): string =>
     `jsonb_build_object('id', ${alias}.${r("id")}, 'organizationId', ${alias}.${r("tenant")}, 'source', ${alias}.${r("source")}, 'status', ${alias}.${r("status")}, 'outcome', ${alias}.${r("outcome")}, 'plan', ${alias}.${r("plan")}, 'mapping', ${alias}.${r("mapping")}, 'counts', ${alias}.${r("counts")}, 'errors', ${alias}.${r("errors")}, 'dryRun', ${alias}.${r("dryRun")}, 'full', ${alias}.${r("full")}, 'inputChecksum', ${alias}.${r("inputChecksum")}, 'correlationId', ${alias}.${r("correlationId")}, 'mapperVersion', ${alias}.${r("mapperVersion")}, 'scopeAliases', ${alias}.${r("scopeAliases")}, 'leaseUntil', ${alias}.${r("leaseUntil")}, 'heartbeatAt', ${alias}.${r("heartbeatAt")}, 'createdBy', ${alias}.${r("createdBy")}, 'createdAt', ${alias}.${r("createdAt")}, 'startedAt', ${alias}.${r("startedAt")}, 'finishedAt', ${alias}.${r("finishedAt")}, 'issues', ${importIssueCounts(ctx, `${alias}.${r("id")}`)})`;
+
+  const list = {
+    name: "list_import_runs",
+    from: runs,
+    alias: "r",
+    where: [
+      `r.${r("tenant")} = list_import_runs.tenant`,
+      filterAny("source", `r.${r("source")}`),
+      filterAny("status", `r.${r("status")}::text`),
+    ],
+    keys: [
+      { expr: `r.${r("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `r.${r("id")}`, dir: "desc", type: "uuid" },
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `r.${r("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `r.${r("id")}`, dir: "desc", type: "uuid" },
+      ],
+    },
+    facets: { source: `r.${r("source")}`, status: `r.${r("status")}` },
+    rowJson: runJson("r"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string): string =>
+      fail("IMPORT_INVALID", message, "22023"),
+  } as const;
 
   const status = `${r("status")} in ('pending', 'running', 'completed', 'failed', 'canceled')`;
 
@@ -333,29 +361,28 @@ end;
 $$;
 ${userGrant(`${ctx.fn("get_import_run")}(uuid)`)}
 
-create or replace function ${ctx.fn("list_import_runs")}(tenant ${ctx.idType}, source text default null, status text default null, row_limit integer default 50)
-returns setof jsonb
+-- Newest first. filters is { source, status (each a value or a list), sort,
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }
+-- (ADR 0749).
+create or replace function ${ctx.fn("list_import_runs")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
 language plpgsql
 security definer
 stable
 set search_path = ''
 as $$
 #variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_import_runs.filters, '{}'::jsonb);
+  ${listDeclare(list)}
 begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("list_import_runs.tenant", manage)}) then
     ${fail("IMPORT_FORBIDDEN", "not allowed to list imports")}
   end if;
-  return query
-    select ${runJson("r")}
-    from ${runs} r
-    where r.${r("tenant")} = list_import_runs.tenant
-      and (list_import_runs.source is null or r.${r("source")} = list_import_runs.source)
-      and (list_import_runs.status is null or r.${r("status")} = list_import_runs.status)
-    order by r.${r("createdAt")} desc, r.${r("id")} desc
-    limit least(greatest(coalesce(list_import_runs.row_limit, 50), 1), 200);
+  ${listBody(list)}
 end;
 $$;
-${userGrant(`${ctx.fn("list_import_runs")}(${ctx.idType}, text, text, integer)`)}
+${userGrant(`${ctx.fn("list_import_runs")}(${ctx.idType}, jsonb)`)}
 
 create or replace function ${ctx.fn("cancel_import_run")}(id uuid)
 returns boolean

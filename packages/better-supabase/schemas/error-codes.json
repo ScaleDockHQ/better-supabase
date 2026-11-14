@@ -2210,7 +2210,7 @@
   },
   {
     "code": "FORM_FORBIDDEN",
-    "message": "not allowed to read this form"
+    "message": "not allowed to read forms"
   },
   {
     "code": "FORM_KEY_INVALID",

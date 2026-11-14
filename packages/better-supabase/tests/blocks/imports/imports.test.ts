@@ -117,10 +117,51 @@ describe("imports client", () => {
     expect(runs).toHaveLength(1);
     expect(t.calls[0]?.args).toEqual({
       tenant: ORG,
-      source: "erp",
-      status: "running",
-      row_limit: 5,
+      filters: { source: "erp", status: "running", limit: 5 },
     });
+  });
+
+  it("pages, counts and facets the runs of the organization named per call", async () => {
+    const paged = transport({
+      list_import_runs: { items: [runRow], hasMore: false, nextCursor: null },
+    });
+
+    const page = await createImports({ transport: paged })
+      .runs.page({ organizationId: ORG, filters: { source: ["erp"] } })
+      .orThrow();
+
+    expect(page.items).toHaveLength(1);
+    expect(paged.calls[0]?.args).toEqual({
+      tenant: ORG,
+      filters: { source: ["erp"], paged: true },
+    });
+
+    const counted = transport({ list_import_runs: { value: 1, exact: true } });
+
+    expect(
+      await createImports({ transport: counted })
+        .runs.count({ organizationId: "org-2" })
+        .orThrow(),
+    ).toEqual({ value: 1, exact: true });
+    expect(counted.calls[0]?.args).toEqual({
+      tenant: "org-2",
+      filters: { count: true },
+    });
+
+    const faceted = transport({
+      list_import_runs: {
+        facet: "status",
+        values: [{ value: "running", count: { value: 1, exact: true } }],
+      },
+    });
+
+    expect(
+      (
+        await createImports({ transport: faceted })
+          .runs.facets({ organizationId: ORG, facets: ["status"] })
+          .orThrow()
+      )[0]?.facet,
+    ).toBe("status");
   });
 
   it("cancels a run", async () => {

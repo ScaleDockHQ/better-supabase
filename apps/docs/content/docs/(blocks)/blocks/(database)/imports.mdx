@@ -151,6 +151,23 @@ Pass `target: { entity, item }` to `defineImport` and `hooks.upsertBatch` to
 | `IMPORT_TARGET_UNKNOWN`  | No target is registered for the entity.                         |
 | `IMPORT_ITEM_INVALID`    | An item has no key or no data object, or the target rejects it. |
 
+## Paging a list
+
+`list` is the capped convenience list. `runs.page` is the full contract for import runs (ADR 0749, 0939): it takes `organizationId`, which names the organization per call, and `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. The sort is `createdAt`; the default order is newest first. The filters are `source` and `status`. The facets are `source` and `status`. `runs.facets` and `runs.count` take the same options. Each needs the manage permission on the organization. A cursor belongs to the sort it came from, so start again from the first page when `sort` or `direction` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error.
+
+```ts
+const running = await imports.runs
+  .page({
+    organizationId,
+    filters: { source: ["erp"], status: ["running"] },
+    limit: 20,
+  })
+  .orThrow();
+
+const facets = await imports.runs.facets({ organizationId }).orThrow();
+const total = await imports.runs.count({ organizationId }).orThrow();
+```
+
 ## Upsert into an app table
 
 `appTableImport` builds an import that updates the rows a file already has

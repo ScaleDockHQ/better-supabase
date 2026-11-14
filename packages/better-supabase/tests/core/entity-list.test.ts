@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockCall } from "../../src/core/block-helpers.ts";
 
-import { listFilters, entityList } from "../../src/core/entity-list.ts";
+import {
+  entityList,
+  listFilters,
+  tenantOrOption,
+} from "../../src/core/entity-list.ts";
 import { AsyncResult, ok } from "../../src/core/result.ts";
 
 const SURFACE = {
@@ -149,5 +153,58 @@ describe("entityList", () => {
     const result = await list.count();
 
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("entityList with a per-call organization (ADR 0939)", () => {
+  function callListOf(optionTenant?: string) {
+    const calls: { fn: string; args: Record<string, unknown> }[] = [];
+
+    const call: BlockCall = (fn, args, then) => {
+      calls.push({ fn, args });
+
+      return AsyncResult.from(async () =>
+        ok(await then({ value: 3, exact: true })),
+      );
+    };
+
+    const list = entityList<{ id: string }, { organizationId?: string }>({
+      ...SPEC,
+      call,
+      tenant: tenantOrOption(optionTenant),
+      fn: "list_things",
+      rowOf: (row) => ({ id: String(row["id"]) }),
+    });
+
+    return { list, calls };
+  }
+
+  it("reads the organization of the call and leaves it out of the filters", async () => {
+    const { list, calls } = callListOf("block-org");
+
+    expect(await list.count({ organizationId: "call-org" }).orThrow()).toEqual({
+      value: 3,
+      exact: true,
+    });
+    expect(calls[0]?.args).toEqual({
+      tenant: "call-org",
+      filters: { count: true },
+    });
+  });
+
+  it("falls back to the block's tenant option", async () => {
+    const { list, calls } = callListOf("block-org");
+
+    await list.count().orThrow();
+    expect(calls[0]?.args["tenant"]).toBe("block-org");
+  });
+
+  it("fails with TENANT_REQUIRED when neither names an organization", async () => {
+    const { list, calls } = callListOf();
+    const result = await list.count();
+
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error.hint).toBe("TENANT_REQUIRED");
+    expect(calls).toHaveLength(0);
   });
 });

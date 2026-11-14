@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString, sqlIdent } from "../../core/template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import {
   fail,
   lockTable,
@@ -140,6 +141,41 @@ function build(ctx: BlockSqlContext): string {
   const publicRow = (row: string): string =>
     `${fields(row)} || case when ${row}.${c("verifiedAt")} is null then jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', ${sqlString(`${prefix}.`)} || ${row}.${c("hostname")}, 'value', 'better-supabase-hostname-verification=' || ${row}.${c("token")})) else '{}'::jsonb end`;
 
+  const list = {
+    name: "list_hostnames",
+    from: t,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = list_hostnames.tenant`,
+      filterAny("kind", `x.${c("kind")}::text`),
+      filterAny("verified", `(x.${c("verifiedAt")} is not null)::text`),
+    ],
+    keys: [
+      { expr: `x.${c("primary")}`, dir: "desc", type: "boolean" },
+      { expr: `x.${c("hostname")}`, dir: "asc", type: "text" },
+      { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      hostname: [
+        { expr: `x.${c("hostname")}`, dir: "asc", type: "text" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+      createdAt: [
+        { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: {
+      kind: `x.${c("kind")}`,
+      verified: `(x.${c("verifiedAt")} is not null)`,
+    },
+    rowJson: publicRow("x"),
+    defaultLimit: 200,
+    maxLimit: 500,
+    invalid: (message: string): string =>
+      fail("DOMAIN_INVALID", message, "22023"),
+  } as const;
+
   const hostnameEvent = (
     type: string,
     row: string,
@@ -246,22 +282,26 @@ exception when unique_violation then
 end;
 $$;
 
--- An organization's hostnames, primary first (read permission or the service role).
-create or replace function ${fn("list_hostnames")}(tenant ${id})
+-- An organization's hostnames, primary first (read permission or the service
+-- role). filters is { kind, verified, sort, direction, facet, count, limit,
+-- after, offset, paged, total, totalCap } (ADR 0749); verified takes true or
+-- false.
+create or replace function ${fn("list_hostnames")}(tenant ${id}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_hostnames.filters, '{}'::jsonb);
+  ${listDeclare(list)}
 begin
   if not (${SERVICE_CALLER} or ${can("list_hostnames.tenant", read)}) then
     ${fail("DOMAIN_FORBIDDEN", "You may not read this organization's hostnames")}
   end if;
-  return (
-    select coalesce(jsonb_agg(${publicRow("x")} order by x.${c("primary")} desc, x.${c("hostname")}), '[]'::jsonb)
-    from ${t} x where x.${c("tenant")} = list_hostnames.tenant
-  );
+  ${listBody(list)}
 end;
 $$;
 
@@ -387,14 +427,14 @@ as $$
 $$;
 
 revoke execute on function ${fn("add_hostname")}(${id}, text) from public, anon;
-revoke execute on function ${fn("list_hostnames")}(${id}) from public, anon;
+revoke execute on function ${fn("list_hostnames")}(${id}, jsonb) from public, anon;
 revoke execute on function ${fn("hostname_by_id")}(uuid) from public, anon;
 revoke execute on function ${fn("verify_hostname")}(uuid, uuid) from public, anon, authenticated;
 revoke execute on function ${fn("set_primary_hostname")}(uuid) from public, anon;
 revoke execute on function ${fn("remove_hostname")}(uuid) from public, anon;
 revoke execute on function ${fn("resolve_hostname")}(text) from public;
 grant execute on function ${fn("add_hostname")}(${id}, text) to authenticated, service_role;
-grant execute on function ${fn("list_hostnames")}(${id}) to authenticated, service_role;
+grant execute on function ${fn("list_hostnames")}(${id}, jsonb) to authenticated, service_role;
 grant execute on function ${fn("hostname_by_id")}(uuid) to authenticated, service_role;
 grant execute on function ${fn("verify_hostname")}(uuid, uuid) to service_role;
 grant execute on function ${fn("set_primary_hostname")}(uuid) to authenticated, service_role;
@@ -405,7 +445,7 @@ grant execute on function ${fn("resolve_hostname")}(text) to anon, authenticated
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "add_hostname", args: ["{id}", "text"], returns: "jsonb" },
-    { name: "list_hostnames", args: ["{id}"], returns: "jsonb" },
+    { name: "list_hostnames", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "hostname_by_id", args: ["uuid"], returns: "jsonb" },
     { name: "verify_hostname", args: ["uuid", "uuid"], returns: "jsonb" },
     { name: "set_primary_hostname", args: ["uuid"], returns: "jsonb" },

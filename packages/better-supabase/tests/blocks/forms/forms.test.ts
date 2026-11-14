@@ -114,7 +114,7 @@ describe("forms client", () => {
       ["publish_form_version", { form_id: "f1", definition: SIGNUP }],
       ["get_form", { form_id: "f1" }],
       ["get_form_version", { version_id: "v1" }],
-      ["list_forms", { tenant: "o", status: "open" }],
+      ["list_forms", { tenant: "o", filters: { status: "open" } }],
     ]);
   });
 
@@ -130,7 +130,7 @@ describe("forms client", () => {
     await forms.list({ organizationId: "o" }).orThrow();
     await forms.listSubmissions({ formId: "f1" }).orThrow();
     expect(fake.calls.slice(1)).toEqual([
-      ["list_forms", { tenant: "o", status: null }],
+      ["list_forms", { tenant: "o", filters: {} }],
       [
         "list_form_submissions",
         { form_id: "f1", status: null, page_size: null, before: null },
@@ -372,5 +372,47 @@ describe("forms client", () => {
 
     expect(await forms.deleteSubmission("s1").orThrow()).toBe(false);
     expect(after).toHaveBeenCalledOnce();
+  });
+
+  it("pages, counts and facets the forms of the organization named per call", async () => {
+    const fake = transport({
+      list_forms: (args) => {
+        const filters = (args as { filters: Record<string, unknown> }).filters;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: "status",
+            values: [{ value: "open", count: { value: 2, exact: true } }],
+          };
+        }
+
+        return filters["count"] === true
+          ? { value: 2, exact: true }
+          : { items: [FORM], hasMore: true, nextCursor: ["2026-10-01", "f1"] };
+      },
+    });
+
+    const forms = createForms({ transport: fake, schema: "app" });
+
+    const page = await forms
+      .page({ organizationId: "o", sort: { by: "title" }, limit: 1 })
+      .orThrow();
+
+    expect(page.items).toHaveLength(1);
+    expect(page.hasMore).toBe(true);
+    expect(await forms.count({ organizationId: "o" }).orThrow()).toEqual({
+      value: 2,
+      exact: true,
+    });
+    expect(
+      (await forms.facets({ organizationId: "o" }).orThrow())[0]?.facet,
+    ).toBe("status");
+    expect(fake.calls[0]).toEqual([
+      "list_forms",
+      { tenant: "o", filters: { sort: "title", limit: 1, paged: true } },
+    ]);
+    expect(
+      (await forms.page({ organizationId: "o", sort: { by: "nope" } })).ok,
+    ).toBe(false);
   });
 });

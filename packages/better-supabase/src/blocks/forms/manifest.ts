@@ -4,6 +4,7 @@ import type { FormsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { formsEvents } from "./events.ts";
 import { createForms } from "./forms.ts";
+import { formListSurface } from "./lists.ts";
 import { formsSqlOptions } from "./options.ts";
 
 /** The `forms` block's manifest (ADR 0029). */
@@ -17,7 +18,11 @@ export const formsBlock: BlockOf<"forms", typeof createForms, FormsEvents> =
     client: "forms",
     category: "content",
     entities: {
-      form: { mutability: "editable", emits: { create: true, update: false } },
+      form: {
+        ...formListSurface,
+        mutability: "editable",
+        emits: { create: true, update: false },
+      },
     },
     concerns: ["lifecycle", "search"],
     description:
