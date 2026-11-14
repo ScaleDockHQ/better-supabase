@@ -31,6 +31,7 @@ export const organizationsBlock: BlockOf<
       emits: { create: true, update: true },
     },
   },
+  limits: { invite: { meter: "seats" } },
   description:
     "create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.",
   recipes: [

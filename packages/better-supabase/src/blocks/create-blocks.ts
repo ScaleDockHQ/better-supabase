@@ -38,6 +38,7 @@ import { instanceProperty } from "../core/instance-property.ts";
 import { AsyncResult } from "../core/result.ts";
 import { forwardBlockEvents } from "../events/cloud-event.ts";
 import { generatedOptions } from "./block-config.ts";
+import { mergeHooks, meteringHooks } from "./metering.ts";
 
 /** The CloudEvents `source` of block events that `createBlocks` forwards. */
 export const BLOCK_EVENT_SOURCE = "/better-supabase/blocks";
@@ -81,6 +82,14 @@ export interface CreateBlocksOptions extends Omit<BlockContext, "schema"> {
    * per request.
    */
   readonly audit?: EventSink;
+  /**
+   * Applies the `limits` and `meters` the manifests declare (ADR 0909): a
+   * limited method returns `quota_exceeded` when the tenant's quota on its
+   * meter is used up, and a metered method records usage after it succeeds.
+   * Needs the `usage` block in the set; without it nothing is applied. Default
+   * `false`, so installing `usage` never starts counting by itself.
+   */
+  readonly metering?: boolean;
 }
 
 /** The part of a `Db` that `createBlockClient` reads. */
@@ -529,7 +538,7 @@ function storageOf(db: BlockClientSource): StorageApi | undefined {
 }
 
 /** A port a consumer takes from one provider. */
-export type UniquePort = Exclude<PortName, "sink">;
+export type UniquePort = Exclude<PortName, "sink" | "meter">;
 
 const UNIQUE_PORTS: readonly UniquePort[] = [
   "notifier",
@@ -593,7 +602,15 @@ function blockBuilder(
   options: CreateBlocksOptions & { readonly hooks?: object },
   blocks: BlockMap,
 ): BlockBuilder {
-  const { audit: _audit, hooks, config, ports: bound, ...shared } = options;
+  const {
+    audit: _audit,
+    metering,
+    hooks,
+    config,
+    ports: bound,
+    ...shared
+  } = options;
+
   const mappers = localizedMappers(shared);
 
   const blockOf = (key: string): AnyBlock => {
@@ -793,6 +810,61 @@ function blockBuilder(
     return call(build(key), optionsOf(key));
   }
 
+  /**
+   * `userHooks` after the manifest's declared limits and meters, which run
+   * first so a user's `before` never skips a plan limit.
+   */
+  function declaredHooksOf(
+    key: string,
+    userHooks: object | undefined,
+  ): object | undefined {
+    const block = blockOf(key);
+
+    if (
+      metering !== true ||
+      (Object.keys(block.limits ?? {}).length === 0 &&
+        Object.keys(block.meters ?? {}).length === 0)
+    ) {
+      return userHooks;
+    }
+
+    const provider = Object.keys(blocks).find(
+      (each) => each !== key && blocks[each]?.provides["meter"] !== undefined,
+    );
+
+    if (provider === undefined) {
+      return userHooks;
+    }
+
+    const usage = portOf(provider, "meter");
+
+    if (usage === undefined) {
+      return userHooks;
+    }
+
+    const declared = meteringHooks(
+      key,
+      { limits: block.limits ?? {}, meters: block.meters ?? {} },
+      usage,
+    );
+
+    const user: Readonly<Record<string, unknown>> = isRecord(userHooks)
+      ? userHooks
+      : {};
+
+    const merged: Record<string, unknown> = { ...user };
+
+    for (const [method, hook] of Object.entries(declared)) {
+      // SAFETY: a user's entry for a method is that method's hooks.
+      merged[method] = mergeHooks(
+        hook,
+        user[method] as Parameters<typeof mergeHooks>[1],
+      );
+    }
+
+    return merged;
+  }
+
   function build(key: string): unknown {
     if (built.has(key)) {
       return built.get(key);
@@ -817,7 +889,7 @@ function blockBuilder(
       // block options, the ports it consumes and its own `with` settings.
       const create = block.create as (options: unknown) => unknown;
       const created = create(optionsOf(key));
-      const blockHooks = hooksOf(hooks, key);
+      const blockHooks = declaredHooksOf(key, hooksOf(hooks, key));
 
       const client =
         blockHooks !== undefined && isRecord(created)

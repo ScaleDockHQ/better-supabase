@@ -1,3 +1,4 @@
+import type { BlockQuota } from "../metering.ts";
 import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
@@ -12,7 +13,7 @@ export type DriveRoleHook =
   | { readonly rows: string; readonly roles: Readonly<Record<string, string>> };
 
 /** `blocks.drive.options.quota`: the usage meter uploads count against. */
-export type DriveQuota = { readonly meter: string };
+export type DriveQuota = BlockQuota;
 
 /** A document type with its own number format. */
 export type DriveDocumentType = {
