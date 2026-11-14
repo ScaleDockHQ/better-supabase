@@ -1100,11 +1100,13 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X4
 
 - Scope: Admin and billing (a maintainer sets Stripe test keys in the three Vercel environments)
-- Status: planned
+- Status: in progress
 - Branch: `feat/findings-x4`
-- PR: none yet
+- PR: #924
 - Findings: EX-1608, EX-502, EX-507, EX-516
 - Log: 2026-11-14, planned.
+- Log: 2026-11-14, started in `bsb-findings-x4`.
+- Log: 2026-11-14, EX-502, EX-507 and EX-516 fixed; EX-1608 built (webhook and process routes, plan reads on `billing.overview`) and deferred (needs: Stripe test keys and price ids in the three Vercel environments). No migration, so slot 20270104hhmmss stays unused; ADR 0969.
 
 ### Lane X5
 

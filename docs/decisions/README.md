@@ -489,4 +489,9 @@ add one, and link it from the code or config it explains.
 | [0847](0847-call-supabase-through-its-own-clients.md)                                | Call Supabase through its own clients                                                                                                                                                      |
 | [0789](0789-roll-the-list-surface-out-to-content-and-tenancy-blocks.md)              | Roll the list surface out to the content and tenancy blocks                                                                                                                                |
 | [0790](0790-raise-the-bundle-and-server-baselines-for-the-g5-list-surface.md)        | Raise the bundle and server baselines for the G5 list surface                                                                                                                              |
+<<<<<<< HEAD
 | [0939](0939-take-the-organization-per-call-in-the-shared-list-surface.md)            | Take the organization per call in the shared list surface                                                                                                                                  |
+||||||| 7e064e8523
+=======
+| [0969](0969-run-stripe-in-the-example-from-env-keys.md)                              | Run Stripe in the example from env keys                                                                                                                                                    |
+>>>>>>> origin/main
