@@ -51,3 +51,6 @@ The size baseline of four block entries (`courses`, `dam`, `events`, `cms`) rise
 each, measured with `pnpm --filter @better-supabase/bundle run update` (the four bundle `entityList`,
 which now checks a list of sorts and reports `sorted`); `./list` does not move because
 the sort helpers live in a module of their own (`core/page-sort.ts`) with no imports.
+
+The Next.js example's first-load and server baselines rise by 67 to 1,100 bytes raw on the routes
+that bundle `entityList`; the values are the ones CI measured.
