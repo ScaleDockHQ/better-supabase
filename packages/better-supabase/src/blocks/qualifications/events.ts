@@ -17,6 +17,13 @@ export interface QualificationTypeArchivedEventData {
   readonly key: string;
 }
 
+/** `qualification_type.restored`: an archived type takes new holdings again. */
+export interface QualificationTypeRestoredEventData {
+  readonly organizationId: string;
+  readonly qualificationTypeId: string;
+  readonly key: string;
+}
+
 /** `qualification.granted`: a holder received a qualification. */
 export interface QualificationGrantedEventData {
   readonly organizationId: string;
@@ -64,6 +71,7 @@ export type QualificationsEvents = {
   readonly "qualification_type.created": QualificationTypeSavedEventData;
   readonly "qualification_type.updated": QualificationTypeSavedEventData;
   readonly "qualification_type.archived": QualificationTypeArchivedEventData;
+  readonly "qualification_type.restored": QualificationTypeRestoredEventData;
   readonly "qualification.granted": QualificationGrantedEventData;
   readonly "qualification.revoked": QualificationRevokedEventData;
   readonly "qualification.expiry_warned": QualificationExpiryEventData;
@@ -78,6 +86,7 @@ export const qualificationsEvents: Events<QualificationsEvents> = defineEvents({
   "qualification_type.created": event<QualificationTypeSavedEventData>(),
   "qualification_type.updated": event<QualificationTypeSavedEventData>(),
   "qualification_type.archived": event<QualificationTypeArchivedEventData>(),
+  "qualification_type.restored": event<QualificationTypeRestoredEventData>(),
   "qualification.granted": event<QualificationGrantedEventData>(),
   "qualification.revoked": event<QualificationRevokedEventData>(),
   "qualification.expiry_warned": event<QualificationExpiryEventData>(),

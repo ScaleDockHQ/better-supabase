@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:2f63200f59eed6cbe37f5eaf6e0e27276ca6937d8ed24a6346bd42de1a81a66f
+-- @bsb-hash sha256:dc826578670ef5a1a668a806a06c755d5225cedf875d664b8359d59cf2ea92fb
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -230,6 +230,40 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_qualification_type"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_qualification_type"(uuid) to authenticated, service_role;
+
+-- Restores an archived type: it takes new holdings and joins the gap report
+-- again.
+create or replace function "better_supabase"."restore_qualification_type"(type_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."qualification_types"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."qualification_types" x where x."id" = restore_qualification_type.type_id;
+  if not found then
+    raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'qualifications.manage'), false)) then
+    raise exception 'not allowed to manage qualifications' using errcode = '42501', hint = 'QUALIFICATION_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    update "better_supabase"."qualification_types" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id"
+    returning x.* into v_row;
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_qualification_type"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_qualification_type"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_qualification_types"(tenant uuid, include_archived boolean default false)
 returns jsonb
