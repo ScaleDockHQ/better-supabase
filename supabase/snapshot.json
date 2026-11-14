@@ -231472,6 +231472,40 @@
       {
         "id": 3001532,
         "schema": "better_supabase",
+        "name": "list_qualified_instruments",
+        "language": "plpgsql",
+        "definition": "\n#variable_conflict use_variable\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_qualified_instruments.tenant is not null and coalesce(better_supabase.can('tenant', list_qualified_instruments.tenant, 'lims.read'), false))) then\n    raise exception 'not allowed to read instruments' using errcode = '42501', hint = 'LIMS_FORBIDDEN';\n  end if;\n  return \"better_supabase\".\"qualified_holders\"(list_qualified_instruments.tenant, 'calibration', 'asset', coalesce(list_qualified_instruments.on_date, current_date));\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.list_qualified_instruments(tenant uuid, on_date date DEFAULT CURRENT_DATE)\n RETURNS jsonb\n LANGUAGE plpgsql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\n#variable_conflict use_variable\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_qualified_instruments.tenant is not null and coalesce(better_supabase.can('tenant', list_qualified_instruments.tenant, 'lims.read'), false))) then\n    raise exception 'not allowed to read instruments' using errcode = '42501', hint = 'LIMS_FORBIDDEN';\n  end if;\n  return \"better_supabase\".\"qualified_holders\"(list_qualified_instruments.tenant, 'calibration', 'asset', coalesce(list_qualified_instruments.on_date, current_date));\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "on_date",
+            "type_id": 1082,
+            "has_default": true
+          },
+          {
+            "mode": "in",
+            "name": "tenant",
+            "type_id": 2950,
+            "has_default": false
+          }
+        ],
+        "argument_types": "tenant uuid, on_date date DEFAULT CURRENT_DATE",
+        "identity_argument_types": "tenant uuid, on_date date",
+        "return_type_id": 3802,
+        "return_type": "jsonb",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "STABLE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3001532,
+        "schema": "better_supabase",
         "name": "list_quote_variants",
         "language": "plpgsql",
         "definition": "\ndeclare\n  v_src \"better_supabase\".\"quotes\";\nbegin\n  select * into v_src from \"better_supabase\".\"quotes\" x where x.\"id\" = list_quote_variants.quote;\n  if v_src.\"id\" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_src.\"tenant_id\", 'quotes.read'), false)) then\n    raise exception 'no such quote you can read' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';\n  end if;\n  return (select coalesce(jsonb_agg(jsonb_build_object(\n      'id', x.\"id\", 'identifier', x.\"identifier\", 'variantLabel', x.\"variant_label\",\n      'isSelected', x.\"is_selected\", 'status', x.\"status\",\n      'currency', x.\"currency\", 'total', x.\"total\"::text, 'isRoot', x.\"variant_of\" is null)\n      order by (x.\"variant_of\" is not null), x.\"number\"), '[]'::jsonb)\n    from \"better_supabase\".\"quotes\" x where (x.\"id\" = coalesce(v_src.\"variant_of\", v_src.\"id\") or x.\"variant_of\" = coalesce(v_src.\"variant_of\", v_src.\"id\")));\nend;\n",
@@ -424988,6 +425022,20 @@
         "schema": "better_supabase",
         "name": "list_putaway_rules",
         "signature": "tenant uuid, filters jsonb",
+        "language": "plpgsql",
+        "volatility": "stable",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": [
+          "authenticated"
+        ]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "list_qualified_instruments",
+        "signature": "tenant uuid, on_date date",
         "language": "plpgsql",
         "volatility": "stable",
         "securityDefiner": true,
