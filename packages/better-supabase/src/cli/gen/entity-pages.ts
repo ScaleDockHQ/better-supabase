@@ -17,9 +17,12 @@ import { q, runtimeSubpath } from "./shared.ts";
 export const ENTITY_PAGE_INDEXES_SUFFIX =
   "_better_supabase_entity_page_indexes.sql";
 
+/** The schema file that declares the generated indexes, next to the block files. */
+export const ENTITY_PAGE_INDEXES_SCHEMA_FILE = "entity_page_indexes.sql";
+
 type PagesConfig = Pick<
   ResolvedConfig,
-  "blocks" | "blockNames" | "output" | "gen" | "root"
+  "blocks" | "blockNames" | "output" | "gen" | "root" | "sql"
 >;
 
 /** The list surface of an entity, as its block manifest declares it. */
@@ -541,5 +544,25 @@ export function emitEntityPages(
     pagesDir: posix.join(posix.dirname(config.output), "pages"),
   };
 
-  return ENTITY_PAGE_OUTPUTS.flatMap((output) => output.render(context));
+  const indexes = entityPageIndexSql(config);
+
+  // The schema folder is the source of truth: `supabase:diff` drops an index
+  // the migration creates when no schema file declares it.
+  const schemaIndexes: GeneratedFile[] =
+    indexes === undefined
+      ? []
+      : [
+          {
+            path: posix.join(
+              config.sql.dir.replace(/\/$/, ""),
+              ENTITY_PAGE_INDEXES_SCHEMA_FILE,
+            ),
+            contents: indexes,
+          },
+        ];
+
+  return [
+    ...ENTITY_PAGE_OUTPUTS.flatMap((output) => output.render(context)),
+    ...schemaIndexes,
+  ];
 }

@@ -121,10 +121,11 @@ describe("emitEntityPages", () => {
   const files = emitEntityPages(config(), "better-supabase");
   const byPath = new Map(files.map((file) => [file.path, file.contents]));
 
-  it("writes the list query, the route and the scale file", () => {
+  it("writes the list query, the route, the scale file and the schema indexes", () => {
     expect([...byPath.keys()].toSorted()).toStrictEqual([
       "app/api/risks/list/route.ts",
       "src/lib/supabase/pages/risks.list.ts",
+      "supabase/schemas/entity_page_indexes.sql",
       "supabase/tests/scale/scale_list_risks.test.sql",
     ]);
   });
