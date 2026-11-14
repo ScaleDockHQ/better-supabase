@@ -1,4 +1,5 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type { DbError } from "../../core/errors.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type {
   CredentialProvider,
@@ -595,6 +596,54 @@ export function createWorkflowEditor<
               { status: started.error.status },
             );
       },
+      fire: (event) =>
+        AsyncResult.from(async () => {
+          const found = await serviceCall(
+            "workflow_event_targets",
+            { event: event.type, tenant: event.tenant },
+            (value) => recordsOf(value, "workflow_event_targets"),
+          );
+
+          if (!found.ok) {
+            return err(found.error);
+          }
+
+          const started: string[] = [];
+          let failure: DbError | undefined;
+
+          const eventKey =
+            event.id ??
+            `${event.type}:${event.time ?? randomToken(16)}:${event.subject ?? ""}`;
+
+          for (const target of found.data) {
+            const trigger = triggerOf(recordOf(target["trigger"], "trigger"));
+            const tenant = optionalText(target["tenant"]);
+
+            const run = await runWith(serviceCall, {
+              definition: trigger.definition,
+              input: {
+                type: event.type,
+                data: event.data ?? null,
+                tenant: event.tenant ?? null,
+                subject: event.subject ?? null,
+                time: event.time ?? null,
+              },
+              idempotencyKey: `event:${trigger.id}:${eventKey}`,
+              trigger,
+              ...(tenant === undefined ? {} : { tenant }),
+            });
+
+            if (run.ok) {
+              started.push(run.data);
+            } else {
+              failure ??= run.error;
+            }
+          }
+
+          return started.length === 0 && failure !== undefined
+            ? err(failure)
+            : ok(started);
+        }),
       syncSchedule: ({ trigger, tenant }) => {
         const cron = trigger.config["cron"];
 
@@ -851,6 +900,7 @@ export function createWorkflowEditor<
             attempt: input.attempt,
             output: input.output,
             error: input.error,
+            input: input.input,
           },
           (value) => value === true,
         ),
