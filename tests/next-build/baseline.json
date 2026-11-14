@@ -254,6 +254,16 @@
     "gzip": 492015,
     "brotli": 430550
   },
+  "/[locale]/(app)/crm/companies/[id]/page": {
+    "raw": 1453606,
+    "gzip": 469330,
+    "brotli": 410078
+  },
+  "/[locale]/(app)/crm/companies/page": {
+    "raw": 1538442,
+    "gzip": 491287,
+    "brotli": 429752
+  },
   "/[locale]/(app)/crm/contacts/[id]/page": {
     "raw": 1368298,
     "gzip": 439583,
@@ -353,6 +363,11 @@
     "raw": 1537973,
     "gzip": 490794,
     "brotli": 429346
+  },
+  "/[locale]/(app)/crm/sequences/[id]/page": {
+    "raw": 1360591,
+    "gzip": 437584,
+    "brotli": 382683
   },
   "/[locale]/(app)/crm/sequences/page": {
     "raw": 1360579,
