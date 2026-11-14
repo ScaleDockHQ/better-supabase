@@ -110,6 +110,33 @@ or `resolved`); resolving sets `resolvedAt` and returns its components to
 otherwise. `setImpacts` replaces the affected components. Opening, updating,
 posting and writing the postmortem need `incidents.write`.
 
+## Page through incidents
+
+`list` is the capped convenience list, and `get(incidentId)` returns one
+incident. `page` is the full list contract (ADR 0749, 0949). Like `list`, it
+takes the organization on every call. It takes `sort`, `filters` whose values
+are lists, `q`, `after` and `limit`, and returns `{ items, hasMore, nextCursor }`.
+Sorts are `startedAt` (the default, newest first) and `severity` (`sev1`
+first). Filters are `status`, `severity` and `componentId`, the facets are
+`status` and `severity`, and `q` searches the title. `status` takes the stored
+statuses, so it does not have the `open` and `resolved` shorthand of `list`. The
+SQL function is `page_incidents`.
+
+```ts
+const open = await incidents
+  .page({
+    organizationId,
+    filters: { severity: ["sev1", "sev2"], status: ["investigating"] },
+    sort: { by: "startedAt" },
+  })
+  .orThrow();
+
+const facets = await incidents.facets({ organizationId }).orThrow();
+const total = await incidents.count({ organizationId }).orThrow();
+```
+
+A cursor belongs to the sort it came from.
+
 ## Postmortems
 
 ```ts

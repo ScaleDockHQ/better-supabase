@@ -276,6 +276,9 @@ stays small. For a page named `risks`, the run writes:
 | `<appDir>/api/risks/list/route.ts`                | The `GET` handler that parses the URL, runs the list and answers 400 with the issues                                |
 | `<stamp>_better_supabase_entity_page_indexes.sql` | A migration with one `create index if not exists` per sort, facet and searched column that is a column of the table |
 | `<scaleDir>/scale_list_risks.test.sql`            | A pgTAP file that plans each sort and facet with sequential scans off                                               |
+| `pages/risks.columns.ts`                          | `risksColumns` with the label, kind, sort and filter of each `columns` entry (only with `columns`)                  |
+| `pages/risks.detail.ts`                           | `risksDetail`: the route, the `sections` and `href(id)` (only with `sections`)                                      |
+| `pages/risks.form.ts`                             | `risksCreateForm` and `risksEditForm` over the block's input and change schemas (only when the block exports them)  |
 
 An index is a btree on `(tenant, column, id)` for a sort and `(tenant, column)`
 for a facet, or a trigram index for a searched column. A name that is not a
@@ -295,7 +298,8 @@ The settings:
 | `scaleDir` | `supabase/tests/scale`                     | Where the pgTAP files go; it may sit outside the project |
 
 `gen` stops with `config_invalid` when the block is not installed, when its
-manifest declares no list for the entity, or when two pages share a name.
+manifest declares no list for the entity, when a `columns` entry is not a column of the table, when a
+section name is not lowercase words joined by `-`, or when two pages share a name.
 
 ## Options
 

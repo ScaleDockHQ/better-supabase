@@ -10,6 +10,7 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { guestFunctions, providerGuestSource } from "../guest-sql.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { GUEST_ACTIONS } from "../scope.ts";
 import {
@@ -349,6 +350,33 @@ function functions(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const guestJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${g("id")}, 'organizationId', ${row}.${g("tenant")}::text, 'email', ${row}.${g("email")}, 'name', ${guest(row, "name")}, 'userId', ${row}.${g("user")}, 'partyType', ${guest(row, "partyType")}, 'partyId', ${guest(row, "partyId")}, 'status', ${row}.${g("status")}, 'invitedBy', ${guest(row, "invitedBy")}, 'expiresAt', ${guest(row, "expiresAt")}, 'acceptedAt', ${guest(row, "acceptedAt")}, 'revokedAt', ${guest(row, "revokedAt")}, 'createdAt', ${row}.${g("createdAt")}, 'updatedAt', ${guest(row, "updatedAt", `${row}.${g("createdAt")}`)})`;
+
+  const idKeys = [
+    { expr: `x.${g("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${g("id")}`, dir: "desc", type: "uuid" },
+  ] as const;
+
+  const pageList = {
+    name: "page_guests",
+    from: guests,
+    alias: "x",
+    where: [
+      `x.${g("tenant")} = page_guests.tenant`,
+      filterAny("status", asText(ctx, "guests", `x.${g("status")}`)),
+    ],
+    keys: idKeys,
+    sorts: {
+      createdAt: idKeys,
+      email: [
+        { expr: `x.${g("email")}`, dir: "asc", type: "text" },
+        { expr: `x.${g("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: asText(ctx, "guests", `x.${g("status")}`) },
+    rowJson: guestJson("x"),
+    invalid: (message: string): string =>
+      fail("GUEST_INVALID", message, "22023"),
+  } as const;
 
   const grantJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}::text, 'guestId', ${row}.${r("guest")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'actions', to_jsonb(${row}.${r("actions")}), 'grantedBy', ${grant(row, "grantedBy")}, 'expiresAt', ${grant(row, "expiresAt")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${grant(row, "updatedAt", `${row}.${r("createdAt")}`)})`;
@@ -764,6 +792,50 @@ end;
 $$;
 ${userGrant(`${fn("list_guests")}(${idType}, text, timestamptz, integer)`)}
 
+-- A tenant's guests as a keyset page (ADR 0749, 0949). filters is { status (a
+-- value or a list of them), sort, direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }. Needs guests.read.
+create or replace function ${fn("page_guests")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_filters jsonb := coalesce(page_guests.filters, '{}'::jsonb);
+  ${listDeclare(pageList)}
+begin
+  if not ${allowed("page_guests.tenant", read)} then
+    ${forbidden("not allowed to read guests")}
+  end if;
+  ${listBody(pageList)}
+end;
+$$;
+${userGrant(`${fn("page_guests")}(${idType}, jsonb)`)}
+
+-- One guest by id. Needs guests.read.
+create or replace function ${fn("get_guest")}(guest_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${guests}%rowtype;
+begin
+  select * into v_row from ${guests} x where x.${g("id")} = get_guest.guest_id;
+  if not found or not ${allowed(`v_row.${g("tenant")}`, read)} then
+    ${fail("GUEST_NOT_FOUND", "guest not found", "P0002")}
+  end if;
+  return ${guestJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("get_guest")}(uuid)`)}
+
 -- The guests who reach one record, with their grant, for the record's
 -- sharing panel.
 create or replace function ${fn("list_guest_grants")}(subject_type text, subject_id text)
@@ -870,6 +942,8 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "timestamptz", "integer"],
       returns: "jsonb",
     },
+    { name: "page_guests", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_guest", args: ["uuid"], returns: "jsonb" },
     { name: "list_guest_grants", args: ["text", "text"], returns: "jsonb" },
     { name: "my_guest_access", args: [], returns: "jsonb" },
     { name: "guest_can", args: ["text", "text", "text"], returns: "boolean" },

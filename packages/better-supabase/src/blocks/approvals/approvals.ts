@@ -1,4 +1,10 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
@@ -6,6 +12,7 @@ import type {
   Approver,
   AuthorizationHooks,
 } from "../../core/contracts/authorization-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -23,6 +30,7 @@ import { sha256Hex, sleep } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -35,6 +43,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { approvalListSurface } from "./lists.ts";
 
 export interface ApprovalsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -426,6 +435,20 @@ export interface Approvals<F extends object = Record<never, never>> {
   list(
     options?: ApprovalListOptions,
   ): AsyncResult<readonly (ApprovalRequest & F)[]>;
+  /**
+   * One keyset page of the block tenant's requests the caller can see, newest
+   * first. Sort by `createdAt` or `action`; filter by `status`, `subjectType`,
+   * `subjectId`, `action` and `assigned`. Requests without an organization stay
+   * on `list` with `tenantless`.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<ApprovalRequest & F>>;
+  /**
+   * The values of each facet (`status`, `subjectType`) and how many requests
+   * hold each.
+   */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many requests match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
   /** Whether the subject's latest request for the action was approved. */
   isApproved(input: {
     subject: RecordRef;
@@ -928,6 +951,15 @@ export function createApprovals<
   ): AsyncResult<string | null> =>
     tenantless === true ? AsyncResult.ok(null) : tenant();
 
+  const requests = entityList({
+    entity: "approval",
+    surface: approvalListSurface,
+    call,
+    tenant,
+    fn: "page_approvals",
+    rowOf: (row, fn) => [row, requestOf(row, fn)] as const,
+  });
+
   const client: Approvals<F> = {
     request: ({
       subject,
@@ -1067,6 +1099,14 @@ export function createApprovals<
             ),
         ).andThen((rows) => allWithFields(fields, rows)),
       ),
+    page: (pageOptions) =>
+      requests.page(pageOptions).andThen(async (page) => {
+        const items = await allWithFields(fields, page.items);
+
+        return items.ok ? ok({ ...page, items: items.data }) : items;
+      }),
+    facets: requests.facets,
+    count: requests.count,
     isApproved: ({ subject, action }) =>
       call(
         "is_approved",

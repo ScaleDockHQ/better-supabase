@@ -88,7 +88,8 @@ export default defineConfig({
     // Keys and default grants for every installed block, in a migration, so a new block's pages never answer 403 for the owner.
     permissionCatalog: true,
     // One descriptor per entity page: gen writes the list query, `/api/periods/list`,
-    // the indexes of its sorts and facets and `scale_list_periods.test.sql` (ADR 0859).
+    // the indexes of its sorts and facets, `scale_list_periods.test.sql` (ADR 0859), its columns and
+    // its detail frame (ADR 0869).
     entityPages: {
       pages: [
         defineEntityPage({
@@ -96,6 +97,9 @@ export default defineConfig({
           route: "/finance/periods",
           // The periods block names its list reads per entity.
           methods: { page: "periodPage", facets: "periodFacets" },
+          // Columns and detail sections: gen writes `periods.columns.ts` and `periods.detail.ts`.
+          columns: ["kind", "status", "startsOn", "endsOn"],
+          sections: ["overview", "entries"],
         }),
       ],
       server: { module: "@/lib/supabase/server", export: "bsb" },
