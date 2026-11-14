@@ -279,6 +279,9 @@ stays small. For a page named `risks`, the run writes:
 | `pages/risks.columns.ts`                          | `risksColumns` with the label, kind, sort and filter of each `columns` entry (only with `columns`)                  |
 | `pages/risks.detail.ts`                           | `risksDetail`: the route, the `sections` and `href(id)` (only with `sections`)                                      |
 | `pages/risks.form.ts`                             | `risksCreateForm` and `risksEditForm` over the block's input and change schemas (only when the block exports them)  |
+| `pages/risks.seed.ts`                             | `risksSeed`: the table, tenant column, tiers and `seed.demo` rows (only with `seed`)                                |
+| `pages/risks.navigation.ts`                       | `risksNav`: area, label, href, `recordHref` and `titleKey` (only with `area`)                                       |
+| `pages/routes.manifest.ts`                        | `entityRoutes`: list, API and detail routes and the message keys of every page                                      |
 
 An index is a btree on `(tenant, column, id)` for a sort and `(tenant, column)`
 for a facet, or a trigram index for a searched column. A name that is not a

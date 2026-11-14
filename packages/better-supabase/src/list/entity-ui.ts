@@ -223,3 +223,48 @@ export function defineEntityForm(options: {
     },
   };
 }
+
+/** One value of a seed row: the shapes a column of a demo row takes. */
+export type EntitySeedValue = string | number | boolean | null;
+
+/** The demo rows of an entity page, as `gen` writes them (ADR 0879). */
+export interface EntitySeed {
+  readonly entity: string;
+  /** The table the rows go into, as `schema.table`. */
+  readonly table: string;
+  /** The tenant column the app fills, when the table has one. */
+  readonly tenant: string | undefined;
+  /** The tiers the rows belong to (`demo` by default). */
+  readonly tiers: readonly string[];
+  /** Rows keyed by database column, so they insert without a rename. */
+  readonly rows: readonly Readonly<Record<string, EntitySeedValue>>[];
+}
+
+/** The navigation entry of an entity page, as `gen` writes it (ADR 0879). */
+export interface EntityNavItem {
+  readonly entity: string;
+  /** The nav area the page sits under (`finance`). */
+  readonly area: string;
+  /** A readable title (`Periods`). */
+  readonly label: string;
+  /** The href of the list page. */
+  readonly href: string;
+  /** The href of one record, when the page has a detail frame. */
+  readonly recordHref: ((id: string) => string) | undefined;
+  /** The key of the column that names a record, when the page has columns. */
+  readonly titleKey: string | undefined;
+}
+
+/** One page in the route manifest, as `gen` writes it (ADR 0879). */
+export interface EntityRouteEntry {
+  readonly entity: string;
+  readonly name: string;
+  /** The list page's route. */
+  readonly route: string;
+  /** The route of the list query's handler. */
+  readonly api: string;
+  /** The detail route (`<route>/:id`), when the page has sections. */
+  readonly detail: string | undefined;
+  /** The message keys of the page: one per column, facet and form field. */
+  readonly messageKeys: readonly string[];
+}
