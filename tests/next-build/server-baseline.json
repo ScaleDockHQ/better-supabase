@@ -1524,6 +1524,11 @@
     "gzip": 87719,
     "brotli": 78691
   },
+  "/api/inbox/contact-deals/route": {
+    "raw": 2642428,
+    "gzip": 796896,
+    "brotli": 675615
+  },
   "/api/inbox/tick/route": {
     "raw": 1414511,
     "gzip": 449152,
