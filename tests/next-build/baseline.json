@@ -100,7 +100,7 @@
     "brotli": 422483
   },
   "/[locale]/(app)/assistant/guardrails/page": {
-    "raw": 1550900,
+    "raw": 1551598,
     "gzip": 494607,
     "brotli": 432781
   },
@@ -890,14 +890,14 @@
     "brotli": 427918
   },
   "/[locale]/(app)/settings/marketplace/[resource]/page": {
-    "raw": 1279706,
-    "gzip": 406744,
-    "brotli": 355150
+    "raw": 1275598,
+    "gzip": 405448,
+    "brotli": 354166
   },
   "/[locale]/(app)/settings/marketplace/page": {
-    "raw": 1282842,
-    "gzip": 406932,
-    "brotli": 355458
+    "raw": 1275598,
+    "gzip": 405448,
+    "brotli": 354166
   },
   "/[locale]/(app)/settings/members/[userId]/page": {
     "raw": 1262912,
