@@ -285,7 +285,7 @@
     "brotli": 429346
   },
   "/[locale]/(app)/crm/deals/[id]/page": {
-    "raw": 1584954,
+    "raw": 1585125,
     "gzip": 513139,
     "brotli": 448331
   },
@@ -580,12 +580,12 @@
     "brotli": 385264
   },
   "/[locale]/(app)/inbox/[conversation]/page": {
-    "raw": 1579081,
+    "raw": 1579252,
     "gzip": 509188,
     "brotli": 445922
   },
   "/[locale]/(app)/inbox/page": {
-    "raw": 1450991,
+    "raw": 1451162,
     "gzip": 465601,
     "brotli": 407959
   },
@@ -660,9 +660,9 @@
     "brotli": 396541
   },
   "/[locale]/(app)/members/invitations/page": {
-    "raw": 1272234,
-    "gzip": 403908,
-    "brotli": 352756
+    "raw": 1425434,
+    "gzip": 449205,
+    "brotli": 392529
   },
   "/[locale]/(app)/metrics/[key]/page": {
     "raw": 1268168,
