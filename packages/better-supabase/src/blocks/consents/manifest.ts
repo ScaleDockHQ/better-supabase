@@ -22,15 +22,16 @@ export const consentsBlock: BlockOf<
     consent: {
       mutability: "state-machine",
       emits: { create: false },
-      personalData: [
-        "givenByContact",
-        "givenByUser",
-        "withdrawnReason",
-        "signature",
-      ],
+      personalData: ["givenByUser", "withdrawnReason", "signature"],
       subjectColumn: "subjectId",
       erase: "anonymize",
       legalHold: true,
+    },
+    consent_signal: {
+      mutability: "read-only",
+      personalData: ["raw", "parsed"],
+      subjectColumn: "subjectId",
+      erase: "delete",
     },
     consent_purpose: {
       mutability: "editable",

@@ -53,12 +53,17 @@ export const eveAgentJob: StandardSchemaV1<EveAgentJob> = {
   },
 };
 
+/** The `to().send()` options of eve's `SessionSendOptions` the adapter passes. */
+export interface EveSendOptions {
+  readonly auth: EveSessionAuth | null;
+  readonly context?: readonly string[];
+  readonly idempotencyKey?: string;
+  readonly title?: string;
+}
+
 /** The handle eve's `to(channel, target)` returns. */
 export interface EveTargetHandle {
-  send(
-    message: string,
-    options: { readonly auth: EveSessionAuth | null },
-  ): Promise<unknown>;
+  send(message: string, options: EveSendOptions): Promise<unknown>;
 }
 
 /**
@@ -81,13 +86,20 @@ export interface EveQueueJob {
   readonly context: RequestContext;
 }
 
-/** The part of the queue block `queueSchedules` drains. */
-export interface EveQueueDrainer {
+/**
+ * The part of the queue block `queueSchedules` and `queueDynamicSchedules`
+ * drain. `P` is the payload of the drained queue and `J` the job its handler
+ * reads.
+ */
+export interface EveQueueDrainer<
+  P = EveAgentJob,
+  J extends EveQueueJob = EveQueueJob,
+> {
   /** Enqueues the due schedules' jobs; a pg_cron scheduler has none. */
   runSchedules(): AsyncResult<number>;
   drain(input: {
     queue: never;
-    handler: (payload: EveAgentJob, job: EveQueueJob) => unknown;
+    handler: (payload: P, job: J) => unknown;
     readonly budgetMs?: number;
   }): Promise<unknown>;
 }

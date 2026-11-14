@@ -7,6 +7,7 @@ import type {
 import { sqlString } from "../../core/template.ts";
 import { SERVICE_CALLER, fail, lockTable } from "../shared.ts";
 import { lifecycleJson } from "./data-lifecycle-app.ts";
+import { eraseSql } from "./data-lifecycle-erase.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** The kinds of request GDPR Arts. 15 to 20 give a data subject. */
@@ -46,7 +47,11 @@ export const DSAR_TABLES: Readonly<Record<string, BlockSqlTableSpec>> = {
       closedAt: "closed_at",
       closedBy: "closed_by",
     },
-    lifecycle: { tenant: "tenant", export: false },
+    lifecycle: {
+      tenant: "tenant",
+      export: false,
+      erase: { mode: "keep", retention: "audit" },
+    },
     app: {},
   },
 };
@@ -67,6 +72,7 @@ export const DSAR_CONTRACT: readonly BlockSqlContractFunction[] = [
     args: ["uuid", "text"],
     returns: "jsonb",
   },
+  { name: "erase_data_subject", args: ["uuid"], returns: "jsonb" },
   {
     name: "fulfil_data_subject_request",
     args: ["uuid", "text"],
@@ -386,5 +392,5 @@ grant execute on function ${fn("extend_data_subject_request")}(uuid, text) to au
 grant execute on function ${fn("fulfil_data_subject_request")}(uuid, text) to authenticated, service_role;
 grant execute on function ${fn("refuse_data_subject_request")}(uuid, text) to authenticated, service_role;
 grant execute on function ${fn("list_data_subject_requests")}(${id}, text, boolean) to authenticated, service_role;
-`;
+${eraseSql(ctx)}`;
 }

@@ -1,3 +1,4 @@
+import { toStandardJsonSchema } from "@valibot/to-json-schema";
 import { approvalPolicy, supabaseTool } from "better-supabase/eve";
 import { defineTool } from "eve/tools";
 import * as v from "valibot";
@@ -14,10 +15,13 @@ export default defineTool(
     server: bsb,
     agent: "assistant",
     description: "Adds a note to one of the organization's customers",
-    inputSchema: v.object({
-      customerId: v.pipe(v.string(), v.uuid()),
-      body: v.pipe(v.string(), v.minLength(1), v.maxLength(4000)),
-    }),
+    // eve sends the model the JSON Schema of the input.
+    inputSchema: toStandardJsonSchema(
+      v.object({
+        customerId: v.pipe(v.string(), v.uuid()),
+        body: v.pipe(v.string(), v.minLength(1), v.maxLength(4000)),
+      }),
+    ),
     approval: approvalPolicy({ server: bsb, agent: "assistant" }),
     async execute({ customerId, body }, { db, context }) {
       const note = await db.notes

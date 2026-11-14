@@ -26,6 +26,7 @@ export {
   type DataLifecycle,
   type DataLifecycleOptions,
   type DataSubjectRequest,
+  type ErasureResult,
   type DataSubjectRequestKind,
   type DataSubjectRequestStatus,
   type LifecycleBucket,

@@ -19,7 +19,7 @@ and hook still apply per member. It returns `{ succeeded, failed: [{ id, code,
 message }] }`, and more than 500 members raise `BULK_TOO_MANY` (22023). The client
 method `organizations.updateMemberRoles({ organizationId, userIds, role })`
 returns the common `BulkReport` and emits `organization.role_changed` for each
-success. The migration is `20270115120012_l_update_member_roles.sql`.
+success. The migration is `20270117120012_l_update_member_roles.sql`.
 
 ## Alternatives considered
 

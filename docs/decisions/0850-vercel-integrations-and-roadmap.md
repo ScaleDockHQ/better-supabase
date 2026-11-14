@@ -106,9 +106,9 @@ most, 37.0 KB raw). It gains `/api/auth/callback`, `/api/jobs/drain` and
   `defineDynamicSchedules` in `eve/experimental/schedules`, but its
   `ScheduleProvider` contract gives a provider `target.deliver` only during a
   management call, and eve fires timed occurrences only through its own
-  Vercel Queues consumer route. A provider over the queue block's
-  `ScheduleProvider` could store, list and invoke schedules but not fire them
-  on time, so it waits for eve 1.0 (held back by the trust policy until about
-  2026-11-30) or a public delivery entry point.
+  Vercel Queues consumer route. ADR 1022 builds it on eve 1.0:
+  `queueScheduleProvider` stores the schedules in the queue block's drain
+  scheduler, and `queueDynamicSchedules` fires them from a minute schedule
+  through the definition's `auth` and `run`.
 - No integration surface, not planned: Vercel Drop, Vercel Agent, the Vercel
   Plugin, Bot Management rulesets and Global Config.
