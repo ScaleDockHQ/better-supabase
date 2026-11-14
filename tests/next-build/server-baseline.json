@@ -679,6 +679,11 @@
     "gzip": 941101,
     "brotli": 779492
   },
+  "/[locale]/(app)/members/invitations/page": {
+    "raw": 3086470,
+    "gzip": 937548,
+    "brotli": 779244
+  },
   "/[locale]/(app)/metrics/[key]/page": {
     "raw": 3100264,
     "gzip": 944139,
@@ -1558,6 +1563,11 @@
     "raw": 1424760,
     "gzip": 454085,
     "brotli": 395031
+  },
+  "/api/incidents/list/route": {
+    "raw": 2587519,
+    "gzip": 783759,
+    "brotli": 665332
   },
   "/api/incoming-webhooks/list/route": {
     "raw": 1090720,
