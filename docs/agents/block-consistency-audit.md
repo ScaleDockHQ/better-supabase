@@ -988,8 +988,8 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane I
 
 - Scope: Archive, restore and purge everywhere
-- Status: in progress
-- Branch: `feat/audit-i-3` (slice 3)
+- Status: merged
+- Branch: `feat/audit-i-6` (slice 5, the last)
 - PR: [#944](https://github.com/ScaleDockHQ/better-supabase/pull/944) (slice 1, merged), [#949](https://github.com/ScaleDockHQ/better-supabase/pull/949) (slice 2, merged), [#955](https://github.com/ScaleDockHQ/better-supabase/pull/955) (slice 3)
 - Findings: EX-1206, EX-1207, EX-1230 (verb adoption)
 - Log: 2026-11-12, planned.
@@ -998,6 +998,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Log: 2026-11-14, slice 3 (ADR 1024): `restore` and `restored` events for the blocks whose archive takes an `archived` flag (deals, tasks, messaging, channels, collections, accounting). Teams and legal entities already paired. Slices 4 (restore for blocks with none) and 5 (verb adoption) are next.
 - Log: 2026-11-14, slice 4a (ADR 1025, branch `feat/audit-i-4`): `restore` for cases, lims, contacts, consents, shifts and observations. Slice 4b (assets, medications, compliance, content, care-plans, pipelines, option-sets) follows. Invoices, risks, shipments and bookings stay deferred (needs: an archive method first; only an `archived_at` column mapping exists).
 - Log: 2026-11-14, slice 4b (ADR 1026, branch `feat/audit-i-5`): `restore` for assets, medications, compliance, content, option-sets and pipelines. Deferred (needs: an archive method first): invoices, risks, shipments, bookings. Deferred (needs: a product decision on restoring a care plan, whose archive ends its actions): care-plans.
+- Log: 2026-11-14, slice 5 (ADR 1027): audited about 110 ending events, renamed none (two outliers keep a domain verb, `lease.terminated` and `medication_order.stopped`) and closed the vocabulary in `check:naming` with `bannedEnding` and `endingExceptions`. Lane I merged; EX-1206 and EX-1207 stay deferred with their reasons, EX-1230 is fixed.
 
 ### Lane L
 

@@ -53,7 +53,10 @@ codemod; a new block uses the convention from the start.
    record mean `cancelled` (stopped before it took effect), `voided` (an
    issued document made invalid), `closed` (finished, reopenable),
    `withdrawn` (taken back by the submitter), `revoked` (taken back by the
-   grantor) and `rejected` (refused by a reviewer). Payload keys are
+   grantor) and `rejected` (refused by a reviewer). `check:naming` rejects the synonyms
+   `aborted`, `abandoned`, `dismissed`, `discarded`, `deactivated`,
+   `invalidated`, `finished`, `stopped` and `terminated`, except the two types
+   in `eventVerbs.endingExceptions`. Payload keys are
    camelCase and carry `organizationId` when the event has a tenant.
 8. A hint code is `<ENTITY>_<REASON>` in upper snake case, from the entity
    singular: `CONTROL_FORBIDDEN`, `TASK_NOT_FOUND`. The prefix is a run of the
