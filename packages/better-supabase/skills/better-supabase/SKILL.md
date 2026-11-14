@@ -107,6 +107,7 @@ Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runt
 - Vue, Solid and Svelte, TanStack DB collections and a local SQLite database: [references/frontend.md](references/frontend.md)
 - Which block or preset fits a feature, and the block catalog (`BLOCK_CATALOG`): [references/blocks-and-presets.md](references/blocks-and-presets.md)
 - Writing a port adapter (route optimizer, bank feed, tax report format, prescription gateway) and its conformance kit: [references/ports-and-adapters.md](references/ports-and-adapters.md)
+- Apps on Vercel: guard the sign-up, OTP and magic-link routes with `botIdGuard` and `firewallRateLimit` from `better-supabase/vercel-security`, verify a Passport caller with `verifyPassport` from `better-supabase/vercel-passport`, and pass the SDK module in for the domains block (`vercelDomainProvider`), signing keys (`vercelKmsKeyProvider` as `keys`) and attachments or drive files (`vercelBlobStore` as `files`). Postgres keeps deciding who may upload. See https://bettersupabase.com/docs/vercel
 - E-invoicing (Peppol), tax reports and SAF-T audit files: [references/e-invoicing-and-audit-files.md](references/e-invoicing-and-audit-files.md)
 - UI for a block (notification bell, notification list, command search, onboarding checklist): build it from the app's shadcn or React Native components and the block's hook, following [references/ui-recipes.md](references/ui-recipes.md). There is no better-supabase UI package; install glue with `npx shadcn add @better-supabase/<item>`.
 
