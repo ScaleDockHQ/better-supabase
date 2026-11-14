@@ -990,7 +990,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Scope: Archive, restore and purge everywhere
 - Status: merged
 - Branch: `feat/audit-i-6` (slice 5, the last)
-- PR: [#944](https://github.com/ScaleDockHQ/better-supabase/pull/944) (slice 1, merged), [#949](https://github.com/ScaleDockHQ/better-supabase/pull/949) (slice 2, merged), [#955](https://github.com/ScaleDockHQ/better-supabase/pull/955) (slice 3)
+- PR: [#944](https://github.com/ScaleDockHQ/better-supabase/pull/944) (slice 1, merged), [#949](https://github.com/ScaleDockHQ/better-supabase/pull/949) (slice 2, merged), [#955](https://github.com/ScaleDockHQ/better-supabase/pull/955) (slice 3, merged), [#966](https://github.com/ScaleDockHQ/better-supabase/pull/966) (slice 4a, merged), [#968](https://github.com/ScaleDockHQ/better-supabase/pull/968) (slice 4b, merged), [#972](https://github.com/ScaleDockHQ/better-supabase/pull/972) (slice 5)
 - Findings: EX-1206, EX-1207, EX-1230 (verb adoption)
 - Log: 2026-11-12, planned.
 - Log: 2026-11-14, started from main in `../bsb-audit-i`. Scale measured: 251 block folders, 94 files mention archive.
