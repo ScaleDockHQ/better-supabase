@@ -125,7 +125,8 @@ export function RunList({ organizationId }: { organizationId: string }) {
 
 `useWorkflowRuns` loads the list and loads it again on every message on
 `workflow-runs:<tenant>`. Without a `tenant`, it loads the user's own runs
-once. `useWorkflowRun(id)` reads one run, follows `workflow-run:<id>` and
+once. The list holds live runs; pass `mode: "test"` or `mode: "all"` to include
+the test runs an editor starts. `useWorkflowRun(id)` reads one run, follows `workflow-run:<id>` and
 returns `cancel()`. In Server Components, call `workflows.runs.list()`
 instead.
 

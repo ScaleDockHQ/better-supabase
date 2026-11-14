@@ -4641,6 +4641,7 @@
       "WorkflowRunActions",
       "WorkflowRunController",
       "WorkflowRunControllerOptions",
+      "WorkflowRunMode",
       "WorkflowRunRecord",
       "WorkflowRunsActions",
       "WorkflowRunsController",

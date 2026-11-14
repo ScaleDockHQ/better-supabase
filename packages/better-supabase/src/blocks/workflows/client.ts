@@ -2,7 +2,12 @@ import type { DbError } from "../../core/errors.ts";
 import type { SubscriptionStatus } from "../../realtime/index.ts";
 import type { TopicPort } from "../../realtime/watch-topic.ts";
 import type { AuthPort, Controller } from "../controller.ts";
-import type { WorkflowRun, WorkflowRunStatus, Workflows } from "./workflows.ts";
+import type {
+  WorkflowRun,
+  WorkflowRunMode,
+  WorkflowRunStatus,
+  Workflows,
+} from "./workflows.ts";
 
 import { defineController, whileSignedIn } from "../controller.ts";
 import { watchRun } from "./run-watch.ts";
@@ -19,6 +24,11 @@ export interface WorkflowRunsControllerOptions {
   readonly tenant?: string | null;
   readonly definition?: string;
   readonly status?: WorkflowRunStatus;
+  /**
+   * `live` (the default), `test` or `all`. A test run starts in the editor and
+   * only shows when this is `test` or `all`.
+   */
+  readonly mode?: WorkflowRunMode | "all";
   readonly limit?: number;
 }
 
@@ -46,7 +56,7 @@ export function createWorkflowRunsController(
   options: WorkflowRunsControllerOptions,
 ): WorkflowRunsController {
   const tenant = options.tenant ?? null;
-  const { definition, limit } = options;
+  const { definition, limit, mode } = options;
   const runStatus = options.status;
 
   return defineController<WorkflowRunsSnapshot, WorkflowRunsActions>(
@@ -59,6 +69,7 @@ export function createWorkflowRunsController(
           ...(tenant === null ? {} : { tenant }),
           ...(definition === undefined ? {} : { definition }),
           ...(runStatus === undefined ? {} : { status: runStatus }),
+          ...(mode === undefined ? {} : { mode }),
           ...(limit === undefined ? {} : { limit }),
         });
 
