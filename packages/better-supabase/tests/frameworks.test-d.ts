@@ -7,6 +7,10 @@ import type {
   MiddlewareHandler,
 } from "astro";
 import type { H3Event as H3EventV2 } from "h3";
+import type {
+  EventHandler as H3EventHandlerV1,
+  H3Event as H3EventV1,
+} from "h3-v1";
 import type Koa from "koa";
 import type { Nuxt, NuxtModule } from "nuxt/schema";
 import type {
@@ -31,6 +35,7 @@ import type {
 } from "../src/astro/index.ts";
 import type { ElysiaBridge } from "../src/elysia/index.ts";
 import type { H3Middleware } from "../src/h3/index.ts";
+import type { H3V1Handler } from "../src/h3/v1/index.ts";
 import type {
   ExpressErrorHandler,
   ExpressMiddleware,
@@ -57,8 +62,8 @@ import type { BetterTanStackStart } from "../src/tanstack-start/create.ts";
  * frameworks' real types at the pinned versions, in both directions: what the
  * framework passes fits what the adapter reads, and what the adapter returns
  * fits where the framework takes it. A major release that breaks one fails
- * here; the previous majors still in the peer ranges are checked in
- * `tests/types/frameworks-previous`.
+ * here. Each peer range covers one major, except h3, whose 1.x is the `h3/v1`
+ * entry Nitro 2 and Nuxt 4 run (`h3-v1` is that release).
  */
 describe("framework adapters", () => {
   it("React Router runs the middleware and pass loader arguments", () => {
@@ -107,6 +112,11 @@ describe("framework adapters", () => {
   it("H3 takes the middleware", () => {
     expectTypeOf<H3EventV2>().toExtend<Parameters<H3Middleware<object>>[0]>();
     new H3().use({} as H3Middleware<object>);
+  });
+
+  it("H3 1, which Nitro 2 and Nuxt 4 run, takes the v1 handler", () => {
+    expectTypeOf<H3EventV1>().toExtend<Parameters<H3V1Handler<object>>[0]>();
+    expectTypeOf<H3V1Handler<object>>().toExtend<H3EventHandlerV1>();
   });
 
   it("Nuxt installs the module", () => {

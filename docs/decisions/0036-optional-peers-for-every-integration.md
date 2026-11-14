@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-10-17
+- Amended by: 0848
 
 ## Context
 

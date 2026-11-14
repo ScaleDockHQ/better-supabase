@@ -610,17 +610,34 @@ export async function HealthOverview({ query }: { query: BlockListQuery }) {
 
 /**
  * Companies and people, searched, filtered by lifecycle and paged on the
- * server.
+ * server. With `kind: "company"` it lists the companies only, each linking to
+ * its own route.
  */
 // skeleton: the page's Suspense fallback is the skeleton of this view
-export async function ContactOverview({ query }: { query: BlockListQuery }) {
+export async function ContactOverview({
+  query,
+  kind,
+}: {
+  query: BlockListQuery;
+  kind?: "company";
+}) {
   await requirePermission("contacts.read");
 
-  const [t, loaded, canWrite] = await Promise.all([
+  const [t, everyone, canWrite] = await Promise.all([
     getExtracted("sales"),
     settle(loadContacts),
     holds("contacts.write"),
   ]);
+
+  const companies = kind === "company";
+
+  const loaded =
+    everyone.kind === "ok" && companies
+      ? ({
+          kind: "ok",
+          data: everyone.data.filter((contact) => contact.kind === "company"),
+        } as const)
+      : everyone;
 
   const lifecycles = {
     lead: t("Lead"),
@@ -666,7 +683,7 @@ export async function ContactOverview({ query }: { query: BlockListQuery }) {
           key: "name",
           header: t("Name"),
           kind: "link",
-          href: "/crm/contacts/{id}",
+          href: companies ? "/crm/companies/{id}" : "/crm/contacts/{id}",
           size: 280,
         },
         {
@@ -707,13 +724,19 @@ export async function ContactOverview({ query }: { query: BlockListQuery }) {
         { value: "name", label: t("Name") },
         { value: "lifecycle", label: t("Lifecycle") },
       ]}
-      searchLabel={t("Search contacts")}
-      errorTitle={t("The contacts didn't load")}
+      searchLabel={companies ? t("Search companies") : t("Search contacts")}
+      errorTitle={
+        companies
+          ? t("The companies didn't load")
+          : t("The contacts didn't load")
+      }
       emptyIcon={<BuildingIcon />}
-      emptyTitle={t("No contacts found")}
-      emptyDescription={t(
-        "Add the companies you sell to and the people you talk to.",
-      )}
+      emptyTitle={companies ? t("No companies found") : t("No contacts found")}
+      emptyDescription={
+        companies
+          ? t("Add the companies you sell to.")
+          : t("Add the companies you sell to and the people you talk to.")
+      }
       emptyAction={canWrite ? <CreateContactDialog /> : undefined}
     />
   );

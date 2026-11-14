@@ -6,6 +6,7 @@ import {
   addProviderStubs,
   envExampleText,
   providersSource,
+  vercelSchedulesFragment,
   wiringChecklist,
   wiringFiles,
   wiringFor,
@@ -243,9 +244,29 @@ describe("wiringFor edge cases", () => {
       undefined,
     );
 
-    expect(steps).toEqual([
+    expect(steps[0]).toBe(
       "  1. Call /api/drain from a cron with `Authorization: Bearer $CRON_SECRET` (queue: Drains.)",
-    ]);
+    );
+    expect(steps[1]).toMatch(/^ {2}2\. Pick the queue and scheduler pair/);
+    expect(steps).toHaveLength(2);
+  });
+
+  it("writes the vercel.json schedules for the workers with a cron", () => {
+    expect(
+      vercelSchedulesFragment([
+        {
+          name: "drain",
+          description: "Drains.",
+          path: "/api/drain",
+          schedule: "* * * * *",
+          block: "queue",
+        },
+        { name: "idle", description: "Idles.", block: "inbox" },
+      ]),
+    ).toBe(
+      '{"schedules":{"drain":{"schedule":"* * * * *","path":"/api/drain","requestMethod":"GET"}}}',
+    );
+    expect(vercelSchedulesFragment([])).toBeUndefined();
   });
 
   it("names the block timers and the actions to register", () => {

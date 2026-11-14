@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@9 managed
--- @bsb-hash sha256:64234ef08b0189077380899be5eb00ffc25b675ff790cf4d45805f3e1da599eb
+-- @bsb-block attachments@10 managed
+-- @bsb-hash sha256:a398c98a9ae013abd494a6b5b3b57b6bf8c7dd2abfbf8c9218d772dc3f9bd7c7
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -580,7 +580,8 @@ $$;
 
 -- Marks the upload done once the object exists, taking its size and type
 -- from Storage, and writes attachment.uploaded for the scan job.
-create or replace function "better_supabase"."confirm_attachment"(id uuid)
+-- For a file in another store (Vercel Blob), only the service role may pass object.
+create or replace function "better_supabase"."confirm_attachment"(id uuid, object jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -603,7 +604,26 @@ begin
   select o.metadata into v_meta from storage.objects o
   where o.bucket_id = v_row."bucket" and o.name = (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end);
   if not found then
-    raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    if confirm_attachment.object is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+      raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    end if;
+    if (case when jsonb_typeof(confirm_attachment.object -> 'size') = 'number'
+        then (confirm_attachment.object ->> 'size')::numeric < 0
+          or (confirm_attachment.object ->> 'size')::numeric <> trunc((confirm_attachment.object ->> 'size')::numeric)
+        else true end)
+      or coalesce(confirm_attachment.object ->> 'mimetype', '') !~ '^[^/[:space:]]+/[^[:space:]]+$' then
+      raise exception 'object needs a whole size of 0 or more and a MIME type' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_INVALID';
+    end if;
+    v_meta := jsonb_build_object('size', confirm_attachment.object -> 'size', 'mimetype', lower(confirm_attachment.object ->> 'mimetype'));
+    if exists (
+      select 1 from storage.buckets b
+      where b.id = v_row."bucket"
+        and ((b.file_size_limit is not null and (v_meta ->> 'size')::bigint > b.file_size_limit)
+          or (coalesce(cardinality(b.allowed_mime_types), 0) > 0
+            and not exists (select 1 from unnest(b.allowed_mime_types) m where v_meta ->> 'mimetype' like replace(lower(m), '*', '%'))))
+    ) then
+      raise exception 'The file breaks the size limit or MIME types of its bucket' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_REFUSED';
+    end if;
   end if;
   update "better_supabase"."attachments" a set
     "uploaded_at" = now(),
@@ -987,13 +1007,13 @@ grant execute on function "better_supabase"."object_clean"(text, text) to authen
 grant execute on function "better_supabase"."object_scan"(text, text) to service_role;
 grant execute on function "better_supabase"."set_object_scan"(text, text, text, text) to service_role;
 revoke execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) from public, anon;
-revoke execute on function "better_supabase"."confirm_attachment"(uuid) from public, anon;
+revoke execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_attachments"(uuid, text, text) from public, anon;
 revoke execute on function "better_supabase"."get_attachment"(uuid) from public, anon;
 revoke execute on function "better_supabase"."delete_attachment"(uuid) from public, anon;
 grant execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) to authenticated, service_role;
-grant execute on function "better_supabase"."confirm_attachment"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
@@ -1093,7 +1113,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:b070f56f5c58ec8adc66538ad4afebb82803f638ed5d7c964a7aaa919c33fb8d
+-- @bsb-hash sha256:c5b0fcf7c2111cd36ede57e5add11f5b4266235f663dcd8258b3e9417857ff53
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1110,14 +1130,14 @@ where x."object_path" is distinct from (select "tenant_id"::text || '/attachment
 update "better_supabase"."attachments" set "storage_status" = 'stored' where "uploaded_at" is not null and "storage_status" = 'pending_upload';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 9, 'managed')
+values ('attachments', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@9 managed
--- @bsb-hash sha256:f2e0800821b91cc8c5b18c984c36947b37622dd5a028d4f035ca779e9996fa76
+-- @bsb-block attachments@10 managed
+-- @bsb-hash sha256:3d222b5f2ca3140a744128f0fe64b8232dc9be2381bb5828474eb8e7c39d09ac
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1706,7 +1726,8 @@ $$;
 
 -- Marks the upload done once the object exists, taking its size and type
 -- from Storage, and writes attachment.uploaded for the scan job.
-create or replace function "better_supabase"."confirm_attachment"(id uuid)
+-- For a file in another store (Vercel Blob), only the service role may pass object.
+create or replace function "better_supabase"."confirm_attachment"(id uuid, object jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1729,7 +1750,26 @@ begin
   select o.metadata into v_meta from storage.objects o
   where o.bucket_id = v_row."bucket" and o.name = (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end);
   if not found then
-    raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    if confirm_attachment.object is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+      raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    end if;
+    if (case when jsonb_typeof(confirm_attachment.object -> 'size') = 'number'
+        then (confirm_attachment.object ->> 'size')::numeric < 0
+          or (confirm_attachment.object ->> 'size')::numeric <> trunc((confirm_attachment.object ->> 'size')::numeric)
+        else true end)
+      or coalesce(confirm_attachment.object ->> 'mimetype', '') !~ '^[^/[:space:]]+/[^[:space:]]+$' then
+      raise exception 'object needs a whole size of 0 or more and a MIME type' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_INVALID';
+    end if;
+    v_meta := jsonb_build_object('size', confirm_attachment.object -> 'size', 'mimetype', lower(confirm_attachment.object ->> 'mimetype'));
+    if exists (
+      select 1 from storage.buckets b
+      where b.id = v_row."bucket"
+        and ((b.file_size_limit is not null and (v_meta ->> 'size')::bigint > b.file_size_limit)
+          or (coalesce(cardinality(b.allowed_mime_types), 0) > 0
+            and not exists (select 1 from unnest(b.allowed_mime_types) m where v_meta ->> 'mimetype' like replace(lower(m), '*', '%'))))
+    ) then
+      raise exception 'The file breaks the size limit or MIME types of its bucket' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_REFUSED';
+    end if;
   end if;
   update "better_supabase"."attachments" a set
     "uploaded_at" = now(),
@@ -2245,13 +2285,13 @@ grant execute on function "better_supabase"."object_clean"(text, text) to authen
 grant execute on function "better_supabase"."object_scan"(text, text) to service_role;
 grant execute on function "better_supabase"."set_object_scan"(text, text, text, text) to service_role;
 revoke execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) from public, anon;
-revoke execute on function "better_supabase"."confirm_attachment"(uuid) from public, anon;
+revoke execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_attachments"(uuid, text, text) from public, anon;
 revoke execute on function "better_supabase"."get_attachment"(uuid) from public, anon;
 revoke execute on function "better_supabase"."delete_attachment"(uuid) from public, anon;
 grant execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) to authenticated, service_role;
-grant execute on function "better_supabase"."confirm_attachment"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
@@ -2354,7 +2394,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:b070f56f5c58ec8adc66538ad4afebb82803f638ed5d7c964a7aaa919c33fb8d
+-- @bsb-hash sha256:c5b0fcf7c2111cd36ede57e5add11f5b4266235f663dcd8258b3e9417857ff53
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2371,14 +2411,14 @@ where x."object_path" is distinct from (select "tenant_id"::text || '/attachment
 update "better_supabase"."attachments" set "storage_status" = 'stored' where "uploaded_at" is not null and "storage_status" = 'pending_upload';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 9, 'managed')
+values ('attachments', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@9 managed
--- @bsb-hash sha256:d924c2fb049474033c4e68c223f71f6456774f4765df476daed5cc5673c286fb
+-- @bsb-block attachments@10 managed
+-- @bsb-hash sha256:9d424ef3ff644227147ea74e5d49b394a530a07e6b471fee8df87ee54eb38343
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2962,7 +3002,8 @@ $$;
 
 -- Marks the upload done once the object exists, taking its size and type
 -- from Storage, and writes attachment.uploaded for the scan job.
-create or replace function "app_private"."confirm_attachment"(id uuid)
+-- For a file in another store (Vercel Blob), only the service role may pass object.
+create or replace function "app_private"."confirm_attachment"(id uuid, object jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2985,7 +3026,26 @@ begin
   select o.metadata into v_meta from storage.objects o
   where o.bucket_id = v_row."bucket" and o.name = (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end);
   if not found then
-    raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    if confirm_attachment.object is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+      raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    end if;
+    if (case when jsonb_typeof(confirm_attachment.object -> 'size') = 'number'
+        then (confirm_attachment.object ->> 'size')::numeric < 0
+          or (confirm_attachment.object ->> 'size')::numeric <> trunc((confirm_attachment.object ->> 'size')::numeric)
+        else true end)
+      or coalesce(confirm_attachment.object ->> 'mimetype', '') !~ '^[^/[:space:]]+/[^[:space:]]+$' then
+      raise exception 'object needs a whole size of 0 or more and a MIME type' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_INVALID';
+    end if;
+    v_meta := jsonb_build_object('size', confirm_attachment.object -> 'size', 'mimetype', lower(confirm_attachment.object ->> 'mimetype'));
+    if exists (
+      select 1 from storage.buckets b
+      where b.id = v_row."bucket"
+        and ((b.file_size_limit is not null and (v_meta ->> 'size')::bigint > b.file_size_limit)
+          or (coalesce(cardinality(b.allowed_mime_types), 0) > 0
+            and not exists (select 1 from unnest(b.allowed_mime_types) m where v_meta ->> 'mimetype' like replace(lower(m), '*', '%'))))
+    ) then
+      raise exception 'The file breaks the size limit or MIME types of its bucket' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_REFUSED';
+    end if;
   end if;
   update "app_private"."attachments" a set
     "uploaded_at" = now(),
@@ -3369,13 +3429,13 @@ grant execute on function "app_private"."object_clean"(text, text) to authentica
 grant execute on function "app_private"."object_scan"(text, text) to service_role;
 grant execute on function "app_private"."set_object_scan"(text, text, text, text) to service_role;
 revoke execute on function "app_private"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) from public, anon;
-revoke execute on function "app_private"."confirm_attachment"(uuid) from public, anon;
+revoke execute on function "app_private"."confirm_attachment"(uuid, jsonb) from public, anon;
 revoke execute on function "app_private"."set_attachment_status"(uuid, text, text, text) from public, anon, authenticated;
 revoke execute on function "app_private"."list_attachments"(uuid, text, text) from public, anon;
 revoke execute on function "app_private"."get_attachment"(uuid) from public, anon;
 revoke execute on function "app_private"."delete_attachment"(uuid) from public, anon;
 grant execute on function "app_private"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) to authenticated, service_role;
-grant execute on function "app_private"."confirm_attachment"(uuid) to authenticated, service_role;
+grant execute on function "app_private"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "app_private"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "app_private"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "app_private"."get_attachment"(uuid) to authenticated, service_role;
@@ -3475,7 +3535,7 @@ create policy bsb_tenant_scope_delete on "app_private"."attachment_versions" as 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:ecb41623d7edc9df764a36f4655a039ffedd5b17bb5d1f7113ef06be89b176b0
+-- @bsb-hash sha256:56f0fc68ddf7293cc275ad06cb4a019c477c8ea8d178ecdf5a30323c88c79922
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3492,14 +3552,14 @@ where x."object_path" is distinct from (select "tenant_id"::text || '/attachment
 update "app_private"."attachments" set "storage_status" = 'stored' where "uploaded_at" is not null and "storage_status" = 'pending_upload';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 9, 'managed')
+values ('attachments', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@9 managed
--- @bsb-hash sha256:86d52391d555b4b231c70eb4c25cf6268032101711f59f06bb47a31a5ef81771
+-- @bsb-block attachments@10 managed
+-- @bsb-hash sha256:304a377fd491181e1444a3aace861ddba3905a58553449d8657fc7f5554552dc
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4078,7 +4138,8 @@ $$;
 
 -- Marks the upload done once the object exists, taking its size and type
 -- from Storage, and writes attachment.uploaded for the scan job.
-create or replace function "better_supabase"."confirm_attachment"(id uuid)
+-- For a file in another store (Vercel Blob), only the service role may pass object.
+create or replace function "better_supabase"."confirm_attachment"(id uuid, object jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4101,7 +4162,26 @@ begin
   select o.metadata into v_meta from storage.objects o
   where o.bucket_id = v_row."bucket" and o.name = (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end);
   if not found then
-    raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    if confirm_attachment.object is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+      raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    end if;
+    if (case when jsonb_typeof(confirm_attachment.object -> 'size') = 'number'
+        then (confirm_attachment.object ->> 'size')::numeric < 0
+          or (confirm_attachment.object ->> 'size')::numeric <> trunc((confirm_attachment.object ->> 'size')::numeric)
+        else true end)
+      or coalesce(confirm_attachment.object ->> 'mimetype', '') !~ '^[^/[:space:]]+/[^[:space:]]+$' then
+      raise exception 'object needs a whole size of 0 or more and a MIME type' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_INVALID';
+    end if;
+    v_meta := jsonb_build_object('size', confirm_attachment.object -> 'size', 'mimetype', lower(confirm_attachment.object ->> 'mimetype'));
+    if exists (
+      select 1 from storage.buckets b
+      where b.id = v_row."bucket"
+        and ((b.file_size_limit is not null and (v_meta ->> 'size')::bigint > b.file_size_limit)
+          or (coalesce(cardinality(b.allowed_mime_types), 0) > 0
+            and not exists (select 1 from unnest(b.allowed_mime_types) m where v_meta ->> 'mimetype' like replace(lower(m), '*', '%'))))
+    ) then
+      raise exception 'The file breaks the size limit or MIME types of its bucket' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_REFUSED';
+    end if;
   end if;
   update "better_supabase"."attachments" a set
     "uploaded_at" = now(),
@@ -4485,13 +4565,13 @@ grant execute on function "better_supabase"."object_clean"(text, text) to authen
 grant execute on function "better_supabase"."object_scan"(text, text) to service_role;
 grant execute on function "better_supabase"."set_object_scan"(text, text, text, text) to service_role;
 revoke execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) from public, anon;
-revoke execute on function "better_supabase"."confirm_attachment"(uuid) from public, anon;
+revoke execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_attachments"(uuid, text, text) from public, anon;
 revoke execute on function "better_supabase"."get_attachment"(uuid) from public, anon;
 revoke execute on function "better_supabase"."delete_attachment"(uuid) from public, anon;
 grant execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) to authenticated, service_role;
-grant execute on function "better_supabase"."confirm_attachment"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
@@ -4717,14 +4797,14 @@ as $$ select "better_supabase"."create_attachment"($1, $2, $3, $4, $5, $6, $7, $
 revoke execute on function "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) from public, anon;
 grant execute on function "api"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) to authenticated, service_role;
 
-create or replace function "api"."confirm_attachment"(id uuid)
+create or replace function "api"."confirm_attachment"(id uuid, object jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."confirm_attachment"($1) $$;
-revoke execute on function "api"."confirm_attachment"(uuid) from public, anon;
-grant execute on function "api"."confirm_attachment"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."confirm_attachment"($1, $2) $$;
+revoke execute on function "api"."confirm_attachment"(uuid, jsonb) from public, anon;
+grant execute on function "api"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."set_attachment_status"(id uuid, status text, detail text default null, sha256 text default null)
 returns jsonb
@@ -4776,7 +4856,7 @@ grant execute on function "api"."seed_attachments_defaults"(uuid, text, text) to
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:b070f56f5c58ec8adc66538ad4afebb82803f638ed5d7c964a7aaa919c33fb8d
+-- @bsb-hash sha256:c5b0fcf7c2111cd36ede57e5add11f5b4266235f663dcd8258b3e9417857ff53
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4793,14 +4873,14 @@ where x."object_path" is distinct from (select "tenant_id"::text || '/attachment
 update "better_supabase"."attachments" set "storage_status" = 'stored' where "uploaded_at" is not null and "storage_status" = 'pending_upload';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 9, 'managed')
+values ('attachments', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@9 managed
--- @bsb-hash sha256:d2f4f139c33e6b2baf2132fd4501ed694203c094ff8538c7969f185b009d7996
+-- @bsb-block attachments@10 managed
+-- @bsb-hash sha256:737a6ba1df5594e52ae0daa6d5cb42d5a32d8d46af5e2bde375c91cb16f7564d
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5270,7 +5350,8 @@ $$;
 
 -- Marks the upload done once the object exists, taking its size and type
 -- from Storage, and writes attachment.uploaded for the scan job.
-create or replace function "better_supabase"."confirm_attachment"(id uuid)
+-- For a file in another store (Vercel Blob), only the service role may pass object.
+create or replace function "better_supabase"."confirm_attachment"(id uuid, object jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5293,7 +5374,26 @@ begin
   select o.metadata into v_meta from storage.objects o
   where o.bucket_id = v_row."bucket" and o.name = (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end);
   if not found then
-    raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    if confirm_attachment.object is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+      raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    end if;
+    if (case when jsonb_typeof(confirm_attachment.object -> 'size') = 'number'
+        then (confirm_attachment.object ->> 'size')::numeric < 0
+          or (confirm_attachment.object ->> 'size')::numeric <> trunc((confirm_attachment.object ->> 'size')::numeric)
+        else true end)
+      or coalesce(confirm_attachment.object ->> 'mimetype', '') !~ '^[^/[:space:]]+/[^[:space:]]+$' then
+      raise exception 'object needs a whole size of 0 or more and a MIME type' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_INVALID';
+    end if;
+    v_meta := jsonb_build_object('size', confirm_attachment.object -> 'size', 'mimetype', lower(confirm_attachment.object ->> 'mimetype'));
+    if exists (
+      select 1 from storage.buckets b
+      where b.id = v_row."bucket"
+        and ((b.file_size_limit is not null and (v_meta ->> 'size')::bigint > b.file_size_limit)
+          or (coalesce(cardinality(b.allowed_mime_types), 0) > 0
+            and not exists (select 1 from unnest(b.allowed_mime_types) m where v_meta ->> 'mimetype' like replace(lower(m), '*', '%'))))
+    ) then
+      raise exception 'The file breaks the size limit or MIME types of its bucket' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_REFUSED';
+    end if;
   end if;
   update "better_supabase"."attachments" a set
     "uploaded_at" = now(),
@@ -5606,13 +5706,13 @@ grant execute on function "better_supabase"."object_clean"(text, text) to authen
 grant execute on function "better_supabase"."object_scan"(text, text) to service_role;
 grant execute on function "better_supabase"."set_object_scan"(text, text, text, text) to service_role;
 revoke execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer) from public, anon;
-revoke execute on function "better_supabase"."confirm_attachment"(uuid) from public, anon;
+revoke execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_attachments"(uuid, text, text) from public, anon;
 revoke execute on function "better_supabase"."get_attachment"(uuid) from public, anon;
 revoke execute on function "better_supabase"."delete_attachment"(uuid) from public, anon;
 grant execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer) to authenticated, service_role;
-grant execute on function "better_supabase"."confirm_attachment"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
@@ -5712,7 +5812,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:02de0562851ddc0bdd7c2c366780e923a59690ba658d99c2f953b5f5d62b7368
+-- @bsb-hash sha256:d7e0991f472e1b9f2b6bc222566f7c37d80331e608c11c8bdaf5f420cf7b265b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5723,14 +5823,14 @@ values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do update set public = excluded.public;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 9, 'managed')
+values ('attachments', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@9 managed
--- @bsb-hash sha256:b5fb93aefc814c78ac9941110de9ef93841a6d213fda9291e54f5bccf7041c71
+-- @bsb-block attachments@10 managed
+-- @bsb-hash sha256:d7a00d2e801fabeec2340b3f01f929269b918c70d5fd11c195ef34e6a33f8da7
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6309,7 +6409,8 @@ $$;
 
 -- Marks the upload done once the object exists, taking its size and type
 -- from Storage, and writes attachment.uploaded for the scan job.
-create or replace function "better_supabase"."confirm_attachment"(id uuid)
+-- For a file in another store (Vercel Blob), only the service role may pass object.
+create or replace function "better_supabase"."confirm_attachment"(id uuid, object jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6332,7 +6433,26 @@ begin
   select o.metadata into v_meta from storage.objects o
   where o.bucket_id = v_row."bucket" and o.name = (case when v_row."version" > 1 then v_row."object_path" || '-v' || v_row."version"::text else v_row."object_path" end);
   if not found then
-    raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    if confirm_attachment.object is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+      raise exception 'The file was not uploaded yet' using errcode = 'P0002', hint = 'ATTACHMENT_NOT_UPLOADED';
+    end if;
+    if (case when jsonb_typeof(confirm_attachment.object -> 'size') = 'number'
+        then (confirm_attachment.object ->> 'size')::numeric < 0
+          or (confirm_attachment.object ->> 'size')::numeric <> trunc((confirm_attachment.object ->> 'size')::numeric)
+        else true end)
+      or coalesce(confirm_attachment.object ->> 'mimetype', '') !~ '^[^/[:space:]]+/[^[:space:]]+$' then
+      raise exception 'object needs a whole size of 0 or more and a MIME type' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_INVALID';
+    end if;
+    v_meta := jsonb_build_object('size', confirm_attachment.object -> 'size', 'mimetype', lower(confirm_attachment.object ->> 'mimetype'));
+    if exists (
+      select 1 from storage.buckets b
+      where b.id = v_row."bucket"
+        and ((b.file_size_limit is not null and (v_meta ->> 'size')::bigint > b.file_size_limit)
+          or (coalesce(cardinality(b.allowed_mime_types), 0) > 0
+            and not exists (select 1 from unnest(b.allowed_mime_types) m where v_meta ->> 'mimetype' like replace(lower(m), '*', '%'))))
+    ) then
+      raise exception 'The file breaks the size limit or MIME types of its bucket' using errcode = '22023', hint = 'ATTACHMENT_OBJECT_REFUSED';
+    end if;
   end if;
   update "better_supabase"."attachments" a set
     "uploaded_at" = now(),
@@ -6716,13 +6836,13 @@ grant execute on function "better_supabase"."object_clean"(text, text) to authen
 grant execute on function "better_supabase"."object_scan"(text, text) to service_role;
 grant execute on function "better_supabase"."set_object_scan"(text, text, text, text) to service_role;
 revoke execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) from public, anon;
-revoke execute on function "better_supabase"."confirm_attachment"(uuid) from public, anon;
+revoke execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) from public, anon;
 revoke execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) from public, anon, authenticated;
 revoke execute on function "better_supabase"."list_attachments"(uuid, text, text) from public, anon;
 revoke execute on function "better_supabase"."get_attachment"(uuid) from public, anon;
 revoke execute on function "better_supabase"."delete_attachment"(uuid) from public, anon;
 grant execute on function "better_supabase"."create_attachment"(uuid, text, text, bigint, text, text, jsonb, integer, integer, integer, text, text, text, text) to authenticated, service_role;
-grant execute on function "better_supabase"."confirm_attachment"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."confirm_attachment"(uuid, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."set_attachment_status"(uuid, text, text, text) to service_role;
 grant execute on function "better_supabase"."list_attachments"(uuid, text, text) to authenticated, service_role;
 grant execute on function "better_supabase"."get_attachment"(uuid) to authenticated, service_role;
@@ -6822,7 +6942,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:f90d7442582ba144530149f40d2c41a37bda5e60a523ff1126f82d372438ec09
+-- @bsb-hash sha256:8452de827438133875b4ef2598721c704daab64015d7149c198aa77469101420
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -6839,6 +6959,6 @@ where x."object_path" is distinct from (select "org_id"::text || '/attachments/'
 update "better_supabase"."attachments" set "storage_status" = 'stored' where "uploaded_at" is not null and "storage_status" = 'pending_upload';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 9, 'managed')
+values ('attachments', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

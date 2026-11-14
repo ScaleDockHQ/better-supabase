@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { mirrorTest, planSteps, workspaceOf } from "./check-changed.ts";
+import {
+  importerCount,
+  mirrorTest,
+  planSteps,
+  RELATED_IMPORTER_CAP,
+  workspaceOf,
+} from "./check-changed.ts";
 
 describe("workspaceOf", () => {
   it("finds the nearest package", () => {
@@ -23,6 +29,17 @@ describe("mirrorTest", () => {
 
   it("returns undefined for a file without a mirror", () => {
     expect(mirrorTest("scripts/check-changed.ts")).toBeUndefined();
+  });
+});
+
+describe("importerCount", () => {
+  it("counts importers of importers", () => {
+    expect(
+      importerCount(
+        "packages/better-supabase",
+        "packages/better-supabase/src/sql/client-functions.ts",
+      ),
+    ).toBeGreaterThan(RELATED_IMPORTER_CAP);
   });
 });
 

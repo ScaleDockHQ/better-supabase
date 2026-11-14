@@ -1,12 +1,14 @@
 ---
 title: From 0.66 to 0.67
-description: What to change when upgrading from better-supabase 0.66 to 0.67. Sessions and sign-in run on @supabase/ssr, the lite browser client is removed, and the Supabase peers start at their newest releases.
+description: What to change when upgrading from better-supabase 0.66 to 0.67. Sessions and sign-in run on @supabase/ssr, the lite browser client is removed, every peer range starts at the release the tests run on, and the previous majors of SvelteKit, Nuxt, React Router, NestJS, Stripe, expo-server, undici, redis and PowerSync are no longer supported.
 ---
 
 0.67 calls Supabase only through its own clients: session cookies are read
 with the `@supabase/ssr` helpers and written by its `createServerClient`, the
 Next.js sign-in flows call auth-js, and the browser client always comes from
-`createBrowserClient` (ADR 0846 and ADR 0847). It is a minor release, and
+`createBrowserClient` (ADR 0846 and ADR 0847). Every peer range now starts at
+the release the conformance tests run on and covers one major release
+(ADR 0848). It is a minor release, and
 below 1.0 a minor version may carry breaking changes. Each change is also in
 the
 [changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
@@ -14,6 +16,10 @@ the
 | Section                                       | Needs code                                                 |
 | --------------------------------------------- | ---------------------------------------------------------- |
 | [Supabase peers](#supabase-peers)             | Bump the Supabase packages                                 |
+| [Dropped majors](#dropped-majors)             | Move to the supported major of each framework              |
+| [Other peer floors](#other-peer-floors)       | Upgrade a peer that is older than its new floor            |
+| [Expo](#expo)                                 | Remove the `unstable_` options from `app.json`             |
+| [New optional peers](#new-optional-peers)     | None; install one only for the subpath you use             |
 | [Lite browser client](#lite-browser-client)   | Import `better-supabase/client`                            |
 | [Session cookies](#session-cookies)           | Replace `readSession` with `await ssrSession`              |
 | [Sign-in flows](#sign-in-flows)               | Replace `passwordGrant`, and check the PKCE error code     |
@@ -33,6 +39,91 @@ pnpm add -D @supabase/postgrest-typegen@0.8.1
 `@supabase/mcp-server-supabase` have a floor and no upper bound. The CLI is
 tested against postgrest-typegen 0.8.1, so install that release to keep
 `database.types.ts` equal to `supabase gen types`.
+
+0.8 marks a `returns table` column and a table argument that can never be
+null as not nullable, so a few generated types get narrower; run
+`better-supabase gen` after the upgrade. `oxfmt` still starts at 0.66.0, the
+version typegen 0.8.1 requires.
+
+## Dropped majors
+
+These majors were in range on 0.66 and are not on 0.67. Upgrade the framework
+or SDK first, following its own guide, then better-supabase. After the bump,
+`better-supabase doctor` reports every installed peer outside its new range
+as BS601.
+
+| Package             | 0.66 accepted | 0.67 accepts   |
+| ------------------- | ------------- | -------------- |
+| `@sveltejs/kit`     | 2 and 3       | `>=3.2.0 <4`   |
+| `nuxt`              | 3 and 4       | `>=4.6.4 <5`   |
+| `react-router`      | 7.9 and 8     | `>=8.5.1 <9`   |
+| `@nestjs/common`    | 11 and 12     | `>=12.5.0 <13` |
+| `stripe`            | 17 to 23      | `>=23.1.0 <24` |
+| `expo-server`       | 55 to 58      | `>=58.1.0 <59` |
+| `undici`            | 7.30.1 and 8  | `>=8.12.4 <9`  |
+| `redis`             | 5 and 6       | `>=6.3.1 <7`   |
+| `@powersync/common` | 1 and 2       | `>=2.5.0 <3`   |
+
+`better-supabase/h3/v1` stays: Nuxt 4 still runs on Nitro 2 and H3 1, so `h3`
+accepts `>=1.15.11 <3`.
+
+## Other peer floors
+
+Every other range keeps its upper bound and starts at the tested release. The
+Supabase packages are in [Supabase peers](#supabase-peers).
+
+| Package                                                   | 0.67 accepts                              |
+| --------------------------------------------------------- | ----------------------------------------- |
+| `next`, `@next/playwright`                                | `>=16.4.6 <17`                            |
+| `react`                                                   | `^19.3.1`                                 |
+| `svelte`, `vue`, `solid-js`                               | `^5.57.3`, `^3.5.45`, `^1.9.19`           |
+| `astro`                                                   | `>=7.4.11 <8`                             |
+| `@solidjs/start`                                          | `>=2.2.2 <3`                              |
+| `@tanstack/react-start`                                   | `>=1.169.5 <2`                            |
+| `hono`, `elysia`                                          | `>=4.13.18 <5`, `>=1.4.32 <2`             |
+| `express`, `fastify`, `koa`                               | `>=5.3.0 <6`, `>=5.12.8 <6`, `>=3.3.0 <4` |
+| `ai`                                                      | `>=7.0.171 <8`                            |
+| `@ai-sdk/react`, `@ai-sdk/mcp`, `@ai-sdk/workflow`        | `>=4.0.175`, `>=2.0.98`, `>=2.0.103`      |
+| `@ai-sdk/anthropic`, `@ai-sdk/sandbox-vercel`             | `>=4.0.103 <5`, `>=1.0.182 <2`            |
+| `chat`, `@chat-adapter/catalog`, `@chat-adapter/whatsapp` | `>=4.44.0 <5`                             |
+| `@orpc/server`                                            | `>=2.0.0-beta.50 <3`                      |
+| `@modelcontextprotocol/server`                            | `>=2.4.0 <3`                              |
+| `@tanstack/query-core`                                    | `^5.107.1`                                |
+| `@json-render/core`                                       | `>=0.22.0 <1`                             |
+| `nuqs`, `pg`                                              | `>=2.10.3 <3`, `>=8.23.1 <9`              |
+| `zod`, `valibot`                                          | `>=4.6.7 <5`, `>=1.5.0 <2`                |
+| `yjs`, `fast-xml-parser`                                  | `>=13.6.33 <14`, `>=5.12.0 <6`            |
+| `better-result`, `temporal-polyfill`                      | `>=3.0.1 <4`, `>=1.0.8`                   |
+| `@openfeature/server-sdk`, `flags`                        | `>=1.23.0 <2`, `>=4.4.0 <5`               |
+| `@opentelemetry/api`                                      | `>=1.9.1 <2`                              |
+| `workflow`                                                | `>=5.4.0 <6`                              |
+| `@workflow/world`, `@workflow/world-postgres`             | `>=5.1.0 <5.2`, `>=5.1.1 <5.2`            |
+| `eve`                                                     | `>=0.83.3 <1`                             |
+| `@vercel/connect`                                         | `>=2.5.0 <3`                              |
+| `@vercel/queue`                                           | `>=0.11.0 <0.12`                          |
+| `@vercel/sandbox`                                         | `>=4.0.0 <5`                              |
+
+`@vercel/sandbox` 4 talks to `api.vercel.com` over undici 8 and needs Node
+22.19 or later; better-supabase already needs Node 24. `@vercel/queue` is a
+0.x package, so 0.11 is a new minor range: upgrade it together with
+better-supabase when you use `vercelQueueProvider`.
+
+## Expo
+
+`expo-server` 58.1 is Expo SDK 58, which turns on data loaders, middleware and
+server rendering with `web.output: "server"` alone. Remove the three
+`unstable_` options from the `expo-router` plugin in `app.json`; they are
+deprecated in SDK 58 and have no effect. `bsb.loader()` now names
+`web.output` when a route renders without a request.
+
+## New optional peers
+
+0.67 declares eight more optional peers for the Vercel integrations:
+`@vercel/schedules`, `botid`, `@vercel/firewall`, `@vercel/passport`,
+`@vercel/sdk`, `@vercel/functions`, `@vercel/kms` and `@vercel/blob`.
+better-supabase types them structurally or loads them on first use, so
+nothing changes until you import the subpath that needs one.
+[Peers](/docs/getting-started/peers) lists the ranges and subpaths.
 
 ## Lite browser client
 

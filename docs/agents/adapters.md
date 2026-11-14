@@ -23,7 +23,7 @@ the clients (`client`, `client/native`) and the local-first entries
 - `tests/bundle` imports each adapter in plain Node ESM (`NODE_LOADED`).
   A new adapter goes on that list. Import peers by the specifier Node
   resolves (`next/navigation`, not `next/navigation.js`).
-- `./expo` stays off the list: expo-server 57's ESM build has extensionless
+- `./expo` stays off the list: expo-server 58's ESM build has extensionless
   relative imports that only Metro resolves.
 - Frameworks are typed structurally where possible, so an adapter adds no
   peer. An SDK the adapter calls at runtime is an optional peer loaded

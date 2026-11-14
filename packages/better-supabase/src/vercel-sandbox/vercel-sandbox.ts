@@ -59,6 +59,8 @@ export interface VercelSandboxCreateOptions {
   readonly env?: Readonly<Record<string, string>>;
   readonly tags?: Readonly<Record<string, string>>;
   readonly region?: string;
+  /** `{ npm: true }` lets the sandbox install the team's private npm packages. */
+  readonly credentials?: { readonly npm?: true };
   readonly [option: string]: unknown;
 }
 

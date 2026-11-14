@@ -52,3 +52,13 @@ export function activeTab(
     ? value
     : (values[0] ?? "");
 }
+
+/** The first value of a query parameter, `undefined` when it is absent. */
+export function searchValue(
+  raw: Readonly<Record<string, string | string[] | undefined>>,
+  key: string,
+): string | undefined {
+  const value = raw[key];
+
+  return Array.isArray(value) ? value[0] : value;
+}

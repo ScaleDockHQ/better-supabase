@@ -10,7 +10,11 @@ import type {
 import type { StoredSession } from "../../src/auth/session.ts";
 
 import { authContext } from "../../src/auth/context.ts";
-import { clearKeyCaches, resolveAuth } from "../../src/auth/resolve.ts";
+import {
+  clearKeyCaches,
+  prefetchJwks,
+  resolveAuth,
+} from "../../src/auth/resolve.ts";
 import { sessionMemo } from "../../src/auth/snapshot.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { writeSession } from "../fixtures/session-cookies.ts";
@@ -165,6 +169,39 @@ describe("verified-token memo", () => {
     clearKeyCaches();
     await resolveAuth(bearer(token), options);
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads and writes the JWKS through jwksStore, in prefetch too", async () => {
+    const jwksUrl = new URL(`${PROJECT_URL}/shared-store/jwks.json`);
+    const values = new Map<string, unknown>();
+
+    const jwksStore = {
+      get: vi.fn(async (key: string) => values.get(key)),
+      set: vi.fn(async (key: string, value: unknown) => {
+        values.set(key, value);
+      }),
+    };
+
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json(signer.jwks),
+    );
+
+    const options: ResolveAuthOptions = {
+      env: { ...env, jwksUrl },
+      fetch,
+      jwksStore,
+    };
+
+    await prefetchJwks(options);
+    expect(jwksStore.set).toHaveBeenCalledOnce();
+
+    clearKeyCaches();
+    const token = await signer.sign({ sub: USER });
+    expect((await resolveAuth(bearer(token), options)).auth.kind).toBe("user");
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(jwksStore.get).toHaveBeenCalledWith(
+      `better-supabase:jwks:${jwksUrl.href}`,
+    );
   });
 
   it("fetches a remote JWKS, keyed by URL, audience and issuer", async () => {

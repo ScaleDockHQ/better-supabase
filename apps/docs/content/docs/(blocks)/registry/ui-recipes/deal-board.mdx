@@ -52,7 +52,11 @@ export async function DealBoard() {
         </CardDescription>
         {pipeline && can(permissions, "deals.write") ? (
           <CardAction>
-            <CreateDealDialog pipelineId={pipeline.id} stages={openStages} />
+            <CreateDealDialog
+              pipelineId={pipeline.id}
+              stages={openStages}
+              openFromUrl
+            />
           </CardAction>
         ) : null}
       </CardHeader>

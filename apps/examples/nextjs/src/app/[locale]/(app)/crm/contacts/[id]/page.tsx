@@ -2,6 +2,7 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import { activeTab } from "@/components/record-detail/record-detail-tabs";
 import { buttonVariants } from "@/components/ui/button";
 import {
   ContactDetail,
@@ -16,6 +17,7 @@ export const instant = true;
 /** The back link is the static shell; the contact streams in. */
 export default function ContactPage({
   params,
+  searchParams,
 }: PageProps<"/[locale]/crm/contacts/[id]">) {
   const t = useExtracted("crm");
 
@@ -33,8 +35,11 @@ export default function ContactPage({
         {t("All contacts")}
       </Link>
       <Suspense fallback={<ContactDetailSkeleton />}>
-        {params.then(({ id }) => (
-          <ContactDetail id={id} />
+        {Promise.all([params, searchParams]).then(([{ id }, raw]) => (
+          <ContactDetail
+            id={id}
+            tab={activeTab(raw, ["overview", "activity", "related"])}
+          />
         ))}
       </Suspense>
     </>

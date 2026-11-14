@@ -5,7 +5,7 @@ import type { Subject } from "../subjects.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import { installedTables, laterTables } from "../later-tables.ts";
-import { quotedTable, SERVICE_CALLER } from "../shared.ts";
+import { fail, quotedTable, SERVICE_CALLER } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 
 /**
@@ -166,6 +166,44 @@ export function hashColumnsSql(
       : ""
   }${has("hashVerifiedAt") ? add("hashVerifiedAt", "timestamptz") : ""}`;
 }
+
+/**
+ * The branch of `confirm_attachment` for an object Storage doesn't have: the
+ * service role passes `object` ({ size, mimetype }) from another store such as
+ * Vercel Blob, checked against the limits of `bucket` (a SQL expression). Any
+ * other caller still gets `ATTACHMENT_NOT_UPLOADED`.
+ */
+export const externalObjectSql = (
+  bucket: string,
+): string => `if confirm_attachment.object is null or not (${SERVICE_CALLER}) then
+      ${fail("ATTACHMENT_NOT_UPLOADED", "The file was not uploaded yet", "P0002")}
+    end if;
+    if (case when jsonb_typeof(confirm_attachment.object -> 'size') = 'number'
+        then (confirm_attachment.object ->> 'size')::numeric < 0
+          or (confirm_attachment.object ->> 'size')::numeric <> trunc((confirm_attachment.object ->> 'size')::numeric)
+        else true end)
+      or coalesce(confirm_attachment.object ->> 'mimetype', '') !~ '^[^/[:space:]]+/[^[:space:]]+$' then
+      ${fail("ATTACHMENT_OBJECT_INVALID", "object needs a whole size of 0 or more and a MIME type", "22023")}
+    end if;
+    v_meta := jsonb_build_object('size', confirm_attachment.object -> 'size', 'mimetype', lower(confirm_attachment.object ->> 'mimetype'));
+    if exists (
+      select 1 from storage.buckets b
+      where b.id = ${bucket}
+        and ((b.file_size_limit is not null and (v_meta ->> 'size')::bigint > b.file_size_limit)
+          or (coalesce(cardinality(b.allowed_mime_types), 0) > 0
+            and not exists (select 1 from unnest(b.allowed_mime_types) m where v_meta ->> 'mimetype' like replace(lower(m), '*', '%'))))
+    ) then
+      ${fail("ATTACHMENT_OBJECT_REFUSED", "The file breaks the size limit or MIME types of its bucket", "22023")}
+    end if;`;
+
+/** The version 9 to 10 step: `confirm_attachment` takes the object. */
+export const CONFIRM_UPGRADE = {
+  from: 9,
+  description:
+    "confirm_attachment takes an optional object ({ size, mimetype }) that only the service role may pass, for a file in another store such as Vercel Blob; the one-argument function goes.",
+  sql: (ctx: BlockSqlContext): string =>
+    `drop function if exists ${ctx.fn("confirm_attachment")}(uuid);`,
+};
 
 /** The version 8 to 9 step: scan results carry the file's SHA-256. */
 export const HASH_UPGRADE = {

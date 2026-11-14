@@ -8,12 +8,13 @@ import {
   ClockIcon,
   ListChecksIcon,
   MailIcon,
-  SendIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 import { refresh } from "next/cache";
+import { notFound } from "next/navigation";
 
+import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
 import {
   Alert,
   AlertAction,
@@ -22,32 +23,13 @@ import {
 } from "@/components/reui/alert";
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
-import { getSequences } from "../sequences-queries";
-import {
-  AddStepDialog,
-  SampleSequenceButton,
-  SequenceStatusButton,
-} from "./sequence-controls";
+import { getSequence } from "../sequences-queries";
+import { AddStepDialog, SequenceStatusButton } from "./sequence-controls";
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
 async function retry() {
@@ -69,10 +51,13 @@ const stepIcons = {
   task: ListChecksIcon,
 } as const satisfies Record<SequenceStep["kind"], LucideIcon>;
 
-/** Render inside `<Suspense>`: the organization's sequences and their steps. */
-export async function SequenceBuilder() {
+/**
+ * Render inside `<Suspense>`: one sequence with its steps, the contacts at each
+ * stage and the buttons that add a step or start and pause it.
+ */
+export async function SequenceBuilder({ id }: { id: string }) {
   const [view, t, permissions] = await Promise.all([
-    getSequences(),
+    getSequence(id),
     getExtracted("sequences"),
     getPermissions(),
   ]);
@@ -85,7 +70,7 @@ export async function SequenceBuilder() {
     return (
       <Alert variant="destructive">
         <TriangleAlertIcon />
-        <AlertTitle>{t("The sequences didn't load")}</AlertTitle>
+        <AlertTitle>{t("The sequence didn't load")}</AlertTitle>
         <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
         <AlertAction>
           <form action={retry}>
@@ -98,34 +83,13 @@ export async function SequenceBuilder() {
     );
   }
 
-  const manage = can(permissions, "sequences.manage");
+  const sequence = view.data;
 
-  if (view.data.length === 0) {
-    return (
-      <Empty className="border">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <SendIcon />
-          </EmptyMedia>
-          <EmptyTitle>{t("No sequences yet")}</EmptyTitle>
-          <EmptyDescription>
-            {manage
-              ? t(
-                  "Create a sample sequence, then activate it to enroll contacts.",
-                )
-              : t(
-                  "An admin sets up the sequences your team enrolls contacts in.",
-                )}
-          </EmptyDescription>
-        </EmptyHeader>
-        {manage ? (
-          <EmptyContent>
-            <SampleSequenceButton />
-          </EmptyContent>
-        ) : null}
-      </Empty>
-    );
+  if (!sequence) {
+    notFound();
   }
+
+  const manage = can(permissions, "sequences.manage");
 
   const statusLabels: Record<SequenceStatus, string> = {
     draft: t("Draft"),
@@ -156,72 +120,88 @@ export async function SequenceBuilder() {
     }
   };
 
+  const counts = [
+    { label: t("Active"), value: sequence.counts.active },
+    { label: t("Completed"), value: sequence.counts.completed },
+    { label: t("Replied"), value: sequence.counts.replied },
+  ];
+
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {view.data.map((sequence) => (
-        <Card key={sequence.id}>
+    <RecordDetailFrame
+      title={sequence.name}
+      description={t("{count, plural, one {# step} other {# steps}}", {
+        count: sequence.steps.length,
+      })}
+      status={
+        <Badge variant={statusVariants[sequence.status]}>
+          {statusLabels[sequence.status]}
+        </Badge>
+      }
+      actions={
+        manage && sequence.status !== "archived" ? (
+          <>
+            <AddStepDialog sequenceId={sequence.id} />
+            <SequenceStatusButton
+              sequenceId={sequence.id}
+              active={sequence.status === "active"}
+            />
+          </>
+        ) : undefined
+      }
+      aside={
+        <Card size="sm">
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <CardTitle>{sequence.name}</CardTitle>
-              <Badge variant={statusVariants[sequence.status]}>
-                {statusLabels[sequence.status]}
-              </Badge>
-            </div>
-            {manage && sequence.status !== "archived" ? (
-              <CardAction className="flex gap-2">
-                <AddStepDialog sequenceId={sequence.id} />
-                <SequenceStatusButton
-                  sequenceId={sequence.id}
-                  active={sequence.status === "active"}
-                />
-              </CardAction>
-            ) : null}
+            <CardTitle>{t("Enrollments")}</CardTitle>
           </CardHeader>
           <CardContent>
-            {sequence.steps.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t("No steps yet.")}
-              </p>
-            ) : (
-              <ol className="flex flex-col gap-2">
-                {sequence.steps.map((step, index) => {
-                  const Icon = stepIcons[step.kind];
-
-                  return (
-                    <li
-                      key={step.id}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      <span className="w-5 text-xs text-muted-foreground tabular-nums">
-                        {index + 1}
-                      </span>
-                      <Icon
-                        aria-hidden
-                        className="size-4 text-muted-foreground"
-                      />
-                      <span className="truncate">{stepLabel(step)}</span>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
+            <dl className="grid gap-3">
+              {counts.map((count) => (
+                <div key={count.label} className="flex justify-between gap-2">
+                  <dt className="text-sm text-muted-foreground">
+                    {count.label}
+                  </dt>
+                  <dd className="text-sm font-medium tabular-nums">
+                    {count.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </CardContent>
-          <CardFooter className="gap-4 text-xs text-muted-foreground tabular-nums">
-            <span>
-              {t("{count} active", { count: String(sequence.counts.active) })}
-            </span>
-            <span>
-              {t("{count} completed", {
-                count: String(sequence.counts.completed),
-              })}
-            </span>
-            <span>
-              {t("{count} replied", { count: String(sequence.counts.replied) })}
-            </span>
-          </CardFooter>
         </Card>
-      ))}
-    </div>
+      }
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Steps")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {sequence.steps.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t("No steps yet.")}
+            </p>
+          ) : (
+            <ol className="flex flex-col gap-2">
+              {sequence.steps.map((step, index) => {
+                const Icon = stepIcons[step.kind];
+
+                return (
+                  <li key={step.id} className="flex items-center gap-2 text-sm">
+                    <span className="w-5 text-xs text-muted-foreground tabular-nums">
+                      {index + 1}
+                    </span>
+                    <Icon
+                      aria-hidden
+                      className="size-4 text-muted-foreground"
+                    />
+                    <span className="truncate">{stepLabel(step)}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </CardContent>
+      </Card>
+    </RecordDetailFrame>
   );
 }
 // #endregion recipe:sequence-builder

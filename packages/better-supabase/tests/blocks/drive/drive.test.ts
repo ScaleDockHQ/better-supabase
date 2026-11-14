@@ -3,7 +3,14 @@ import { describe, expect, it } from "vitest";
 import type { DriveNode } from "../../../src/blocks/drive/index.ts";
 
 import { createAttachments } from "../../../src/blocks/attachments/attachments.ts";
-import { createDrive, driveSubject } from "../../../src/blocks/drive/index.ts";
+import {
+  createDrive,
+  createDrivePreviews,
+  driveSubject,
+  vercelBlobStore,
+} from "../../../src/blocks/drive/index.ts";
+import { DbException, dbError } from "../../../src/core/errors.ts";
+import { fakeBlobModule } from "../../fixtures/file-stores.ts";
 
 function transport(results: Record<string, (args: unknown) => unknown>) {
   const calls: [string, string, unknown][] = [];
@@ -789,5 +796,212 @@ describe("drive client", () => {
     expect(driveSubject({ accessRequests: ["read", "comment"] }).team).toEqual({
       actions: ["read", "comment"],
     });
+  });
+});
+
+describe("createDrive on another file store", () => {
+  const notUploadedYet = () =>
+    new DbException(
+      dbError("not_found", "The file was not uploaded yet", {
+        hint: "ATTACHMENT_NOT_UPLOADED",
+      }),
+    );
+
+  const PATH = "attachments/o/attachments/a2";
+
+  it("signs uploads and contributions with the store", async () => {
+    const blob = fakeBlobModule();
+
+    const drive = createDrive({
+      transport: transport({
+        drive_create_file: () => ({ node: FILE, attachment: ATTACHMENT }),
+      }),
+      files: vercelBlobStore(blob.module),
+    });
+
+    const upload = await drive
+      .upload({
+        organizationId: "o",
+        file: { name: "plan.pdf", mimeType: "application/pdf", size: 12 },
+      })
+      .orThrow();
+
+    expect(upload).toMatchObject({
+      signedUrl: `https://store.private.blob.vercel-storage.com/${PATH}?vercel-blob-operation=put`,
+      token: "",
+      method: "PUT",
+      headers: { "x-content-type": "application/pdf" },
+    });
+
+    const contribution = await drive
+      .contribute({
+        organizationId: "o",
+        file: {
+          parentId: "f1",
+          name: "plan.pdf",
+          mimeType: "application/pdf",
+          size: 12,
+        },
+      })
+      .orThrow();
+
+    expect(contribution).toMatchObject({ id: "n1", method: "PUT" });
+    expect(blob.calls.filter(([name]) => name === "issueSignedToken")).toEqual([
+      ["issueSignedToken", expect.objectContaining({ maximumSizeInBytes: 12 })],
+      ["issueSignedToken", expect.objectContaining({ maximumSizeInBytes: 12 })],
+    ]);
+  });
+
+  it("commits after the service confirms the upload from head", async () => {
+    const blob = fakeBlobModule();
+    const files = vercelBlobStore(blob.module);
+    await files
+      .put("attachments", "o/attachments/a2", new Blob(["twelve bytes"]), {
+        contentType: "application/pdf",
+      })
+      .orThrow();
+
+    let commits = 0;
+
+    const caller = transport({
+      drive_commit: () => {
+        commits += 1;
+
+        if (commits === 1) {
+          throw notUploadedYet();
+        }
+
+        return FILE;
+      },
+    });
+
+    const service = transport({
+      get_attachment: () => ATTACHMENT,
+      confirm_attachment: () => ({ ...ATTACHMENT, uploaded_at: "now" }),
+    });
+
+    const node = await createDrive({ transport: caller, service, files })
+      .commit({ id: "n1", attachmentId: "a2" })
+      .orThrow();
+
+    expect(node.id).toBe("n1");
+    expect(caller.calls.map(([, fn]) => fn)).toEqual([
+      "drive_commit",
+      "drive_commit",
+    ]);
+    expect(service.calls.map(([, fn, args]) => [fn, args])).toEqual([
+      ["get_attachment", { id: "a2" }],
+      [
+        "confirm_attachment",
+        { id: "a2", object: { size: 12, mimetype: "application/pdf" } },
+      ],
+    ]);
+
+    const refused = await createDrive({
+      transport: transport({
+        drive_commit: () => {
+          throw new DbException(
+            dbError("forbidden", "not allowed to change this file", {
+              hint: "DRIVE_FORBIDDEN",
+            }),
+          );
+        },
+      }),
+      service,
+      files,
+    }).commit({ id: "n1", attachmentId: "a2" });
+
+    expect(refused.ok ? undefined : refused.error.hint).toBe("DRIVE_FORBIDDEN");
+    expect(service.calls).toHaveLength(2);
+  });
+
+  it("puts, signs previews and prunes through the store", async () => {
+    const blob = fakeBlobModule();
+    const files = vercelBlobStore(blob.module);
+
+    const fake = transport({
+      drive_link_upload: () => ({ nodeId: "n1", attachment: ATTACHMENT }),
+      drive_commit: () => ({ id: "n1", attachmentId: "a2", committed: true }),
+      drive_get: () => FILE,
+      drive_previews: () => ({
+        attachmentId: "a2",
+        bucket: "attachments",
+        pages: 1,
+        prefix: "_previews/o/n1/a2",
+        paths: ["_previews/o/n1/a2/1"],
+      }),
+      drive_prune: () => [{ bucket: "attachments", path: "o/attachments/a2" }],
+    });
+
+    const drive = createDrive({ transport: fake, files });
+
+    expect(
+      await drive
+        .uploadToRequest({
+          token: "tok",
+          file: new Blob(["pdf"], { type: "application/pdf" }),
+          options: { name: "scan.pdf" },
+        })
+        .orThrow(),
+    ).toEqual({ passwordRequired: false, id: "n1", attachmentId: "a2" });
+    expect(blob.blobs.get(PATH)?.contentType).toBe("application/pdf");
+
+    expect(
+      await drive.previewUrls({ id: "n1", expiresIn: 60 }).orThrow(),
+    ).toEqual([
+      "https://store.private.blob.vercel-storage.com/attachments/_previews/o/n1/a2/1?vercel-blob-operation=get",
+    ]);
+
+    await drive.prune().orThrow();
+    expect(blob.blobs.has(PATH)).toBe(false);
+  });
+
+  it("renders previews from the store and writes the pages to it", async () => {
+    const blob = fakeBlobModule();
+    const files = vercelBlobStore(blob.module);
+    await files
+      .put("attachments", "o/attachments/a2", new Blob(["pdf"]))
+      .orThrow();
+
+    const previews = {
+      attachmentId: "a2",
+      bucket: "attachments",
+      pages: 1,
+      prefix: "_previews/o/n1/a2",
+      paths: ["_previews/o/n1/a2/1"],
+    };
+
+    const read: string[] = [];
+
+    const rendered = await createDrivePreviews({
+      transport: transport({
+        drive_get: () => ({ ...FILE, attachmentId: "a2" }),
+        get_attachment: () => ({
+          ...ATTACHMENT,
+          status: "clean",
+          uploaded_at: "2026-10-02T00:00:01Z",
+        }),
+        drive_previews: () => previews,
+        drive_set_previews: () => previews,
+      }),
+      files,
+      renderer: {
+        apiVersion: 1,
+        name: "test",
+        render: async (file) => {
+          read.push(await file.text());
+
+          return [{ body: new Blob(["page"]), contentType: "image/webp" }];
+        },
+      },
+    })
+      .render({ nodeId: "n1" })
+      .orThrow();
+
+    expect(rendered?.pages).toBe(1);
+    expect(read).toEqual(["pdf"]);
+    expect(blob.blobs.get("attachments/_previews/o/n1/a2/1")?.contentType).toBe(
+      "image/webp",
+    );
   });
 });

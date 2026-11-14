@@ -1,6 +1,6 @@
 -- better-supabase module: queue
--- @bsb-block queue@13 managed
--- @bsb-hash sha256:c4ecbf29b0767fea8a8423f141fc09b3d6aed935ebadd4705fdb128c1ad1c433
+-- @bsb-block queue@14 managed
+-- @bsb-hash sha256:66e3e62d25cef66bfef8a7078abf047b91aa22ef68c708947429a4fd20a02662
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -502,9 +502,18 @@ set search_path = ''
 as $$
 declare
   v_unschedule regprocedure := pg_catalog.to_regprocedure('cron.unschedule(text)');
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
+  v_found boolean;
   v_removed boolean;
 begin
-  if v_unschedule is null then
+  if v_unschedule is null or v_jobs is null then
+    return false;
+  end if;
+  -- cron.unschedule raises for a name it doesn't know.
+  execute format('select exists (select 1 from %s j where j.jobname = $1)', v_jobs)
+    into v_found
+    using job_name;
+  if not v_found then
     return false;
   end if;
   execute format('select %s($1::text)', v_unschedule::oid::regproc)
@@ -563,6 +572,51 @@ security definer
 set search_path = ''
 as $$
   select 0;
+$$;
+
+-- Supabase Cron as the clock: with blocks.queue.options.httpTick, pg_cron calls
+-- this every minute (job bsb_jobs_tick). It posts to the URL in the Vault secret
+-- jobs_tick_url (the drain route on pgmq, jobs.schedulesRoute on Vercel Queues)
+-- with the bearer token in jobs_tick_token, usually CRON_SECRET. Returns the
+-- pg_net request id, or null with a warning while a secret is missing.
+create or replace function better_supabase.http_tick()
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  -- pg_net and Vault are looked up, not named, so plpgsql_check (supabase db
+  -- lint) passes without them.
+  v_post regprocedure := pg_catalog.to_regprocedure('net.http_post(text, jsonb, jsonb, jsonb, integer)');
+  v_url text;
+  v_token text;
+  v_id bigint;
+begin
+  if v_post is null then
+    raise exception 'the queue tick needs pg_net: create extension pg_net'
+      using hint = 'QUEUE_TICK_NO_PG_NET';
+  end if;
+  if pg_catalog.to_regclass('vault.decrypted_secrets') is null then
+    raise exception 'the queue tick reads its URL and token from Vault: create extension supabase_vault'
+      using hint = 'QUEUE_TICK_NO_VAULT';
+  end if;
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_url using 'jobs_tick_url';
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_token using 'jobs_tick_token';
+  if coalesce(v_url, '') = '' or coalesce(v_token, '') = '' then
+    raise warning 'http_tick skipped: set the Vault secrets jobs_tick_url and jobs_tick_token';
+    return null;
+  end if;
+  execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
+    into v_id
+    using v_url, '{}'::jsonb, jsonb_build_object(
+      'content-type', 'application/json',
+      'authorization', 'Bearer ' || v_token
+    ), 55000;
+  return v_id;
+end;
 $$;
 
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
@@ -714,6 +768,8 @@ revoke execute on function better_supabase.list_dead_jobs(text, integer, bigint)
 grant execute on function better_supabase.list_dead_jobs(text, integer, bigint) to service_role;
 revoke execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) from public, anon, authenticated;
 grant execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) to service_role;
+revoke execute on function better_supabase.http_tick() from public, anon, authenticated;
+grant execute on function better_supabase.http_tick() to service_role;
 revoke execute on function better_supabase.claim_lease(text, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_lease(text, text, integer) to service_role;
 revoke execute on function better_supabase.extend_lease_claim(text, text, uuid, integer) from public, anon, authenticated;

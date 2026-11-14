@@ -6,11 +6,13 @@ import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type {
+  DueSchedule,
   QueueMessageBody,
   QueueMessageRow,
   QueueProvider,
   QueueRpcClient,
   QueueStats,
+  ScheduleProvider,
   StoredSchedule,
 } from "./backends.ts";
 import type {
@@ -26,6 +28,7 @@ import type {
   QueueSchemas,
   RunSchedulesOptions,
   ScheduleOptions,
+  SchedulesRouteResult,
   WorkOptions,
 } from "./types.ts";
 
@@ -61,6 +64,7 @@ import {
   transportQueueProvider,
 } from "./backends.ts";
 import { unwrap, wrapPayload } from "./envelope.ts";
+import { checkSchedulerPair } from "./scheduler-pair.ts";
 
 /**
  * Transient claim errors in a row a lane retries, with backoff, before the loop
@@ -173,6 +177,9 @@ function backendOf(
 const later = (a: Temporal.Instant, b: Temporal.Instant): Temporal.Instant =>
   temporal().Instant.compare(a, b) >= 0 ? a : b;
 
+/** Up to 100 messages go in one `sendBatch`, the Vercel Queues limit. */
+const BATCH = 100;
+
 /**
  * Typed jobs on Supabase Queues (pgmq), over the `jobs` SQL module.
  *
@@ -200,6 +207,15 @@ export function createQueue<const Q extends QueueSchemas>(
   }
 
   const transport = backendOf(options, now);
+  const scheduler: ScheduleProvider = options.scheduler ?? transport;
+
+  if (options.scheduler) {
+    checkSchedulerPair(
+      transport,
+      options.scheduler,
+      options.backend !== undefined,
+    );
+  }
 
   const schemaOf = (queue: string): StandardSchemaV1 => {
     const schema = queues[queue];
@@ -478,26 +494,23 @@ export function createQueue<const Q extends QueueSchemas>(
   const runSchedules = async (
     scheduleOptions: RunSchedulesOptions,
   ): Promise<number> => {
-    if (!transport.dueSchedules || !transport.advanceSchedule) {
+    if (!scheduler.dueSchedules || !scheduler.advanceSchedule) {
       return 0;
     }
 
-    const due = await transport.dueSchedules(
+    const advanceSchedule = scheduler.advanceSchedule.bind(scheduler);
+
+    const due = await scheduler.dueSchedules(
       scheduleOptions.lease ?? 60,
       scheduleOptions.batch ?? 100,
     );
 
+    const keyOf = (schedule: DueSchedule): string =>
+      `schedule:${schedule.name}:${schedule.nextRun.toString()}`;
+
     let ran = 0;
 
-    for (const schedule of due) {
-      await transport.send(
-        schedule.queue,
-        schedule.payload,
-        0,
-        5,
-        `schedule:${schedule.name}:${schedule.nextRun.toString()}`,
-      );
-
+    const advance = async (schedule: DueSchedule): Promise<void> => {
       const next = millis(
         nextCronRun(
           schedule.cron,
@@ -506,11 +519,60 @@ export function createQueue<const Q extends QueueSchemas>(
         ),
       );
 
-      if (
-        await transport.advanceSchedule(schedule.name, schedule.nextRun, next)
-      ) {
+      if (await advanceSchedule(schedule.name, schedule.nextRun, next)) {
         ran += 1;
       }
+    };
+
+    if (transport.sendBatch === undefined || due.length < 2) {
+      for (const schedule of due) {
+        await transport.send(
+          schedule.queue,
+          schedule.payload,
+          0,
+          5,
+          keyOf(schedule),
+        );
+        await advance(schedule);
+      }
+
+      return ran;
+    }
+
+    const sendBatch = transport.sendBatch.bind(transport);
+    const failures: Error[] = [];
+
+    for (const queue of new Set(due.map((schedule) => schedule.queue))) {
+      const runs = due.filter((schedule) => schedule.queue === queue);
+
+      for (let start = 0; start < runs.length; start += BATCH) {
+        const chunk = runs.slice(start, start + BATCH);
+
+        const sent = await sendBatch(
+          queue,
+          chunk.map((schedule) => ({
+            payload: schedule.payload,
+            delay: 0,
+            maxAttempts: 5,
+            dedupeKey: keyOf(schedule),
+          })),
+        );
+
+        for (const [index, schedule] of chunk.entries()) {
+          const outcome = sent[index];
+
+          if (outcome instanceof Error) {
+            failures.push(outcome);
+          } else {
+            await advance(schedule);
+          }
+        }
+      }
+    }
+
+    // Unsent schedules stay due, so the next run sends them again.
+    if (failures[0] !== undefined) {
+      throw failures[0];
     }
 
     return ran;
@@ -587,7 +649,7 @@ export function createQueue<const Q extends QueueSchemas>(
     canonicalJson(current.payload) === canonicalJson(prepared.payload ?? {});
 
   const write = (prepared: PreparedSchedule): Promise<void> =>
-    transport.schedule(
+    scheduler.schedule(
       prepared.name,
       prepared.cron,
       prepared.queue,
@@ -834,7 +896,8 @@ export function createQueue<const Q extends QueueSchemas>(
         return run(() => write(prepared.data));
       });
     },
-    unschedule: (name) => run(() => transport.unschedule(name)),
+    unschedule: (name, unscheduleOptions = {}) =>
+      run(() => scheduler.unschedule(name, unscheduleOptions.tenant)),
     ensureSchedules({ definitions, options: ensureOptions }) {
       return AsyncResult.from(async () => {
         const { prefix, tenant } = ensureOptions;
@@ -885,11 +948,11 @@ export function createQueue<const Q extends QueueSchemas>(
         }
 
         return run(async () => {
-          if (!transport.listSchedules) {
+          if (!scheduler.listSchedules) {
             sqlOnly("ensureSchedules");
           }
 
-          const existing = await transport.listSchedules({
+          const existing = await scheduler.listSchedules({
             prefix,
             ...(tenant === undefined ? {} : { tenant }),
           });
@@ -913,7 +976,12 @@ export function createQueue<const Q extends QueueSchemas>(
               continue;
             }
 
-            if (await transport.unschedule(schedule.name)) {
+            if (
+              await scheduler.unschedule(
+                schedule.name,
+                schedule.tenant ?? undefined,
+              )
+            ) {
               removed.push(schedule.name);
             }
           }
@@ -924,24 +992,73 @@ export function createQueue<const Q extends QueueSchemas>(
     },
     listSchedules: (filter = {}) =>
       run(async () => {
-        if (!transport.listSchedules) {
+        if (!scheduler.listSchedules) {
           sqlOnly("listSchedules");
         }
 
-        return (await transport.listSchedules(filter)).map(
+        return (await scheduler.listSchedules(filter)).map(
           ({ payload: _payload, ...info }) => info,
         );
       }),
     unscheduleAll: (filter) =>
       run(() => {
-        if (!transport.unscheduleTenant) {
+        if (!scheduler.unscheduleTenant) {
           sqlOnly("unscheduleAll");
         }
 
-        return transport.unscheduleTenant(filter.tenant);
+        return scheduler.unscheduleTenant(filter.tenant);
       }),
     runSchedules: (scheduleOptions = {}) =>
       run(() => runSchedules(scheduleOptions)),
+    enqueueScheduledRun: (input) =>
+      run(async () => {
+        schemaOf(input.queue);
+
+        if (input.probe !== undefined) {
+          if (!transport.hasWork) {
+            sqlOnly("A schedule probe");
+          }
+
+          if (!(await transport.hasWork(input.probe))) {
+            return null;
+          }
+        }
+
+        if (!transport.sendOnce) {
+          sqlOnly("enqueueScheduledRun");
+        }
+
+        return transport.sendOnce(
+          input.queue,
+          input.payload,
+          0,
+          input.maxAttempts ?? 5,
+          `schedule:${input.name}:${input.executionId}`,
+        );
+      }),
+    schedulesRoute: (routeOptions) =>
+      cronRoute(
+        {
+          name: "schedules",
+          secret: routeOptions.secret,
+          problem: routeOptions.problem,
+          caller: routeOptions.caller,
+        },
+        async () => {
+          const ran = await run(() => runSchedules(routeOptions));
+
+          if (!ran.ok) {
+            routeOptions.onError?.(ran.error);
+          }
+
+          const result: SchedulesRouteResult = {
+            schedules: ran.ok ? ran.data : 0,
+            errors: ran.ok ? 0 : 1,
+          };
+
+          return Response.json(result);
+        },
+      ),
     drain: ({ queue, handler, ...drainOptions }) =>
       loop(queue, handler, drainOptions, false, budget(drainOptions.budgetMs)),
     work: ({ queue, handler, ...workOptions }) =>
@@ -958,7 +1075,9 @@ export function createQueue<const Q extends QueueSchemas>(
         });
 
         const executed = await execute(
-          job,
+          delivery.schedule === undefined
+            ? job
+            : { ...job, schedule: delivery.schedule },
           handler,
           runOptions.allTenants,
           runOptions.signal ?? new AbortController().signal,
@@ -978,6 +1097,7 @@ export function createQueue<const Q extends QueueSchemas>(
           name: "drain",
           secret: routeOptions.secret,
           problem: routeOptions.problem,
+          caller: routeOptions.caller,
         },
         async (request) => {
           const spent = budget(routeOptions.budgetMs ?? 50_000);

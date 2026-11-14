@@ -565,6 +565,14 @@
     "message": "The file was not uploaded yet"
   },
   {
+    "code": "ATTACHMENT_OBJECT_INVALID",
+    "message": "object needs a whole size of 0 or more and a MIME type"
+  },
+  {
+    "code": "ATTACHMENT_OBJECT_REFUSED",
+    "message": "The file breaks the size limit or MIME types of its bucket"
+  },
+  {
     "code": "ATTACHMENT_SOURCE_UNKNOWN",
     "message": "the source is not in options.sources and has no import run"
   },
@@ -4491,6 +4499,15 @@
   {
     "code": "QUALIFICATION_TYPE_NOT_FOUND",
     "message": "qualification type not found"
+  },
+  {
+    "code": "QUEUE_TICK_NO_PG_CRON"
+  },
+  {
+    "code": "QUEUE_TICK_NO_PG_NET"
+  },
+  {
+    "code": "QUEUE_TICK_NO_VAULT"
   },
   {
     "code": "QUOTA_EXCEEDED"

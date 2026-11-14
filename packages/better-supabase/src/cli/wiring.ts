@@ -324,6 +324,50 @@ export async function wiringFiles(
   return { files, notes };
 }
 
+/**
+ * The `schedules` of `vercel.json` that call the workers with a path and a
+ * cron, as path targets with `GET` (Vercel Schedules sends `POST` by default).
+ */
+export function vercelSchedulesFragment(
+  workers: readonly WiringWorker[],
+): string | undefined {
+  const entries = workers.flatMap((worker) =>
+    worker.path === undefined || worker.schedule === undefined
+      ? []
+      : [
+          [
+            worker.name,
+            {
+              schedule: worker.schedule,
+              path: worker.path,
+              requestMethod: "GET",
+            },
+          ] as const,
+        ],
+  );
+
+  return entries.length === 0
+    ? undefined
+    : JSON.stringify({ schedules: Object.fromEntries(entries) });
+}
+
+const PAIRS_DOCS =
+  "https://bettersupabase.com/docs/blocks/queue#queues-and-schedulers";
+
+const TICK_SECRETS =
+  "`select vault.create_secret('<route URL>', 'jobs_tick_url'); select vault.create_secret('<CRON_SECRET>', 'jobs_tick_token');`";
+
+/** The wiring of each queue and scheduler pair, for the queue block. */
+function queuePairs(): string {
+  return [
+    `Pick the queue and scheduler pair (${PAIRS_DOCS}):`,
+    `     - Supabase Queues with Supabase Cron (the default): call the drain from a Vercel schedule, or set blocks.queue.options.httpTick and the Vault secrets ${TICK_SECRETS} with the drain route's URL.`,
+    '     - Supabase Queues with Vercel Schedules: `createQueue({ sql, scheduler: vercelScheduler(Schedules, { bridge: "bsb_schedules" }) })`, and serve `vercelScheduleBridgeRoute(jobs, { client })` with a `queue/v2beta` trigger on the topic bsb_schedules.',
+    `     - Vercel Queues with Supabase Cron: set blocks.queue.options.scheduler to "drain" and httpTick to true, pass \`sqlScheduler(sql, { mode: "drain" })\`, serve \`jobs.schedulesRoute({ secret })\` and set the Vault secrets ${TICK_SECRETS} with its URL.`,
+    "     - Vercel Queues with Vercel Schedules: `createQueue({ backend: vercelQueueProvider(queue), scheduler: vercelScheduler(Schedules) })`, with a `queue/v2beta` trigger per queue topic on the `vercelQueueRoute` route.",
+  ].join("\n");
+}
+
 /** The numbered steps left after the wiring is written. */
 export function wiringChecklist(
   context: TemplateContext,
@@ -349,6 +393,18 @@ export function wiringChecklist(
         ? `Run the ${worker.name} worker (${worker.block}): ${worker.description}`
         : `Call ${worker.path} ${worker.schedule === undefined ? "from a cron" : `on the cron \`${worker.schedule}\``} with \`Authorization: Bearer $CRON_SECRET\` (${worker.block}: ${worker.description})`,
     );
+  }
+
+  const fragment = vercelSchedulesFragment(plan.workers);
+
+  if (fragment !== undefined) {
+    steps.push(
+      `On Vercel, add the schedules to vercel.json (a path target sends CRON_SECRET; remove any \`crons\` entry for the same path): \`${fragment}\``,
+    );
+  }
+
+  if (plan.workers.some((worker) => worker.block === "queue")) {
+    steps.push(queuePairs());
   }
 
   if (plan.schedules.length > 0) {

@@ -2,6 +2,21 @@ export { defineBucket, parseSize, TTL } from "./bucket.ts";
 
 export { fromStorageError } from "./errors.ts";
 
+export {
+  type FileBody,
+  type FileHead,
+  type FileStore,
+  fileStoreOf,
+  type SignedUpload,
+  type SupabaseFileBucket,
+  type SupabaseFileStorage,
+  type SupabaseFileStore,
+  supabaseFileStore,
+  type VercelBlobModule,
+  vercelBlobStore,
+  type VercelBlobStoreOptions,
+} from "./file-store.ts";
+
 export { storageImageSrcSet, storageImageUrl } from "./image-url.ts";
 
 export type { StorageImageOptions, StorageImageSize } from "./image-url.ts";

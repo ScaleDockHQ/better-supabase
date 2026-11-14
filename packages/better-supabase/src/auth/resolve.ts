@@ -10,6 +10,7 @@ import { extractCredentials, verifyCredentials } from "@supabase/server/core";
 
 import type { DbError } from "../core/errors.ts";
 import type { AuthOutageEvent, RefreshEvent } from "../core/events.ts";
+import type { JwksSourceOptions, JwksStore } from "../core/jwks-cache.ts";
 import type { Logger } from "../core/logger.ts";
 import type { StandardSchemaV1 } from "../core/standard.ts";
 import type { BetterSupabaseEnv } from "../env/index.ts";
@@ -211,6 +212,12 @@ export interface ResolveAuthOptions {
    */
   readonly jwks?: SupabaseEnv["jwks"] | false;
   /**
+   * Shares the fetched JWKS between instances, such as
+   * `vercelRuntimeCache(getCache)`. A shared copy is used only while it is
+   * younger than 600 seconds from its original fetch, as one in memory is.
+   */
+  readonly jwksStore?: JwksStore;
+  /**
    * Verify HS256 tokens without a `kid` locally with this shared secret, the
    * tokens Supabase Lite issues (`auth.jwt_secret`). Tokens with a `kid` still
    * verify against the JWKS. `createServer` sets it from `SUPABASE_JWT_SECRET`
@@ -359,6 +366,15 @@ function foreignIssuer(
       };
 }
 
+/** The `sharedJwks` options the auth options set. */
+function sharedOptionsOf(options: ResolveAuthOptions): JwksSourceOptions {
+  return {
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+    ...(options.now ? { now: options.now } : {}),
+    ...(options.jwksStore ? { store: options.jwksStore } : {}),
+  };
+}
+
 /**
  * The keys to verify `token` with. A JWKS URL goes through the process-wide
  * cache (`sharedJwks`) and is passed inline, so `@supabase/server` never keeps
@@ -379,10 +395,7 @@ async function keysFor(
     return NO_KEYS;
   }
 
-  const shared = {
-    ...(options.fetch ? { fetch: options.fetch } : {}),
-    ...(options.now ? { now: options.now } : {}),
-  };
+  const shared = sharedOptionsOf(options);
 
   let result = await sharedJwks(source, false, shared);
   const kid = decodeJwtHeader(token)?.["kid"];
@@ -604,10 +617,9 @@ export async function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
     return;
   }
 
-  await sharedJwks(source, false, {
-    ...(options.fetch ? { fetch: options.fetch } : {}),
-    ...(options.now ? { now: options.now } : {}),
-  }).catch(() => undefined);
+  await sharedJwks(source, false, sharedOptionsOf(options)).catch(
+    () => undefined,
+  );
 }
 
 async function verifyOnce(

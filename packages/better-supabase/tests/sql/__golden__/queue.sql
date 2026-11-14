@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@13 managed
--- @bsb-hash sha256:6d4fa7720f9fd7103027af8b34e2707fc72240cdf11abc0e3e0b2058e32402cf
+-- @bsb-block queue@14 managed
+-- @bsb-hash sha256:c139c6be1f5031c83e1fe6bbc28f7abfd8219c71f74b151ee64498fa806ddb1f
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -499,9 +499,18 @@ set search_path = ''
 as $$
 declare
   v_unschedule regprocedure := pg_catalog.to_regprocedure('cron.unschedule(text)');
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
+  v_found boolean;
   v_removed boolean;
 begin
-  if v_unschedule is null then
+  if v_unschedule is null or v_jobs is null then
+    return false;
+  end if;
+  -- cron.unschedule raises for a name it doesn't know.
+  execute format('select exists (select 1 from %s j where j.jobname = $1)', v_jobs)
+    into v_found
+    using job_name;
+  if not v_found then
     return false;
   end if;
   execute format('select %s($1::text)', v_unschedule::oid::regproc)
@@ -560,6 +569,51 @@ security definer
 set search_path = ''
 as $$
   select 0;
+$$;
+
+-- Supabase Cron as the clock: with blocks.queue.options.httpTick, pg_cron calls
+-- this every minute (job bsb_jobs_tick). It posts to the URL in the Vault secret
+-- jobs_tick_url (the drain route on pgmq, jobs.schedulesRoute on Vercel Queues)
+-- with the bearer token in jobs_tick_token, usually CRON_SECRET. Returns the
+-- pg_net request id, or null with a warning while a secret is missing.
+create or replace function better_supabase.http_tick()
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  -- pg_net and Vault are looked up, not named, so plpgsql_check (supabase db
+  -- lint) passes without them.
+  v_post regprocedure := pg_catalog.to_regprocedure('net.http_post(text, jsonb, jsonb, jsonb, integer)');
+  v_url text;
+  v_token text;
+  v_id bigint;
+begin
+  if v_post is null then
+    raise exception 'the queue tick needs pg_net: create extension pg_net'
+      using hint = 'QUEUE_TICK_NO_PG_NET';
+  end if;
+  if pg_catalog.to_regclass('vault.decrypted_secrets') is null then
+    raise exception 'the queue tick reads its URL and token from Vault: create extension supabase_vault'
+      using hint = 'QUEUE_TICK_NO_VAULT';
+  end if;
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_url using 'jobs_tick_url';
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_token using 'jobs_tick_token';
+  if coalesce(v_url, '') = '' or coalesce(v_token, '') = '' then
+    raise warning 'http_tick skipped: set the Vault secrets jobs_tick_url and jobs_tick_token';
+    return null;
+  end if;
+  execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
+    into v_id
+    using v_url, '{}'::jsonb, jsonb_build_object(
+      'content-type', 'application/json',
+      'authorization', 'Bearer ' || v_token
+    ), 55000;
+  return v_id;
+end;
 $$;
 
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
@@ -711,6 +765,8 @@ revoke execute on function better_supabase.list_dead_jobs(text, integer, bigint)
 grant execute on function better_supabase.list_dead_jobs(text, integer, bigint) to service_role;
 revoke execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) from public, anon, authenticated;
 grant execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) to service_role;
+revoke execute on function better_supabase.http_tick() from public, anon, authenticated;
+grant execute on function better_supabase.http_tick() to service_role;
 revoke execute on function better_supabase.claim_lease(text, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_lease(text, text, integer) to service_role;
 revoke execute on function better_supabase.extend_lease_claim(text, text, uuid, integer) from public, anon, authenticated;
@@ -723,7 +779,7 @@ grant execute on function better_supabase.release_lease_claim(text, text, uuid) 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:86efe00da9dadcee2bdf93d61c07d6c2024cd5169b02d94c307e4fd0be1f90e2
+-- @bsb-hash sha256:fa8ce95b3ded0ed37ebd683153a0c9146ca7c434b373a882f59229e979c21151
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -735,14 +791,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 13, 'managed')
+values ('queue', 14, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@13 managed
--- @bsb-hash sha256:c4ecbf29b0767fea8a8423f141fc09b3d6aed935ebadd4705fdb128c1ad1c433
+-- @bsb-block queue@14 managed
+-- @bsb-hash sha256:66e3e62d25cef66bfef8a7078abf047b91aa22ef68c708947429a4fd20a02662
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1244,9 +1300,18 @@ set search_path = ''
 as $$
 declare
   v_unschedule regprocedure := pg_catalog.to_regprocedure('cron.unschedule(text)');
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
+  v_found boolean;
   v_removed boolean;
 begin
-  if v_unschedule is null then
+  if v_unschedule is null or v_jobs is null then
+    return false;
+  end if;
+  -- cron.unschedule raises for a name it doesn't know.
+  execute format('select exists (select 1 from %s j where j.jobname = $1)', v_jobs)
+    into v_found
+    using job_name;
+  if not v_found then
     return false;
   end if;
   execute format('select %s($1::text)', v_unschedule::oid::regproc)
@@ -1305,6 +1370,51 @@ security definer
 set search_path = ''
 as $$
   select 0;
+$$;
+
+-- Supabase Cron as the clock: with blocks.queue.options.httpTick, pg_cron calls
+-- this every minute (job bsb_jobs_tick). It posts to the URL in the Vault secret
+-- jobs_tick_url (the drain route on pgmq, jobs.schedulesRoute on Vercel Queues)
+-- with the bearer token in jobs_tick_token, usually CRON_SECRET. Returns the
+-- pg_net request id, or null with a warning while a secret is missing.
+create or replace function better_supabase.http_tick()
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  -- pg_net and Vault are looked up, not named, so plpgsql_check (supabase db
+  -- lint) passes without them.
+  v_post regprocedure := pg_catalog.to_regprocedure('net.http_post(text, jsonb, jsonb, jsonb, integer)');
+  v_url text;
+  v_token text;
+  v_id bigint;
+begin
+  if v_post is null then
+    raise exception 'the queue tick needs pg_net: create extension pg_net'
+      using hint = 'QUEUE_TICK_NO_PG_NET';
+  end if;
+  if pg_catalog.to_regclass('vault.decrypted_secrets') is null then
+    raise exception 'the queue tick reads its URL and token from Vault: create extension supabase_vault'
+      using hint = 'QUEUE_TICK_NO_VAULT';
+  end if;
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_url using 'jobs_tick_url';
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_token using 'jobs_tick_token';
+  if coalesce(v_url, '') = '' or coalesce(v_token, '') = '' then
+    raise warning 'http_tick skipped: set the Vault secrets jobs_tick_url and jobs_tick_token';
+    return null;
+  end if;
+  execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
+    into v_id
+    using v_url, '{}'::jsonb, jsonb_build_object(
+      'content-type', 'application/json',
+      'authorization', 'Bearer ' || v_token
+    ), 55000;
+  return v_id;
+end;
 $$;
 
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
@@ -1456,6 +1566,8 @@ revoke execute on function better_supabase.list_dead_jobs(text, integer, bigint)
 grant execute on function better_supabase.list_dead_jobs(text, integer, bigint) to service_role;
 revoke execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) from public, anon, authenticated;
 grant execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) to service_role;
+revoke execute on function better_supabase.http_tick() from public, anon, authenticated;
+grant execute on function better_supabase.http_tick() to service_role;
 revoke execute on function better_supabase.claim_lease(text, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_lease(text, text, integer) to service_role;
 revoke execute on function better_supabase.extend_lease_claim(text, text, uuid, integer) from public, anon, authenticated;
@@ -1468,7 +1580,7 @@ grant execute on function better_supabase.release_lease_claim(text, text, uuid) 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:86efe00da9dadcee2bdf93d61c07d6c2024cd5169b02d94c307e4fd0be1f90e2
+-- @bsb-hash sha256:fa8ce95b3ded0ed37ebd683153a0c9146ca7c434b373a882f59229e979c21151
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1480,7 +1592,7 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 13, 'managed')
+values ('queue', 14, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1489,8 +1601,8 @@ on conflict (name) do update
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@13 managed
--- @bsb-hash sha256:80e3426c14d711c903faf6e4a07b70c7bca37e2ebe7284794e3738ca48c0986b
+-- @bsb-block queue@14 managed
+-- @bsb-hash sha256:b30e8e2bf3aaab2110042a31942086ac089f7ab1d3e81ac5a2d8ff897cadd365
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1988,9 +2100,18 @@ set search_path = ''
 as $$
 declare
   v_unschedule regprocedure := pg_catalog.to_regprocedure('cron.unschedule(text)');
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
+  v_found boolean;
   v_removed boolean;
 begin
-  if v_unschedule is null then
+  if v_unschedule is null or v_jobs is null then
+    return false;
+  end if;
+  -- cron.unschedule raises for a name it doesn't know.
+  execute format('select exists (select 1 from %s j where j.jobname = $1)', v_jobs)
+    into v_found
+    using job_name;
+  if not v_found then
     return false;
   end if;
   execute format('select %s($1::text)', v_unschedule::oid::regproc)
@@ -2049,6 +2170,51 @@ security definer
 set search_path = ''
 as $$
   select 0;
+$$;
+
+-- Supabase Cron as the clock: with blocks.queue.options.httpTick, pg_cron calls
+-- this every minute (job bsb_jobs_tick). It posts to the URL in the Vault secret
+-- jobs_tick_url (the drain route on pgmq, jobs.schedulesRoute on Vercel Queues)
+-- with the bearer token in jobs_tick_token, usually CRON_SECRET. Returns the
+-- pg_net request id, or null with a warning while a secret is missing.
+create or replace function better_supabase.http_tick()
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  -- pg_net and Vault are looked up, not named, so plpgsql_check (supabase db
+  -- lint) passes without them.
+  v_post regprocedure := pg_catalog.to_regprocedure('net.http_post(text, jsonb, jsonb, jsonb, integer)');
+  v_url text;
+  v_token text;
+  v_id bigint;
+begin
+  if v_post is null then
+    raise exception 'the queue tick needs pg_net: create extension pg_net'
+      using hint = 'QUEUE_TICK_NO_PG_NET';
+  end if;
+  if pg_catalog.to_regclass('vault.decrypted_secrets') is null then
+    raise exception 'the queue tick reads its URL and token from Vault: create extension supabase_vault'
+      using hint = 'QUEUE_TICK_NO_VAULT';
+  end if;
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_url using 'jobs_tick_url';
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_token using 'jobs_tick_token';
+  if coalesce(v_url, '') = '' or coalesce(v_token, '') = '' then
+    raise warning 'http_tick skipped: set the Vault secrets jobs_tick_url and jobs_tick_token';
+    return null;
+  end if;
+  execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
+    into v_id
+    using v_url, '{}'::jsonb, jsonb_build_object(
+      'content-type', 'application/json',
+      'authorization', 'Bearer ' || v_token
+    ), 55000;
+  return v_id;
+end;
 $$;
 
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
@@ -2200,6 +2366,8 @@ revoke execute on function better_supabase.list_dead_jobs(text, integer, bigint)
 grant execute on function better_supabase.list_dead_jobs(text, integer, bigint) to service_role;
 revoke execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) from public, anon, authenticated;
 grant execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) to service_role;
+revoke execute on function better_supabase.http_tick() from public, anon, authenticated;
+grant execute on function better_supabase.http_tick() to service_role;
 revoke execute on function better_supabase.claim_lease(text, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_lease(text, text, integer) to service_role;
 revoke execute on function better_supabase.extend_lease_claim(text, text, uuid, integer) from public, anon, authenticated;
@@ -2406,6 +2574,15 @@ as $$ select "better_supabase"."retry_dead_jobs"($1, $2, $3) $$;
 revoke execute on function "api"."retry_dead_jobs"(text, bigint[], integer) from public, anon, authenticated;
 grant execute on function "api"."retry_dead_jobs"(text, bigint[], integer) to service_role;
 
+create or replace function "api"."http_tick"()
+returns bigint
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."http_tick"() $$;
+revoke execute on function "api"."http_tick"() from public, anon, authenticated;
+grant execute on function "api"."http_tick"() to service_role;
+
 create or replace function "api"."claim_lease"(scope text, key text, lease_seconds integer default 60)
 returns table (lease_state text, lease_holder uuid, lease_expires_at timestamptz, retry_after_ms integer)
 language sql
@@ -2445,7 +2622,7 @@ grant execute on function "api"."release_lease_claim"(text, text, uuid) to servi
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:86efe00da9dadcee2bdf93d61c07d6c2024cd5169b02d94c307e4fd0be1f90e2
+-- @bsb-hash sha256:fa8ce95b3ded0ed37ebd683153a0c9146ca7c434b373a882f59229e979c21151
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2457,14 +2634,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 13, 'managed')
+values ('queue', 14, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@13 managed
--- @bsb-hash sha256:9d24069e3b3c11a00d49178ec1a95f29d5b8facd5122c134db44663fa3e49f87
+-- @bsb-block queue@14 managed
+-- @bsb-hash sha256:7ca943cc50b186fc1b093e5c2befacba99ba9be818c204b57a0b4884a3b3191c
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2962,9 +3139,18 @@ set search_path = ''
 as $$
 declare
   v_unschedule regprocedure := pg_catalog.to_regprocedure('cron.unschedule(text)');
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
+  v_found boolean;
   v_removed boolean;
 begin
-  if v_unschedule is null then
+  if v_unschedule is null or v_jobs is null then
+    return false;
+  end if;
+  -- cron.unschedule raises for a name it doesn't know.
+  execute format('select exists (select 1 from %s j where j.jobname = $1)', v_jobs)
+    into v_found
+    using job_name;
+  if not v_found then
     return false;
   end if;
   execute format('select %s($1::text)', v_unschedule::oid::regproc)
@@ -3023,6 +3209,51 @@ security definer
 set search_path = ''
 as $$
   select 0;
+$$;
+
+-- Supabase Cron as the clock: with blocks.queue.options.httpTick, pg_cron calls
+-- this every minute (job bsb_jobs_tick). It posts to the URL in the Vault secret
+-- jobs_tick_url (the drain route on pgmq, jobs.schedulesRoute on Vercel Queues)
+-- with the bearer token in jobs_tick_token, usually CRON_SECRET. Returns the
+-- pg_net request id, or null with a warning while a secret is missing.
+create or replace function better_supabase.http_tick()
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  -- pg_net and Vault are looked up, not named, so plpgsql_check (supabase db
+  -- lint) passes without them.
+  v_post regprocedure := pg_catalog.to_regprocedure('net.http_post(text, jsonb, jsonb, jsonb, integer)');
+  v_url text;
+  v_token text;
+  v_id bigint;
+begin
+  if v_post is null then
+    raise exception 'the queue tick needs pg_net: create extension pg_net'
+      using hint = 'QUEUE_TICK_NO_PG_NET';
+  end if;
+  if pg_catalog.to_regclass('vault.decrypted_secrets') is null then
+    raise exception 'the queue tick reads its URL and token from Vault: create extension supabase_vault'
+      using hint = 'QUEUE_TICK_NO_VAULT';
+  end if;
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_url using 'jobs_tick_url';
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_token using 'jobs_tick_token';
+  if coalesce(v_url, '') = '' or coalesce(v_token, '') = '' then
+    raise warning 'http_tick skipped: set the Vault secrets jobs_tick_url and jobs_tick_token';
+    return null;
+  end if;
+  execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
+    into v_id
+    using v_url, '{}'::jsonb, jsonb_build_object(
+      'content-type', 'application/json',
+      'authorization', 'Bearer ' || v_token
+    ), 55000;
+  return v_id;
+end;
 $$;
 
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
@@ -3172,6 +3403,8 @@ revoke execute on function better_supabase.list_dead_jobs(text, integer, bigint)
 grant execute on function better_supabase.list_dead_jobs(text, integer, bigint) to service_role;
 revoke execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) from public, anon, authenticated;
 grant execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) to service_role;
+revoke execute on function better_supabase.http_tick() from public, anon, authenticated;
+grant execute on function better_supabase.http_tick() to service_role;
 revoke execute on function better_supabase.claim_lease(text, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_lease(text, text, integer) to service_role;
 revoke execute on function better_supabase.extend_lease_claim(text, text, uuid, integer) from public, anon, authenticated;
@@ -3184,7 +3417,7 @@ grant execute on function better_supabase.release_lease_claim(text, text, uuid) 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:86efe00da9dadcee2bdf93d61c07d6c2024cd5169b02d94c307e4fd0be1f90e2
+-- @bsb-hash sha256:fa8ce95b3ded0ed37ebd683153a0c9146ca7c434b373a882f59229e979c21151
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3196,14 +3429,14 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 13, 'managed')
+values ('queue', 14, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
--- @bsb-block queue@13 managed
--- @bsb-hash sha256:6d4fa7720f9fd7103027af8b34e2707fc72240cdf11abc0e3e0b2058e32402cf
+-- @bsb-block queue@14 managed
+-- @bsb-hash sha256:c139c6be1f5031c83e1fe6bbc28f7abfd8219c71f74b151ee64498fa806ddb1f
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3701,9 +3934,18 @@ set search_path = ''
 as $$
 declare
   v_unschedule regprocedure := pg_catalog.to_regprocedure('cron.unschedule(text)');
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
+  v_found boolean;
   v_removed boolean;
 begin
-  if v_unschedule is null then
+  if v_unschedule is null or v_jobs is null then
+    return false;
+  end if;
+  -- cron.unschedule raises for a name it doesn't know.
+  execute format('select exists (select 1 from %s j where j.jobname = $1)', v_jobs)
+    into v_found
+    using job_name;
+  if not v_found then
     return false;
   end if;
   execute format('select %s($1::text)', v_unschedule::oid::regproc)
@@ -3762,6 +4004,51 @@ security definer
 set search_path = ''
 as $$
   select 0;
+$$;
+
+-- Supabase Cron as the clock: with blocks.queue.options.httpTick, pg_cron calls
+-- this every minute (job bsb_jobs_tick). It posts to the URL in the Vault secret
+-- jobs_tick_url (the drain route on pgmq, jobs.schedulesRoute on Vercel Queues)
+-- with the bearer token in jobs_tick_token, usually CRON_SECRET. Returns the
+-- pg_net request id, or null with a warning while a secret is missing.
+create or replace function better_supabase.http_tick()
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  -- pg_net and Vault are looked up, not named, so plpgsql_check (supabase db
+  -- lint) passes without them.
+  v_post regprocedure := pg_catalog.to_regprocedure('net.http_post(text, jsonb, jsonb, jsonb, integer)');
+  v_url text;
+  v_token text;
+  v_id bigint;
+begin
+  if v_post is null then
+    raise exception 'the queue tick needs pg_net: create extension pg_net'
+      using hint = 'QUEUE_TICK_NO_PG_NET';
+  end if;
+  if pg_catalog.to_regclass('vault.decrypted_secrets') is null then
+    raise exception 'the queue tick reads its URL and token from Vault: create extension supabase_vault'
+      using hint = 'QUEUE_TICK_NO_VAULT';
+  end if;
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_url using 'jobs_tick_url';
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_token using 'jobs_tick_token';
+  if coalesce(v_url, '') = '' or coalesce(v_token, '') = '' then
+    raise warning 'http_tick skipped: set the Vault secrets jobs_tick_url and jobs_tick_token';
+    return null;
+  end if;
+  execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
+    into v_id
+    using v_url, '{}'::jsonb, jsonb_build_object(
+      'content-type', 'application/json',
+      'authorization', 'Bearer ' || v_token
+    ), 55000;
+  return v_id;
+end;
 $$;
 
 -- Leases: claim_lease answers claimed (the caller holds it until expires_at),
@@ -3913,6 +4200,8 @@ revoke execute on function better_supabase.list_dead_jobs(text, integer, bigint)
 grant execute on function better_supabase.list_dead_jobs(text, integer, bigint) to service_role;
 revoke execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) from public, anon, authenticated;
 grant execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) to service_role;
+revoke execute on function better_supabase.http_tick() from public, anon, authenticated;
+grant execute on function better_supabase.http_tick() to service_role;
 revoke execute on function better_supabase.claim_lease(text, text, integer) from public, anon, authenticated;
 grant execute on function better_supabase.claim_lease(text, text, integer) to service_role;
 revoke execute on function better_supabase.extend_lease_claim(text, text, uuid, integer) from public, anon, authenticated;
@@ -3925,7 +4214,7 @@ grant execute on function better_supabase.release_lease_claim(text, text, uuid) 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block-data queue
--- @bsb-hash sha256:86efe00da9dadcee2bdf93d61c07d6c2024cd5169b02d94c307e4fd0be1f90e2
+-- @bsb-hash sha256:fa8ce95b3ded0ed37ebd683153a0c9146ca7c434b373a882f59229e979c21151
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3937,6 +4226,6 @@ create extension if not exists "pgmq";
 select better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('queue', 13, 'managed')
+values ('queue', 14, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -2,13 +2,17 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import {
-  SequenceBuilder,
-  SequenceBuilderSkeleton,
-} from "@/features/sequences/components/sequence-builder";
-import { PermissionGate } from "@/features/user/components/permission-gate";
+import { SalesListSkeleton } from "@/features/sales/components/crm-overviews";
+import { SequenceOverview } from "@/features/sequences/components/sequence-overview";
+import { parseBlockList } from "@/lib/array-list";
 
-export default function SequencesPage() {
+// A navigation here shows the header and the list frame at once; the rows
+// render on navigation (tests/loading-sequences.spec.ts).
+export const instant = true;
+
+export default function SequencesPage({
+  searchParams,
+}: PageProps<"/[locale]/crm/sequences">) {
   const t = useExtracted("sequences");
 
   return (
@@ -19,10 +23,10 @@ export default function SequencesPage() {
           "Email, wait and task steps that run for each enrolled contact until they reply.",
         )}
       />
-      <Suspense fallback={<SequenceBuilderSkeleton />}>
-        <PermissionGate permission="sequences.read">
-          <SequenceBuilder />
-        </PermissionGate>
+      <Suspense fallback={<SalesListSkeleton />}>
+        {searchParams.then((raw) => (
+          <SequenceOverview query={parseBlockList(raw)} />
+        ))}
       </Suspense>
     </>
   );

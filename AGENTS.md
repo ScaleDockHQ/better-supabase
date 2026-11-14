@@ -130,9 +130,9 @@ fails on an ADR the index does not link.
 
 | Package                           | Version        | Why                                                                           |
 | --------------------------------- | -------------- | ----------------------------------------------------------------------------- |
-| `@orpc/server`                    | 2.0.0-beta.43  | `better-supabase/orpc` targets oRPC 2, which has no stable                    |
-| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.43  | move with `@orpc/server`                                                      |
-| `c12`                             | 4.0.0-rc.2     | loads a `.ts` config through Node type stripping (ADR 0003)                   |
+| `@orpc/server`                    | 2.0.0-beta.50  | `better-supabase/orpc` targets oRPC 2, which has no stable                    |
+| `@orpc/contract`, `@orpc/openapi` | 2.0.0-beta.50  | move with `@orpc/server`                                                      |
+| `c12`                             | 4.0.0-rc.4     | loads a `.ts` config through Node type stripping (ADR 0003)                   |
 | `@supabase/pg-delta`              | 1.0.0-alpha.60 | `db diff` plans with its library; an optional peer (ADR 0108)                 |
 | `@supabase/pg-topo`               | 1.0.0-alpha.8  | pg-delta's peer                                                               |
 | `typescript` (`ts71` catalog)     | 7.1.0-beta     | `tests/types/ts-7.1` and the type benchmark run the content mapper (ADR 0097) |

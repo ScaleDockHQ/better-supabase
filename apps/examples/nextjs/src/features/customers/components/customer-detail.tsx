@@ -17,37 +17,26 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCustomer } from "@/features/customers-list/customers-list-queries";
 import { getMembers } from "@/features/organization/organization-queries";
+import {
+  RecordFiles,
+  RecordFilesSkeleton,
+  RecordHistory,
+  RecordHistorySkeleton,
+  RecordRelations,
+  RecordRelationsSkeleton,
+} from "@/features/records/components/record-sections";
 import { getTeams } from "@/features/teams/teams-queries";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { getSession } from "@/features/user/user-queries";
 import { initials } from "@/lib/initials";
 
-import {
-  getAttachments,
-  getRelations,
-  getShareLinks,
-  getSlaClocks,
-  getTimeline,
-  getVersions,
-} from "../customers-queries";
-import {
-  AttachmentsUploader,
-  AttachmentsUploaderSkeleton,
-} from "./attachments-uploader";
+import { getShareLinks, getSlaClocks, getVersions } from "../customers-queries";
 import { CommentThread } from "./comment-thread";
 import { CustomerLogoForm } from "./customer-logo-form";
 import { CustomerStatus } from "./customer-status";
-import {
-  CustomerTimeline,
-  CustomerTimelineSkeleton,
-} from "./customer-timeline";
 import { OwnerTeamSelect } from "./owner-team-select";
 import { ReactionsBar } from "./reactions-bar";
-import {
-  RelatedItemsPanel,
-  RelatedItemsPanelSkeleton,
-} from "./related-items-panel";
 import { ShareLinkDialog, ShareLinkDialogSkeleton } from "./share-link-dialog";
 import { SlaBadges, SlaBadgesSkeleton } from "./sla-badges";
 import { TagInput } from "./tag-input";
@@ -67,49 +56,6 @@ async function ShareLinksSection({
       customerId={customerId}
       links={links}
       canCreate={canCreate}
-    />
-  );
-}
-
-async function AttachmentsSection({
-  customerId,
-  canUpload,
-  canRemove,
-}: {
-  customerId: string;
-  canUpload: boolean;
-  canRemove: boolean;
-}) {
-  const files = await getAttachments(customerId);
-
-  if (files.kind === "hidden") {
-    return null;
-  }
-
-  return (
-    <AttachmentsUploader
-      customerId={customerId}
-      files={files}
-      canUpload={canUpload}
-      canRemove={canRemove}
-    />
-  );
-}
-
-async function RelationsSection({
-  customerId,
-  canManage,
-}: {
-  customerId: string;
-  canManage: boolean;
-}) {
-  const relations = await getRelations(customerId);
-
-  return (
-    <RelatedItemsPanel
-      customerId={customerId}
-      relations={relations}
-      canManage={canManage}
     />
   );
 }
@@ -153,18 +99,6 @@ async function SlaSection({
   );
 }
 
-async function TimelineSection({
-  customerId,
-  authors,
-}: {
-  customerId: string;
-  authors: Readonly<Record<string, string>>;
-}) {
-  const timeline = await getTimeline(customerId);
-
-  return <CustomerTimeline timeline={timeline} authors={authors} />;
-}
-
 /** Render inside `<Suspense>`: reads the `id` param and the session. */
 export async function CustomerDetail({ id }: { id: string }) {
   const [session, permissions] = await Promise.all([
@@ -199,6 +133,7 @@ export async function CustomerDetail({ id }: { id: string }) {
   );
 
   const customerId = customer.id;
+  const subject = { type: "customer", id: customerId } as const;
 
   return (
     <RecordDetailFrame
@@ -226,9 +161,9 @@ export async function CustomerDetail({ id }: { id: string }) {
       status={<CustomerStatus status={customer.status} />}
       aside={
         <>
-          <Suspense fallback={<CustomerTimelineSkeleton />}>
+          <Suspense fallback={<RecordHistorySkeleton />}>
             <AfterNavigation>
-              <TimelineSection customerId={customerId} authors={authors} />
+              <RecordHistory subject={subject} />
             </AfterNavigation>
           </Suspense>
           {can(permissions, "sla.read") ? (
@@ -338,23 +273,16 @@ export async function CustomerDetail({ id }: { id: string }) {
       </Card>
 
       {can(permissions, "attachments.read") ? (
-        <Suspense fallback={<AttachmentsUploaderSkeleton />}>
+        <Suspense fallback={<RecordFilesSkeleton />}>
           <AfterNavigation>
-            <AttachmentsSection
-              customerId={customerId}
-              canUpload={can(permissions, "attachments.upload")}
-              canRemove={can(permissions, "attachments.manage")}
-            />
+            <RecordFiles subject={subject} />
           </AfterNavigation>
         </Suspense>
       ) : null}
       {can(permissions, "relations.read") ? (
-        <Suspense fallback={<RelatedItemsPanelSkeleton />}>
+        <Suspense fallback={<RecordRelationsSkeleton />}>
           <AfterNavigation>
-            <RelationsSection
-              customerId={customerId}
-              canManage={can(permissions, "relations.manage")}
-            />
+            <RecordRelations subject={subject} />
           </AfterNavigation>
         </Suspense>
       ) : null}

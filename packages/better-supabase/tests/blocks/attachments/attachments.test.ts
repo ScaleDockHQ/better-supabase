@@ -1,17 +1,22 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import type {
   AttachmentStorage,
   ScanVerdict,
 } from "../../../src/blocks/attachments/index.ts";
 
+import { attachmentOf } from "../../../src/blocks/attachments/attachments.ts";
 import {
   createAttachments,
   createAttachmentScanner,
+  createAttachmentSweeper,
   createObjectScanner,
+  vercelBlobStore,
 } from "../../../src/blocks/attachments/index.ts";
+import { DbException, dbError } from "../../../src/core/errors.ts";
+import { fakeBlobModule } from "../../fixtures/file-stores.ts";
 
 const row = (overrides: Record<string, unknown> = {}) => ({
   id: "a1",
@@ -1147,5 +1152,366 @@ describe("createObjectScanner", () => {
           },
         ]),
     ).rejects.toThrow(/Bucket not found/);
+  });
+});
+
+function storeTransport(results: Record<string, unknown>) {
+  const calls: [string, Record<string, unknown>][] = [];
+
+  return {
+    calls,
+    transport: {
+      call(
+        _schema: string,
+        fn: string,
+        args: Readonly<Record<string, unknown>>,
+      ) {
+        calls.push([fn, { ...args }]);
+        const reply = results[fn];
+        const result = typeof reply === "function" ? reply(args) : reply;
+
+        return result instanceof DbException
+          ? Promise.reject(result)
+          : Promise.resolve(result);
+      },
+    },
+  };
+}
+
+const notUploadedYet = () =>
+  new DbException(
+    dbError("not_found", "The file was not uploaded yet", {
+      hint: "ATTACHMENT_NOT_UPLOADED",
+    }),
+  );
+
+describe("createAttachments on another file store", () => {
+  const pending = row({ status: "pending", uploaded_at: null });
+
+  it("signs the upload with the store and returns its method and headers", async () => {
+    const blob = fakeBlobModule();
+    const { transport } = storeTransport({ create_attachment: pending });
+
+    const attachments = createAttachments({
+      transport,
+      files: vercelBlobStore(blob.module),
+      tenant: "org-1",
+    });
+
+    const upload = await attachments
+      .upload({
+        subject: null,
+        attachment: {
+          name: "plan.pdf",
+          mimeType: "application/pdf",
+          size: 2048,
+        },
+      })
+      .orThrow();
+
+    expect(upload).toMatchObject({
+      signedUrl:
+        "https://store.private.blob.vercel-storage.com/attachments/org-1/attachments/a1?vercel-blob-operation=put",
+      token: "",
+      method: "PUT",
+      headers: {
+        "x-vercel-blob-access": "private",
+        "x-content-type": "application/pdf",
+      },
+    });
+    expect(blob.calls[0]).toMatchObject([
+      "issueSignedToken",
+      {
+        pathname: "attachments/org-1/attachments/a1",
+        allowedContentTypes: ["application/pdf"],
+        maximumSizeInBytes: 2048,
+      },
+    ]);
+  });
+
+  it("confirms through the service transport with the size and type from head", async () => {
+    const blob = fakeBlobModule();
+    const files = vercelBlobStore(blob.module);
+    await files
+      .put("attachments", "org-1/attachments/a1", new Blob(["12345"]), {
+        contentType: "application/pdf",
+      })
+      .orThrow();
+
+    const caller = storeTransport({ confirm_attachment: notUploadedYet() });
+
+    const service = storeTransport({
+      get_attachment: pending,
+      confirm_attachment: row({ status: "pending", size: "5" }),
+    });
+
+    const attachment = await createAttachments({
+      transport: caller.transport,
+      service: service.transport,
+      files,
+      tenant: "org-1",
+    })
+      .confirm("a1")
+      .orThrow();
+
+    expect(attachment.size).toBe(5);
+    expect(caller.calls).toEqual([["confirm_attachment", { id: "a1" }]]);
+    expect(service.calls).toEqual([
+      ["get_attachment", { id: "a1" }],
+      [
+        "confirm_attachment",
+        { id: "a1", object: { size: 5, mimetype: "application/pdf" } },
+      ],
+    ]);
+  });
+
+  it("keeps the caller's refusal, a missing object and a transport that isn't the service", async () => {
+    const files = vercelBlobStore(fakeBlobModule().module);
+
+    const notYours = await createAttachments({
+      transport: storeTransport({
+        confirm_attachment: new DbException(
+          dbError("not_found", "No pending attachment of yours has this id", {
+            hint: "ATTACHMENT_NOT_FOUND",
+          }),
+        ),
+      }).transport,
+      files,
+    }).confirm("a1");
+
+    expect(notYours.ok ? undefined : notYours.error.hint).toBe(
+      "ATTACHMENT_NOT_FOUND",
+    );
+
+    const service = storeTransport({ get_attachment: pending });
+
+    const missing = await createAttachments({
+      transport: storeTransport({ confirm_attachment: notUploadedYet() })
+        .transport,
+      service: service.transport,
+      files,
+    }).confirm("a1");
+
+    expect(missing.ok ? undefined : missing.error.hint).toBe(
+      "ATTACHMENT_NOT_UPLOADED",
+    );
+    expect(service.calls.map(([fn]) => fn)).toEqual(["get_attachment"]);
+
+    await files
+      .put("attachments", "org-1/attachments/a1", new Blob(["1"]))
+      .orThrow();
+
+    const user = await createAttachments({
+      transport: storeTransport({
+        confirm_attachment: notUploadedYet(),
+        get_attachment: pending,
+      }).transport,
+      files,
+    }).confirm("a1");
+
+    expect(user.ok ? undefined : user.error.hint).toBe(
+      "ATTACHMENT_SERVICE_REQUIRED",
+    );
+  });
+
+  it("puts from the server, then downloads, reads and removes through the store", async () => {
+    const blob = fakeBlobModule();
+    const files = vercelBlobStore(blob.module);
+    const clean = row({ size: "3" });
+
+    const caller = storeTransport({
+      create_attachment: pending,
+      confirm_attachment: (args: Record<string, unknown>) =>
+        args["object"] === undefined ? notUploadedYet() : clean,
+      get_attachment: clean,
+      list_attachment_versions: [],
+      delete_attachment: true,
+    });
+
+    const attachments = createAttachments({
+      transport: caller.transport,
+      files,
+      tenant: "org-1",
+    });
+
+    const put = await attachments
+      .put({
+        subject: null,
+        attachment: { name: "plan.pdf", mimeType: "application/pdf", size: 3 },
+        file: new Uint8Array([1, 2, 3]),
+      })
+      .orThrow();
+
+    expect(put.size).toBe(3);
+    expect(caller.calls.at(-1)).toEqual([
+      "confirm_attachment",
+      { id: "a1", object: { size: 3, mimetype: "application/pdf" } },
+    ]);
+
+    const download = await attachments
+      .download({ id: "a1", options: { as: "Plan.pdf" } })
+      .orThrow();
+
+    expect(new URL(download.signedUrl).searchParams.get("download")).toBe("1");
+
+    const read = await attachments.read("a1").orThrow();
+    expect(new Uint8Array(await read.file.arrayBuffer())).toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
+
+    expect(await attachments.remove("a1").orThrow()).toBe(true);
+    expect(blob.blobs.size).toBe(0);
+    expect(blob.calls.at(-1)).toEqual([
+      "del",
+      ["attachments/org-1/attachments/a1"],
+      {},
+    ]);
+  });
+
+  it("uploads a browser file with fetch to the signed URL", async () => {
+    const blob = fakeBlobModule();
+    const fetch = vi.fn(blob.fetch);
+    vi.stubGlobal("fetch", fetch);
+
+    try {
+      const attachments = createAttachments({
+        transport: storeTransport({
+          create_attachment: row({
+            status: "pending",
+            uploaded_at: null,
+            mime_type: "text/plain",
+          }),
+          confirm_attachment: (args: Record<string, unknown>) =>
+            args["object"] === undefined ? notUploadedYet() : row(),
+          get_attachment: pending,
+        }).transport,
+        files: vercelBlobStore(blob.module),
+        tenant: "org-1",
+      });
+
+      const progress: unknown[] = [];
+
+      await attachments
+        .uploadFile({
+          subject: null,
+          file: new File(["hello"], "hello.txt", { type: "text/plain" }),
+          onProgress: (event) => progress.push(event),
+        })
+        .orThrow();
+
+      expect(fetch).toHaveBeenCalledOnce();
+      expect(fetch.mock.calls[0]?.[1]).toMatchObject({
+        method: "PUT",
+        headers: {
+          "content-type": "text/plain",
+          "x-vercel-blob-access": "private",
+          "x-content-type": "text/plain",
+        },
+      });
+      expect(progress).toEqual([
+        { loaded: 0, total: 5 },
+        { loaded: 5, total: 5 },
+      ]);
+      expect(blob.blobs.has("attachments/org-1/attachments/a1")).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("refuses image transforms and public URLs, which need Supabase Storage", async () => {
+    const attachments = createAttachments({
+      transport: storeTransport({}).transport,
+      files: vercelBlobStore(fakeBlobModule().module),
+      publicBuckets: ["attachments"],
+    });
+
+    const image = attachmentOf(row({ mime_type: "image/png" }));
+
+    const resized = await attachments
+      .images({ thumb: { width: 64, height: 64 } })
+      .signedUrl(image, { transform: "thumb" });
+
+    expect(resized.ok ? undefined : resized.error).toMatchObject({
+      kind: "invalid_request",
+      hint: "ATTACHMENT_STORE_UNSUPPORTED",
+    });
+
+    const plain = await attachments.images().signedUrl(image);
+    expect(plain.ok).toBe(true);
+
+    const url = attachments.publicUrl({ attachment: image });
+    expect(url.ok ? undefined : url.error.hint).toBe(
+      "ATTACHMENT_STORE_UNSUPPORTED",
+    );
+  });
+
+  it("answers ATTACHMENT_STORAGE_CLIENT without storage or files", async () => {
+    const attachments = createAttachments({
+      transport: storeTransport({
+        create_attachment: pending,
+        get_attachment: row(),
+      }).transport,
+      tenant: "org-1",
+    });
+
+    const upload = await attachments.upload({
+      subject: null,
+      attachment: { name: "a", mimeType: "text/plain", size: 1 },
+    });
+
+    expect(upload.ok ? undefined : upload.error.hint).toBe(
+      "ATTACHMENT_STORAGE_CLIENT",
+    );
+
+    const read = await attachments.read("a1");
+    expect(read.ok ? undefined : read.error.hint).toBe(
+      "ATTACHMENT_STORAGE_CLIENT",
+    );
+  });
+
+  it("scans and sweeps through the store", async () => {
+    const blob = fakeBlobModule();
+    const files = vercelBlobStore(blob.module);
+    await files
+      .put("attachments", "org-1/attachments/a1", new Blob(["x"]))
+      .orThrow();
+
+    const scanned: string[] = [];
+
+    await createAttachmentScanner({
+      transport: storeTransport({
+        get_attachment: row({ status: "pending" }),
+        set_attachment_status: row(),
+      }).transport,
+      files,
+      scan: async (file) => {
+        scanned.push(await file.text());
+
+        return { status: "clean" };
+      },
+    })
+      .scan({ id: "a1" })
+      .orThrow();
+
+    expect(scanned).toEqual(["x"]);
+
+    const sweeper = createAttachmentSweeper({
+      transport: storeTransport({
+        queued_attachment_objects: [
+          { bucket: "attachments", path: "org-1/attachments/a1" },
+        ],
+        complete_attachment_cleanup: null,
+      }).transport,
+      files,
+    });
+
+    expect(await sweeper.sweepQueued().orThrow()).toEqual({
+      removed: 1,
+      failed: 0,
+    });
+    expect(blob.blobs.size).toBe(0);
+    expect(() =>
+      createAttachmentSweeper({ transport: storeTransport({}).transport }),
+    ).toThrow(/needs storage or files/u);
   });
 });

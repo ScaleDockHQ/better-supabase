@@ -3,6 +3,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { AuthorizationDetail } from "../../auth/delegation.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { CronCaller } from "../../core/cron-route.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Kick } from "../../core/kick.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -11,7 +12,12 @@ import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { SqlClient } from "../../postgres/executor.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
-import type { QueueProvider, QueueRpcClient, QueueStats } from "./backends.ts";
+import type {
+  QueueProvider,
+  QueueRpcClient,
+  QueueStats,
+  ScheduleProvider,
+} from "./backends.ts";
 
 export type QueueSchemas = Readonly<Record<string, StandardSchemaV1>>;
 
@@ -71,6 +77,21 @@ export interface Job<P = unknown> {
    * the worker runs with `allTenants: true`.
    */
   readonly context: RequestContext;
+  /**
+   * The schedule run that enqueued the job, when a push delivery carried one (a
+   * Vercel schedule on `vercelQueueRoute`).
+   */
+  readonly schedule?: ScheduledRun;
+}
+
+/** One run of a schedule, as an external scheduler reported it. */
+export interface ScheduledRun {
+  /** The schedule name, as `jobs.schedule` took it. */
+  readonly name: string;
+  /** The same for every delivery of the run; dedupe on it. */
+  readonly executionId: string;
+  /** When the schedule matched, before jitter. */
+  readonly scheduledAt: Temporal.Instant;
 }
 
 export interface EnqueueOptions {
@@ -131,15 +152,40 @@ export interface ScheduleOptions {
   /**
    * The tenant the schedule belongs to, for `listSchedules({ tenant })` and
    * `unscheduleAll({ tenant })`. Defaults to the tenant of `context`. Needs
-   * `blocks.queue.options.scheduler: "drain"`.
+   * `blocks.queue.options.scheduler: "drain"` or `vercelScheduler`.
    */
   readonly tenant?: string;
   /**
    * The IANA time zone the cron fields are read in. Defaults to `UTC`. Other
-   * zones need `blocks.queue.options.scheduler: "drain"`.
+   * zones need `blocks.queue.options.scheduler: "drain"` or `vercelScheduler`.
    */
   readonly timeZone?: string;
+  /**
+   * A SQL function without arguments that returns boolean, such as
+   * `app.has_overdue_invoices`. A due run whose probe returns false enqueues
+   * nothing: pg_cron and the drain keep the schedule due, the Vercel bridge
+   * skips that run. `vercelScheduler` without a bridge rejects it.
+   */
   readonly probe?: string;
+}
+
+export interface UnscheduleOptions {
+  /** The tenant the schedule was written with, for `vercelScheduler`. */
+  readonly tenant?: string;
+}
+
+/** One run another scheduler fired, for `enqueueScheduledRun`. */
+export interface ScheduledRunInput {
+  readonly name: string;
+  readonly queue: string;
+  /** The payload as the schedule stored it, with its recorded context. */
+  readonly payload: unknown;
+  /** Each id enqueues once, so a redelivered run doesn't run twice. */
+  readonly executionId: string;
+  /** Checked first; a false probe skips this run. */
+  readonly probe?: string;
+  /** Defaults to 5. */
+  readonly maxAttempts?: number;
 }
 
 /** One schedule of the set `ensureSchedules` keeps. */
@@ -237,9 +283,15 @@ export interface DrainRouteOptions<Q extends QueueSchemas>
   extends Omit<DrainOptions, "onError">, BlockProblemOptions {
   /**
    * The bearer token callers send (`Authorization: Bearer <secret>`), such as
-   * Vercel's `CRON_SECRET`. Required.
+   * Vercel's `CRON_SECRET`. Required unless `caller` is set.
    */
   readonly secret: string | undefined;
+  /**
+   * `"vercel-schedule"` also accepts a Vercel schedule run (`ce-type:
+   * com.vercel.schedule.v1beta`) without the secret. Safe only on a private
+   * function with a `schedule/v1beta` trigger, which has no public URL.
+   */
+  readonly caller?: CronCaller;
   /** The queues to drain, in order, with their handlers. */
   readonly handlers: {
     readonly [N in Extract<keyof Q, string>]?: JobHandler<PayloadOut<Q, N>>;
@@ -263,6 +315,22 @@ export interface DrainRouteResult {
    * Schedule or queue runs that failed as a whole (individual job failures are
    * in `queues`).
    */
+  readonly errors: number;
+}
+
+export interface SchedulesRouteOptions
+  extends RunSchedulesOptions, BlockProblemOptions {
+  /** As in `DrainRouteOptions`: `CRON_SECRET`, sent by the clock. */
+  readonly secret: string | undefined;
+  /** As in `DrainRouteOptions`. */
+  readonly caller?: CronCaller;
+  readonly onError?: (error: DbError) => void;
+}
+
+export interface SchedulesRouteResult {
+  /** Schedules whose run was sent. */
+  readonly schedules: number;
+  /** 1 when `runSchedules` failed. */
   readonly errors: number;
 }
 
@@ -450,7 +518,7 @@ export interface Queue<Q extends QueueSchemas> {
       payload: PayloadIn<Q, N>;
     } & ScheduleOptions,
   ): AsyncResult<void>;
-  unschedule(name: string): AsyncResult<boolean>;
+  unschedule(name: string, options?: UnscheduleOptions): AsyncResult<boolean>;
   /**
    * Makes the schedules under `prefix` (and `tenant`) exactly `definitions`:
    * writes each one, keeping the next run of a schedule whose cron and time
@@ -477,6 +545,24 @@ export interface Queue<Q extends QueueSchemas> {
    * to its next time. Returns how many ran. Missed runs collapse into one.
    */
   runSchedules(options?: RunSchedulesOptions): AsyncResult<number>;
+  /**
+   * Enqueues one run another scheduler fired, such as a Vercel schedule on the
+   * bridge topic: checks the probe, then sends the stored payload once per
+   * `executionId`. `null` when the probe reports no work and the run is
+   * skipped. SQL connections or a transport only.
+   */
+  enqueueScheduledRun(
+    input: ScheduledRunInput,
+  ): AsyncResult<EnqueueOnceResult | null>;
+  /**
+   * A route handler for a clock on a queue without a drain (Vercel Queues):
+   * checks the bearer secret, runs `runSchedules` and answers with a
+   * `SchedulesRouteResult`. Supabase Cron calls it every minute with
+   * `blocks.queue.options.httpTick`.
+   */
+  schedulesRoute(
+    options: SchedulesRouteOptions,
+  ): (request: Request) => Promise<Response>;
   /**
    * Processes ready jobs until the queue is empty or the budget is spent. For
    * cron and edge invocations.
@@ -521,6 +607,8 @@ export interface JobDelivery {
   readonly visibleUntil?: Date | string;
   /** The stored body, `{ payload, max_attempts }`. */
   readonly message: unknown;
+  /** The schedule run the delivery came from, which the job exposes. */
+  readonly schedule?: ScheduledRun;
 }
 
 export interface RunJobOptions {
@@ -546,6 +634,13 @@ export interface QueueOptions<
   readonly queues?: Q;
   /** Any `QueueProvider`. */
   readonly backend?: QueueProvider;
+  /**
+   * What decides when schedules fire, apart from the queue: `sqlScheduler`
+   * (Supabase Cron or the drain scheduler) or `vercelScheduler` (Vercel
+   * Schedules). Defaults to the queue's own schedule methods. A pair that can't
+   * deliver, such as pg_cron with Vercel Queues, throws a `TypeError`.
+   */
+  readonly scheduler?: ScheduleProvider;
   /**
    * A service SQL connection (`postgres.admin`, `ctx.sql`), for the full
    * feature set.

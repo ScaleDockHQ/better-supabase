@@ -7294,6 +7294,10 @@
               "scheduler": {
                 "type": "string",
                 "default": "pg_cron"
+              },
+              "httpTick": {
+                "type": "boolean",
+                "default": false
               }
             }
           }

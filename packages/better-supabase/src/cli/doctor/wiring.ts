@@ -1,5 +1,5 @@
 import type { WiringProvider } from "../wiring.ts";
-import type { Rule, TextFile } from "./rules.ts";
+import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { configInstances, wiringFor } from "../wiring.ts";
 
@@ -69,6 +69,138 @@ const SERVER_WIRING_IMPORT =
   /\bfrom\s+["'][^"']*\/(?:blocks\.generated|providers)(?:\.ts)?["']/gu;
 
 const DEFINE_BLOCKS_CALL = /(?:^|[^.\w])defineBlocks\s*\(/mu;
+
+const PG_NET = /\bcreate\s+extension\s+(?:if\s+not\s+exists\s+)?"?pg_net\b/iu;
+
+/** Vault writes of the tick URL and token, not the lookups in `http_tick()`. */
+const TICK_SECRETS = [
+  /\bcreate_secret\s*\([^;]*'jobs_tick_url'/iu,
+  /\bcreate_secret\s*\([^;]*'jobs_tick_token'/iu,
+];
+
+const SCHEDULE_TRIGGER = "schedule/v1beta";
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const stringAt = (value: unknown, key: string): string | undefined => {
+  const field = isRecord(value) ? value[key] : undefined;
+
+  return typeof field === "string" ? field : undefined;
+};
+
+function parsedJson(file: TextFile): unknown {
+  try {
+    return JSON.parse(file.text);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Whether `functions[source]` has a `schedule/v1beta` trigger. */
+function hasScheduleTrigger(functions: unknown, source: string): boolean {
+  const entry = isRecord(functions) ? functions[source] : undefined;
+  const triggers = isRecord(entry) ? entry["experimentalTriggers"] : undefined;
+
+  return (
+    Array.isArray(triggers) &&
+    triggers.some((trigger) => stringAt(trigger, "type") === SCHEDULE_TRIGGER)
+  );
+}
+
+/** The `crons` and `schedules` of `vercel.json` that would misfire (BS512). */
+function vercelScheduleFindings(file: TextFile): FindingInput[] {
+  const json = parsedJson(file);
+
+  if (!isRecord(json)) {
+    return [];
+  }
+
+  const crons = Array.isArray(json["crons"]) ? json["crons"] : [];
+
+  const schedules = isRecord(json["schedules"])
+    ? Object.entries(json["schedules"])
+    : [];
+
+  const scheduledPaths = new Set(
+    schedules.flatMap(([, entry]) => stringAt(entry, "path") ?? []),
+  );
+
+  const fromCrons = crons.flatMap((entry): FindingInput[] => {
+    const path = stringAt(entry, "path");
+
+    if (path === undefined) {
+      return [];
+    }
+
+    return [
+      scheduledPaths.has(path)
+        ? {
+            message: `vercel.json calls ${path} from both \`crons\` and \`schedules\`, so it runs twice on each tick. Remove its \`crons\` entry.`,
+            target: `crons:${path}`,
+          }
+        : {
+            message: `vercel.json calls ${path} from \`crons\`. Move it to \`schedules\` as a path target (\`{ "schedule": "...", "path": "${path}", "requestMethod": "GET" }\`), which sends the same CRON_SECRET bearer.`,
+            target: `crons:${path}`,
+          },
+    ];
+  });
+
+  const fromSchedules = schedules.flatMap(([name, entry]): FindingInput[] => {
+    const source = stringAt(entry, "function");
+
+    return source === undefined || hasScheduleTrigger(json["functions"], source)
+      ? []
+      : [
+          {
+            message: `The schedule ${name} targets the function ${source}, but functions["${source}"] has no \`${SCHEDULE_TRIGGER}\` trigger, so Vercel never calls it. Add \`experimentalTriggers: [{ "type": "${SCHEDULE_TRIGGER}" }]\` to it.`,
+            target: `schedules:${name}`,
+          },
+        ];
+  });
+
+  return [...fromCrons, ...fromSchedules];
+}
+
+/** `blocks.queue.options.httpTick` without pg_net or the Vault secrets (BS512). */
+function httpTickFindings(context: DoctorContext): FindingInput[] {
+  const queue = context.config.blocks["queue"];
+
+  if (queue?.options?.["httpTick"] !== true) {
+    return [];
+  }
+
+  const sql = context.sqlFiles ?? [];
+  const findings: FindingInput[] = [];
+
+  if (!sql.some((file) => PG_NET.test(file.text))) {
+    findings.push({
+      message:
+        "blocks.queue.options.httpTick is on, but no schema file creates pg_net, so better_supabase.http_tick() raises on every tick. Add `create extension if not exists pg_net with schema extensions;` to a schema file.",
+      target: "blocks.queue.options.httpTick:pg_net",
+    });
+  }
+
+  const files = [
+    ...sql,
+    ...(context.seedFiles ?? []),
+    ...(context.dataFiles ?? []),
+  ];
+
+  const written = TICK_SECRETS.every((secret) =>
+    files.some((file) => secret.test(file.text)),
+  );
+
+  if (!written) {
+    findings.push({
+      message:
+        "blocks.queue.options.httpTick is on, but no SQL file stores the jobs_tick_url and jobs_tick_token Vault secrets, so http_tick() skips every tick with a warning. Run `select vault.create_secret('<drain URL>', 'jobs_tick_url')` and `select vault.create_secret('<CRON_SECRET>', 'jobs_tick_token')` in each database, or ignore this when you set them from the dashboard.",
+      target: "blocks.queue.options.httpTick:vault",
+    });
+  }
+
+  return findings;
+}
 
 /** The env keys and providers the installed blocks need (BS504, BS505). */
 export const WIRING_RULES: readonly Rule[] = [
@@ -240,5 +372,18 @@ export const WIRING_RULES: readonly Rule[] = [
           },
         ];
       }),
+  },
+  {
+    code: "BS512",
+    severity: "warning",
+    title: "Queue schedule wiring misfires",
+    description:
+      "The clock that drives the queue is wired so it misses or doubles runs: `vercel.json` still calls a path from `crons` (Vercel Schedules replaces them, and a path in both runs twice), a schedule targets a private function without a `schedule/v1beta` trigger, or `blocks.queue.options.httpTick` is on without pg_net or the `jobs_tick_url` and `jobs_tick_token` Vault secrets.",
+    check: (context) => [
+      ...(context.vercelConfig === undefined
+        ? []
+        : vercelScheduleFindings(context.vercelConfig)),
+      ...httpTickFindings(context),
+    ],
   },
 ];

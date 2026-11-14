@@ -248,6 +248,8 @@ const entries = [
   "credentials/index",
   "vercel-connect/index",
   "vercel-sandbox/index",
+  "vercel-security/index",
+  "vercel-passport/index",
   "stripe/index",
   "yjs/index",
   "e-invoicing/index",

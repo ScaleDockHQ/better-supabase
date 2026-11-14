@@ -4,6 +4,8 @@ import { useAction, useErrorMessage } from "better-supabase/react";
 import { TimerIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
+import type { Loaded } from "@/features/records/records-queries";
+
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,12 +17,15 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import {
+  RecordCardSkeleton,
+  RecordLoadError,
+} from "@/features/records/components/record-card-states";
 import { toast } from "@/lib/toast";
 
-import type { Loaded, SlaClockRow } from "../customers-queries";
+import type { SlaClockRow } from "../customers-queries";
 
 import { startCustomerSla } from "../customers-actions";
-import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:sla-badges
 

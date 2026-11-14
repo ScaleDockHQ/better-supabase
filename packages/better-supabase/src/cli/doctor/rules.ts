@@ -192,6 +192,8 @@ export interface DoctorContext {
    * (BS608).
    */
   readonly vercel?: boolean;
+  /** The project's `vercel.json` (BS512). */
+  readonly vercelConfig?: TextFile;
 }
 
 export interface Rule {

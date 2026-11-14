@@ -6,12 +6,14 @@ import { blockOptions, option } from "../options.ts";
 export type QueueSqlOptions = {
   readonly backend?: string;
   readonly scheduler?: string;
+  readonly httpTick?: boolean;
 };
 
 export const queueSqlOptions: BlockOptionsSchema<QueueSqlOptions> =
   blockOptions<QueueSqlOptions>({
     backend: option.string({ default: "pgmq" }),
     scheduler: option.string({ default: "pg_cron" }),
+    httpTick: option.boolean({ default: false }),
   });
 
 /** `blocks.rate-limit.options`. */

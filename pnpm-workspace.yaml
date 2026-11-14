@@ -9,11 +9,11 @@ packages:
 catalog:
   # The AI SDK set shares one @ai-sdk/provider-utils, so ai, mcp, react,
   # sandbox-vercel and workflow move together.
-  "@ai-sdk/anthropic": 4.0.99
-  "@ai-sdk/mcp": 2.0.93
-  "@ai-sdk/react": 4.0.169
-  "@ai-sdk/sandbox-vercel": 1.0.176
-  "@ai-sdk/workflow": 2.0.97
+  "@ai-sdk/anthropic": 4.0.103
+  "@ai-sdk/mcp": 2.0.98
+  "@ai-sdk/react": 4.0.175
+  "@ai-sdk/sandbox-vercel": 1.0.182
+  "@ai-sdk/workflow": 2.0.103
   "@base-ui/react": 1.9.0
   "@changesets/assemble-release-plan": 7.0.0
   "@changesets/changelog-github": 1.0.1
@@ -36,16 +36,16 @@ catalog:
   "@json-render/react": 0.22.0
   "@modelcontextprotocol/client": 2.4.0
   "@modelcontextprotocol/server": 2.4.0
-  "@nestjs/common": 12.1.3
+  "@nestjs/common": 12.5.0
   # The version next depends on, so the config shares Next's loaded env state.
   "@next/env": 16.4.6
   "@next/playwright": 16.4.6
   "@op-engineering/op-sqlite": 18.2.5
   "@openfeature/server-sdk": 1.23.0
   "@opentelemetry/api": 1.9.1
-  "@orpc/contract": 2.0.0-beta.49
-  "@orpc/openapi": 2.0.0-beta.49
-  "@orpc/server": 2.0.0-beta.49
+  "@orpc/contract": 2.0.0-beta.50
+  "@orpc/openapi": 2.0.0-beta.50
+  "@orpc/server": 2.0.0-beta.50
   "@playwright/test": 1.65.0
   "@powersync/common": 2.5.0
   "@powersync/react-native": 2.4.0
@@ -67,7 +67,7 @@ catalog:
   "@supabase/server": 1.9.2
   "@supabase/ssr": 0.12.7
   "@supabase/supabase-js": 2.119.0
-  "@sveltejs/kit": 3.1.1
+  "@sveltejs/kit": 3.2.0
   "@t3-oss/env-core": 0.13.11
   "@t3-oss/env-nextjs": 0.13.11
   "@tailwindcss/postcss": 4.3.5
@@ -87,11 +87,17 @@ catalog:
   "@types/react-dom": 19.3.0
   "@valibot/to-json-schema": 1.8.0
   "@vercel/analytics": 2.0.1
-  "@vercel/connect": 2.2.0
+  "@vercel/blob": 2.9.0
+  "@vercel/connect": 2.5.0
   "@vercel/detect-agent": 1.2.5
-  "@vercel/queue": 0.8.0
-  # 3.7 and later pull @vercel/oidc 4, which trustPolicy rejects as a downgrade.
-  "@vercel/sandbox": 3.9.1
+  "@vercel/firewall": 1.2.6
+  "@vercel/functions": 3.10.1
+  "@vercel/kms": 0.3.4
+  "@vercel/passport": 1.2.0
+  "@vercel/queue": 0.11.0
+  "@vercel/sandbox": 4.0.0
+  "@vercel/schedules": 0.0.3
+  "@vercel/sdk": 1.28.62
   "@vercel/speed-insights": 2.1.0
   "@vitejs/plugin-react": 6.2.1
   # 5.0.5 adds migration 0027 (timestamps with time zone); the World's
@@ -103,14 +109,14 @@ catalog:
   "@workflow/world-testing": 5.0.8
   "@wrksz/themes": 2.1.1
   "@xyflow/react": 12.12.1
-  ai: 7.0.165
+  ai: 7.0.171
   ajv: 8.20.0
   ajv-formats: 3.0.1
-  astro: 7.4.7
+  astro: 7.4.11
   babel-plugin-react-compiler: 1.0.0
   "@vitest/coverage-v8": 5.1.0
   better-result: 3.0.1
-  botid: 1.5.12
+  botid: 1.5.13
   # 4.0 is the `latest` dist-tag; it makes jiti optional, so .ts configs load
   # through Node's type stripping (docs/decisions/0003-cli-package.md).
   c12: 4.0.0-rc.4
@@ -131,9 +137,11 @@ catalog:
   # (Schema.optionalKey with index signatures); 1.x loads, so it moves with
   # @effect/platform-node.
   effect: 4.1.2
-  elysia: 1.4.31
-  # eve peers on a recent ai floor (0.80.0 on ^7.0.137), so it moves with the ai pin above.
-  eve: 0.83.2
+  elysia: 1.4.32
+  # 0.84 and later (and 1.0) peer on @vercel/connect ^2.5.2 or ^2.7.0, and
+  # trustPolicy accepts only 2.5.0 and older until the later releases turn 30
+  # days old (2.7.0 on 2026-11-30; ADR 0848).
+  eve: 0.83.3
   expo: 58.0.23
   expo-constants: 58.0.15
   expo-linking: 58.0.16
@@ -142,7 +150,7 @@ catalog:
   expo-secure-store: 58.0.2
   # Moves with expo-router: 58.x depends on expo-server 58, and a second copy
   # breaks the example's loader types.
-  expo-server: 58.0.6
+  expo-server: 58.1.0
   expo-web-browser: 58.0.7
   express: 5.3.0
   fastest-levenshtein: 1.0.16
@@ -154,7 +162,10 @@ catalog:
   # Base UI build of fumadocs-ui, kept on the fumadocs-core version.
   fumadocs-ui: npm:@fumadocs/base-ui@16.17.5
   h3: 2.0.8
-  hono: 4.13.17
+  # The H3 1 that Nuxt 4 runs (@nuxt/nitro-server depends on h3 ^1.15.11), so
+  # tests/frameworks.test-d.ts checks better-supabase/h3/v1 next to h3 2.
+  h3-v1: npm:h3@1.15.11
+  hono: 4.13.18
   input-otp: 1.5.0
   jsonpath-rfc9535: 1.3.0
   knip: 6.44.2
@@ -164,7 +175,7 @@ catalog:
   next: 16.4.6
   next-intl: 4.14.9
   next-themes: 0.4.6
-  nuqs: 2.10.2
+  nuqs: 2.10.3
   nuxt: 4.6.4
   oxfmt: 0.74.0
   "@shadcn/lint": 0.2.5
@@ -199,7 +210,7 @@ catalog:
   shiki: 4.6.0
   simple-icons: 16.37.0
   smol-toml: 1.9.1
-  solid-js: 1.9.18
+  solid-js: 1.9.19
   sonner: 2.0.8
   streamdown: 2.7.1
   stripe: 23.1.0
@@ -245,16 +256,6 @@ catalogs:
   # (docs/decisions/0097).
   ts71:
     typescript: 7.1.0-beta
-  # The previous major of each framework adapter whose peer range still
-  # covers it, type-checked in tests/types/frameworks-previous. SvelteKit
-  # declares its types as an ambient module, so two majors cannot share one
-  # program under npm aliases.
-  previous-majors:
-    "@nuxt/nitro-server": 3.21.11
-    "@sveltejs/kit": 2.70.3
-    h3: 1.15.11
-    nuxt: 3.21.11
-    react-router: 7.18.4
   # Ranges for the published packages' runtime dependencies, so an app's
   # supabase-js and better-supabase share one copy of each.
   deps:
@@ -265,38 +266,35 @@ catalogs:
     "@supabase/server": "^1.9.2"
     "@supabase/ssr": "^0.12.7"
   # Ranges the published packages declare as peers, so consumers pick the
-  # version. They are deliberately not exact pins.
+  # version. They are deliberately not exact pins. Each floor is the newest
+  # release that was older than minimumReleaseAge when it was set, which is the
+  # release the default catalog pins and the tests run (ADR 0848). Each range
+  # covers one major, or one minor for a 0.x package; the exceptions say why.
   peers:
-    # 4.0 is the useChat that ships with ai 7.
-    # 2.0 is the MCP client that ships with ai 7.
-    "@ai-sdk/mcp": ">=2 <3"
-    "@ai-sdk/react": ">=4 <5"
-    # 2.0 is the WorkflowAgent for ai 7; it pins ai exactly, so the AI set moves together.
-    "@ai-sdk/workflow": ">=2 <3"
-    # 0.21 is the release the spec patch format and the flat spec shape come from.
-    "@json-render/core": ">=0.21 <1"
-    # 2.3.0 is the first release with createMcpHandler and the web-standard bearer helpers.
-    "@modelcontextprotocol/server": ">=2.3.0 <3"
-    "@solidjs/start": ">=2 <3"
-    # SvelteKit 2 stays in range while apps move to 3 (released 2026-10-01);
-    # tests/types/frameworks-previous checks it.
-    "@sveltejs/kit": ">=2 <4"
-    "@tanstack/react-start": ">=1 <2"
-    astro: ">=7 <8"
-    # 4.43.0 is the first release of the Chat SDK catalog adapter; it types the catalog structurally.
-    "@chat-adapter/catalog": ">=4.43 <5"
-    # 4.43.0 is the Chat SDK release that `sendWithinWindowOrTemplate` was checked against.
-    "@chat-adapter/whatsapp": ">=4.43 <5"
-    # 4.41.0 is the first Chat SDK with the StateAdapter queue and list methods better-supabase/chat-sdk implements.
-    chat: ">=4.41 <5"
-    # 11 is the oldest major that runs on Node 24; @Ctx() requires it synchronously.
-    "@nestjs/common": ">=11 <13"
-    # 16.2.0 ships instant() with the baseURL option; expectInstant loads it on demand.
-    "@next/playwright": ">=16.2 <17"
-    "@opentelemetry/api": ">=1.9 <2"
-    "@orpc/server": ">=2.0.0-beta.40 <3"
+    # The AI SDK set moves together: @ai-sdk/react and @ai-sdk/workflow pin ai
+    # exactly, and all of them share one @ai-sdk/provider-utils.
+    "@ai-sdk/mcp": ">=2.0.98 <3"
+    "@ai-sdk/react": ">=4.0.175 <5"
+    "@ai-sdk/workflow": ">=2.0.103 <3"
+    ai: ">=7.0.171 <8"
+    "@json-render/core": ">=0.22.0 <1"
+    "@modelcontextprotocol/server": ">=2.4.0 <3"
+    "@solidjs/start": ">=2.2.2 <3"
+    "@sveltejs/kit": ">=3.2.0 <4"
+    "@tanstack/react-start": ">=1.169.5 <2"
+    astro: ">=7.4.11 <8"
+    # The Chat SDK packages release together.
+    "@chat-adapter/catalog": ">=4.44.0 <5"
+    "@chat-adapter/whatsapp": ">=4.44.0 <5"
+    chat: ">=4.44.0 <5"
+    "@nestjs/common": ">=12.5.0 <13"
+    "@next/playwright": ">=16.4.6 <17"
+    # 1.10 is newer, but @supabase/lite 0.11 depends on @sentry/node 10, whose
+    # @opentelemetry/core 2 caps the API below 1.10.
+    "@opentelemetry/api": ">=1.9.1 <2"
+    # A pre-release line (AGENTS.md "Pre-release pins"); <3 admits 2.0 stable.
+    "@orpc/server": ">=2.0.0-beta.50 <3"
     "@supabase/config": "^1.6.1"
-    # 0.11.0 is the first release with App.getClient() and the PGlite migrator liteStack() and gen use.
     "@supabase/lite": ">=0.11.0 <0.12"
     # A floor with no upper bound: the MCP server runs as its own process.
     "@supabase/mcp-server-supabase": ">=0.16.1"
@@ -312,87 +310,65 @@ catalogs:
     # The newest release, which reads what postgrest-typegen 0.8 writes into
     # database.types.ts.
     "@supabase/supabase-js": "^2.119.0"
-    # 5.62.0 added the error parameter of DataTag (dataTagErrorSymbol) the query keys use.
-    "@tanstack/query-core": "^5.62.0"
-    # 7.0 is the UI message stream protocol and the approval parts the AI SDK adapters convert.
-    ai: ">=7 <8"
-    # 3.0 is the TaggedError and Result API withBetterResult types its views with.
-    better-result: ">=3 <4"
-    elysia: ">=1 <2"
-    # 55.0.0 added setResponseHeaders, which the Expo adapter writes cookies through.
-    expo-server: ">=55 <59"
-    # 0.71 is the memory provider, hook and connection contract better-supabase/eve is typed against.
-    eve: ">=0.71 <1"
-    express: ">=5 <6"
-    fastify: ">=5 <6"
-    # H3 1 is the h3/v1 entry Nitro 2 and Nuxt run; H3 2 is the h3 entry.
-    h3: ">=1 <3"
-    hono: ">=4 <5"
-    # 1.3.0 passes the full JSONPath Compliance Test Suite (RFC 9535) that the overlays in better-supabase/spec require.
+    "@tanstack/query-core": "^5.107.1"
+    better-result: ">=3.0.1 <4"
+    elysia: ">=1.4.32 <2"
+    expo-server: ">=58.1.0 <59"
+    eve: ">=0.83.3 <1"
+    express: ">=5.3.0 <6"
+    fastify: ">=5.12.8 <6"
+    # Two majors: H3 1 is the h3/v1 entry that Nitro 2 and Nuxt 4 run
+    # (@nuxt/nitro-server 4.6.4 depends on h3 ^1.15.11), H3 2 the h3 entry.
+    h3: ">=1.15.11 <3"
+    hono: ">=4.13.18 <5"
     jsonpath-rfc9535: ">=1.3.0 <2"
-    koa: ">=3 <4"
-    # 16.3.0 added `io()`, which `better-supabase/next` awaits before reading the session.
-    next: ">=16.3 <17"
-    # 2.3.0 added createLoader, which the nuqs() generator writes.
-    nuqs: ">=2.3 <3"
-    # Nuxt 3 is checked in tests/types/frameworks-previous.
-    nuxt: ">=3 <5"
-    # 0.66.0 is the version @supabase/postgrest-typegen pins; the CLI tests run
-    # on the newer oxfmt in the default catalog.
+    koa: ">=3.3.0 <4"
+    next: ">=16.4.6 <17"
+    nuqs: ">=2.10.3 <3"
+    nuxt: ">=4.6.4 <5"
+    # The version @supabase/postgrest-typegen 0.8.1 peers on exactly; the CLI
+    # tests run on the newer oxfmt in the default catalog.
     oxfmt: ">=0.66.0 <1"
-    pg: ">=8.15 <9"
-    react: "^19"
-    # 7.9 stabilized the middleware the adapter mounts; 7 is checked in
-    # tests/types/frameworks-previous.
-    react-router: ">=7.9 <9"
-    solid-js: "^1.8"
-    # 5.7.0 added createSubscriber, which the Svelte bindings read through.
-    svelte: "^5.7"
-    # 3.3 added the generic `toValue` and `MaybeRefOrGetter` the Vue composables accept.
-    vue: "^3.3"
-    # 5.0.0 is the first node-redis with the camelCase commands the Redis stream store sends.
-    redis: ">=5 <7"
-    # 2.2.13 is the tested release; it exports the generic entry point the Postgres publisher and subscriber target.
+    pg: ">=8.23.1 <9"
+    react: "^19.3.1"
+    react-router: ">=8.5.1 <9"
+    solid-js: "^1.9.19"
+    svelte: "^5.57.3"
+    vue: "^3.5.45"
+    redis: ">=6.3.1 <7"
     resumable-stream: ">=2.2.13 <3"
-    # 17 is the first release with createFetchHttpClient and billing.meterEvents.
-    stripe: ">=17 <24"
-    temporal-polyfill: ">=1"
-    # 1.0 is the first release with the pipe API the valibot() generator writes.
-    valibot: ">=1 <2"
-    # 5.1.0 adds the dynamic workflows the builder compiles to.
-    workflow: ">=5.1 <6"
-    # 13.6 has the mergeUpdates and diffUpdate the document compaction uses.
-    yjs: ">=13.6 <14"
-    # 4.0 added z.guid(), z.int() and the z.iso formats the zod() generator writes, in both flavors.
-    zod: ">=4 <5"
-    # 7.30.1 has the response-size fix pinned in overrides; Agent takes connections and pipelining.
-    undici: ">=7.30.1 <9"
-    # 5 is the ESM release fromUbl and parseCamt053 load; removeNSPrefix reads the cac and cbc elements.
-    fast-xml-parser: ">=5 <6"
-    # The Supabase World speaks the 5.0 world protocol; world-postgres moves with it.
+    stripe: ">=23.1.0 <24"
+    temporal-polyfill: ">=1.0.8"
+    valibot: ">=1.5.0 <2"
+    workflow: ">=5.4.0 <6"
+    yjs: ">=13.6.33 <14"
+    zod: ">=4.6.7 <5"
+    undici: ">=8.12.4 <9"
+    fast-xml-parser: ">=5.12.0 <6"
+    # The Supabase World speaks the 5.1 world protocol; world-postgres moves with it.
     "@workflow/world": ">=5.1.0 <5.2"
-    "@workflow/world-postgres": ">=5.1.0 <5.2"
+    "@workflow/world-postgres": ">=5.1.1 <5.2"
     # The integrations below are typed structurally or loaded on first use, so
     # better-supabase imports none of them. The peer range still tells
-    # package managers which majors the conformance tests cover (ADR 0036).
-    # 4.0 is the provider for ai 7; anthropicMemory calls its memory tool.
-    "@ai-sdk/anthropic": ">=4 <5"
-    # 1.x is the server Provider contract createFlagsProvider implements.
-    "@openfeature/server-sdk": ">=1 <2"
-    # A 0.x Supabase Labs package: 0.2.0 is the FlagClient createFlagClient matches.
+    # package managers which releases the conformance tests cover (ADR 0036).
+    "@ai-sdk/anthropic": ">=4.0.103 <5"
+    "@openfeature/server-sdk": ">=1.23.0 <2"
     "@supabase-labs/middleware-openfeature": ">=0.2.0 <0.3"
-    # connect, disconnect and disconnectAndClear, which syncWithAuth drives, exist in both majors.
-    "@powersync/common": ">=1 <3"
-    # 2.x has getTokenResponse, revokeToken and startAuthorization.
-    "@vercel/connect": ">=2 <3"
-    # 0.8 has PollingQueueClient with send and receive; the 0.x line may still change.
-    "@vercel/queue": ">=0.8 <0.9"
-    # 3.x has Sandbox.create and Sandbox.get by name, persistent sandboxes and network policy transforms.
-    "@vercel/sandbox": ">=3 <4"
-    # 1.0 turns a @vercel/sandbox instance into the sandbox session of ai 7.
-    "@ai-sdk/sandbox-vercel": ">=1 <2"
-    # 4.1.0 added bulkDecide and adapterId; 4.2.0 resolves an adapter factory passed by reference.
-    flags: ">=4.2 <5"
+    "@powersync/common": ">=2.5.0 <3"
+    "@vercel/connect": ">=2.5.0 <3"
+    "@vercel/queue": ">=0.11.0 <0.12"
+    # 4.0 talks to api.vercel.com over undici 8 and needs Node 22.19 or later.
+    "@vercel/sandbox": ">=4.0.0 <5"
+    "@ai-sdk/sandbox-vercel": ">=1.0.182 <2"
+    "@vercel/schedules": ">=0.0.3 <0.1"
+    botid: ">=1.5.13 <2"
+    "@vercel/firewall": ">=1.2.6 <2"
+    "@vercel/passport": ">=1.2.0 <2"
+    "@vercel/sdk": ">=1.28.62 <2"
+    "@vercel/functions": ">=3.10.1 <4"
+    "@vercel/kms": ">=0.3.4 <0.4"
+    "@vercel/blob": ">=2.9.0 <3"
+    flags: ">=4.4.0 <5"
 
 catalogMode: strict
 nodeLinker: isolated
@@ -497,10 +473,10 @@ peerDependencyRules:
     # @chat-adapter/tests peers on vitest 4; its mock adapters and state helpers
     # use only the vi.fn() API that vitest 5 keeps.
     "@chat-adapter/tests>vitest": "5.1.0"
-    # workflow 5.1 depends on @workflow/nest, which brings NestJS 12;
+    # workflow 5.4 depends on @workflow/nest, which brings NestJS 12;
     # @supabase/server lists NestJS 10 or 11 as an optional peer it never
     # loads on our paths.
-    "@supabase/server>@nestjs/common": "12.1.3"
+    "@supabase/server>@nestjs/common": "12.5.0"
     # The World conformance suite peers on Vitest 4; it runs on the repo's
     # Vitest 5 through the same describe and test API.
     "@workflow/world-testing>vitest": "5.1.0"
@@ -514,9 +490,10 @@ peerDependencyRules:
     # SvelteKit peers on TypeScript 6 for its generated types; the library
     # only reads its declarations in the framework conformance test.
     "@sveltejs/kit>typescript": "7.0.2"
-    # Nuxt 3 depends on @nuxt/cli 3, whose @nuxt/schema peer moved to Nuxt 4;
-    # tests/types/frameworks-previous only reads Nuxt 3's types.
-    "@nuxt/cli>@nuxt/schema": "3.21.11"
+    # apps/docs gets Nuxt only as an optional peer of @vercel/analytics and
+    # @vercel/speed-insights, which it never loads; pnpm links that copy to the
+    # rolldown 1.3.0 the docs graph has. The library's Nuxt runs rolldown 1.2.
+    "nuxt>rolldown": "1.3.0"
     # The Expo example overrides React to 19.2.3 (see overrides); the global
     # React override rewrites every React peer range to the catalog version.
     react: 19.2.3

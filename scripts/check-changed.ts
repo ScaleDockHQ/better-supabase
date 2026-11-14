@@ -87,20 +87,45 @@ export const mirrorTest = (file: string): string | undefined => {
   return existsSync(join(repoRoot, candidate)) ? candidate : undefined;
 };
 
-const importerCount = (workspace: string, file: string): number => {
+const directImporters = (workspace: string, file: string): string[] => {
   const name = file
     .slice(file.lastIndexOf("/") + 1)
     .replace(/\.(?:ts|tsx)$/, "");
 
-  const found = lines("rg", [
+  return lines("rg", [
     "--files-with-matches",
     "--glob",
     "*.{ts,tsx}",
     `from ["'][^"']*/${name}(?:\\.[jt]sx?)?["']`,
     join(workspace, "src"),
   ]);
+};
 
-  return found.length;
+/**
+ * Source files that import `file` directly or through other source files. It
+ * stops counting past the cap: a file two hops from `render.ts` has two direct
+ * importers, but `vitest related` would run most of the suite for it.
+ */
+export const importerCount = (workspace: string, file: string): number => {
+  const seen = new Set<string>([file]);
+  const pending = [file];
+
+  while (pending.length > 0 && seen.size <= RELATED_IMPORTER_CAP + 1) {
+    const current = pending.shift();
+
+    if (current === undefined) {
+      break;
+    }
+
+    for (const importer of directImporters(workspace, current)) {
+      if (!seen.has(importer)) {
+        seen.add(importer);
+        pending.push(importer);
+      }
+    }
+  }
+
+  return seen.size - 1;
 };
 
 interface Step {

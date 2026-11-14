@@ -383,7 +383,10 @@ without arguments that returns `boolean`. The drain calls the probe while it
 claims due schedules, in the same query, and a schedule whose probe returns
 `false` stays due and enqueues nothing. It runs on the first drain after the
 probe returns `true`, so an idle tick costs no job, no lease and no handler.
-Under pg_cron the probe guards the enqueue the same way.
+Under pg_cron the probe guards the enqueue the same way. Under Vercel
+Schedules the [bridge route](#supabase-queues-with-vercel-schedules) checks
+the probe for each run and skips that run when it returns `false`; the next
+run asks again.
 
 ```ts
 await jobs
@@ -534,7 +537,8 @@ field out of range) stays without a next run, and `listSchedules` shows its
 The drain scheduler needs no database extension: any scheduler that calls the
 drain route on a fixed cadence runs every schedule, whatever their own
 cadences. Call it at least as often as your most frequent schedule, every
-minute for minute-level schedules. Vercel Cron, a GitHub Actions workflow, a
+minute for minute-level schedules. Vercel Schedules, Supabase Cron
+([`httpTick`](#supabase-cron-as-the-clock)), a GitHub Actions workflow, a
 Kubernetes CronJob or a Supabase Edge Function on a timer all work; each call
 leases the due schedules, so overlapping calls never enqueue a run twice.
 
@@ -559,7 +563,7 @@ product is an AI task, which the jobs block then runs.
 ### Drain route
 
 `drainRoute` turns the queues into an HTTP endpoint for a cron caller such as
-[Vercel Cron](https://vercel.com/docs/cron-jobs). Each call checks the bearer
+[Vercel Schedules](https://vercel.com/docs/schedules). Each call checks the bearer
 secret, enqueues due schedules, asks once which queues in `handlers` have a
 job to claim (`ready_job_queues`), then drains those until they are empty or
 `budgetMs` (50 seconds by default) is spent. The other queues report zero
@@ -581,11 +585,21 @@ export const GET = jobs.drainRoute({
 ```
 
 ```json title="vercel.json"
-{ "crons": [{ "path": "/api/jobs/drain", "schedule": "* * * * *" }] }
+{
+  "schedules": {
+    "queue-drain": {
+      "schedule": "* * * * *",
+      "path": "/api/jobs/drain",
+      "requestMethod": "GET"
+    }
+  }
+}
 ```
 
-Vercel sends `Authorization: Bearer <CRON_SECRET>`; a request without it gets
-`401`. The response is JSON: `schedules` (runs enqueued), `queues` (the
+A [Vercel schedule](https://vercel.com/docs/schedules) with a path target
+sends `Authorization: Bearer <CRON_SECRET>`; a request without it gets
+`401`. To run the drain as a private function instead, see
+[Private drain](#private-drain). The response is JSON: `schedules` (runs enqueued), `queues` (the
 succeeded and failed counts per queue), `budgetExhausted` and `errors` (the
 schedule and queue runs that failed as a whole). Keep `budgetMs` below the
 function's maximum duration. `drain` takes the same `budgetMs` when you call
@@ -864,10 +878,260 @@ send with `dedupeKey` (an idempotency key) counts twice. `retention` and
 Vercel Queues keeps a message for a day by default and at most 7 days, so
 `delay` and `runAt` can be at most 7 days out. A delayed message is kept an
 hour past its delay (`vercelRetentionSeconds` computes it). There are no
-schedules or queue counts: `schedule` needs the SQL backend, and `stats`
-returns an error that points to the queue metrics in the Vercel dashboard.
+schedules or queue counts: `schedule` needs a scheduler (see
+[Queues and schedulers](#queues-and-schedulers)), and `stats` returns an
+error that points to the queue metrics in the Vercel dashboard.
 Job ids are numbers local to the process. The backend passes
 `testQueueProvider`.
+
+### Queues and schedulers
+
+The queue holds and delivers jobs; the scheduler decides when a schedule
+fires. Without the `scheduler` option, the queue's own schedule methods run,
+as in [Schedules](#schedules). Pass `scheduler` to pair Supabase Queues or
+Vercel Queues with Supabase Cron or Vercel Schedules:
+
+| Queue           | Scheduler        | `createQueue` options                                                                      |
+| --------------- | ---------------- | ------------------------------------------------------------------------------------------ |
+| Supabase Queues | Supabase Cron    | `{ sql }` (the default)                                                                    |
+| Supabase Queues | Vercel Schedules | `{ sql, scheduler: vercelScheduler(Schedules, { bridge: "bsb_schedules" }) }`              |
+| Vercel Queues   | Supabase Cron    | `{ backend: vercelQueueProvider(queue), scheduler: sqlScheduler(sql, { mode: "drain" }) }` |
+| Vercel Queues   | Vercel Schedules | `{ backend: vercelQueueProvider(queue), scheduler: vercelScheduler(Schedules) }`           |
+
+`schedule`, `unschedule`, `ensureSchedules`, `listSchedules`, `unscheduleAll`
+and `runSchedules` go through the scheduler, and `runSchedules` sends each run
+through the queue. `createQueue` throws a `TypeError` for a pair that can't
+deliver: `sqlScheduler(sql)` in its default pg_cron mode with Vercel Queues
+(pg_cron enqueues inside the database), or `vercelScheduler` without a bridge
+on a Supabase queue (runs go to Vercel Queues topics that nothing reads). Any
+`ScheduleProvider` (API version 1) works; prove one with `testScheduleProvider`
+from [conformance kits](/docs/extending/conformance). `transportScheduler`
+takes a `BlockTransport` instead of a SQL connection.
+
+#### Supabase Queues with Supabase Cron
+
+The default: pg_cron runs `enqueue_job` inside the database, and probes guard
+each run. A clock still calls the [drain route](#drain-route) to run the jobs,
+either a Vercel schedule on its path or Supabase Cron itself with
+[`httpTick`](#supabase-cron-as-the-clock). Per-schedule time zones and tenants
+need `scheduler: "drain"`.
+
+#### Supabase Queues with Vercel Schedules
+
+Each queue schedule becomes a dynamic Vercel schedule that publishes to the
+bridge topic. `vercelScheduleBridgeRoute` reads that topic, checks the
+schedule's probe with `schedule_has_work`, and enqueues the run on the pgmq
+queue with `enqueueScheduledRun`, once per `executionId`, so a run Vercel
+delivers twice runs once. A false probe skips that run only, unlike the drain
+and pg_cron, where the schedule stays due until the probe returns `true`. The
+drain route then runs the jobs as before.
+
+```ts title="lib/jobs.ts"
+import { QueueClient } from "@vercel/queue";
+import { Schedules } from "@vercel/schedules";
+import { createQueue, vercelScheduler } from "better-supabase/blocks/queue";
+
+export const queue = new QueueClient();
+
+export const jobs = createQueue({
+  sql: postgres.admin,
+  scheduler: vercelScheduler(Schedules, { bridge: "bsb_schedules" }),
+  queues: { send_email: schema },
+});
+```
+
+```ts title="app/api/queues/schedules/route.ts"
+import { vercelScheduleBridgeRoute } from "better-supabase/blocks/queue";
+
+import { jobs, queue } from "@/lib/jobs";
+
+export const POST = vercelScheduleBridgeRoute(jobs, {
+  client: queue,
+  onError: (error, run) => console.error(run.name, error.message),
+});
+```
+
+```json title="vercel.json"
+{
+  "functions": {
+    "app/api/queues/schedules/route.ts": {
+      "experimentalTriggers": [
+        { "type": "queue/v2beta", "topic": "bsb_schedules" }
+      ]
+    }
+  }
+}
+```
+
+`@vercel/schedules` is an optional peer, typed structurally: pass `Schedules`
+or your own `SchedulesClient`. A static schedule that publishes to the bridge
+topic runs a block timer when its name is one of `vercelScheduleConfig`'s, and
+fails otherwise, since it carries no queue or payload.
+
+The Next.js example runs this pair with `JOBS_SCHEDULER=vercel`: the static
+schedules in its `vercel.json` publish the block timers to `bsb_schedules`,
+`app/api/queues/schedules` enqueues them on `block_ticks`, and the
+`jobs-drain` schedule calls `app/api/jobs/drain`.
+
+#### Vercel Queues with Supabase Cron
+
+Install the SQL module with the drain scheduler and `httpTick`, so pg_cron
+calls `jobs.schedulesRoute` every minute. The route runs `runSchedules`, which
+sends each due run to its topic in batches when the client has `sendBatch`.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  queue: { options: { scheduler: "drain", httpTick: true } },
+},
+```
+
+```ts title="lib/jobs.ts"
+export const jobs = createQueue({
+  backend: vercelQueueProvider(queue),
+  scheduler: sqlScheduler(postgres.admin, { mode: "drain" }),
+  queues: { send_email: schema },
+});
+```
+
+```ts title="app/api/jobs/schedules/route.ts"
+import { jobs } from "@/lib/jobs";
+
+export const POST = jobs.schedulesRoute({ secret: process.env.CRON_SECRET });
+```
+
+The route answers `{ schedules, errors }`. Point the Vault secret
+`jobs_tick_url` at it, as below.
+
+#### Vercel Queues with Vercel Schedules
+
+Without a bridge, each run publishes to the job's topic (`vercelTopicOf(queue)`),
+and `vercelQueueRoute` unwraps the schedule message: the handler gets the
+stored payload, and `job.schedule` holds the run's `name`, `executionId` and
+`scheduledAt`. A schedule with a `probe` returns an `invalid_request` error,
+since nothing on this path can ask the database first; use the bridge or the
+drain scheduler for a probe.
+
+```ts title="lib/jobs.ts"
+export const jobs = createQueue({
+  backend: vercelQueueProvider(queue),
+  scheduler: vercelScheduler(Schedules, { jitter: 2 }),
+  queues: { send_email: schema },
+});
+
+await jobs
+  .schedule({
+    name: "digest:weekly",
+    cron: "0 9 * * MON",
+    queue: "send_email",
+    payload: { template: "digest" },
+    timeZone: "Europe/Amsterdam",
+    tenant: organizationId,
+  })
+  .orThrow();
+```
+
+`vercelScheduler` writes each schedule with an update, then a create when it
+doesn't exist yet. A schedule's tenant becomes its namespace
+(`vercelNamespaceOf`), and schedules without one go to the `better-supabase`
+namespace (the `namespace` option), apart from the `default` namespace that
+static schedules use. Names are escaped into the characters Vercel accepts
+(`block:sla.check` becomes `block_3asla.check`, which `vercelScheduleNameFrom`
+reads back), and a name whose escaped form passes 256 characters becomes a
+hash. `vercelCronOf` expands macros and named days into the five numeric
+fields Vercel takes, and throws for an interval such as `30 seconds` or a cron
+that restricts both the day of month and the day of week. A payload over the
+16 KB Vercel keeps is an `invalid_request` error before any call.
+
+Vercel's API errors become `DbError`s: `not_found` makes `unschedule` return
+`false`, `rate_limited` keeps `retryAfter`, and `static_schedule`,
+`invalid_cron_expression` and `payload_too_large` are `invalid_request`
+(`vercelSchedulesErrorOf` maps one). Vercel returns no payloads, so
+`listSchedules` lists one namespace (the tenant's, or the one without a
+tenant) with no payload or probe, and `ensureSchedules` writes every
+definition again. `unscheduleAll` pages through the tenant's namespace.
+
+#### Supabase Cron as the clock
+
+`blocks.queue.options.httpTick` registers the pg_cron job `bsb_jobs_tick`,
+which calls `better_supabase.http_tick()` every minute. It posts to the URL
+in the Vault secret `jobs_tick_url` (the drain route on Supabase Queues,
+`jobs.schedulesRoute` on Vercel Queues) with `Authorization: Bearer` and the
+token in `jobs_tick_token`, usually `CRON_SECRET`. It needs pg_cron and
+pg_net; installing without pg_cron raises an error, and the function raises
+one without pg_net or Vault. While a secret is missing it skips the call with
+a warning.
+
+```sql
+select vault.create_secret('https://app.example.com/api/jobs/drain', 'jobs_tick_url');
+select vault.create_secret('<CRON_SECRET>', 'jobs_tick_token');
+```
+
+The function is revoked from `public`, `anon` and `authenticated`. Turning the
+option off leaves the job in place; remove it with
+`select cron.unschedule('bsb_jobs_tick')`.
+
+#### Static schedules in vercel.json
+
+`vercelScheduleConfig` returns the `functions` and `schedules` fragments of
+`vercel.json` for the schedules that belong to the app: each worker of the
+installed blocks on its path, and each block timer as a queue topic target on
+`block_ticks` (Vercel Queues), or on the bridge topic with `ticks`. The route
+on that topic maps a run back to its timer by name. Merge the fragments next
+to `vercelQueueTriggers`:
+
+```ts title="scripts/vercel-schedules.ts"
+import {
+  blockSchedules,
+  vercelScheduleConfig,
+} from "better-supabase/blocks/queue";
+
+const { functions, schedules } = await vercelScheduleConfig({
+  workers: queueBlock.workers,
+  timers: blockSchedules([slaBlock, sequencesBlock]),
+  hobby: false,
+});
+```
+
+`hobby: true` throws for a cron more frequent than every 15 minutes and for a
+jitter other than 15, the Hobby limits. Path schedules send `POST` unless
+`requestMethod` says `GET`. Remove each `crons` entry when you add its
+schedule: with both, the route runs twice per occurrence (doctor's BS512
+reports the leftovers).
+
+#### Private drain
+
+A Vercel schedule with a function target invokes a function that has no
+public URL and sends it no secret. Give the drain route that trigger and pass
+`caller: "vercel-schedule"`, so a run with `ce-type: com.vercel.schedule.v1beta`
+passes without the bearer secret. Only do this behind the `schedule/v1beta`
+trigger: on a public route anyone can send the header.
+
+```ts title="app/api/jobs/drain/route.ts"
+export const POST = jobs.drainRoute({
+  secret: undefined,
+  caller: "vercel-schedule",
+  handlers,
+});
+```
+
+```json title="vercel.json"
+{
+  "functions": {
+    "app/api/jobs/drain/route.ts": {
+      "experimentalTriggers": [{ "type": "schedule/v1beta" }]
+    }
+  },
+  "schedules": {
+    "queue-drain": {
+      "schedule": "* * * * *",
+      "function": "app/api/jobs/drain/route"
+    }
+  }
+}
+```
+
+`parseVercelScheduleRun(request)` reads a run's `ce-*` headers, and
+`isVercelScheduleMessage(body)` tells a schedule message from a job body.
 
 ### Without a database connection
 

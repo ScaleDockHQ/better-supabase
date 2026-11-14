@@ -205,9 +205,18 @@ export const GET = marketplace.usageRoute({
 
 ```json title="vercel.json"
 {
-  "crons": [{ "path": "/api/cron/marketplace-usage", "schedule": "0 1 * * *" }]
+  "schedules": {
+    "marketplace-usage": {
+      "schedule": "0 1 * * *",
+      "path": "/api/cron/marketplace-usage",
+      "requestMethod": "GET"
+    }
+  }
 }
 ```
+
+A [Vercel schedule](https://vercel.com/docs/schedules) with a path target
+sends `Authorization: Bearer <CRON_SECRET>`, which the route checks.
 
 ## Options and events
 

@@ -1,0 +1,88 @@
+---
+title: Vercel Functions
+description: Keep a function instance alive for its idle Postgres connections with attachDatabasePool, and share the JWKS between instances through the Vercel Runtime Cache.
+---
+
+Two helpers from [`@vercel/functions`](https://vercel.com/docs/functions/functions-api-reference/vercel-functions-package)
+plug into better-supabase: `attachDatabasePool` for the pool `createPostgres`
+opens, and the Runtime Cache as a shared store for the auth key set.
+
+```bash
+pnpm add @vercel/functions
+```
+
+`@vercel/functions` (`>=3.11.2 <4`) is an optional peer. better-supabase never
+imports it: you pass its functions in, so the options work without it.
+
+## attachDatabasePool
+
+A Vercel Function instance can be suspended while its pool still holds idle
+connections, which then stay open on the database until they time out.
+`attachDatabasePool` keeps the instance alive until the pool has closed them.
+Pass it to `createPostgres`, which calls it once with the pool it opens,
+right after opening it:
+
+```ts title="src/lib/supabase/server.ts"
+import { attachDatabasePool } from "@vercel/functions";
+import { createPostgres } from "better-supabase/postgres";
+import { createServer } from "better-supabase/server";
+
+import { betterSupabase } from "./index";
+
+export const bsb = createServer(betterSupabase, {
+  postgres: createPostgres({ attachDatabasePool }),
+});
+```
+
+The pool's `idleTimeout` (10 seconds by default) is how long an idle
+connection stays open, and so how long the instance is kept for it. A pool you
+pass as `pool` is yours: `createPostgres` doesn't call `attachDatabasePool`
+for it, so attach it yourself. A throw from `attachDatabasePool` is not
+caught, and `createPostgres` throws it at startup. The option accepts any
+function that takes an `AttachablePool` (exported from
+`better-supabase/postgres`), the part of a `pg.Pool` that
+`attachDatabasePool` reads.
+
+## Share the key set with the Runtime Cache
+
+Each function instance fetches the Supabase Auth key set (JWKS) once and keeps
+it in memory (see [the key cache](/docs/auth/server#key-cache)). With many
+short-lived instances, that is one fetch per instance. `vercelRuntimeCache`
+wraps the [Vercel Runtime Cache](https://vercel.com/docs/functions/functions-api-reference/vercel-functions-package#getcache)
+as a `JwksStore`, so the instances in a region share one fetched copy. Pass
+it as `auth.jwksStore`:
+
+```ts title="src/lib/supabase/server.ts"
+import { getCache } from "@vercel/functions";
+import { createServer, vercelRuntimeCache } from "better-supabase/server";
+
+import { betterSupabase } from "./index";
+
+export const bsb = createServer(betterSupabase, {
+  auth: { jwksStore: vercelRuntimeCache(getCache) },
+});
+```
+
+`createServer` uses it everywhere it verifies a token, the proxy included,
+and when it prefetches the key set at startup. `vercelRuntimeCache` calls
+`getCache` on first use, so creating it at module scope is safe. Its keys go
+in the `better-supabase-jwks` namespace; pass `{ namespace }` as the second
+argument to change it.
+
+A stored copy keeps the time of its original fetch, and an instance uses it
+only inside the same windows as a copy it fetched itself: fresh for
+`cacheSeconds`, then served while a refresh runs for `maxStaleSeconds`. So a
+Supabase key set is still never used more than 600 seconds after it was
+fetched, whichever instance fetched it. A copy older than the one in memory
+is ignored, and after `purgeKeys(url)` a copy fetched before the purge is not
+used again. A token with an unknown key id uses a stored copy only when
+another instance fetched it within the last 30 seconds; otherwise it fetches.
+
+The store never decides whether a token verifies. When the Runtime Cache
+fails, or doesn't answer within 500 milliseconds, the instance fetches the key
+set itself, and it writes new copies without waiting for the cache.
+
+`accessTokenResolver` takes the same store as `cache: { store }`, and
+[`verifyPassport`](/docs/vercel/passport) as `store`. Any object with
+`get(key)` and `set(key, value, { ttl })` that return promises is a
+`JwksStore`, so another shared cache works too.

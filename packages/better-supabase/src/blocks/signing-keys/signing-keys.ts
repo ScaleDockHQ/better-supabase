@@ -1,36 +1,27 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
-import type {
-  Jwk,
-  Jwks,
-  JwsAlgorithm,
-  SigningAlgorithm,
-  SigningCryptoKey,
-} from "../../core/jws.ts";
+import type { Jwk, Jwks, SigningAlgorithm } from "../../core/jws.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { BlockOptions } from "../shared.ts";
+import type {
+  KeyProvider,
+  Signature,
+  SigningKeyOwner,
+} from "./key-provider.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import {
-  generateSigningKey,
-  importSigningKey,
-  jwksOf,
-  signBytes,
-  signCompact,
-} from "../../core/jws.ts";
+import { jwksOf } from "../../core/jws.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { applyTemporal, blockCall } from "../shared.ts";
 import {
-  applyTemporal,
-  blockCall,
-  enumOrThrow,
-  isRecord,
-  recordOf,
-  run,
-  textOf,
-} from "../shared.ts";
-
-const ALGORITHMS = ["Ed25519", "ES256"] as const;
+  addSigningKey,
+  forgetSigningKey,
+  keyProviderOf,
+  ownerArgs,
+  storedSigningKey,
+  vaultKeyProvider,
+} from "./key-provider.ts";
 
 export interface SigningKeysOptions extends BlockOptions {
   /**
@@ -41,17 +32,18 @@ export interface SigningKeysOptions extends BlockOptions {
   readonly ed25519Alg?: "EdDSA" | "Ed25519";
   /** How long a signer keeps the imported private key, in seconds. Default: 300. */
   readonly cacheSeconds?: number;
+  /**
+   * Where signers get their keys. Default: `vaultKeyProvider(options)`, the
+   * private keys in Supabase Vault (ADR 0033). With `vercelKmsKeyProvider` the
+   * issuer's key set, which Vercel KMS publishes, is what verifiers fetch;
+   * `create`, `rotate`, `retire`, `noteExp`, `jwks`, `jwksResponse`, `remove`
+   * and `purge` keep managing the Vault keys only.
+   */
+  readonly keys?: KeyProvider;
   /** `withBlockHooks` hooks around the client's methods. */
   readonly hooks?: NoInfer<BlockHooks<SigningKeys>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
-}
-
-/** Who a key belongs to: an organization, an app, a stream. */
-export interface SigningKeyOwner {
-  /** Lowercase letters, digits, `-` and `_`, such as `organization`. */
-  readonly type: string;
-  readonly id: string;
 }
 
 /**
@@ -99,22 +91,16 @@ export interface CreatedSigningKey {
   readonly retired: string | null;
 }
 
-/** What `sign` returns. */
-export interface Signature {
-  readonly kid: string;
-  readonly alg: JwsAlgorithm;
-  readonly signature: Uint8Array;
-}
-
-/** Signs with an owner's active key. */
+/** Signs with an owner's active key, through the block's `keys` provider. */
 export interface Signer {
   readonly owner: SigningKeyOwner;
   /** The raw signature of `data` with the active key. */
   sign(data: Uint8Array): AsyncResult<Signature>;
   /**
-   * A compact JWS over `claims`, with `alg`, `kid` and `typ: "JWT"` in the
-   * header unless `header` sets them. A custom `typ` has to be `JWT` or end in
-   * `+jwt` (see `jwtType`); anything else fails with `SIGNING_TYP_INVALID`. A
+   * A compact JWS over `claims`, with `alg` and `kid` from the key provider and
+   * `typ: "JWT"` in the header unless `header` sets it. A custom `typ` has to
+   * be `JWT` or end in `+jwt` (see `jwtType`); anything else fails with
+   * `SIGNING_TYP_INVALID`. With a provider that has `noteExp` (Vault), a
    * numeric `exp` keeps the key in the JWKS until then
    * (`note_signing_key_exp`), so a rotation can't strand the token.
    */
@@ -140,7 +126,8 @@ export interface JwksResponseOptions extends JwksOptions {
 export interface SignerOptions {
   /**
    * Creates a key of this type when the owner has none, instead of failing with
-   * `SIGNING_KEY_MISSING`.
+   * `SIGNING_KEY_MISSING`. A provider whose keys live elsewhere, such as Vercel
+   * KMS, ignores it.
    */
   readonly create?: SigningAlgorithm;
 }
@@ -176,13 +163,6 @@ export interface SigningKeys {
   signer(input: { owner: SigningKeyOwner } & SignerOptions): Signer;
 }
 
-interface ActiveKey {
-  readonly kid: string;
-  readonly alg: SigningAlgorithm;
-  readonly key: SigningCryptoKey;
-  readonly at: number;
-}
-
 const HOUR = 3600;
 
 const interval = (duration: Temporal.Duration | undefined): string | null =>
@@ -190,115 +170,31 @@ const interval = (duration: Temporal.Duration | undefined): string | null =>
     ? null
     : `${String(duration.total({ unit: "seconds" }))} seconds`;
 
-const ownerArgs = (owner: SigningKeyOwner) => ({
-  owner_type: owner.type,
-  owner_id: owner.id,
-});
-
 /**
  * The `signing-keys` SQL module as typed calls: keys are generated and used
- * with WebCrypto here, kept in Supabase Vault there. Service role only.
+ * with WebCrypto here, kept in Supabase Vault there, unless `keys` signs
+ * elsewhere. Service role only.
  */
 export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
-  const ed25519Alg = options.ed25519Alg ?? "EdDSA";
-  const cacheMs = (options.cacheSeconds ?? 300) * 1000;
-  const keys = new Map<string, ActiveKey>();
-  const noted = new Map<string, number>();
 
-  const jwsAlg = (alg: SigningAlgorithm): JwsAlgorithm =>
-    alg === "Ed25519" ? ed25519Alg : "ES256";
+  const keys =
+    options.keys === undefined
+      ? vaultKeyProvider(options)
+      : keyProviderOf(options.keys);
+
+  const noted = new Map<string, number>();
 
   const add = (
     owner: SigningKeyOwner,
     alg: SigningAlgorithm,
   ): AsyncResult<CreatedSigningKey> =>
-    run(() => generateSigningKey(alg)).andThen((generated) =>
-      call(
-        "add_signing_key",
-        {
-          ...ownerArgs(owner),
-          kid: generated.kid,
-          alg,
-          public_jwk: generated.publicKey,
-          private_jwk: JSON.stringify(generated.privateKey),
-        },
-        (value) => {
-          const row = recordOf(value, "add_signing_key");
-          keys.delete(`${owner.type}:${owner.id}`);
+    addSigningKey(call, owner, alg).map((created) => {
+      forgetSigningKey(keys, { owner });
 
-          return {
-            kid: generated.kid,
-            alg,
-            publicKey: generated.publicKey,
-            retired: typeof row["retired"] === "string" ? row["retired"] : null,
-          };
-        },
-      ),
-    );
-
-  const stored = (
-    owner: SigningKeyOwner,
-  ): AsyncResult<{
-    readonly kid: string;
-    readonly alg: SigningAlgorithm;
-    readonly privateKey: string;
-  } | null> =>
-    call("signing_key", ownerArgs(owner), (value) => {
-      if (value === null || value === undefined) {
-        return null;
-      }
-
-      const row = recordOf(value, "signing_key");
-
-      return {
-        kid: textOf(row["kid"]),
-        alg: enumOrThrow(row["alg"], ALGORITHMS, "signing key alg"),
-        privateKey: textOf(row["privateKey"]),
-      };
+      return created;
     });
-
-  const active = (
-    owner: SigningKeyOwner,
-    create: SigningAlgorithm | undefined,
-  ): AsyncResult<ActiveKey> => {
-    const cacheKey = `${owner.type}:${owner.id}`;
-    const cached = keys.get(cacheKey);
-
-    if (cached && Date.now() - cached.at < cacheMs) {
-      return AsyncResult.ok(cached);
-    }
-
-    return stored(owner).andThen((found) => {
-      if (found) {
-        return run(async () => {
-          const parsed: unknown = JSON.parse(found.privateKey);
-
-          if (!isRecord(parsed) || typeof parsed["kty"] !== "string") {
-            throw new TypeError("The stored signing key is not a JWK");
-          }
-
-          // SAFETY: parsed is an object with a string kty; importSigningKey checks the rest.
-          const key = await importSigningKey(parsed as Jwk);
-          const entry = { kid: found.kid, alg: found.alg, key, at: Date.now() };
-          keys.set(cacheKey, entry);
-
-          return entry;
-        });
-      }
-
-      if (create === undefined) {
-        return AsyncResult.err(
-          dbError("not_found", `${cacheKey} has no signing key`, {
-            hint: "SIGNING_KEY_MISSING",
-          }),
-        );
-      }
-
-      return add(owner, create).andThen(() => active(owner, undefined));
-    });
-  };
 
   const noteExp: SigningKeys["noteExp"] = ({ kid, exp }) =>
     call(
@@ -311,15 +207,13 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
     create: ({ owner, alg = "Ed25519" }) => add(owner, alg),
     rotate: ({ owner, alg }) =>
       alg === undefined
-        ? stored(owner).andThen((found) => add(owner, found?.alg ?? "Ed25519"))
+        ? storedSigningKey(call, owner).andThen((found) =>
+            add(owner, found?.alg ?? "Ed25519"),
+          )
         : add(owner, alg),
     retire: (kid) =>
       call("retire_signing_key", { kid }, (value) => {
-        for (const [owner, entry] of keys) {
-          if (entry.kid === kid) {
-            keys.delete(owner);
-          }
-        }
+        forgetSigningKey(keys, { kid });
 
         return value === true;
       }),
@@ -352,7 +246,7 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
     },
     remove: (owner) =>
       call("delete_signing_keys", ownerArgs(owner), (value) => {
-        keys.delete(`${owner.type}:${owner.id}`);
+        forgetSigningKey(keys, { owner });
 
         return Number(value);
       }),
@@ -362,16 +256,9 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
         { grace: interval(purgeOptions.grace) },
         Number,
       ),
-    signer: ({ owner, ...signerOptions }) => ({
+    signer: ({ owner, create }) => ({
       owner,
-      sign: (data) =>
-        active(owner, signerOptions.create).andThen((key) =>
-          run(async () => ({
-            kid: key.kid,
-            alg: jwsAlg(key.alg),
-            signature: await signBytes(key.key, key.alg, data),
-          })),
-        ),
+      sign: (data) => keys.sign({ owner, data, create }),
       signJwt: (claims, header = {}) => {
         const typ = header["typ"];
 
@@ -386,38 +273,37 @@ export function createSigningKeys(options: SigningKeysOptions): SigningKeys {
           );
         }
 
-        return active(owner, signerOptions.create).andThen((key) => {
-          const exp = claims["exp"];
+        return keys
+          .signJwt({ owner, claims, header: { typ: "JWT", ...header }, create })
+          .andThen((signed) => {
+            const exp = claims["exp"];
 
-          // Noting the exp rounded up to the hour keeps the calls to one per key per hour.
-          const until =
-            typeof exp === "number" && Number.isFinite(exp)
-              ? Math.ceil(exp / HOUR) * HOUR
-              : undefined;
+            // Noting the exp rounded up to the hour keeps the calls to one per key per hour.
+            const until =
+              typeof exp === "number" && Number.isFinite(exp)
+                ? Math.ceil(exp / HOUR) * HOUR
+                : undefined;
 
-          const note =
-            until !== undefined && until > (noted.get(key.kid) ?? 0)
-              ? noteExp({
-                  kid: key.kid,
-                  exp: temporal().Instant.fromEpochMilliseconds(until * 1000),
-                }).map((known) => {
-                  noted.set(key.kid, until);
+            const note =
+              keys.noteExp !== undefined &&
+              until !== undefined &&
+              until > (noted.get(signed.kid) ?? 0)
+                ? keys
+                    .noteExp({
+                      kid: signed.kid,
+                      exp: temporal().Instant.fromEpochMilliseconds(
+                        until * 1000,
+                      ),
+                    })
+                    .map((known) => {
+                      noted.set(signed.kid, until);
 
-                  return known;
-                })
-              : AsyncResult.ok(true);
+                      return known;
+                    })
+                : AsyncResult.ok(true);
 
-          return note.andThen(() =>
-            run(() =>
-              signCompact(
-                key.key,
-                key.alg,
-                { alg: jwsAlg(key.alg), kid: key.kid, typ: "JWT", ...header },
-                claims,
-              ),
-            ),
-          );
-        });
+            return note.map(() => signed.token);
+          });
       },
     }),
   };

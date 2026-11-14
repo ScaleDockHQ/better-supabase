@@ -15,10 +15,10 @@ pnpm add @vercel/sandbox @ai-sdk/sandbox-vercel ai
 pnpm better-supabase add ai-chat
 ```
 
-`@vercel/sandbox` (`>=3 <4`) and `@ai-sdk/sandbox-vercel` (`>=1 <2`) are
-optional peers. The entry loads them the first time a chat asks for a
-sandbox; when your bundler includes them, pass the modules as `load` and
-`loadSession`. A call without them fails with the hint
+`@vercel/sandbox` (`>=4.0.0 <5`) and `@ai-sdk/sandbox-vercel`
+(`>=1.0.182 <2`) are optional peers. The entry loads them the first time a
+chat asks for a sandbox; when your bundler includes them, pass the modules as
+`load` and `loadSession`. A call without them fails with the hint
 `AI_SANDBOX_UNAVAILABLE` and the install command.
 
 ## Setup
@@ -28,6 +28,9 @@ On Vercel the SDK authenticates with the deployment's OIDC token. Locally,
 `.env.local`; the token lasts 12 hours, so pull it again when calls start
 failing with `AI_SANDBOX_FORBIDDEN`. Outside Vercel, pass an access token
 with its scope as `credentials: { token, teamId, projectId }`.
+
+To let a sandbox install your team's private npm packages, add
+`credentials: { npm: true }` to its `create` options or to `defaults`.
 
 Create the adapter once, over the chat block's sandboxes on a service
 transport, since it writes the registry outside the user's request:
