@@ -9,9 +9,20 @@ import type {
   CommonPowerSyncDatabase,
   PowerSyncBackendConnector,
 } from "@powersync/common";
+import type * as Blob from "@vercel/blob";
 import type * as Connect from "@vercel/connect";
 import type * as ConnectChat from "@vercel/connect/chat";
+import type { checkRateLimit } from "@vercel/firewall";
+import type { attachDatabasePool, getCache } from "@vercel/functions";
+import type * as Kms from "@vercel/kms";
+import type { PassportIdentityPayload } from "@vercel/passport";
 import type * as VercelSandbox from "@vercel/sandbox";
+import type {
+  ScheduleQueueMessage,
+  Schedules as VercelSchedules,
+} from "@vercel/schedules";
+import type { Vercel } from "@vercel/sdk";
+import type { checkBotId } from "botid/server";
 import type { AuthFn } from "eve/channels/auth";
 import type {
   ConnectionAuthDefinition,
@@ -36,7 +47,14 @@ import type { Publisher, Subscriber } from "resumable-stream/generic";
 import { describe, expectTypeOf, it } from "vitest";
 
 import type { AnthropicMemoryTools } from "../src/ai-sdk/memory/index.ts";
+import type { VercelDomainsSdk } from "../src/blocks/domains/index.ts";
+import type {
+  VercelScheduleQueueMessage,
+  VercelSchedulesClient,
+} from "../src/blocks/queue/index.ts";
+import type { VercelKmsModule } from "../src/blocks/signing-keys/index.ts";
 import type { WhatsappTemplateAdapter } from "../src/chat-sdk/index.ts";
+import type { vercelRuntimeCache } from "../src/core/jwks-store.ts";
 import type { CredentialSubject } from "../src/credentials/index.ts";
 import type {
   EveApprovalConfiguration,
@@ -59,7 +77,9 @@ import type {
   FlagsSdkProviderData,
 } from "../src/flags-sdk/index.ts";
 import type { JsonRenderSpec } from "../src/json-render/index.ts";
+import type { AttachablePool } from "../src/postgres/pool.ts";
 import type { SyncedDatabaseLike } from "../src/powersync/index.ts";
+import type { VercelBlobModule } from "../src/storage/index.ts";
 import type {
   postgresPublisher,
   postgresSubscriber,
@@ -68,10 +88,15 @@ import type {
   VercelConnectChatModule,
   VercelConnectModule,
 } from "../src/vercel-connect/index.ts";
+import type { PassportClaims } from "../src/vercel-passport/index.ts";
 import type {
   VercelSandboxModule,
   VercelSandboxSessionModule,
 } from "../src/vercel-sandbox/index.ts";
+import type {
+  CheckBotId,
+  CheckRateLimit,
+} from "../src/vercel-security/index.ts";
 
 /**
  * The structural types better-supabase declares instead of importing an
@@ -90,6 +115,36 @@ describe("structurally typed optional peers", () => {
     expectTypeOf<
       typeof SandboxSessions
     >().toExtend<VercelSandboxSessionModule>();
+  });
+
+  it("@vercel/schedules has what vercelScheduler calls and publishes the run vercelQueueRoute reads", () => {
+    expectTypeOf<typeof VercelSchedules>().toExtend<VercelSchedulesClient>();
+    expectTypeOf<ScheduleQueueMessage>().toExtend<VercelScheduleQueueMessage>();
+  });
+
+  it("botid and @vercel/firewall have the checks the vercel-security guards call", () => {
+    expectTypeOf<typeof checkBotId>().toExtend<CheckBotId>();
+    expectTypeOf<typeof checkRateLimit>().toExtend<CheckRateLimit>();
+  });
+
+  it("@vercel/passport's payload and PassportClaims are assignable to each other", () => {
+    expectTypeOf<PassportIdentityPayload>().toExtend<PassportClaims>();
+    expectTypeOf<PassportClaims>().toExtend<PassportIdentityPayload>();
+  });
+
+  it("@vercel/functions takes the pool and gives the cache the server options use", () => {
+    expectTypeOf<typeof attachDatabasePool>().toExtend<
+      (pool: AttachablePool) => void
+    >();
+    expectTypeOf<typeof getCache>().toExtend<
+      Parameters<typeof vercelRuntimeCache>[0]
+    >();
+  });
+
+  it("@vercel/sdk, @vercel/kms and @vercel/blob have what the domain, key and file providers call", () => {
+    expectTypeOf<Vercel>().toExtend<VercelDomainsSdk>();
+    expectTypeOf<typeof Kms>().toExtend<VercelKmsModule>();
+    expectTypeOf<typeof Blob>().toExtend<VercelBlobModule>();
   });
 
   it("@chat-adapter/whatsapp's adapter sends the template shape sendWithinWindowOrTemplate passes", () => {
