@@ -3,39 +3,16 @@
 import { dbError, err, ok } from "better-supabase";
 import * as v from "valibot";
 
+import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
-const Installation = v.object({
-  configuration_id: v.string(),
-  team_id: v.nullable(v.string()),
-  status: v.picklist(["active", "suspended", "removed"]),
-});
-
-const Resources = v.array(
-  v.object({
-    external_id: v.string(),
-    name: v.string(),
-    status: v.picklist(["pending", "ready", "suspended", "deleted"]),
-    plan_id: v.nullable(v.string()),
-  }),
-);
-
-export interface MarketplaceView {
-  readonly configurationId: string;
-  readonly teamId: string | null;
-  readonly status: "active" | "removed" | "suspended";
-  readonly resources: readonly {
-    readonly externalId: string;
-    readonly name: string;
-    readonly status: "deleted" | "pending" | "ready" | "suspended";
-    readonly planId: string | null;
-  }[];
-}
+import { MARKETPLACE_TAG } from "./marketplace-cache";
 
 /**
- * Links a Vercel configuration to this organization and returns its resources.
- * Only the service role calls the Marketplace functions, so the action runs
- * them after the `settings.manage` check.
+ * Links a Vercel configuration to this organization. Only the service role
+ * calls `upsert_marketplace_installation`, so the action runs it after the
+ * `settings.manage` check. The page then reads the installation back through
+ * the member-readable `marketplace_installation_for`.
  */
 export const connectInstallation = bsb.action(
   {
@@ -50,42 +27,21 @@ export const connectInstallation = bsb.action(
     requireTenant: true,
     permission: "settings.manage",
   },
-  async ({ configurationId }, { tenant }) => {
-    const api = bsb.admin().$client.schema("api");
-
-    const linked = await api.rpc("upsert_marketplace_installation", {
-      configuration_id: configurationId,
-      tenant,
-    });
+  async ({ configurationId }, { tenant, auth }) => {
+    const linked = await bsb
+      .admin()
+      .$client.schema("api")
+      .rpc("upsert_marketplace_installation", {
+        configuration_id: configurationId,
+        tenant,
+      });
 
     if (linked.error) {
       return err(dbError("unexpected", linked.error.message));
     }
 
-    const resources = await api.rpc("marketplace_resources", {
-      configuration_id: configurationId,
-    });
+    await refreshCaller(auth, [MARKETPLACE_TAG]);
 
-    if (resources.error) {
-      return err(dbError("unexpected", resources.error.message));
-    }
-
-    const installation = v.parse(Installation, linked.data);
-
-    const view: MarketplaceView = {
-      configurationId: installation.configuration_id,
-      teamId: installation.team_id,
-      status: installation.status,
-      resources: v
-        .parse(Resources, resources.data)
-        .map((resource) => ({
-          externalId: resource.external_id,
-          name: resource.name,
-          status: resource.status,
-          planId: resource.plan_id,
-        })),
-    };
-
-    return ok(view);
+    return ok(configurationId);
   },
 );

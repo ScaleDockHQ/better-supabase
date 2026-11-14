@@ -1,6 +1,7 @@
 "use server";
 
 import type { Result } from "better-supabase";
+import type { CheckoutOptions } from "better-supabase/blocks/billing";
 
 import { dbError, err, ok } from "better-supabase";
 import { generatedOptions } from "better-supabase/blocks";
@@ -8,6 +9,7 @@ import { rpcTransport } from "better-supabase/blocks/organizations";
 import { createUsage } from "better-supabase/blocks/usage";
 import { parseMoney } from "better-supabase/commerce";
 import { refresh } from "next/cache";
+import { headers } from "next/headers";
 import * as v from "valibot";
 
 import { BANKING_TAG } from "@/features/banking/banking-cache";
@@ -20,7 +22,8 @@ import { bsb } from "@/lib/supabase/server";
 import type { PlanOption } from "./billing-queries";
 
 import { BILLING_TAG } from "./billing-cache";
-import { getPlans } from "./billing-queries";
+import { currentPlanKeyOf, getPlans } from "./billing-queries";
+import { priceOf, stripeBilling } from "./billing-stripe";
 
 /** Completes the "Review your plan" onboarding step. */
 export const markPlanReviewed = bsb.action(
@@ -42,27 +45,29 @@ export const markPlanReviewed = bsb.action(
   },
 );
 
-/** The plan catalog and the organization's plan, for `usePlanPicker`. */
+/**
+ * The plan catalog and the organization's plan, for `usePlanPicker`. The plan
+ * comes from `billing.overview` when Stripe holds a subscription, and from the
+ * seeded `subscriptions` row before that.
+ */
 export const loadPlanCatalog = bsb.action(
   { requireTenant: true, permission: "billing.read" },
   async (_input, { tenant: organizationId, db }) => {
-    const plans = await getPlans();
+    const [plans, current] = await Promise.all([
+      getPlans(),
+      currentPlanKeyOf(db, organizationId),
+    ]);
 
-    return db.subscriptions
-      .get(
-        { where: { organizationId } },
-        { select: ["planKey"], optional: true },
-      )
-      .map((subscription) => ({ plans, current: subscription?.planKey }));
+    return ok({ plans, current });
   },
 );
 
 /**
  * Starts Stripe Checkout for a plan of the fixture's catalog (`public.plans`).
- * It runs on the server, so the Stripe key never reaches the browser: with the
- * billing SQL module and a test-mode key (`sk_test_...`), it returns
- * `billing.checkout(organizationId, { plan, successUrl, cancelUrl })`. This
- * example installs neither, so it answers `unsupported`.
+ * It runs on the server, so the Stripe key never reaches the browser: the plan
+ * maps to a test-mode price (`STRIPE_PRICE_*`) and the billing block opens the
+ * Checkout Session. Without the keys it answers `unsupported`; the webhook and
+ * process routes (`/api/stripe`) then move the subscription.
  */
 export const startCheckout = bsb.action(
   {
@@ -70,19 +75,46 @@ export const startCheckout = bsb.action(
     requireTenant: true,
     permission: "billing.manage",
   },
-  async ({ plan }): Promise<Result<{ url: string | undefined }>> => {
+  async (
+    { plan },
+    { tenant, session },
+  ): Promise<Result<{ url: string | undefined }>> => {
     const plans: readonly PlanOption[] = await getPlans();
 
     if (!plans.some((each) => each.key === plan)) {
       return err(dbError("not_found", `There is no "${plan}" plan`));
     }
 
-    return err(
-      dbError(
-        "unsupported",
-        "Checkout needs the billing SQL module and a Stripe test key, which this example doesn't install.",
-      ),
-    );
+    const billing = stripeBilling();
+    const price = priceOf(plan);
+
+    if (!billing || !price) {
+      return err(
+        dbError(
+          "unsupported",
+          "Checkout needs STRIPE_SECRET_KEY, a database connection and the plan's STRIPE_PRICE_* key.",
+        ),
+      );
+    }
+
+    const origin = (await headers()).get("origin");
+
+    if (origin === null) {
+      return err(dbError("invalid_input", "The request has no origin"));
+    }
+
+    const base: CheckoutOptions = {
+      price,
+      successUrl: `${origin}/settings/billing?checkout=done`,
+      cancelUrl: `${origin}/settings/billing`,
+    };
+
+    const email = session.kind === "user" ? session.user.email : undefined;
+    const options: CheckoutOptions = email ? { ...base, email } : base;
+
+    const started = await billing.checkout({ organizationId: tenant, options });
+
+    return started.ok ? ok({ url: started.data.url ?? undefined }) : started;
   },
 );
 

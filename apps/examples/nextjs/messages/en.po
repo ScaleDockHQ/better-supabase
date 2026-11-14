@@ -1342,15 +1342,20 @@ msgctxt "settings.D3idYv"
 msgid "Settings"
 msgstr "Settings"
 
+#: src/app/[locale]/(app)/settings/marketplace/[resource]/page.tsx
+msgctxt "marketplace.ad8AiS"
+msgid "All resources"
+msgstr "All resources"
+
 #: src/app/[locale]/(app)/settings/marketplace/page.tsx
 msgctxt "marketplace.Gn23tM"
 msgid "Vercel Marketplace"
 msgstr "Vercel Marketplace"
 
 #: src/app/[locale]/(app)/settings/marketplace/page.tsx
-msgctxt "marketplace.377lQr"
-msgid "Installations of this app from the Vercel Marketplace, with the resources Vercel provisioned for each."
-msgstr "Installations of this app from the Vercel Marketplace, with the resources Vercel provisioned for each."
+msgctxt "marketplace.RgBH4G"
+msgid "The installation of this app from the Vercel Marketplace that is linked to this organization, with the resources Vercel provisioned."
+msgstr "The installation of this app from the Vercel Marketplace that is linked to this organization, with the resources Vercel provisioned."
 
 #: src/app/[locale]/(app)/settings/members/[userId]/page.tsx
 msgctxt "members.sKwqTt"
@@ -5569,9 +5574,9 @@ msgid "None"
 msgstr "None"
 
 #: src/features/billing/components/billing-overview.tsx
-msgctxt "billing.1Z5h3H"
-msgid "Plan changes go through Stripe Checkout with the billing SQL module, which this example doesn't install."
-msgstr "Plan changes go through Stripe Checkout with the billing SQL module, which this example doesn't install."
+msgctxt "billing.eBMj51"
+msgid "Plan changes go through Stripe Checkout. The webhook route stores Stripe's events and the process route hands them to the billing block."
+msgstr "Plan changes go through Stripe Checkout. The webhook route stores Stripe's events and the process route hands them to the billing block."
 
 #: src/features/billing/components/feature-gate.tsx
 msgctxt "billing.BE3P0M"
@@ -18559,14 +18564,14 @@ msgid "Read the manufacturing guide"
 msgstr "Read the manufacturing guide"
 
 #: src/features/marketplace/components/connect-installation.tsx
-msgctxt "marketplace.47svuN"
-msgid "Installation"
-msgstr "Installation"
+msgctxt "marketplace.bne1MS"
+msgid "Connect an installation"
+msgstr "Connect an installation"
 
 #: src/features/marketplace/components/connect-installation.tsx
-msgctxt "marketplace.TBqFhD"
-msgid "Enter the configuration id Vercel shows for the installation. The organization is linked to it, and its resources are listed below."
-msgstr "Enter the configuration id Vercel shows for the installation. The organization is linked to it, and its resources are listed below."
+msgctxt "marketplace.2xL7NP"
+msgid "Enter the configuration id Vercel shows for the installation. The organization is linked to it, and its resources are listed on this page."
+msgstr "Enter the configuration id Vercel shows for the installation. The organization is linked to it, and its resources are listed on this page."
 
 #: src/features/marketplace/components/connect-installation.tsx
 msgctxt "marketplace.loBc8J"
@@ -18578,35 +18583,72 @@ msgctxt "marketplace.-vVZ_G"
 msgid "Connect"
 msgstr "Connect"
 
-#: src/features/marketplace/components/connect-installation.tsx
+#: src/features/marketplace/components/marketplace-overview.tsx
+msgctxt "marketplace.hjLslG"
+msgid "The installation didn't load"
+msgstr "The installation didn't load"
+
+#: src/features/marketplace/components/marketplace-overview.tsx
+msgctxt "marketplace.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/marketplace/components/marketplace-overview.tsx
+msgctxt "marketplace.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/marketplace/components/marketplace-overview.tsx
 msgctxt "marketplace.6q_8YI"
 msgid "No installation connected"
 msgstr "No installation connected"
 
-#: src/features/marketplace/components/connect-installation.tsx
-msgctxt "marketplace.ZaDlok"
-msgid "Install the app from the Vercel Marketplace, then connect its configuration here."
-msgstr "Install the app from the Vercel Marketplace, then connect its configuration here."
+#: src/features/marketplace/components/marketplace-overview.tsx
+msgctxt "marketplace._mUUQa"
+msgid "Install the app from the Vercel Marketplace, then connect its configuration below."
+msgstr "Install the app from the Vercel Marketplace, then connect its configuration below."
 
-#: src/features/marketplace/components/connect-installation.tsx
+#: src/features/marketplace/components/marketplace-overview.tsx
 msgctxt "marketplace.SWAD6r"
 msgid "No resources provisioned yet."
 msgstr "No resources provisioned yet."
 
-#: src/features/marketplace/components/connect-installation.tsx
+#: src/features/marketplace/components/marketplace-overview.tsx
+#: src/features/marketplace/components/resource-detail.tsx
 msgctxt "marketplace.wmyg6t"
 msgid "Resource"
 msgstr "Resource"
 
-#: src/features/marketplace/components/connect-installation.tsx
+#: src/features/marketplace/components/marketplace-overview.tsx
+#: src/features/marketplace/components/resource-detail.tsx
 msgctxt "marketplace.fz0z4c"
 msgid "Plan"
 msgstr "Plan"
 
-#: src/features/marketplace/components/connect-installation.tsx
+#: src/features/marketplace/components/marketplace-overview.tsx
 msgctxt "marketplace.tzMNF3"
 msgid "Status"
 msgstr "Status"
+
+#: src/features/marketplace/components/resource-detail.tsx
+msgctxt "marketplace.8T2Fuq"
+msgid "What Vercel provisioned for this installation."
+msgstr "What Vercel provisioned for this installation."
+
+#: src/features/marketplace/components/resource-detail.tsx
+msgctxt "marketplace.47svuN"
+msgid "Installation"
+msgstr "Installation"
+
+#: src/features/marketplace/components/resource-detail.tsx
+msgctxt "marketplace.bUTVzE"
+msgid "Vercel team"
+msgstr "Vercel team"
+
+#: src/features/marketplace/components/resource-detail.tsx
+msgctxt "marketplace.vvmRpn"
+msgid "Provisioned"
+msgstr "Provisioned"
 
 #: src/features/medications/components/medication-chart.tsx
 msgctxt "medications.Ydnmc6"
