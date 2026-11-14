@@ -1,4 +1,7 @@
+import type { AddressInfo } from "node:net";
+
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -80,6 +83,46 @@ describe("BS503", () => {
       "SUPABASE_JWKS",
     ]);
     expect(JSON.stringify(findings)).not.toContain("hosted");
+  });
+
+  it("accepts exported inline keys the running stack serves", async () => {
+    const served = { keys: [{ kty: "EC", kid: "local" }] };
+
+    const server = createServer((_request, response) => {
+      response.end(JSON.stringify(served));
+    });
+
+    await new Promise<void>((done) => {
+      server.listen(0, "127.0.0.1", done);
+    });
+
+    try {
+      const { port } = server.address() as AddressInfo;
+      const status = { ...STATUS, API_URL: `http://127.0.0.1:${port}` };
+      const statusBin = await fakeSupabase(`echo '${JSON.stringify(status)}'`);
+
+      const env = (jwks: unknown) =>
+        parseEnv({
+          SUPABASE_BIN: statusBin,
+          SUPABASE_JWKS: JSON.stringify(jwks),
+        });
+
+      expect(await check(await loadStackEnvCheck(root, env(served)))).toEqual(
+        [],
+      );
+      expect(
+        (
+          await check(
+            await loadStackEnvCheck(
+              root,
+              env({ keys: [{ kty: "EC", kid: "hosted" }] }),
+            ),
+          )
+        ).map((finding) => finding.target),
+      ).toEqual(["SUPABASE_JWKS"]);
+    } finally {
+      server.close();
+    }
   });
 
   it("never starts supabase status when no SUPABASE_* variable is exported", async () => {
