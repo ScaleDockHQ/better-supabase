@@ -1599,6 +1599,9 @@ importers:
       streamdown:
         specifier: 'catalog:'
         version: 2.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(supports-color@11.0.0)
+      stripe:
+        specifier: 'catalog:'
+        version: 23.1.0(@types/node@26.6.6)
       temporal-polyfill:
         specifier: 'catalog:'
         version: 1.0.8

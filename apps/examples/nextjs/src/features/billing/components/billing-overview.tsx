@@ -19,15 +19,18 @@ import { getSession } from "@/features/user/user-queries";
 
 import type { PlanOption } from "../billing-queries";
 
-import { getPlans, getSubscription } from "../billing-queries";
+import {
+  getCurrentPlanKey,
+  getPlans,
+  getSubscription,
+} from "../billing-queries";
 import { MarkPlanReviewedButton } from "./mark-plan-reviewed-button";
 import { PlanFeatures } from "./plan-features";
 import { PlanPicker } from "./plan-picker";
 
 /**
- * Render inside `<Suspense>`. The example doesn't install the billing SQL
- * module (Stripe Checkout and webhooks), so the plan comes from the seeded
- * subscription.
+ * Render inside `<Suspense>`. The plan comes from `billing.overview` when
+ * Stripe holds a subscription, and from the seeded subscription before that.
  */
 export async function CurrentPlan() {
   const session = await getSession();
@@ -37,15 +40,17 @@ export async function CurrentPlan() {
     return null;
   }
 
-  const [permissions, subscription, plans, t, format] = await Promise.all([
-    getPermissions(),
-    getSubscription(organizationId),
-    getPlans(),
-    getExtracted("billing"),
-    getFormatter(),
-  ]);
+  const [permissions, subscription, planKey, plans, t, format] =
+    await Promise.all([
+      getPermissions(),
+      getSubscription(organizationId),
+      getCurrentPlanKey(organizationId),
+      getPlans(),
+      getExtracted("billing"),
+      getFormatter(),
+    ]);
 
-  const current = plans.find((plan) => plan.key === subscription?.planKey);
+  const current = plans.find((plan) => plan.key === planKey);
 
   return (
     <Card>
@@ -108,7 +113,7 @@ export async function PlanGrid() {
       </div>
       <p className="text-sm text-muted-foreground">
         {t(
-          "Plan changes go through Stripe Checkout with the billing SQL module, which this example doesn't install.",
+          "Plan changes go through Stripe Checkout. The webhook route stores Stripe's events and the process route hands them to the billing block.",
         )}
       </p>
     </>
@@ -130,14 +135,14 @@ async function ManagedPlanPicker({
   plans: readonly PlanOption[];
   organizationId: string;
 }) {
-  const [subscription, permissions] = await Promise.all([
-    getSubscription(organizationId),
+  const [current, permissions] = await Promise.all([
+    getCurrentPlanKey(organizationId),
     getPermissions(),
   ]);
 
   return (
     <PlanPicker
-      initial={{ plans, current: subscription?.planKey }}
+      initial={{ plans, current }}
       canManage={can(permissions, "billing.manage")}
     />
   );

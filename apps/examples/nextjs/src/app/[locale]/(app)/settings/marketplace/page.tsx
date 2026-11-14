@@ -2,7 +2,10 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { ConnectInstallation } from "@/features/marketplace/components/connect-installation";
+import {
+  MarketplaceOverview,
+  MarketplaceOverviewSkeleton,
+} from "@/features/marketplace/components/marketplace-overview";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
 export const instant = true;
@@ -15,12 +18,12 @@ export default function MarketplaceSettingsPage() {
       <PageHeader
         title={t("Vercel Marketplace")}
         description={t(
-          "Installations of this app from the Vercel Marketplace, with the resources Vercel provisioned for each.",
+          "The installation of this app from the Vercel Marketplace that is linked to this organization, with the resources Vercel provisioned.",
         )}
       />
-      <Suspense fallback={null}>
+      <Suspense fallback={<MarketplaceOverviewSkeleton />}>
         <PermissionGate permission="settings.manage">
-          <ConnectInstallation />
+          <MarketplaceOverview />
         </PermissionGate>
       </Suspense>
     </>

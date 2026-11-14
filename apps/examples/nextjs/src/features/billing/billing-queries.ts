@@ -13,6 +13,7 @@ import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { bsb } from "@/lib/supabase/server";
 
 import { PLANS_TABLE, BILLING_TAG } from "./billing-cache";
+import { planOfPrice } from "./billing-stripe";
 
 export interface PlanOption {
   readonly key: string;
@@ -72,6 +73,79 @@ export async function getSubscription(organizationId: string) {
       { select: ["planKey", "status", "currentPeriodEnd"], optional: true },
     )
     .orThrow();
+}
+
+type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
+
+const StripeSubscription = v.looseObject({
+  price: v.optional(v.nullable(v.string())),
+});
+
+/**
+ * The plan of a live Stripe subscription in `billing.overview`, matched through
+ * its price (`STRIPE_PRICE_*`). Without `billing.read` the overview fails and
+ * the seeded `subscriptions` row stands, so a failed read answers `undefined`.
+ */
+async function stripePlanKeyOf(
+  db: Db,
+  organizationId: string,
+): Promise<string | undefined> {
+  const overview = await db.billing.overview({
+    organizationId,
+    invoiceLimit: 1,
+  });
+
+  if (!overview.ok) {
+    return;
+  }
+
+  const subscription = v.safeParse(
+    StripeSubscription,
+    overview.data.subscription,
+  );
+
+  return subscription.success && subscription.output.price
+    ? planOfPrice(subscription.output.price)
+    : undefined;
+}
+
+/**
+ * The key of the organization's plan for a Server Action: the Stripe
+ * subscription from `billing.overview` first, then the seeded row.
+ */
+export async function currentPlanKeyOf(
+  db: Db,
+  organizationId: string,
+): Promise<string | undefined> {
+  const fromStripe = await stripePlanKeyOf(db, organizationId);
+
+  if (fromStripe) {
+    return fromStripe;
+  }
+
+  const row = await db.subscriptions
+    .get({ where: { organizationId } }, { select: ["planKey"], optional: true })
+    .orThrow();
+
+  return row?.planKey;
+}
+
+/**
+ * `currentPlanKeyOf` for server components. The fallback reads
+ * `getSubscription`, which the current plan card also shows, so the page reads
+ * the row once.
+ */
+export async function getCurrentPlanKey(
+  organizationId: string,
+): Promise<string | undefined> {
+  "use cache: private";
+  const { db } = await bsb.cached();
+  cacheTag(BILLING_TAG, BANKING_TAG, SHOP_TAG);
+
+  return (
+    (await stripePlanKeyOf(db, organizationId)) ??
+    (await getSubscription(organizationId))?.planKey
+  );
 }
 
 const INVOICE_STATUSES = [
