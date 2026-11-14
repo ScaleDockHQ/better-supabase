@@ -15,15 +15,19 @@ export async function register(): Promise<void> {
 
   // Loaded here, not at the top: the edge build of this file must not pull
   // in `pg` or the server client.
-  const [{ syncStepLibrary }, { syncRuleFields }, { registerAiTelemetry }] =
-    await Promise.all([
-      import("./features/workflows/builder/sync-steps"),
-      import("./features/rules/sync-rule-fields"),
-      import("./features/assistant/ai-telemetry"),
-    ]);
+  const [
+    { startEventTriggers, syncStepLibrary },
+    { syncRuleFields },
+    { registerAiTelemetry },
+  ] = await Promise.all([
+    import("./features/workflows/builder/sync-steps"),
+    import("./features/rules/sync-rule-fields"),
+    import("./features/assistant/ai-telemetry"),
+  ]);
 
   registerAiTelemetry();
   await Promise.all([syncStepLibrary(), syncRuleFields()]);
+  startEventTriggers();
 
   const { registerLifecycleHooks } = await import("workflow/api");
   unregisterHooks?.();
@@ -42,10 +46,9 @@ export async function register(): Promise<void> {
     seedNewTenants();
   }
 
-  if (
-    process.env.NODE_ENV !== "development" ||
-    process.env["WORKFLOW_TARGET_WORLD"] === undefined
-  ) {
+  const { WORKFLOW_TARGET_WORLD: targetWorld } = process.env;
+
+  if (process.env.NODE_ENV !== "development" || targetWorld === undefined) {
     return;
   }
 

@@ -963,6 +963,99 @@ describe("createWorkflowEditor", () => {
     expect(calls.at(-1)?.args).toEqual({ tenant: "t1", subject_type: "deal" });
   });
 
+  it("starts the runs of the event triggers that listen for an event", async () => {
+    const event = {
+      ...TRIGGER,
+      id: "ev1",
+      kind: "event",
+      config: { event: "task.*" },
+    };
+
+    let targets: unknown[] = [{ trigger: event, tenant: "t1" }];
+
+    const { transport, calls } = fake({
+      workflow_event_targets: () => targets,
+      workflow_start_target: target,
+    });
+
+    const starts: BuilderStartCall[] = [];
+
+    const builder = createWorkflowEditor({
+      transport,
+      start: async (call) => {
+        starts.push(call);
+
+        return `wrun_${String(starts.length)}`;
+      },
+    });
+
+    const fired = await builder.triggers
+      .fire({
+        type: "task.created",
+        data: { id: "k1" },
+        tenant: "t1",
+        subject: "tasks/k1",
+        time: "2026-01-01T00:00:00Z",
+      })
+      .orThrow();
+
+    expect(fired).toEqual(["wrun_1"]);
+    expect(calls[0]).toEqual({
+      fn: "workflow_event_targets",
+      args: { event: "task.created", tenant: "t1" },
+    });
+    expect(starts[0]?.input).toEqual({
+      type: "task.created",
+      data: { id: "k1" },
+      tenant: "t1",
+      subject: "tasks/k1",
+      time: "2026-01-01T00:00:00Z",
+    });
+    expect(starts[0]?.idempotencyKey).toBe(
+      "event:ev1:task.created:2026-01-01T00:00:00Z:tasks/k1",
+    );
+
+    await builder.triggers
+      .fire({ type: "task.created", id: "evt-9" })
+      .orThrow();
+    expect(starts[1]?.idempotencyKey).toBe("event:ev1:evt-9");
+    expect(starts[1]?.input).toMatchObject({ data: null, tenant: null });
+
+    await builder.triggers.fire({ type: "task.created" }).orThrow();
+    expect(starts[2]?.idempotencyKey).toMatch(/^event:ev1:task\.created:/);
+
+    targets = [];
+    expect(await builder.triggers.fire({ type: "x.y" }).orThrow()).toEqual([]);
+  });
+
+  it("returns the first start error only when no event trigger started a run", async () => {
+    const event = { ...TRIGGER, kind: "event", config: { event: "a.b" } };
+
+    const { transport } = fake({
+      workflow_event_targets: () => [{ trigger: event }],
+      workflow_start_target: () => {
+        throw Object.assign(new Error("not published"), {
+          code: "P0001",
+          hint: "WORKFLOW_NOT_PUBLISHED",
+        });
+      },
+    });
+
+    const builder = createWorkflowEditor({ transport, start: async () => "x" });
+
+    expect((await builder.triggers.fire({ type: "a.b" })).ok).toBe(false);
+
+    const lookup = createWorkflowEditor({
+      transport: {
+        call: async () => {
+          throw new Error("down");
+        },
+      },
+    });
+
+    expect((await lookup.triggers.fire({ type: "a.b" })).ok).toBe(false);
+  });
+
   it("answers webhooks", async () => {
     let found = true;
 

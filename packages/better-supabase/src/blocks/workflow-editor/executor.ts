@@ -16,6 +16,7 @@ import {
   isGraphRecord,
   topologicalOrder,
   validateGraph,
+  waitsOn,
 } from "./graph.ts";
 
 /** The record a run belongs to. */
@@ -50,6 +51,13 @@ export interface GraphStepCall {
  */
 export interface GraphNodeCall extends Omit<GraphStepCall, "step"> {
   readonly kind: string;
+  /**
+   * Set on the second call of a waiting node (its kind sets `waits`): the first
+   * call started the work and returned `output`, the run then paused until the
+   * app resumed it with `payload`, and this call returns the node's final
+   * output.
+   */
+  readonly resumed?: { readonly payload: unknown; readonly output: unknown };
 }
 
 /**
@@ -66,6 +74,30 @@ export interface GraphApprovalCall {
   readonly version?: string;
   readonly tenant?: string;
   readonly subject?: GraphSubject;
+}
+
+/**
+ * What a waiting node passes to `GraphRuntime.waitFor`: plain data, so it
+ * serializes.
+ */
+export interface GraphWaitCall {
+  readonly node: string;
+  readonly kind: string;
+  /** The hook token `nodeWaitToken` derives; the resume path wakes it. */
+  readonly token: string;
+  readonly runKey: string;
+}
+
+/** The prefix `nodeWaitToken` puts before the run key and node id. */
+export const NODE_WAIT_PREFIX = "node-wait:";
+
+/**
+ * The hook token a waiting node (`waits: true` on its kind) pauses on: the
+ * run's key and the node's id, so the code that completes the work (a task's
+ * completion, a child run's end) can wake the run without storing the hook.
+ */
+export function nodeWaitToken(runKey: string, node: string): string {
+  return `${NODE_WAIT_PREFIX}${runKey}:${node}`;
 }
 
 /** What the engine does for each kind of node. */
@@ -97,6 +129,14 @@ export interface GraphRuntime {
    */
   node?(call: GraphNodeCall): PromiseLike<unknown>;
   sleep(ms: number): PromiseLike<unknown>;
+  /**
+   * Registers the hook of a waiting node and returns what resolves with the
+   * resume payload (`createHook({ token })`). The executor calls it before the
+   * node's step and awaits it after, so a resume that arrives while the step
+   * runs is not missed. Required when the graph has a node whose kind `waits`;
+   * a test run never calls it.
+   */
+  waitFor?(call: GraphWaitCall): PromiseLike<unknown>;
   /**
    * Files the approval request for an approval node and returns its id, which
    * becomes the hook token. Run it as a step that calls the approvals block's
@@ -270,6 +310,7 @@ async function runCustomNode(
   runtime: GraphRuntime,
 ): Promise<NodeOutcome> {
   let output: unknown;
+  const kinds = new Map((runtime.nodes ?? []).map((info) => [info.kind, info]));
 
   if (runtime.stubs !== undefined) {
     output = stubOf(runtime.stubs, node.id, { stubbed: true });
@@ -277,6 +318,42 @@ async function runCustomNode(
     throw new TypeError(
       `workflow-editor: pass node to the runtime to run node ${node.id} of kind ${node.kind}`,
     );
+  } else if (waitsOn(node.kind, kinds)) {
+    if (runtime.waitFor === undefined) {
+      throw new TypeError(
+        `workflow-editor: pass waitFor to the runtime to run node ${node.id} of kind ${node.kind}, which waits`,
+      );
+    }
+
+    const waiting = runtime.waitFor({
+      node: node.id,
+      kind: node.kind,
+      token: nodeWaitToken(runtime.runKey, node.id),
+      runKey: runtime.runKey,
+    });
+
+    const started: unknown = await runtime.node({
+      node: node.id,
+      kind: node.kind,
+      config: node.config ?? {},
+      input,
+      results: { ...results },
+      runKey: runtime.runKey,
+      ...extrasOf(runtime),
+    });
+
+    const payload = await waiting;
+
+    output = await runtime.node({
+      node: node.id,
+      kind: node.kind,
+      config: node.config ?? {},
+      input,
+      results: { ...results },
+      runKey: runtime.runKey,
+      ...extrasOf(runtime),
+      resumed: { payload: payload ?? null, output: started ?? null },
+    });
   } else {
     output = await runtime.node({
       node: node.id,
@@ -288,8 +365,6 @@ async function runCustomNode(
       ...extrasOf(runtime),
     });
   }
-
-  const kinds = new Map((runtime.nodes ?? []).map((info) => [info.kind, info]));
 
   return {
     output: output ?? null,

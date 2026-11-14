@@ -186,3 +186,12 @@
 :root .react-flow__controls-button svg {
   fill: currentColor;
 }
+
+:root .react-flow__attribution {
+  background: color-mix(in oklab, var(--card) 70%, transparent);
+  color: var(--muted-foreground);
+}
+
+:root .react-flow__attribution a {
+  color: inherit;
+}

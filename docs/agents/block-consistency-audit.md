@@ -983,7 +983,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Findings: EX-1209, EX-1210, EX-1211, EX-1324, EX-515, EX-515 (check #917's set checks first)
 - Log: 2026-11-12, planned.
   2026-11-14, lane L started from main (aa43c1d009) in `../bsb-audit-l`.
-  2026-11-14, ADRs 0851 to 0855: `bulk` and the limit (`src/core/bulk.ts`), `exportCsv` and `entityList().export`, manifest `importTarget` on 14 blocks, `createJobs` with `bulk` and `import` sources, and `update_member_roles` (migration `20261217090500`, pgTAP `organizations_member_roles`). EX-1211 fixed; EX-1209, EX-1210, EX-1324 and EX-515 partly fixed, the rest moves with the category lanes and the example.
+  2026-11-14, ADRs 0851 to 0855: `bulk` and the limit (`src/core/bulk.ts`), `exportCsv` and `entityList().export`, manifest `importTarget` on 14 blocks, `createJobs` with `bulk` and `import` sources, and `update_member_roles` (migration `20270115120012`, pgTAP `organizations_member_roles`). EX-1211 fixed; EX-1209, EX-1210, EX-1324 and EX-515 partly fixed, the rest moves with the category lanes and the example.
 
 ### Lane M1
 
@@ -1140,6 +1140,8 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 - Findings: EX-201, EX-202, EX-203, EX-205, EX-210, EX-212, EX-213
 - Log: 2026-11-14, planned.
 - Log: 2026-11-14, EX-205, EX-210, EX-212 (partly) and EX-213 done (ADRs 0989 and 0990); EX-201 to EX-203 deferred with their needs.
+- Log: 2026-11-14, X6b in progress on `feat/findings-x6b` (EX-201 to EX-203 and EX-212; ADRs 0991 to 0994).
+- Log: 2026-11-14, X6b done: EX-201 to EX-203 and EX-212 fixed (ADRs 0991 to 0994); one PR, no stack.
 
 ### Lane X7
 

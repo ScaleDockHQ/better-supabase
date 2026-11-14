@@ -69,7 +69,14 @@ export {
 } from "./node-kinds.ts";
 
 export {
+  subscribeEventTriggers,
+  type EventTriggerOptions,
+} from "./event-triggers.ts";
+
+export {
   executeGraph,
+  nodeWaitToken,
+  type GraphWaitCall,
   type GraphApprovalCall,
   type GraphNodeCall,
   type GraphRunFields,
