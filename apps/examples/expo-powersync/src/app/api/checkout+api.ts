@@ -8,9 +8,9 @@ const Body = v.object({ plan: v.string() });
 /**
  * `POST /api/checkout`: starts Stripe Checkout for a plan key on the server, as
  * the caller of the bearer token. With the billing SQL module and a test-mode
- * key (`sk_test_...`), it returns `billing.checkout(organizationId, { plan,
- * successUrl, cancelUrl })`; the fixture installs neither, so it answers
- * `unsupported`.
+ * key (`sk_test_...`), it returns `billing.checkout({ organizationId, options:
+ * { plan, successUrl, cancelUrl } })`; the fixture installs neither, so it
+ * answers `unsupported`.
  */
 export const POST = bsb.handler(
   async (request) => {
