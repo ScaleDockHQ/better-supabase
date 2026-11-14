@@ -1,6 +1,6 @@
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:43673ee3ab65a8d7efe6997014ba4b665ab4570e2638a4bdc3dd9d3f7e6a7d99
+-- @bsb-hash sha256:9037f101cb7b382bca3c8ba95b41374267847fa3f4ecdb488431a351a86220bd
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1383,7 +1383,7 @@ begin
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
   if v_pipeline_archived is not null then
-    raise exception 'restore the pipeline first' using errcode = '55000', hint = 'PIPELINE_ARCHIVED';
+    raise exception 'the pipeline of this stage is archived; restore the pipeline first' using errcode = '55000', hint = 'PIPELINE_NOT_FOUND';
   end if;
   update "better_supabase"."pipeline_stages" x set "archived_at" = null, "updated_at" = now() where x."id" = restore_pipeline_stage.stage;
   perform "better_supabase".emit_event('pipeline_stage.restored', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');

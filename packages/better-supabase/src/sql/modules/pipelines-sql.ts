@@ -979,7 +979,7 @@ begin
   end if;
   ${guard("v_tenant")}
   if v_pipeline_archived is not null then
-    ${fail("PIPELINE_ARCHIVED", "restore the pipeline first", "55000")}
+    ${fail("PIPELINE_NOT_FOUND", "the pipeline of this stage is archived; restore the pipeline first", "55000")}
   end if;
   update ${t("stages")} x set ${s("archivedAt")} = null${touched(names, "stages")} where x.${s("id")} = restore_pipeline_stage.stage;
   ${ctx.record({

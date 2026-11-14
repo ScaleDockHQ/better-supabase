@@ -391,7 +391,7 @@
     "security-definer-functions": 9
   },
   "pipelines": {
-    "security-definer-functions": 50,
+    "security-definer-functions": 62,
     "row-triggers": 7
   },
   "posts": {
