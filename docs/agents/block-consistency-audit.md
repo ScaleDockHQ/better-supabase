@@ -1055,7 +1055,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M5
 
 - Scope: Remaining example list helpers, app-table and inbox pages, free sort
-- Status: merged
+- Status: in progress
 - Branch: `feat/audit-lane-m5`, `feat/audit-lane-m5b`
 - PR: [#974](https://github.com/ScaleDockHQ/better-supabase/pull/974), [#975](https://github.com/ScaleDockHQ/better-supabase/pull/975)
 - Findings: EX-001, EX-014, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
@@ -1066,7 +1066,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M6
 
 - Scope: M5's leftovers: reads modules for app tables and arrays, free sort, instant pages, shell accessibility
-- Status: merged
+- Status: in progress
 - Branch: `feat/audit-lane-m6a`
 - PR: [#976](https://github.com/ScaleDockHQ/better-supabase/pull/976)
 - Findings: EX-001, EX-014, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
