@@ -877,9 +877,9 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G3
 
 - Scope: List contract rollout: commerce
-- Status: PR open
+- Status: PR open #929
 - Branch: `feat/audit-g3`
-- PR: PR_LINK
+- PR: [#929](https://github.com/ScaleDockHQ/better-supabase/pull/929)
 - Findings: EX-1200 to EX-1205, EX-1215, EX-800 to EX-802, EX-811, EX-812, EX-1100 to EX-1105
 - Log: 2026-11-12, planned. 2026-11-14, page, facets and count for 11 entities in seven blocks
   (commissions, donations, leases, manufacturing, periods, referrals, shipments), ADR 0769.
