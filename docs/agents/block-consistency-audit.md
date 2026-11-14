@@ -1057,7 +1057,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Scope: Remaining example list helpers, app-table and inbox pages, free sort
 - Status: in progress
 - Branch: `feat/audit-lane-m5`, `feat/audit-lane-m5b`
-- PR: [#974](https://github.com/ScaleDockHQ/better-supabase/pull/974), PR_2_LINK
+- PR: [#974](https://github.com/ScaleDockHQ/better-supabase/pull/974), [#975](https://github.com/ScaleDockHQ/better-supabase/pull/975)
 - Findings: EX-001, EX-014, EX-024, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294, EX-1327
 - Log: 2026-11-14, planned from lane M4's leftovers. ADR numbers continue M4's range from 0890.
 - Log: 2026-11-14, PR 1 (library, ADR 0890): `tenantOption`, `app` entities and the `coverage` output of `defineEntityPage`.
