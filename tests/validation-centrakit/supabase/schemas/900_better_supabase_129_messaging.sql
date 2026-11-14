@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:6a2370ca0221861067412f1ee51c8b0b20c0ac07d119f525cdd4596fe6ca0071
+-- @bsb-hash sha256:8bc64bd0a189779035e71b51d68c321d42ba9a893a7eb0907ba7b6138197baa5
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -796,13 +796,11 @@ set search_path = ''
 as $$
 declare
   v_conv "better_supabase"."conversations";
-  v_was timestamptz;
 begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_conv from "better_supabase"."conversations" c where c."id" = archive_conversation.conversation;
-  v_was := v_conv."archived_at";
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -818,8 +816,6 @@ begin
   returning * into v_conv;
   if archive_conversation.archived then
     perform "better_supabase".emit_event('conversation.archived', jsonb_build_object('organizationId', v_conv."tenant_id"::text, 'conversationId', v_conv."id", 'kind', v_conv."kind", 'subjectType', 'conversation', 'subjectId', v_conv."id"::text), 'conversations/' || v_conv."id"::text, (v_conv."tenant_id"::text)::text, null, 'domain');
-  elsif v_was is not null then
-    perform "better_supabase".emit_event('conversation.restored', jsonb_build_object('organizationId', v_conv."tenant_id"::text, 'conversationId', v_conv."id", 'kind', v_conv."kind", 'subjectType', 'conversation', 'subjectId', v_conv."id"::text), 'conversations/' || v_conv."id"::text, (v_conv."tenant_id"::text)::text, null, 'domain');
   end if;
   return archive_conversation.archived;
 end;
