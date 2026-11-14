@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:a4d598435b10cccf88fc74be0f6b925d06e1da3183c831aa8b026acd4e208706
+-- @bsb-hash sha256:8239cf745bc877f42ac13551570556bec667bfbcdc7a633083ce4b8a99db575d
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -128,12 +128,13 @@ create policy bsb_workflow_versions_read on "better_supabase"."workflow_versions
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
--- SHA-256 only; schedule, form and chat triggers keep their settings
+-- SHA-256 only; an event trigger names the block event in config.event;
+-- schedule, form and chat triggers keep their settings
 -- in config for the app to bind.
 create table "better_supabase"."workflow_triggers" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "kind" text not null constraint bsb_workflow_triggers_kind_check check ("kind" in ('manual', 'webhook', 'schedule', 'form', 'chat')),
+  "kind" text not null constraint bsb_workflow_triggers_kind_check check ("kind" in ('manual', 'webhook', 'schedule', 'form', 'chat', 'event')),
   "config" jsonb not null default '{}'::jsonb,
   "enabled" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -227,6 +228,7 @@ create table "better_supabase"."workflow_node_runs" (
   "node_id" text not null constraint bsb_workflow_node_runs_node_id_check check (length("node_id") >= 1 and length("node_id") <= 100),
   "status" text not null constraint bsb_workflow_node_runs_status_check check ("status" in ('running', 'waiting', 'completed', 'failed', 'skipped')),
   "attempts" integer not null default 0,
+  "input" jsonb,
   "output" jsonb,
   "error" text,
   "started_at" timestamptz,
@@ -1690,6 +1692,41 @@ $$;
 revoke execute on function "better_supabase"."workflow_webhook_target"(text) from public, anon, authenticated;
 grant execute on function "better_supabase"."workflow_webhook_target"(text) to service_role;
 
+-- The enabled event triggers that listen for a block event type: the ones
+-- whose config.event is the type, or a prefix.* pattern that covers it. A
+-- tenant narrows them to its definitions; system definitions (no tenant)
+-- always match. Service role; the event subscriber calls it.
+create or replace function "better_supabase"."workflow_event_targets"(event text, tenant uuid default null)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('trigger', jsonb_build_object(
+    'id', x."id",
+    'definition', x."definition_id",
+    'kind', x."kind",
+    'config', x."config",
+    'enabled', x."enabled",
+    'createdAt', x."created_at",
+    'updatedAt', x."updated_at"
+  ), 'tenant', y."tenant_id") order by x."created_at"), '[]'::jsonb)
+  from "better_supabase"."workflow_triggers" x
+  join "better_supabase"."workflow_definitions" y on y."id" = x."definition_id"
+  where x."kind" = 'event'
+    and x."enabled"
+    and (
+      x."config" ->> 'event' = workflow_event_targets.event
+      or (
+        x."config" ->> 'event' like '%.*'
+        and workflow_event_targets.event like left(x."config" ->> 'event', -1) || '%'
+      )
+    )
+    and (workflow_event_targets.tenant is null or y."tenant_id" is null or y."tenant_id" = workflow_event_targets.tenant);
+$$;
+revoke execute on function "better_supabase"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."workflow_event_targets"(text, uuid) to service_role;
+
 -- Creates or replaces a credential reference: workflow.admin in tenant.
 create or replace function "better_supabase"."save_workflow_credential"(
   tenant uuid,
@@ -1877,14 +1914,16 @@ grant execute on function "better_supabase"."workflow_steps_list"() to authentic
 
 -- Records a node's status for a run (by its id or its engine's id) and
 -- pings the run's topic. attempt raises attempts; started_at keeps the
--- first start and ended_at is set by completed, failed and skipped.
+-- first start and ended_at is set by completed, failed and skipped. input
+-- is the step's input; a later call without one keeps it.
 create or replace function "better_supabase"."record_workflow_node_run"(
   run text,
   node text,
   status text,
   attempt integer default null,
   output jsonb default null,
-  error text default null
+  error text default null,
+  input jsonb default null
 )
 returns boolean
 language plpgsql
@@ -1903,11 +1942,12 @@ begin
   if not found then
     return false;
   end if;
-  insert into "better_supabase"."workflow_node_runs" as x ("run_id", "node_id", "status", "attempts", "output", "error", "started_at", "ended_at")
-  values (v_run, node, status, coalesce(attempt, 0), output, left(error, 4000), now(), case when v_ended then now() end)
+  insert into "better_supabase"."workflow_node_runs" as x ("run_id", "node_id", "status", "attempts", "input", "output", "error", "started_at", "ended_at")
+  values (v_run, node, status, coalesce(attempt, 0), input, output, left(error, 4000), now(), case when v_ended then now() end)
   on conflict ("run_id", "node_id") do update set
     "status" = excluded."status",
     "attempts" = greatest(x."attempts", excluded."attempts"),
+    "input" = coalesce(excluded."input", x."input"),
     "output" = coalesce(excluded."output", x."output"),
     "error" = excluded."error",
     "started_at" = coalesce(x."started_at", excluded."started_at"),
@@ -1918,8 +1958,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."record_workflow_node_run"(text, text, text, integer, jsonb, text) from public, anon, authenticated;
-grant execute on function "better_supabase"."record_workflow_node_run"(text, text, text, integer, jsonb, text) to service_role;
+revoke execute on function "better_supabase"."record_workflow_node_run"(text, text, text, integer, jsonb, text, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."record_workflow_node_run"(text, text, text, integer, jsonb, text, jsonb) to service_role;
 
 -- The node statuses of a run the caller may read.
 create or replace function "better_supabase"."workflow_node_runs_list"(run text)
@@ -1933,6 +1973,7 @@ as $$
     'node', x."node_id",
     'status', x."status",
     'attempts', x."attempts",
+    'input', x."input",
     'output', x."output",
     'error', x."error",
     'startedAt', x."started_at",
@@ -2432,6 +2473,16 @@ as $$ select "better_supabase"."workflow_webhook_target"($1) $$;
 revoke execute on function "api"."workflow_webhook_target"(text) from public, anon, authenticated;
 grant execute on function "api"."workflow_webhook_target"(text) to service_role;
 
+create or replace function "api"."workflow_event_targets"(event text, tenant uuid default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."workflow_event_targets"($1, $2) $$;
+revoke execute on function "api"."workflow_event_targets"(text, uuid) from public, anon, authenticated;
+grant execute on function "api"."workflow_event_targets"(text, uuid) to service_role;
+
 create or replace function "api"."save_workflow_credential"(tenant uuid, kind text, name text, ref jsonb, scopes text[] default '{}')
 returns jsonb
 language sql
@@ -2489,14 +2540,14 @@ as $$ select "better_supabase"."workflow_steps_list"() $$;
 revoke execute on function "api"."workflow_steps_list"() from public, anon;
 grant execute on function "api"."workflow_steps_list"() to authenticated, service_role;
 
-create or replace function "api"."record_workflow_node_run"(run text, node text, status text, attempt integer default null, output jsonb default null, error text default null)
+create or replace function "api"."record_workflow_node_run"(run text, node text, status text, attempt integer default null, output jsonb default null, error text default null, input jsonb default null)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."record_workflow_node_run"($1, $2, $3, $4, $5, $6) $$;
-revoke execute on function "api"."record_workflow_node_run"(text, text, text, integer, jsonb, text) from public, anon, authenticated;
-grant execute on function "api"."record_workflow_node_run"(text, text, text, integer, jsonb, text) to service_role;
+as $$ select "better_supabase"."record_workflow_node_run"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."record_workflow_node_run"(text, text, text, integer, jsonb, text, jsonb) from public, anon, authenticated;
+grant execute on function "api"."record_workflow_node_run"(text, text, text, integer, jsonb, text, jsonb) to service_role;
 
 create or replace function "api"."workflow_node_runs_list"(run text)
 returns jsonb

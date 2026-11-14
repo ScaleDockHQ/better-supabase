@@ -1029,7 +1029,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Findings: EX-1310, EX-1311, EX-1323, EX-1325
 - Log: 2026-11-12, planned.
 - Log: 2026-11-14, lane O1 started from main (aa43c1d009) in `../bsb-audit-o1`. One PR: `subjectColumn`, `erase`, `legalHold`, `history` and `partition` on the entity surface, `subjectAccessPlan`, `subjectAccessRequest` and `historyTabs`, declarations on `consent`, `data_subject_request` and `field_history`, ADRs 0899 to 0902. No SQL change, so no migration and no pgTAP test; the SQL erase executor per entity stays open (EX-1310).
-- Log: 2026-11-14, lane O1b started from main (9b29fb14e1) in `../bsb-audit-o1b`: `erase_data_subject` and `executeErasure` (EX-1310), migration `20261222120000`, pgTAP `data_lifecycle_erasure.test.sql`, ADR 0903. [#948](https://github.com/ScaleDockHQ/better-supabase/pull/948).
+- Log: 2026-11-14, lane O1b started from main (9b29fb14e1) in `../bsb-audit-o1b`: `erase_data_subject` and `executeErasure` (EX-1310), migration `20270115100000` (the slot 20261222 sorts before the newest migration on main), pgTAP `data_lifecycle_erasure.test.sql`, ADR 0903. [#948](https://github.com/ScaleDockHQ/better-supabase/pull/948).
 
 ### Lane O2
 
@@ -1140,6 +1140,8 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 - Findings: EX-201, EX-202, EX-203, EX-205, EX-210, EX-212, EX-213
 - Log: 2026-11-14, planned.
 - Log: 2026-11-14, EX-205, EX-210, EX-212 (partly) and EX-213 done (ADRs 0989 and 0990); EX-201 to EX-203 deferred with their needs.
+- Log: 2026-11-14, X6b in progress on `feat/findings-x6b` (EX-201 to EX-203 and EX-212; ADRs 0991 to 0994).
+- Log: 2026-11-14, X6b done: EX-201 to EX-203 and EX-212 fixed (ADRs 0991 to 0994); one PR, no stack.
 
 ### Lane X7
 

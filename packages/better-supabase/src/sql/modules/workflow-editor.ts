@@ -217,6 +217,7 @@ const NAMES: BlockSqlNames = {
         node: "node_id",
         status: "status",
         attempts: "attempts",
+        input: "input",
         output: "output",
         error: "error",
         startedAt: "started_at",
@@ -252,6 +253,7 @@ const WORKFLOW_TRIGGER_KINDS = [
   "schedule",
   "form",
   "chat",
+  "event",
 ] as const;
 
 const NODE_RUN_STATUSES = [
@@ -411,7 +413,8 @@ ${lockModuleTable(ctx, "versions", { read: true })}
 ${renderPolicy(makePolicy({ table: v, name: "workflow_versions_read", command: "select", roles: ["authenticated"], using: definitionReadable(cv("definition")) }), { target: v })}
 
 -- How runs of a definition start. A webhook trigger's token is stored as its
--- SHA-256 only; schedule, form and chat triggers keep their settings
+-- SHA-256 only; an event trigger names the block event in config.event;
+-- schedule, form and chat triggers keep their settings
 -- in config for the app to bind.
 create table if not exists ${t} (
   ${ct("id")} uuid primary key default gen_random_uuid(),
@@ -479,6 +482,7 @@ create table if not exists ${n} (
   ${cn("node")} text not null check (length(${cn("node")}) between 1 and 100),
   ${cn("status")} text not null check (${cn("status")} in (${list(NODE_RUN_STATUSES)})),
   ${cn("attempts")} integer not null default 0,
+  ${cn("input")} jsonb,
   ${cn("output")} jsonb,
   ${cn("error")} text,
   ${cn("startedAt")} timestamptz,
@@ -939,6 +943,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "rotate_workflow_webhook_token", args: ["uuid"], returns: "text" },
     { name: "workflow_webhook_target", args: ["text"], returns: "jsonb" },
     {
+      name: "workflow_event_targets",
+      args: ["text", "{id}"],
+      returns: "jsonb",
+    },
+    {
       name: "save_workflow_credential",
       args: ["{id}", "text", "text", "jsonb", "text[]"],
       returns: "jsonb",
@@ -966,7 +975,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       : []),
     {
       name: "record_workflow_node_run",
-      args: ["text", "text", "text", "integer", "jsonb", "text"],
+      args: ["text", "text", "text", "integer", "jsonb", "text", "jsonb"],
       returns: "boolean",
     },
     { name: "workflow_node_runs_list", args: ["text"], returns: "jsonb" },

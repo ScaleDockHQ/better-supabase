@@ -5,6 +5,7 @@ export {
   DYNAMIC_WORKFLOWS_ENV,
   graphStarter,
   nodeRunReporter,
+  type NodeRunReportOptions,
   type CompiledGraph,
   type CompileGraphOptions,
   type GraphNodeStep,
