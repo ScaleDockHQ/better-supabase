@@ -83,6 +83,7 @@ export type {
   EntityListReads,
   EntityListResult,
   EntityListSearchParams,
+  EntityAppSource,
   EntityPage,
   EntityPageInput,
 } from "./entity-page.ts";

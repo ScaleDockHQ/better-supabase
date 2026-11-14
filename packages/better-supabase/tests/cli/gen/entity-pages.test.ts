@@ -190,6 +190,7 @@ describe("emitEntityPages", () => {
   it("writes the list query, the route, the form, the manifest, the scale file and the schema indexes", () => {
     expect([...byPath.keys()].toSorted()).toStrictEqual([
       "app/api/risks/list/route.ts",
+      "src/lib/supabase/pages/coverage.ts",
       "src/lib/supabase/pages/risks.form.ts",
       "src/lib/supabase/pages/risks.list.ts",
       "src/lib/supabase/pages/routes.manifest.ts",
@@ -285,11 +286,12 @@ describe("emitEntityPages", () => {
       "navigation",
       "export-route",
       "manifest",
+      "coverage",
     ]);
 
     expect(
       ENTITY_PAGE_OUTPUTS.map((output) => output.apiVersion),
-    ).toStrictEqual([1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+    ).toStrictEqual([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
   });
 
   it("writes nothing without pages", () => {

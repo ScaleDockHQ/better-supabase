@@ -3388,6 +3388,7 @@
       "UNSET"
     ],
     "types": [
+      "EntityAppSource",
       "EntityColumn",
       "EntityDetail",
       "EntityDetailSection",

@@ -40,15 +40,16 @@ const emit = (pages = [risks]) =>
   );
 
 describe("ENTITY_PAGE_OUTPUTS", () => {
-  it("appends seed, navigation and manifest after forms", () => {
+  it("appends seed, navigation, manifest and coverage after forms", () => {
     expect(
-      ENTITY_PAGE_OUTPUTS.map((output) => output.id).slice(-5),
+      ENTITY_PAGE_OUTPUTS.map((output) => output.id).slice(-6),
     ).toStrictEqual([
       "forms",
       "seed",
       "navigation",
       "export-route",
       "manifest",
+      "coverage",
     ]);
   });
 });
@@ -249,5 +250,108 @@ describe("seedValue", () => {
     expect(seedValue("title", field({ kind: "string", maxLength: 3 }), 0)).toBe(
       "Tit",
     );
+  });
+});
+
+const customers = defineEntityPage({
+  entity: "app.customer",
+  route: "/customers",
+  area: "crm",
+  columns: ["name", "status"],
+  export: {},
+  tenantOption: "organizationId",
+  app: {
+    surface: {
+      sorts: ["name", "createdAt"],
+      facets: ["status"],
+      search: ["name"],
+    },
+    table: {
+      name: "customers",
+      tenant: "tenant_id",
+      columns: {
+        name: "name",
+        status: "status",
+        createdAt: "created_at",
+        tenant: "tenant_id",
+      },
+    },
+    reads: { module: "@/lib/customer-reads", export: "customerReads" },
+  },
+});
+
+describe("app entity pages", () => {
+  const files = emit([risks, customers]);
+
+  it("reads the surface and the table from the descriptor", () => {
+    const resolved = resolveEntityPage(config([customers]), customers);
+
+    expect(resolved.block).toBe("app");
+    expect(resolved.surface.sorts).toStrictEqual(["name", "createdAt"]);
+    expect(resolved.surface.filters).toStrictEqual(["status"]);
+    expect(resolved.table?.schema).toBe("public");
+    expect(resolved.table?.tenant).toBe("tenant_id");
+  });
+
+  it("calls the app's reads with the tenant option in the routes", () => {
+    const route = files.get("app/api/customers/list/route.ts") ?? "";
+
+    expect(route).toContain(
+      'import { customerReads as customersReadsOf } from "@/lib/customer-reads";',
+    );
+    expect(route).toContain("(request, { db, tenant })");
+    expect(route).toContain("const customersReads = customersReadsOf(db);");
+    expect(route).toContain("customersReads.page(options)");
+    expect(route).toContain("{ organizationId: tenant },");
+
+    const csv = files.get("app/api/customers/export/route.ts") ?? "";
+
+    expect(csv).toContain(
+      "customersReads.page({ ...options, organizationId: tenant })",
+    );
+  });
+
+  it("indexes the table and writes its scale test", () => {
+    expect(files.get("supabase/schemas/entity_page_indexes.sql")).toContain(
+      '"public"."customers"',
+    );
+    expect(
+      files.has("supabase/tests/scale/scale_list_customers.test.sql"),
+    ).toBe(true);
+  });
+
+  it("writes no coverage entry for an app entity", () => {
+    const coverage = files.get("src/lib/supabase/pages/coverage.ts") ?? "";
+
+    expect(coverage).toContain('"risks": ["/risks"],');
+    expect(coverage).not.toContain("customers");
+  });
+
+  it("refuses an app entity without `app` and the reverse", () => {
+    expect(() =>
+      defineEntityPage({ entity: "app.customer", route: "/customers" }),
+    ).toThrow(/is an app entity/);
+
+    expect(() =>
+      defineEntityPage({
+        entity: "risks.risk",
+        route: "/risks",
+        app: { surface: {}, reads: { module: "m", export: "e" } },
+      }),
+    ).toThrow(/must be named "app/);
+  });
+
+  it("passes the tenant option of a block page", () => {
+    const incidents = defineEntityPage({
+      entity: "risks.risk",
+      route: "/r",
+      name: "r",
+      tenantOption: "organizationId",
+    });
+
+    const route = emit([incidents]).get("app/api/r/list/route.ts") ?? "";
+
+    expect(route).toContain("db.risks.page(options)");
+    expect(route).toContain("{ organizationId: tenant },");
   });
 });

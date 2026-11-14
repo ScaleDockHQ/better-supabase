@@ -11,6 +11,7 @@ import { resolveBlock } from "../../sql/index.ts";
 import { CliError } from "../core/errors.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import {
+  COVERAGE_OUTPUT,
   MANIFEST_OUTPUT,
   NAVIGATION_OUTPUT,
   SEED_OUTPUT,
@@ -111,6 +112,35 @@ export function resolveEntityPage(
   page: EntityPage,
 ): ResolvedEntityPage {
   const [block = "", entityKey = ""] = page.entity.split(".");
+
+  if (page.app !== undefined) {
+    const { surface: declared, table: spec } = page.app;
+
+    return {
+      page,
+      name: entityPageName(page),
+      block,
+      entityKey,
+      surface: {
+        sorts: declared.sorts ?? [],
+        facets: declared.facets ?? [],
+        filters: declared.filters ?? declared.facets ?? [],
+        search: declared.search ?? false,
+      },
+      table:
+        spec === undefined
+          ? undefined
+          : {
+              schema: spec.schema ?? "public",
+              name: spec.name,
+              tenant: spec.tenant,
+              columns: spec.columns,
+            },
+      schemas: undefined,
+      reads: page.reads ?? camelOf(entityKey),
+    };
+  }
+
   const manifest = manifestOf(config, block);
 
   if (manifest === undefined) {
@@ -339,6 +369,44 @@ export interface EntityPageOutput {
   render(context: EntityPageContext): readonly GeneratedFile[];
 }
 
+/** The statements that read a page: the route's tenant option and the reads. */
+function readsOf(entry: ResolvedEntityPage): {
+  readonly imports: readonly string[];
+  readonly context: string;
+  readonly prelude: readonly string[];
+  readonly page: string;
+  readonly facets: string;
+  readonly extra: string;
+} {
+  const { app, methods, tenantOption } = entry.page;
+
+  const extra = tenantOption === undefined ? "" : `{ ${tenantOption}: tenant }`;
+
+  if (app === undefined) {
+    return {
+      imports: [],
+      context: tenantOption === undefined ? "{ db }" : "{ db, tenant }",
+      prelude: [],
+      page: `db.${entry.reads}.${methods?.page ?? "page"}`,
+      facets: `db.${entry.reads}.${methods?.facets ?? "facets"}`,
+      extra,
+    };
+  }
+
+  const reads = `${camelOf(entry.name)}Reads`;
+
+  return {
+    imports: [
+      `import { ${app.reads.export} as ${reads}Of } from ${q(app.reads.module)};`,
+    ],
+    context: tenantOption === undefined ? "{ db }" : "{ db, tenant }",
+    prelude: [`  const ${reads} = ${reads}Of(db);`, ""],
+    page: `${reads}.page`,
+    facets: `${reads}.facets`,
+    extra,
+  };
+}
+
 const listModulePath = (context: EntityPageContext, name: string): string =>
   posix.join(context.pagesDir, `${name}.list.ts`);
 
@@ -415,6 +483,8 @@ const LIST_ROUTE: EntityPageOutput = {
         .relative(posix.dirname(path), listModulePath(context, entry.name))
         .replace(/\.ts$/, "");
 
+      const reads = readsOf(entry);
+
       return {
         path,
         contents: [
@@ -423,21 +493,24 @@ const LIST_ROUTE: EntityPageOutput = {
           server.export === "bsb"
             ? `import { bsb } from ${q(server.module)};`
             : `import { ${server.export} as bsb } from ${q(server.module)};`,
+          ...reads.imports,
           "",
           `/** \`GET /api/${entry.name}/list\`: one page of \`${entry.page.entity}\` and the count of every facet. */`,
-          "export const GET = bsb.route((request, { db }) => {",
+          `export const GET = bsb.route((request, ${reads.context}) => {`,
           `  const query = ${list}.parse(request.nextUrl.searchParams);`,
           "",
           "  if (!query.ok) {",
           "    return Response.json({ issues: query.issues }, { status: 400 });",
           "  }",
           "",
+          ...reads.prelude,
           `  return ${list}.run(`,
           "    {",
-          `      page: (options) => db.${entry.reads}.${entry.page.methods?.page ?? "page"}(options),`,
-          `      facets: (options) => db.${entry.reads}.${entry.page.methods?.facets ?? "facets"}(options),`,
+          `      page: (options) => ${reads.page}(options),`,
+          `      facets: (options) => ${reads.facets}(options),`,
           "    },",
           "    query.value,",
+          ...(reads.extra === "" ? [] : [`    ${reads.extra},`]),
           "  );",
           "});",
           "",
@@ -495,6 +568,13 @@ const EXPORT_ROUTE: EntityPageOutput = {
           : [`maxRows: ${String(exporting.maxRows)}`]),
       ];
 
+      const reads = readsOf(entry);
+
+      const pageOptions =
+        reads.extra === ""
+          ? "options"
+          : `{ ...options, ${entry.page.tenantOption ?? ""}: tenant }`;
+
       return [
         {
           path,
@@ -505,17 +585,19 @@ const EXPORT_ROUTE: EntityPageOutput = {
             server.export === "bsb"
               ? `import { bsb } from ${q(server.module)};`
               : `import { ${server.export} as bsb } from ${q(server.module)};`,
+            ...reads.imports,
             "",
             `/** \`GET /api/${entry.name}/export\`: \`${entry.page.entity}\` as CSV under the list's filters. */`,
-            "export const GET = bsb.route((request, { db }) => {",
+            `export const GET = bsb.route((request, ${reads.context}) => {`,
             `  const query = ${list}.parse(request.nextUrl.searchParams);`,
             "",
             "  if (!query.ok) {",
             "    return Response.json({ issues: query.issues }, { status: 400 });",
             "  }",
             "",
+            ...reads.prelude,
             "  return exportResponse(",
-            `    (options) => db.${entry.reads}.${entry.page.methods?.page ?? "page"}(options),`,
+            `    (options) => ${reads.page}(${pageOptions}),`,
             `    ${q(exporting.filename ?? `${entry.name}.csv`)},`,
             `    { ${options.join(", ")} },`,
             "  );",
@@ -634,6 +716,7 @@ export const ENTITY_PAGE_OUTPUTS: readonly EntityPageOutput[] = [
   NAVIGATION_OUTPUT,
   EXPORT_ROUTE,
   MANIFEST_OUTPUT,
+  COVERAGE_OUTPUT,
 ];
 
 /** Every file the entity pages generate, or none without `gen.entityPages`. */
