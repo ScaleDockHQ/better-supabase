@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:72bbcc0c46c66174dbc654782c2289abcd747e6380f9fe125b4e17dca8a61e3c
+-- @bsb-hash sha256:7e4151d455d13787caee2dce71d65b16035d116f4773cbb09dbae8803a2e8e9d
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -581,7 +581,7 @@ begin
       v_upcoming := "better_supabase"."list_calendar_events"(v_ids, calendar_bootstrap.upcoming_start, calendar_bootstrap.upcoming_end);
     end if;
   end if;
-  return jsonb_build_object('calendars', v_calendars, 'events', v_events, 'upcoming', v_upcoming, 'reminders', v_reminders);
+  return jsonb_build_object('calendarList', v_calendars, 'monthEvents', v_events, 'upcomingEvents', v_upcoming, 'myReminders', v_reminders);
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_bootstrap"(uuid, timestamptz, timestamptz, timestamptz, timestamptz) from public, anon;
@@ -1841,7 +1841,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:e0049df368b18f5d9cd318f18a378c3862863e9280277855f9fb95ca5796975f
+-- @bsb-hash sha256:71678e6b97077cef90bf89aa732f9650b11582417253e044d25da1bf81c1effe
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2435,7 +2435,7 @@ begin
     v_reminders := '[]'::jsonb;
   end;
   end if;
-  return jsonb_build_object('calendars', v_calendars, 'events', v_events, 'upcoming', v_upcoming, 'reminders', v_reminders);
+  return jsonb_build_object('calendarList', v_calendars, 'monthEvents', v_events, 'upcomingEvents', v_upcoming, 'myReminders', v_reminders);
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_bootstrap"(uuid, timestamptz, timestamptz, timestamptz, timestamptz) from public, anon;
@@ -3784,7 +3784,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:b3bd6fd282f4e638ac68733edb53f0b394154762bd0768b1910b583e25d70573
+-- @bsb-hash sha256:b1bb313e76f31a2da4552fc675c4ac2dc5e007d0f2cee1275a988812e9db83af
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4369,7 +4369,7 @@ begin
       v_upcoming := "app_private"."list_calendar_events"(v_ids, calendar_bootstrap.upcoming_start, calendar_bootstrap.upcoming_end);
     end if;
   end if;
-  return jsonb_build_object('calendars', v_calendars, 'events', v_events, 'upcoming', v_upcoming, 'reminders', v_reminders);
+  return jsonb_build_object('calendarList', v_calendars, 'monthEvents', v_events, 'upcomingEvents', v_upcoming, 'myReminders', v_reminders);
 end;
 $$;
 revoke execute on function "app_private"."calendar_bootstrap"(uuid, timestamptz, timestamptz, timestamptz, timestamptz) from public, anon;
@@ -5629,7 +5629,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:41e573b47285ee35e1048295c96a4e1daa9b9b540bc3dbfc0cab1bee4f57d82f
+-- @bsb-hash sha256:1d699075012868555149ea21d22d06ed35d99cba9449f54e4959aebf81f190fb
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6209,7 +6209,7 @@ begin
       v_upcoming := "better_supabase"."list_calendar_events"(v_ids, calendar_bootstrap.upcoming_start, calendar_bootstrap.upcoming_end);
     end if;
   end if;
-  return jsonb_build_object('calendars', v_calendars, 'events', v_events, 'upcoming', v_upcoming, 'reminders', v_reminders);
+  return jsonb_build_object('calendarList', v_calendars, 'monthEvents', v_events, 'upcomingEvents', v_upcoming, 'myReminders', v_reminders);
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_bootstrap"(uuid, timestamptz, timestamptz, timestamptz, timestamptz) from public, anon;
@@ -7651,7 +7651,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:16ae255de317ca1cc02bb009c944debfc37bb002e30399e1896760c4ed90c041
+-- @bsb-hash sha256:45b967d60b6760011606fc3101947145dcaf8868bdc7053c60c04eba67726b8f
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8203,7 +8203,7 @@ begin
       v_upcoming := "better_supabase"."list_calendar_events"(v_ids, calendar_bootstrap.upcoming_start, calendar_bootstrap.upcoming_end);
     end if;
   end if;
-  return jsonb_build_object('calendars', v_calendars, 'events', v_events, 'upcoming', v_upcoming, 'reminders', v_reminders);
+  return jsonb_build_object('calendarList', v_calendars, 'monthEvents', v_events, 'upcomingEvents', v_upcoming, 'myReminders', v_reminders);
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_bootstrap"(uuid, timestamptz, timestamptz, timestamptz, timestamptz) from public, anon;
@@ -9463,7 +9463,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:674023019753feb8193a1467d38eb5cffc6ee09f98e97b1a6ef3a02309367fb8
+-- @bsb-hash sha256:583b7e8216d5edbd96628b86ccaec10ff713d21117b8e2ebef10a02da7aa15cf
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10043,7 +10043,7 @@ begin
       v_upcoming := "better_supabase"."list_calendar_events"(v_ids, calendar_bootstrap.upcoming_start, calendar_bootstrap.upcoming_end);
     end if;
   end if;
-  return jsonb_build_object('calendars', v_calendars, 'events', v_events, 'upcoming', v_upcoming, 'reminders', v_reminders);
+  return jsonb_build_object('calendarList', v_calendars, 'monthEvents', v_events, 'upcomingEvents', v_upcoming, 'myReminders', v_reminders);
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_bootstrap"(uuid, timestamptz, timestamptz, timestamptz, timestamptz) from public, anon;

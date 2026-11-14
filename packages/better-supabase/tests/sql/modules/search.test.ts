@@ -244,9 +244,11 @@ describe("search module", () => {
 
   it("ranks only the rows the full-text index matched (EX-1504)", () => {
     const sql = sqlOf();
+
     const start = sql.indexOf(
       'create or replace function "better_supabase"."search"(',
     );
+
     const body = sql.slice(start, sql.indexOf("$$;", start));
 
     expect(body).toMatch(

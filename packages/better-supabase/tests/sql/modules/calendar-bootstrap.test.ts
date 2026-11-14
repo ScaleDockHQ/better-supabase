@@ -10,9 +10,11 @@ const sqlOf = (blocks: readonly string[]): string =>
 describe("calendar_bootstrap", () => {
   it("runs as the caller over the list functions", () => {
     const sql = sqlOf(["calendar"]);
+
     const start = sql.indexOf(
       'function "better_supabase"."calendar_bootstrap"',
     );
+
     const body = sql.slice(start, sql.indexOf("$$;", start));
 
     expect(start).toBeGreaterThan(-1);
@@ -24,9 +26,11 @@ describe("calendar_bootstrap", () => {
 
   it("adds the caller's reminders when the reminders block is installed", () => {
     const sql = sqlOf(["calendar", "reminders"]);
+
     const start = sql.indexOf(
       'function "better_supabase"."calendar_bootstrap"',
     );
+
     const body = sql.slice(start, sql.indexOf("$$;", start));
 
     expect(body).toContain("list_my_reminders");
