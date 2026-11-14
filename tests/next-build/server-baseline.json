@@ -1312,7 +1312,7 @@
   "/[locale]/(auth)/waitlist/page": {
     "raw": 2818249,
     "gzip": 861230,
-    "brotli": 707409
+    "brotli": 709216
   },
   "/[locale]/(public)/portal/page": {
     "raw": 2894581,
