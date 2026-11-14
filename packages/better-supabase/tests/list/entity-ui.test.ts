@@ -82,6 +82,24 @@ describe("defineEntityForm", () => {
     expect(form.parse({ title: "ok", level: "0" }).ok).toBe(false);
   });
 
+  it("checks the length of a text field in both directions", () => {
+    const text = defineEntityForm({
+      entity: "x.y",
+      fields: [
+        field("note", "date", { minLength: 3, maxLength: 4, optional: true }),
+      ],
+    });
+
+    expect(text.parse({ note: "ab" }).ok).toBe(false);
+    expect(text.parse({ note: "abcde" }).ok).toBe(false);
+    expect(text.parse({ note: "abc" }).ok).toBe(true);
+  });
+
+  it("checks the upper bound of a number", () => {
+    expect(form.parse({ title: "ok", level: "6" }).ok).toBe(false);
+    expect(form.parse({ title: "ok", level: "5" }).ok).toBe(true);
+  });
+
   it("keeps the fields it was given", () => {
     expect(form.entity).toBe("risks.risk");
     expect(form.fields).toHaveLength(6);

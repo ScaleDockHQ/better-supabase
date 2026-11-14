@@ -119,6 +119,49 @@ describe("entityFormFields", () => {
   });
 });
 
+describe("field kinds", () => {
+  const kinds = entityFormFields({
+    title: "Input",
+    fields: {
+      a: { kind: "bigint" },
+      b: { kind: "boolean" },
+      c: { kind: "plainDate" },
+      d: { kind: "instant" },
+      e: { kind: "custom" },
+      f: { kind: "unknown" },
+      g: { kind: "uuid" },
+      h: { kind: "number" },
+    },
+  }).map((field) => [field.name, field.kind]);
+
+  it("maps each schema kind to a form kind", () => {
+    expect(kinds).toStrictEqual([
+      ["a", "number"],
+      ["b", "boolean"],
+      ["c", "date"],
+      ["d", "datetime"],
+      ["f", "text"],
+      ["g", "uuid"],
+      ["h", "number"],
+    ]);
+  });
+
+  it("guesses the kind of a column the schema does not list", () => {
+    const columns = entityPageColumns(
+      resolveEntityPage(
+        config(),
+        defineEntityPage({
+          entity: "risks.risk",
+          route: "/risks",
+          columns: ["id", "createdAt", "reviewedAt", "currentAssessment"],
+        }),
+      ),
+    ).map((column) => column.kind);
+
+    expect(columns).toStrictEqual(["uuid", "datetime", "datetime", "text"]);
+  });
+});
+
 describe("the columns, detail and forms outputs", () => {
   const files = emit();
 
