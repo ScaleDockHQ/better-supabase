@@ -43,7 +43,7 @@ import {
   isRecord,
   recordsOf,
 } from "../shared.ts";
-import { invitationList } from "./invitation-list.ts";
+import { invitationList, invitationRowOf } from "./invitation-list.ts";
 import { decodeOverview } from "./overview.ts";
 
 /**
@@ -788,18 +788,7 @@ function organizationsClient<
       "list_organization_invitations",
       { organization: organizationId },
       (value) =>
-        recordsOf(value, "list_organization_invitations").map((row) => {
-          const expiresAt = optionalText(row["expires_at"]);
-
-          return {
-            id: text(row["id"]),
-            email: text(row["email"]),
-            role: text(row["role"]),
-            ...(expiresAt === null
-              ? {}
-              : { expiresAt: temporal().Instant.from(expiresAt) }),
-          };
-        }),
+        recordsOf(value, "list_organization_invitations").map(invitationRowOf),
     );
 
   const invitationReads = invitationList(invitationRows);

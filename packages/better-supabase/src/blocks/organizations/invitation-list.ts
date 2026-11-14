@@ -14,6 +14,7 @@ import type { OrganizationInvitationRow } from "./organizations.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import { temporal } from "../../core/temporal-required.ts";
 
 /**
  * What `invitationList` accepts (ADR 0923). The manifest declares the same
@@ -26,6 +27,22 @@ export const invitationListSurface: EntityListSurface = {
   filters: ["role"],
   search: ["email"],
 };
+
+/** One `list_organization_invitations` row as an `OrganizationInvitationRow`. */
+export function invitationRowOf(
+  row: Record<string, unknown>,
+): OrganizationInvitationRow {
+  const expiresAt = row["expires_at"];
+
+  return {
+    id: String(row["id"]),
+    email: String(row["email"]),
+    role: String(row["role"]),
+    ...(typeof expiresAt === "string"
+      ? { expiresAt: temporal().Instant.from(expiresAt) }
+      : {}),
+  };
+}
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
