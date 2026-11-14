@@ -14,6 +14,7 @@ import {
   type Iteration as DefaultIteration,
   type Project,
   type Task,
+  type TaskBulkAction,
   type TaskChange,
   type TaskChangeResult,
   type TaskChecklistOptimisticAction,
@@ -102,6 +103,9 @@ export type Issue = RenamedType<Project, TasksRenames>;
 
 /** @public */
 export type Ticket<F extends object = Record<never, never>> = RenamedType<Task<F>, TasksRenames>;
+
+/** @public */
+export type TicketBulkAction = RenamedType<TaskBulkAction, TasksRenames>;
 
 /** @public */
 export type TicketChange<F extends object = Record<never, never>> = RenamedType<TaskChange<F>, TasksRenames>;
