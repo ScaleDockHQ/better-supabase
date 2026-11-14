@@ -119,37 +119,61 @@ describe.skipIf(!live)("better-supabase/eve", () => {
         session: { id: "sess_live", auth: { current: auth, initiator: auth } },
       };
 
-      const turn = { turnId: "t1", sequence: 0 };
+      const scope = { turnId: "t1" };
 
       const twice = async (deliver: () => Promise<void>) => {
         await deliver();
         await deliver();
       };
 
-      await twice(() => hooks["session.started"]({ data: {} }, ctx));
-      await twice(() => hooks["turn.started"]({ data: turn }, ctx));
       await twice(() =>
-        hooks["message.received"](
-          { data: { ...turn, sequence: 1, message: "Plan my week" } },
+        hooks["session.started"]({ type: "session.started", data: {} }, ctx),
+      );
+      await twice(() =>
+        hooks["turn.started"](
+          { type: "turn.started", scope, data: { turnId: "t1" } },
           ctx,
         ),
       );
       await twice(() =>
-        hooks["message.completed"](
+        hooks["delivery.consumed"](
           {
+            type: "delivery.consumed",
+            scope,
             data: {
-              ...turn,
-              sequence: 2,
-              stepIndex: 0,
-              message: "Here is a plan",
-              finishReason: "stop",
+              deliveryId: "d1",
+              turnId: "t1",
+              parts: [{ kind: "text", text: "Plan my week" }],
             },
           },
           ctx,
         ),
       );
       await twice(() =>
-        hooks["turn.completed"]({ data: { ...turn, sequence: 3 } }, ctx),
+        hooks["content.completed"](
+          {
+            type: "content.completed",
+            scope,
+            data: {
+              partId: "p1",
+              runId: "r1",
+              kind: "text",
+              value: "Here is a plan",
+              phase: "reply",
+            },
+          },
+          ctx,
+        ),
+      );
+      await twice(() =>
+        hooks["turn.settled"](
+          {
+            type: "turn.settled",
+            scope,
+            data: { turnId: "t1", outcome: "completed" },
+          },
+          ctx,
+        ),
       );
 
       await s.service();
@@ -166,8 +190,8 @@ describe.skipIf(!live)("better-supabase/eve", () => {
           [chatId],
         ),
       ).toEqual([
-        { id: "t1:1", role: "user", format: "canonical", parent_id: null },
-        { id: "t1:0:2", role: "assistant", format: "eve", parent_id: "t1:1" },
+        { id: "t1:d1", role: "user", format: "canonical", parent_id: null },
+        { id: "t1:p1", role: "assistant", format: "eve", parent_id: "t1:d1" },
       ]);
       expect(
         await s.rows(
@@ -275,7 +299,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
         connection: "linear",
       });
 
-      expect(perUser).toMatchObject({ credentialOwner: "user" });
+      expect(perUser).toMatchObject({ principalType: "user" });
       await expect(
         perUser.getToken({ principal: user, connection }),
       ).rejects.toBeInstanceOf(ConnectionAuthorizationRequiredError);
@@ -428,7 +452,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
       const respond = (responder: string): EveApprovalResponseContext => ({
         request: {
           callId: "call_appr",
-          requestId: "input_1",
+          interactionId: "input_1",
           principal: auth,
           toolName: "create_task",
         },

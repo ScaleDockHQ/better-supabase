@@ -4972,6 +4972,7 @@
       "EveDispatchOptions",
       "EveDocumentBackend",
       "EveInteractiveAuthorization",
+      "EveJsonValue",
       "EveMemoryContext",
       "EveMemoryProvider",
       "EveMemoryTool",

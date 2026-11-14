@@ -46,6 +46,7 @@ export {
   type EveContextRunner,
   type EveDispatchOptions,
   type EveInteractiveAuthorization,
+  type EveJsonValue,
   type EveTokenAuthorization,
   type EveDocumentBackend,
   type EveMemoryContext,

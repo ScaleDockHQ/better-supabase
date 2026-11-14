@@ -247,10 +247,20 @@ export interface EveMemoryProvider {
   ): Promise<Readonly<Record<string, EveMemoryTool>> | null>;
 }
 
+/** A JSON value, as eve's `JsonObject` tool schemas hold. */
+export type EveJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly EveJsonValue[]
+  | { readonly [key: string]: EveJsonValue };
+
 /** A tool from eve's `defineTool`, as a memory provider returns it. */
 export interface EveMemoryTool {
   readonly description: string;
-  readonly inputSchema: unknown;
+  /** A JSON Schema object, as the memory tools here declare their input. */
+  readonly inputSchema: { readonly [key: string]: EveJsonValue };
   execute(input: never, context: never): unknown;
 }
 
