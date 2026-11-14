@@ -645,8 +645,8 @@ catalogs:
       specifier: 8.23.1
       version: 8.23.1
     portless:
-      specifier: 0.16.0
-      version: 0.16.0
+      specifier: 0.17.0
+      version: 0.17.0
     postcss:
       specifier: 8.5.32
       version: 8.5.32
@@ -908,7 +908,7 @@ importers:
         version: 8.23.1
       portless:
         specifier: 'catalog:'
-        version: 0.16.0
+        version: 0.17.0
       supabase:
         specifier: 'catalog:'
         version: 3.1.0
@@ -1017,7 +1017,7 @@ importers:
         version: 1.93.0(oxlint-tsgolint@7.0.2006)
       portless:
         specifier: 'catalog:'
-        version: 0.16.0
+        version: 0.17.0
       postcss:
         specifier: 'catalog:'
         version: 8.5.32
@@ -1174,7 +1174,7 @@ importers:
         version: 1.93.0(oxlint-tsgolint@7.0.2006)
       portless:
         specifier: 'catalog:'
-        version: 0.16.0
+        version: 0.17.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -1676,7 +1676,7 @@ importers:
         version: 1.93.0(oxlint-tsgolint@7.0.2006)
       portless:
         specifier: 'catalog:'
-        version: 0.16.0
+        version: 0.17.0
       postcss:
         specifier: 'catalog:'
         version: 8.5.32
@@ -1774,7 +1774,7 @@ importers:
         version: 1.93.0(oxlint-tsgolint@7.0.2006)
       portless:
         specifier: 'catalog:'
-        version: 0.16.0
+        version: 0.17.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -1862,7 +1862,7 @@ importers:
         version: 1.93.0(oxlint-tsgolint@7.0.2006)
       portless:
         specifier: 'catalog:'
-        version: 0.16.0
+        version: 0.17.0
       postcss:
         specifier: 'catalog:'
         version: 8.5.32
@@ -13741,8 +13741,8 @@ packages:
   po-parser@2.2.0:
     resolution: {integrity: sha512-NdTrKgh0oO7+y+RFX8KKhOB438x/j94UGXEFzl/7pHH0JjWSn42iJ9tgmPksIO6n1JKDHmNDcejPJfKspljB9g==}
 
-  portless@0.16.0:
-    resolution: {integrity: sha512-qklO8w/OhLGLKYoeAi8HOFFnd2JQYenWzbev0rvDcyAZ3xDpMg9tqb/aKlz8qrd6NIEJB5bSiDxGURaq0+YLkA==}
+  portless@0.17.0:
+    resolution: {integrity: sha512-UJdy5sGmNSwi8ETvVniUTqULJht16qvBR9rvsFqsVekEyabMH2xJ5mwIEYBmSSHVCUmQvAmaYAhBcCs8PA7IBA==}
     engines: {node: '>=24'}
     os: [darwin, linux, win32]
     hasBin: true
@@ -29000,7 +29000,7 @@ snapshots:
 
   po-parser@2.2.0: {}
 
-  portless@0.16.0: {}
+  portless@0.17.0: {}
 
   postcss-calc@11.2.3(postcss@8.5.32):
     dependencies:
