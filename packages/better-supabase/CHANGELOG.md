@@ -1,5 +1,589 @@
 # better-supabase
 
+## 0.67.0
+
+### Minor Changes
+
+- [#946](https://github.com/ScaleDockHQ/better-supabase/pull/946) [`6f03c08`](https://github.com/ScaleDockHQ/better-supabase/commit/6f03c0842ccf63c1ecdd9f72f7faf7176f1511c2) Thanks [@martijn00](https://github.com/martijn00)! - Bulk, export, import targets and long calls now share one shape. `bulk(ids,
+  action, options)` returns `{ succeeded, failed: [{ id, error }] }` with a declared
+  limit (500 by default, `BULK_TOO_MANY` beyond it): the `bulk-actions` block has
+  it, and `bulk`, `checkBulkLimit` and `BulkReport` are exported from
+  `better-supabase/blocks` for blocks that migrate their `*Many` methods. A list
+  built with `entityList` gains `export(options)`, a CSV stream over the same
+  filters as `page`, and `exportCsv` and `exportResponse` turn any `page` into a
+  download route. A manifest declares `importTarget` (fourteen blocks do), and
+  `importTargetsOf` from `better-supabase/blocks/imports` lists every block that
+  can take rows. Long calls return `{ jobId }`: `bulk-actions` has `startJob`,
+  `bulk-actions` and `imports` expose a `jobs` source, and `createJobs` reads any
+  of them through one `jobs.get(jobId)` result. The organizations module adds
+  `update_member_roles` and `organizations.updateMemberRoles`, which change many
+  roles in one call with the checks of the single call.
+  
+  Run `better-supabase upgrade` and apply the migration it generates to get
+  `update_member_roles` in an installed `organizations` block. Nothing is
+  removed, so no code changes are needed.
+
+- [#956](https://github.com/ScaleDockHQ/better-supabase/pull/956) [`759c919`](https://github.com/ScaleDockHQ/better-supabase/commit/759c9196ff9e61d6bd41e7ed277b9131ff4411cc) Thanks [@martijn00](https://github.com/martijn00)! - Record the admin behind an impersonated call on block events. While a support
+  session runs, every block event and row mutation event carries `impersonatedBy`
+  (the admin) next to `actorId` (the impersonated user), `blockCloudEvent` puts it
+  in `data.impersonatedBy`, and `auditSink` writes it as the audit entry's
+  `impersonatedBy`. Nothing changes for calls outside a session.
+
+- [#958](https://github.com/ScaleDockHQ/better-supabase/pull/958) [`f9c47de`](https://github.com/ScaleDockHQ/better-supabase/commit/f9c47de20cada4c489f807a2ae7f500f48b2b271) Thanks [@martijn00](https://github.com/martijn00)! - Enforce an entity's flag key and page the open invitations. An entity that sets
+  `flag` in `EntitySurface` now lists the `methods` the flag hides, and
+  `createBlocks({ flags })` returns a `not_found` error from those methods while
+  the flag is off (`entityFlagHooks` builds the hooks). The organizations client
+  gets `invitationsPage`, `invitationsFacets` and `invitationsCount` with the
+  `role` filter, the `expiresAt` and `email` sorts and a search over the email.
+
+- [#965](https://github.com/ScaleDockHQ/better-supabase/pull/965) [`4a1dda6`](https://github.com/ScaleDockHQ/better-supabase/commit/4a1dda643f5e4558a770f77ba19e8473fecee255) Thanks [@martijn00](https://github.com/martijn00)! - Page the open invitations in SQL. The organizations module adds
+  `page_organization_invitations(tenant, filters)` next to
+  `list_organization_invitations`, which stays unchanged, so `upgrade` adds one
+  function and no table change. `invitationsPage`, `invitationsFacets` and
+  `invitationsCount` read it, and `OrganizationsOptions` accepts `tenant`, so a
+  call without `organizationId` reads the request's tenant. An entity page for
+  `organizations.invitation` now generates its list route and columns.
+
+- [#971](https://github.com/ScaleDockHQ/better-supabase/pull/971) [`ed6185b`](https://github.com/ScaleDockHQ/better-supabase/commit/ed6185b0f684e74ec31bbd326c6bb6eac9c81c7b) Thanks [@martijn00](https://github.com/martijn00)! - Declare the offline rules in the manifest. `EntitySurface.offline` now accepts
+  `{ scope, where, systemRows }` next to `true`, and `better-supabase powersync
+  streams` reads them for the teams, profiles, observations, medications and
+  activities streams. The generated sync streams are unchanged. The notification,
+  membership and attachment streams keep their joins in the generator.
+
+- [#952](https://github.com/ScaleDockHQ/better-supabase/pull/952) [`a946532`](https://github.com/ScaleDockHQ/better-supabase/commit/a9465324c7863db05d9bb3fdd915e301c3cf8a38) Thanks [@martijn00](https://github.com/martijn00)! - Mark which block events are public. `event<T>({ public: true })` records the
+  event in `Events.public`, and `webhookEventCatalog(blocks)` from
+  `better-supabase/blocks` lists them by block, so an app offers webhook
+  subscribers only those. `organizations`, `shipments`, `invoices` and `orders`
+  mark their events. The manifests of the blocks that `powersync streams`
+  supports now declare `offline: true` on their entity. Nothing changes for an
+  app that ignores both.
+
+- [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) [`af9f612`](https://github.com/ScaleDockHQ/better-supabase/commit/af9f6127a4e8d5e6bf9d53331364de81a198cd33) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: the Next.js sign-in flows (`signInWithPassword`, `verifyOtp`,
+  `signInWithOAuth`, `exchangeCodeForSession`, the email flows, `verifyMfa` and
+  `signOut`) now call auth-js on a `createServerClient` from `@supabase/ssr`
+  instead of the Auth endpoints directly, so the session and PKCE cookies are
+  the ones `@supabase/ssr` writes. Flows the browser client starts can finish in
+  `exchangeCodeForSession`.
+  
+  | Before                                        | After                                              |
+  | --------------------------------------------- | -------------------------------------------------- |
+  | `passwordGrant` from `better-supabase/server` | `signInWithPassword` on a `createServerClient`     |
+  | error code `code_verifier_missing`            | `pkce_code_verifier_not_found` (auth-js)           |
+  | verifier cookie `httpOnly`, 10 minutes        | the auth-js verifier cookie `@supabase/ssr` writes |
+  | `SignInWithOAuthParams.provider: string`      | `Provider` from `@supabase/supabase-js`            |
+  
+  A link from a flow started before the upgrade fails the exchange once; ask
+  the user to request a new one.
+
+- [#939](https://github.com/ScaleDockHQ/better-supabase/pull/939) [`aa43c1d`](https://github.com/ScaleDockHQ/better-supabase/commit/aa43c1d009ca80923a4cb18934ad640901cd77c3) Thanks [@martijn00](https://github.com/martijn00)! - The calendar block gains `calendar.bootstrap` and the SQL function
+  `calendar_bootstrap`, which read a calendar page in one database call: the
+  organization's calendars, the occurrences of a range, the occurrences of a
+  second range and the caller's reminders on events. Run `better-supabase upgrade`
+  and apply the migration it generates to get the function in an installed block.
+  `search` also stops computing a full-text rank for rows that only the trigram
+  index matched, which halves its time on a corpus where most documents match by
+  trigram; its results and scores do not change.
+
+- [#938](https://github.com/ScaleDockHQ/better-supabase/pull/938) [`da57256`](https://github.com/ScaleDockHQ/better-supabase/commit/da57256b416e68890e9a5b5f5aa51df29a5853bb) Thanks [@martijn00](https://github.com/martijn00)! - The lims module adds `list_qualified_instruments(tenant, on_date)`, which
+  returns the asset ids that hold `options.instrumentQualification` on a day, and
+  the lims block's client calls it through `lims.listQualifiedInstruments({ on })`.
+  A result form no longer asks `instrumentStatus` once per asset. Without the
+  option the list is empty. With `options.recognition: true`, the accounting
+  module adds `list_revenue_recognition_schedules(tenant, limit_count)`, which
+  returns every revenue recognition schedule of the organization with its row
+  count and the amount already recognized, so a list of schedules needs no
+  hand-written read policy. Both functions need the block's read permission.
+  
+  Run `better-supabase upgrade`.
+
+- [#947](https://github.com/ScaleDockHQ/better-supabase/pull/947) [`db713c2`](https://github.com/ScaleDockHQ/better-supabase/commit/db713c24f49a8da7250dbeed77bc4754559dc93b) Thanks [@martijn00](https://github.com/martijn00)! - Blocks can declare plan limits and meters. A manifest's new `limits` and
+  `meters` name the methods that check a `usage` quota before they run (they
+  return `quota_exceeded` with the `meter` and `limit`) and the meter a
+  successful call records. Turn it on with `createBlocks({ metering: true })`
+  with the `usage` block in the set; it is off by default. `usage` now provides a
+  `meter` port, `organizations.invite` declares a limit on `seats`, and
+  `api-keys.create` a limit and meter on `api_keys_created`. `BlockQuota` is the
+  one shape of a `quota` option (`blocks.drive.options.quota`). No option or
+  error code is renamed.
+
+- [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) [`1ec7d88`](https://github.com/ScaleDockHQ/better-supabase/commit/1ec7d88de7c65ab55182dc5a87194b7b57225560) Thanks [@martijn00](https://github.com/martijn00)! - `doctor` checks `SUPABASE_JWKS`. BS509 reports an env file whose
+  `SUPABASE_JWKS` is not JSON or holds no key with a `kty`, which `loadEnv`
+  would reject. BS503 now also runs when the shell exports only `SUPABASE_JWKS`,
+  and warns that those inline keys override the running stack's
+  `SUPABASE_JWKS_URL`. The auth env page shows how to fill the variable with
+  `curl <url>/auth/v1/.well-known/jwks.json`.
+
+- [#933](https://github.com/ScaleDockHQ/better-supabase/pull/933) [`3803a77`](https://github.com/ScaleDockHQ/better-supabase/commit/3803a77c63d729d1217d5f726c502ea6c8a4c839) Thanks [@martijn00](https://github.com/martijn00)! - The domains block takes a hosting platform. `createDomainsAdmin({ provider })` accepts a versioned `DomainProvider` (`add`, `verify`, `remove`, `status`) and gains `add({ hostnameId })`, `remove({ hostname })` and `status({ hostnameId })`. With a provider, `verify` asks the platform after the TXT check passes and fails with `DOMAIN_PROVIDER_UNVERIFIED` until it agrees; without one, it behaves as before. `vercelDomainProvider(new Vercel({ bearerToken }), { projectId, teamId })` implements it over `@vercel/sdk`, an optional peer, and `testDomainProvider` in `better-supabase/testing` checks your own.
+
+- [#954](https://github.com/ScaleDockHQ/better-supabase/pull/954) [`522f461`](https://github.com/ScaleDockHQ/better-supabase/commit/522f461335f742a52b7adacce3a09185d052e3ec) Thanks [@martijn00](https://github.com/martijn00)! - `gen` now also writes the columns, the detail frame and the forms of an entity
+  page. Set `columns` and `sections` on `defineEntityPage` and `gen` writes
+  `pages/<name>.columns.ts` (each column with its label, kind and the declared sort
+  and filter of the same name) and `pages/<name>.detail.ts` (the `/:id` route, the
+  sections and `href(id)`). A page whose block exports an input schema also gets
+  `pages/<name>.form.ts` with `<name>CreateForm` and `<name>EditForm`, built with
+  the new `defineEntityForm` from `better-supabase/list`, so a form cannot drift
+  from the action it submits to. `better-supabase/list` also exports the types
+  `EntityColumn`, `EntityDetail`, `EntityDetailSection`, `EntityFieldKind`,
+  `EntityForm`, `EntityFormField` and `EntityFormParse`. The descriptor keeps
+  `apiVersion: 1`.
+  
+  The entity list helper type `ListArgs` is now `ListCallParams` and the eve type
+  `EveDynamicRunArgs` is `EveDynamicRunParams`, so neither uses the banned `Args`
+  suffix (ADR 0246).
+
+- [#970](https://github.com/ScaleDockHQ/better-supabase/pull/970) [`736222e`](https://github.com/ScaleDockHQ/better-supabase/commit/736222e2225a2e69eaa991c468a52d8edb7a1b36) Thanks [@martijn00](https://github.com/martijn00)! - `defineEntityPage` takes `export: { filename, columns, maxRows }`. `gen` then writes `GET /api/<name>/export`, which streams `exportResponse` over the entity's `page` under the list query's `q`, `sort` and filters, and lists the route as `export` in `pages/routes.manifest.ts` (`EntityRouteEntry.export` is optional). A page without `export` writes nothing new. The eight format-specific exports (payroll, OSCAL, SEPA, iCalendar, promptfoo, audit log, governance subject and data export) keep their own methods.
+
+- [#945](https://github.com/ScaleDockHQ/better-supabase/pull/945) [`52233c4`](https://github.com/ScaleDockHQ/better-supabase/commit/52233c484ca3c8ef3c88b2f1a7f2a19ece3c2d2e) Thanks [@martijn00](https://github.com/martijn00)! - `gen` now writes the list of an entity page from one descriptor. Declare a page
+  with `defineEntityPage` (from `better-supabase/list`) in `gen.entityPages.pages`,
+  and `gen` writes `pages/<name>.list.ts` (a `defineEntityListQuery` over the
+  entity's declared sorts, facets, filters and search), the
+  `/api/<name>/list` route, a migration with the indexes of its sorts, facets and
+  searched columns, and `scale_list_<name>.test.sql`, a pgTAP plan check. A new
+  doctor check, BS636, reports a declared sort, facet or search column that has
+  no index. `gen.entityPages` is new and optional, so nothing changes without it.
+
+- [#957](https://github.com/ScaleDockHQ/better-supabase/pull/957) [`a9130af`](https://github.com/ScaleDockHQ/better-supabase/commit/a9130af3bd39fc805d607cfe8c183b57620fb7bc) Thanks [@martijn00](https://github.com/martijn00)! - Generate seed rows, a nav item and a route manifest from an entity page.
+  `gen.entityPages` now writes `pages/<name>.seed.ts` for a page that sets
+  `seed`, `pages/<name>.navigation.ts` for a page that sets `area`, and
+  `pages/routes.manifest.ts` with the routes and message keys of every page.
+  `better-supabase/list` exports the types `EntitySeed`, `EntitySeedValue`,
+  `EntityNavItem` and `EntityRouteEntry`. A page without `area` or `seed` writes
+  no new file besides the manifest.
+
+- [#943](https://github.com/ScaleDockHQ/better-supabase/pull/943) [`9b29fb1`](https://github.com/ScaleDockHQ/better-supabase/commit/9b29fb14e12aec0f87b9ce6d5e1504afe80c479b) Thanks [@martijn00](https://github.com/martijn00)! - An entity's manifest can now declare how it handles personal data, retention
+  and history. `EntitySurface` gains `subjectColumn`, `erase` (`delete`,
+  `anonymize` or `keep`), `legalHold`, `history` and `partition`.
+  `subjectAccessPlan(blocks)` and `subjectAccessRequest(lifecycle, input)` from
+  `better-supabase/blocks/data-lifecycle` read the declarations and return the
+  entities an access request collects and an erasure removes, blanks or keeps, so
+  an erasure never deletes append-only audit rows. `historyTabs(blocks)` from
+  `better-supabase/blocks/field-history` lists the entities that keep history.
+  `consent`, `data_subject_request` and `field_history` declare their personal
+  data, retention class and, for field history, a monthly partition. No schema
+  change.
+
+- [#961](https://github.com/ScaleDockHQ/better-supabase/pull/961) [`34204fb`](https://github.com/ScaleDockHQ/better-supabase/commit/34204fba790ef131b44b799ff32391f1fa7e47b3) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/eve` follows eve 1.0.0-rc.13, which bundles Workflow 5.5:
+  the `eve` peer range is now `>=1.0.0-rc.13 <2` and `@vercel/connect` starts
+  at 2.7.0. `persistSessions` stores a `content.completed` part without a
+  `runId`, which eve now sends for a part its turn wrote without a model run.
+  `queueDynamicSchedules` keys `collections` by the collection name, which is
+  the definition's new `id` when it sets one.
+
+- [#951](https://github.com/ScaleDockHQ/better-supabase/pull/951) [`7d8f6fe`](https://github.com/ScaleDockHQ/better-supabase/commit/7d8f6feadafb8a226121b49280b3280aab3d26a9) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/eve` follows eve 1.0, and the `eve` peer range is now
+  `>=1.0.0-rc.0 <2` (`@vercel/connect` starts at 2.5.2). `persistSessions`
+  handles eve's version 27 session events: `delivery.consumed` stores the
+  user's text, `content.completed` stores each text part (a part outside the
+  reply is interim), and `turn.settled` sets the run's status from its outcome,
+  in place of `message.received`, `message.completed` and the three `turn.*`
+  endings. `credentialAuth` and `openApiAuth` return `principalType`, which eve
+  1.0 reads, instead of `credentialOwner`, so a user-owned connection keeps
+  per-user tokens. `EveApprovalResponseContext` names `request.interactionId`
+  and the `deny` decision, `EveApprovalStatus` takes the
+  `{ type: "not-applicable" }` and `{ type: "user-approval" }` forms, and
+  `EveMemoryTool.inputSchema` is a JSON Schema object. See the 0.66 to 0.67
+  guide for the renames.
+
+- [#951](https://github.com/ScaleDockHQ/better-supabase/pull/951) [`7d8f6fe`](https://github.com/ScaleDockHQ/better-supabase/commit/7d8f6feadafb8a226121b49280b3280aab3d26a9) Thanks [@martijn00](https://github.com/martijn00)! - `queueScheduleProvider({ scheduler })` from `better-supabase/eve` is a
+  provider for eve's `defineDynamicSchedules` that stores each schedule as a
+  queue block schedule on the `eve_schedules` queue, so members and the model
+  manage them with eve's tools while the drain scheduler keeps their time zone,
+  tenant and payload. `queueDynamicSchedules({ queue, provider, collections })`
+  is the `run` of a minute `defineSchedule`: it enqueues the due runs, then
+  calls each definition's `auth` and `run` as the schedule's creator, with
+  eve's retry and `occurrence.dispatched` and `occurrence.failed` rules.
+  `eveScheduleRun` is the queue's schema. The provider needs a scheduler that
+  lists schedules with their payloads, such as
+  `sqlScheduler(sql, { mode: "drain" })`.
+
+- [#933](https://github.com/ScaleDockHQ/better-supabase/pull/933) [`3803a77`](https://github.com/ScaleDockHQ/better-supabase/commit/3803a77c63d729d1217d5f726c502ea6c8a4c839) Thanks [@martijn00](https://github.com/martijn00)! - `supabaseJwtAuth` from `better-supabase/eve` is an eve route `AuthFn` for MCP clients and other agents that send a Supabase access token as `Authorization: Bearer`. It verifies the token locally against the project's keys, so a valid token costs no Auth server call, and it never reads the session cookie. A request without a bearer token falls through to the next entry; an invalid token gets a 401 with `WWW-Authenticate: Bearer error="invalid_token"` and never reaches a later `none()`. It declares the `Bearer` challenge, so `oauthResource` and eve's own 401 advertise it. `EveAuthRejection` takes response headers as a third argument.
+
+- [#948](https://github.com/ScaleDockHQ/better-supabase/pull/948) [`91ad884`](https://github.com/ScaleDockHQ/better-supabase/commit/91ad884919d31ba2b27fa1f8dc9248c8aa794cd7) Thanks [@martijn00](https://github.com/martijn00)! - A data subject request can now run its erasure. `data-lifecycle` gains the SQL
+  function `erase_data_subject(request_id)` and the client method
+  `executeErasure({ requestId })`. It reads each installed module table's new
+  `lifecycle.erase` (`delete`, `anonymize` or `keep`), deletes, blanks or counts
+  the rows of the one person the request names in the request's organization, and
+  returns what was removed, blanked, kept and held. A table whose retention kind
+  has an active legal hold is left alone and reported under `held`. The `consents`
+  and `field_history` tables anonymize, `data_subject_requests` is kept and
+  `consent_signals` is deleted; append-only rows are never deleted. `consent` no
+  longer declares `givenByContact` as personal data and gains a `consent_signal`
+  entity. Run `better-supabase upgrade` and apply the migration it generates.
+
+- [#967](https://github.com/ScaleDockHQ/better-supabase/pull/967) [`ee85abb`](https://github.com/ScaleDockHQ/better-supabase/commit/ee85abb787c3afc8e7c2bca64594aa29b505ed20) Thanks [@martijn00](https://github.com/martijn00)! - `createDataLifecycle` has `startExportJob(options)`, which returns `{ jobId: "export:<id>" }`, and `jobs`, the `export` source of `createJobs`. `createWorkflows` has `jobs`, the `workflow` source, which reads a run as the common job result. Both read through the caller's own permissions and fail with `DATA_EXPORT_FAILED`, `WORKFLOW_RUN_FAILED` or `WORKFLOW_RUN_CANCELLED`. Nothing existing changes.
+
+- [#933](https://github.com/ScaleDockHQ/better-supabase/pull/933) [`3803a77`](https://github.com/ScaleDockHQ/better-supabase/commit/3803a77c63d729d1217d5f726c502ea6c8a4c839) Thanks [@martijn00](https://github.com/martijn00)! - The attachments and drive blocks keep their bytes in a versioned `FileStore` (`put`, `get`, `delete`, `signedUrl`, with optional `head` and `signedUploadUrl`) from `better-supabase/storage`. `supabaseFileStore(storage)` is the default, so nothing changes without the new `files` option; `vercelBlobStore(blob)` stores the files in Vercel Blob, with `@vercel/blob` as an optional peer. Postgres still decides who may upload: `confirm_attachment` takes an optional `object` (`{ size, mimetype }`) that only the service role may pass, checked against the bucket's limits, so pass `service` to `createAttachments` and `createDrive` with an external store. Image transforms, public URLs and the upload claim stay Supabase-only (`ATTACHMENT_STORE_UNSUPPORTED`). Run `better-supabase upgrade` (attachments module 9 to 10) and apply the new migration. `testFileStore` in `better-supabase/testing` checks your own store.
+  
+  | Before                                    | After                                                                  |
+  | ----------------------------------------- | ---------------------------------------------------------------------- |
+  | `confirm_attachment(id uuid)`             | `confirm_attachment(id uuid, object jsonb default null)`               |
+  | `storage` required on `createAttachments` | `storage` or `files`; `files` defaults to `supabaseFileStore(storage)` |
+
+- [#930](https://github.com/ScaleDockHQ/better-supabase/pull/930) [`40f5cd1`](https://github.com/ScaleDockHQ/better-supabase/commit/40f5cd1632d6d879fec3bf9fb9bfe542118a0d56) Thanks [@martijn00](https://github.com/martijn00)! - `run` and `countFacets` of `defineListQuery` take `facetCountMode: "exact" | "capped"`, which overrides the list's config for one call, so a list that caps its chips can still give a dashboard an exact count. The `numbering` block declares `numbering.read` on its `number` entity, and the default admin role holds `numbering.*`. A page that lists the counters can check `numbering.read` instead of `numbering.assign`. Run `better-supabase gen` to write the permission catalog migration, which grants the new key to the owner and admin roles, and `better-supabase upgrade` to refresh the `operation_permission` function. A member also holds `numbering.read`, because every declared `read` key goes to the `member` role.
+  
+  | Old                                          | New                                                  |
+  | -------------------------------------------- | ---------------------------------------------------- |
+  | A numbering page gated by `numbering.assign` | `numbering.read` (the owner, admin and member roles) |
+  | Facet count mode fixed per list              | `run(db, query, { facetCountMode })` per call        |
+
+- [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) [`4964830`](https://github.com/ScaleDockHQ/better-supabase/commit/49648309ad374ea38b51b48c0e34a037b2941d29) Thanks [@martijn00](https://github.com/martijn00)! - Inbox messages, outbox events and queue jobs can start as soon as they are written instead of on the next cron call. `createQueue`, `createWebhookInbox` and `createOutbox` take `kick: { waitUntil, run }`, which runs a pass after each successful write (`bsb.waitUntil` in Next.js wraps `after()`). The queue, webhook-inbox and outbox modules (versions 13, 11 and 7) add a statement trigger that notifies `better_supabase_work` on each insert, and `listenForWork(pool, { inbox, outbox, queues })` in `better-supabase/postgres` runs the matching pass on a long-lived Node process, including for rows written from SQL. Run `better-supabase upgrade`. `usesTransactionPooler` is now also exported from `better-supabase/postgres`.
+
+- [#933](https://github.com/ScaleDockHQ/better-supabase/pull/933) [`3803a77`](https://github.com/ScaleDockHQ/better-supabase/commit/3803a77c63d729d1217d5f726c502ea6c8a4c839) Thanks [@martijn00](https://github.com/martijn00)! - The signing-keys block signs through a versioned `KeyProvider` (`sign`, `signJwt`). `vaultKeyProvider` is the default and keeps today's behaviour, with the private keys in Supabase Vault. `createSigningKeys({ keys: vercelKmsKeyProvider(kms, { issuer }) })` signs in Vercel KMS instead, so the private key never reaches the app; `create`, `rotate`, `jwks` and the other key methods keep managing the Vault keys. `@vercel/kms` is an optional peer that you pass in, and `testKeyProvider` in `better-supabase/testing` checks your own provider.
+
+- [#929](https://github.com/ScaleDockHQ/better-supabase/pull/929) [`498996f`](https://github.com/ScaleDockHQ/better-supabase/commit/498996f426b8f051894c200814e171e2a351efd4) Thanks [@martijn00](https://github.com/martijn00)! - Eleven list entities of the commerce blocks page, facet and count through the shared list function (ADR 0769): commission, commission statement and commission plan, donation gifts and pledges, leases, production orders, periods, referrals and referral codes, and shipments. Each client gets `<x>Page`, `<x>Facets` and `<x>Count` (`commissionPage`, `statementPage`, `planPage`, `giftPage`, `pledgePage`, `leasePage`, `orderPage`, `periodPage`, `referralPage`, `codePage` and `shipmentPage`), and each entity declares `sorts`, `facets` and `filters` in its manifest. The SQL functions `list_leases`, `list_shipments`, `list_gifts` and `list_pledges` now take `(tenant, filters jsonb)` instead of one argument per filter, and `list_production_orders` names its argument `filters`. The clients' `list`, `gifts`, `pledges` and `listOrders` methods are unchanged. Apply the generated migration, and change a direct SQL call to pass the filters as a jsonb object.
+  
+  | Before                                                                        | After                                                                     |
+  | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+  | `list_leases(tenant, 'active', unit, null, null, 50)`                         | `list_leases(tenant, '{"status":"active","unitId":"...","limit":50}')`    |
+  | `list_shipments(tenant, 'draft', null, null, 'dhl', null, 50)`                | `list_shipments(tenant, '{"status":"draft","carrier":"dhl","limit":50}')` |
+  | `list_gifts` and `list_pledges` with `donor_type`, `donor_id` and `page_size` | `filters` with `donorType`, `donorId` and `limit`                         |
+  | `list_production_orders(tenant, filter => '{"status":"done"}')`               | `list_production_orders(tenant, filters => '{"status":"done"}')`          |
+  | One status per list call                                                      | `<x>Page({ filters: { status: ["open", "done"] } })`, a list per filter   |
+  | No facet counts or exact counts for these lists                               | `<x>Facets()` and `<x>Count()` return `{ value, exact }`                  |
+
+- [#920](https://github.com/ScaleDockHQ/better-supabase/pull/920) [`125e0e8`](https://github.com/ScaleDockHQ/better-supabase/commit/125e0e82d85f8f13d4431b21c0fcc5282d4c3ab5) Thanks [@martijn00](https://github.com/martijn00)! - The `legal-entities`, `courses` and `content` blocks page, facet and count through the shared list implementation (ADR 0749, 0789). `legal_entity`, `course` and `content_entry` declare `sorts`, `facets` and `filters` in their manifests, and each client gains `page`, `facets` and `count`. The SQL functions `list_legal_entities`, `list_courses` and `list_content_entries` now take `(tenant, filters jsonb)`. `content.list` reads its text search from `query` as before and sends it as `filters.search`; `legalEntities.list` and `courses.list` are capped at 500 rows (200 by default). An unknown `status` on a course list now matches no rows instead of raising `COURSE_INVALID`. The `sso` block keeps its SCIM `startIndex` and `count` paging and its bounded `domains()` and `providers()` lists. Apply the generated migration to adopt the new list functions.
+  
+  | Before                                                         | After                                                                       |
+  | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
+  | `list_legal_entities(tenant, include_archived)`                | `list_legal_entities(tenant, filters)` with `filters.includeArchived`       |
+  | `list_courses(tenant, status)`                                 | `list_courses(tenant, filters)` with `filters.status`                       |
+  | `list_content_entries(tenant, filter)`                         | `list_content_entries(tenant, filters)`                                     |
+  | `content.list({ query })` was the only text search             | `content.page({ q })` matches the title and slug                            |
+  | `courses.list()` and `legalEntities.list()` returned every row | A capped list; use `page` past 500 rows                                     |
+  | No facet counts or sort choice for these three lists           | `facets()`, `count()` and `sort: { by }` from the entity's declared `sorts` |
+
+- [#918](https://github.com/ScaleDockHQ/better-supabase/pull/918) [`96c18f7`](https://github.com/ScaleDockHQ/better-supabase/commit/96c18f7282819a4c6f766b8014ed10fe4350bc2b) Thanks [@martijn00](https://github.com/martijn00)! - Five more blocks page, facet and count through the shared list implementation (ADR 0749, 0779): `sequences` (`sequencePage`, `sequenceFacets`, `sequenceCount`), `payroll-export` (`runPage`, `runFacets`, `runCount`), `passes` (`passPage`, `passFacets`, `passCount`), `enrollments` (`enrollmentPage`, `enrollmentFacets`, `enrollmentCount`) and `e-prescribing` (`prescriptionPage`, `prescriptionFacets`, `prescriptionCount`). Each takes `q`, `sort`, list filters, `after` and `limit`, declares its `sorts`, `facets` and `filters` in the manifest, and returns an `invalid_input` error for a name it does not declare. The existing `list` methods and SQL list functions keep their signatures; `sequences`, `payroll-export`, `passes` and `enrollments` gain the SQL functions `page_sequences`, `page_payroll_runs`, `page_passes` and `page_enrollments`, and `list_prescriptions` now accepts list filters, `sort`, `facet`, `count`, `after` and `paged`. `enrollments` also gains `get(enrollmentId)` over the new SQL function `get_enrollment`. Apply the generated migration to adopt the new functions.
+  
+  | Before                                                                          | After                                                                                   |
+  | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+  | `list({ status })` was the only read of sequences, runs, passes and enrollments | `sequencePage`, `runPage`, `passPage` and `enrollmentPage` with `sort` and list filters |
+  | No facet counts or exact counts on these blocks                                 | `<x>Facets(options)` and `<x>Count(options)` returning `{ value, exact }`               |
+  | An enrollment was read from the list or by program and subject                  | `enrollments.get(enrollmentId)`                                                         |
+
+- [#950](https://github.com/ScaleDockHQ/better-supabase/pull/950) [`354ea2c`](https://github.com/ScaleDockHQ/better-supabase/commit/354ea2c890800b000aae537a544cf16f3c7e3582) Thanks [@martijn00](https://github.com/martijn00)! - The `guests`, `dispatch`, `incidents`, `approvals`, `assets`, `cases` and `deadlines` blocks gain `page`, `facets` and `count` through the shared list surface (audit lane G7). Each takes the same filters, sorts and `q` that its manifest declares, and rejects an undeclared one with `invalid_input`. `list` and the old SQL functions are unchanged, and the migration only adds functions, so apply it in any order with the client upgrade.
+  
+  | Block       | New client calls                     | New SQL function                 |
+  | ----------- | ------------------------------------ | -------------------------------- |
+  | `guests`    | `page`, `facets`, `count`, `get(id)` | `page_guests`, `get_guest`       |
+  | `dispatch`  | `page`, `facets`, `count`            | `page_work_orders`               |
+  | `incidents` | `page`, `facets`, `count`            | `page_incidents`                 |
+  | `approvals` | `page`, `facets`, `count`            | `page_approvals`                 |
+  | `assets`    | `page`, `facets`, `count`            | `page_assets`                    |
+  | `cases`     | `page`, `facets`, `count`            | `page_cases`                     |
+  | `deadlines` | `page`, `facets`, `count`, `get(id)` | `page_deadlines`, `get_deadline` |
+  
+  `approvals.page` has no `tenantless` option; requests without an organization stay on `list`. `incidents` takes the organization on every call.
+
+- [#928](https://github.com/ScaleDockHQ/better-supabase/pull/928) [`baefce6`](https://github.com/ScaleDockHQ/better-supabase/commit/baefce683ae552e059ece3f0d6a7fa7bcaa2759f) Thanks [@martijn00](https://github.com/martijn00)! - The shared list surface takes the organization per call (ADR 0939). `entityList` accepts `organizationId` in the options of `page`, `facets` and `count`, with `tenantOrOption` as the resolver and `RequiredTenantOption` for a block that has no `tenant` option. The `domains`, `forms`, `imports` and `access-requests` blocks use it: `hostname`, `form`, `import` (the runs) and `access_request` declare `sorts`, `facets` and `filters` in their manifests, and `domains.page`, `forms.page`, `imports.runs.page` and `accessRequests.page` come with `facets` and `count`, each taking `organizationId`. The SQL functions `list_hostnames`, `list_forms`, `list_import_runs` and `list_access_requests` now take `(tenant, filters jsonb)`. The capped `list` of each client sends the same filters as before; `domains.list` and `forms.list` now return at most 200 rows by default and 500 at most, where they were unbounded. Apply the generated migration before you upgrade the client, because the old client calls the old argument lists.
+  
+  | Before                                                          | After                                                                          |
+  | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+  | `list_hostnames(tenant)`                                        | `list_hostnames(tenant, filters)`                                              |
+  | `list_forms(tenant, status)`                                    | `list_forms(tenant, filters)` with `filters.status`                            |
+  | `list_import_runs(tenant, source, status, row_limit)`           | `list_import_runs(tenant, filters)` with `filters.source`, `.status`, `.limit` |
+  | `list_access_requests(tenant, status, mine, page_size, before)` | `list_access_requests(tenant, filters)` with the same names as filters         |
+  | `list_import_runs` returned `setof jsonb`                       | It returns one `jsonb` array, or a page object with `paged`                    |
+  | `domains.list` and `forms.list` were unbounded                  | Capped at 200 by default, 500 at most; use `page` past that                    |
+  | No sort, facets or count for these four lists                   | `page`, `facets()`, `count()` and `sort: { by }` from the declared `sorts`     |
+  | `entityList` read only the block's `tenant` option              | `organizationId` per call wins, then `tenant`, else `TENANT_REQUIRED`          |
+
+- [#921](https://github.com/ScaleDockHQ/better-supabase/pull/921) [`7e064e8`](https://github.com/ScaleDockHQ/better-supabase/commit/7e064e85236d5740562364d16e349fa855fe60bb) Thanks [@martijn00](https://github.com/martijn00)! - The `inspections`, `meetings` and `warranty` blocks page, facet and count through the shared list implementation (ADR 0749, 0759). `inspections.page`, `meetings.page` and `warranty.page` take `PageOptions` (`q`, `sort`, list `filters`, `after`, `limit`), `facets()` returns the values of each declared facet with counts, and `count()` returns `{ value, exact }`. Their manifests declare `sorts`, `facets`, `filters` and `search`, and the SQL list functions serve all three reads. `warranty` also gains `get(id)` with the SQL function `get_warranty_claim`. The existing `list` methods keep their scalar options. Run `better-supabase upgrade` and apply the new migration to adopt the new list functions.
+  
+  | Before                                                         | After                                                                                  |
+  | -------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+  | `inspections.list({ status })` with `offset` for the next page | `inspections.page({ filters: { status: ["planned", "in_progress"] }, sort, after })`   |
+  | `meetings.list({ search, from, to })` with `offset`            | `meetings.page({ q, filters: { from: [start], to: [end] }, sort, after })`             |
+  | `warranty.list({ status })` with `offset`                      | `warranty.page({ filters: { status: ["submitted"] }, sort: { by: "amount" }, after })` |
+  | No facet counts or exact counts on these three blocks          | `facets()` and `count()` on each, with `{ value, exact }` counts                       |
+  | A claim detail page read the claim from the list               | `warranty.get(id)`                                                                     |
+
+- [#960](https://github.com/ScaleDockHQ/better-supabase/pull/960) [`35ac719`](https://github.com/ScaleDockHQ/better-supabase/commit/35ac719d5c689fc7b0e813fcbfb42be465900e03) Thanks [@martijn00](https://github.com/martijn00)! - The members controller has `setRoles({ userIds, role })`. It changes many roles in one `update_member_roles` call, shows the new role at once, puts back the roles of the members the database refused and returns `{ succeeded, failed }`. `useMembers` returns it, and the members table recipe applies its bulk role change with it instead of one `setRole` call per member. `createMembersController` now needs `updateMemberRoles` on its `client`, which `createOrganizations` already has.
+
+- [#933](https://github.com/ScaleDockHQ/better-supabase/pull/933) [`3803a77`](https://github.com/ScaleDockHQ/better-supabase/commit/3803a77c63d729d1217d5f726c502ea6c8a4c839) Thanks [@martijn00](https://github.com/martijn00)! - Every peer range now starts at the release the conformance tests run on, and each range covers one major release. The previous majors are no longer supported: SvelteKit 2, Nuxt 3, React Router 7, NestJS 11, Stripe 17 to 22, `expo-server` 55 to 57, undici 7, redis 5 and PowerSync 1. `h3` keeps H3 1 (`>=1.15.11 <3`) because Nuxt 4 runs on it, and `oxfmt` keeps its 0.66.0 floor. Expo SDK 58 needs no `unstable_` options, and the `bsb.loader()` error names `web.output`. `VercelSandboxCreateOptions` types Sandbox 4's `credentials: { npm: true }`, which lets a sandbox install the team's private npm packages. Eight Vercel SDKs join the optional peers: `@vercel/schedules`, `botid`, `@vercel/firewall`, `@vercel/passport`, `@vercel/sdk`, `@vercel/functions`, `@vercel/kms` and `@vercel/blob`. [From 0.66 to 0.67](https://bettersupabase.com/docs/migration/0.66-to-0.67) lists every new floor; the Supabase packages are in their own changeset.
+  
+  | Package             | Before        | After            |
+  | ------------------- | ------------- | ---------------- |
+  | `@sveltejs/kit`     | `>=2 <4`      | `>=3.2.0 <4`     |
+  | `nuxt`              | `>=3 <5`      | `>=4.6.4 <5`     |
+  | `react-router`      | `>=7.9 <9`    | `>=8.5.1 <9`     |
+  | `@nestjs/common`    | `>=11 <13`    | `>=12.5.0 <13`   |
+  | `stripe`            | `>=17 <24`    | `>=23.1.0 <24`   |
+  | `expo-server`       | `>=55 <59`    | `>=58.1.0 <59`   |
+  | `undici`            | `>=7.30.1 <9` | `>=8.12.4 <9`    |
+  | `redis`             | `>=5 <7`      | `>=6.3.1 <7`     |
+  | `@powersync/common` | `>=1 <3`      | `>=2.5.0 <3`     |
+  | `@vercel/queue`     | `>=0.8 <0.9`  | `>=0.11.0 <0.12` |
+  | `@vercel/sandbox`   | `>=3 <4`      | `>=4.0.0 <5`     |
+  | `eve`               | `>=0.71 <1`   | `>=0.83.3 <1`    |
+  | `workflow`          | `>=5.1 <6`    | `>=5.4.0 <6`     |
+
+- [#949](https://github.com/ScaleDockHQ/better-supabase/pull/949) [`f134248`](https://github.com/ScaleDockHQ/better-supabase/commit/f1342480068ddf466698b8c5c7f7deba28dcb961) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: the hard delete of a team is `purge`, behind its own
+  `permissions.purge` key. Archive and restore stay.
+  
+  | Before                            | After                            |
+  | --------------------------------- | -------------------------------- |
+  | `teams.delete(id)`                | `teams.purge(id)`                |
+  | `delete_team(team)` (SQL)         | `purge_team(team)`               |
+  | event `team.deleted`              | event `team.purged`              |
+  | `blocks.teams.permissions.delete` | `blocks.teams.permissions.purge` |
+  | `TeamWrites.delete` (PowerSync)   | `TeamWrites.purge`               |
+  
+  Run `better-supabase upgrade` and apply the migration. Purging falls back to
+  the `manage` key until you set `permissions.purge`. See the 0.66 to 0.67
+  guide.
+
+- [#933](https://github.com/ScaleDockHQ/better-supabase/pull/933) [`3803a77`](https://github.com/ScaleDockHQ/better-supabase/commit/3803a77c63d729d1217d5f726c502ea6c8a4c839) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase add` and `init` print the wiring of each queue and scheduler pair when the queue block is installed, and the `schedules` fragment of `vercel.json` for the workers that run on a cron. Doctor BS512 (warning) reports queue schedule wiring that misses or doubles runs: a path `vercel.json` still calls from `crons`, a path in both `crons` and `schedules`, a schedule on a private function without a `schedule/v1beta` trigger, and `blocks.queue.options.httpTick` without `pg_net` or the `jobs_tick_url` and `jobs_tick_token` Vault secrets.
+
+- [#933](https://github.com/ScaleDockHQ/better-supabase/pull/933) [`3803a77`](https://github.com/ScaleDockHQ/better-supabase/commit/3803a77c63d729d1217d5f726c502ea6c8a4c839) Thanks [@martijn00](https://github.com/martijn00)! - `createQueue` takes a `scheduler` apart from the queue, so Supabase Queues or Vercel Queues pair with Supabase Cron or Vercel Schedules. The new `ScheduleProvider` interface (`apiVersion: 1`) is what decides when a schedule fires; every `QueueProvider` is one, and without `scheduler` the queue's own schedule methods run as before.
+  
+  - `sqlScheduler(sql, { mode })` and `transportScheduler(transport, { mode })` are Supabase Cron (`mode: "pg_cron"`, the default) or the drain scheduler (`mode: "drain"`) apart from the queue. A pair that can't deliver, such as pg_cron with Vercel Queues, throws a `TypeError`.
+  - `vercelScheduler(Schedules, { bridge, jitter, namespace })` writes each schedule to Vercel Schedules (pass `Schedules` from `@vercel/schedules`). A tenant becomes a namespace. On Vercel Queues a run publishes to the job's topic and `vercelQueueRoute` unwraps it; on a Supabase queue it publishes to the `bridge` topic, where `vercelScheduleBridgeRoute(jobs, { client })` checks the probe and enqueues the run once per `executionId`.
+  - `jobs.schedulesRoute({ secret })` runs `runSchedules` for a clock on a queue without a drain, and `jobs.enqueueScheduledRun(input)` enqueues one run another scheduler fired. `runSchedules` sends due runs with `sendBatch` when the queue has it, which `vercelQueueProvider` now does.
+  - `blocks.queue.options.httpTick` installs `better_supabase.http_tick()` and a pg_cron job that calls the drain or schedules route every minute with the URL and token in the Vault secrets `jobs_tick_url` and `jobs_tick_token`, so Supabase Cron can be the clock.
+  - `drainRoute` and `schedulesRoute` accept `caller: "vercel-schedule"`, which lets a Vercel schedule run in without the secret. Use it only on a private function with a `schedule/v1beta` trigger.
+  - `vercelScheduleConfig(options)` returns the `functions` and `schedules` fragments of `vercel.json`, and `vercelCronOf`, `vercelScheduleNameOf`, `vercelNamespaceOf`, `parseVercelScheduleRun` and `isVercelScheduleMessage` convert to and from Vercel's formats.
+  - A job delivered from a schedule run exposes `job.schedule` with its `name`, `executionId` and `scheduledAt`. `jobs.unschedule(name, { tenant })` takes the tenant a scheduler keeps apart.
+  - `testScheduleProvider` from `better-supabase/testing` checks a scheduler.
+  
+  The `jobs` SQL module moves to version 14 (`schedule_has_work` becomes a client function, plus `http_tick` with `httpTick`). Run `better-supabase upgrade` and apply the new migration.
+
+- [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) [`6615609`](https://github.com/ScaleDockHQ/better-supabase/commit/6615609b727ecbd0bceae4118b98e237925aa281) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: `readSession` is replaced by `ssrSession`, which decodes the session
+  cookies with the `@supabase/ssr` helpers (`combineChunks` and its base64url
+  decoder) and returns a promise. `applyCookieWrites` is no longer exported.
+  
+  | Before                               | After                                        |
+  | ------------------------------------ | -------------------------------------------- |
+  | `readSession(cookies, name)`         | `await ssrSession(cookies, name)`            |
+  | `applyCookieWrites(cookies, writes)` | let a `createServerClient` write the cookies |
+  
+  Chunks that don't parse together now read as no session, as they do in
+  `@supabase/ssr`; `readSession` used the longest prefix that parsed.
+
+- [#912](https://github.com/ScaleDockHQ/better-supabase/pull/912) [`7f4bcbf`](https://github.com/ScaleDockHQ/better-supabase/commit/7f4bcbfdf796568b29c2382b8072b27738a16def) Thanks [@martijn00](https://github.com/martijn00)! - The `bookings`, `expenses`, `leave` and `risks` blocks have record bindings. `bookingsBinding` loads a customer's bookings, `expensesBinding` a member's expense reports, `leaveBinding` the leave requests of an employee or a member, and `risksBinding` the open risks linked to a record. Each takes the organization from the block's `tenant` option. Bookings gets `forCustomer`, leave gets `forOwner` and risks gets `linkedTo`, with the SQL functions `list_bookings_for_customer` and `list_risks_for_subject`; run `better-supabase upgrade` and apply the new migration. `LeaveOptions` accepts `tenant`.
+  
+  | Before                                                                                                      | After                                                                            |
+  | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+  | `bookingsBlock.record`, `expensesBlock.record`, `leaveBlock.record` and `risksBlock.record` are `undefined` | They are `bookingsBinding`, `expensesBinding`, `leaveBinding` and `risksBinding` |
+  | A customer's bookings read by hand from the range list                                                      | `bookings.forCustomer({ subject })`                                              |
+  | Leave of an employee read with `list({ employeeId })` only                                                  | `leave.forOwner({ subject })`, or the binding                                    |
+  | Risks of a record found by hand through relations                                                           | `risks.linkedTo({ subject })`                                                    |
+
+- [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) [`8637f83`](https://github.com/ScaleDockHQ/better-supabase/commit/8637f83f9f3e2209fadd956ceb8ccafdc249d960) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: `better-supabase/client/lite` is removed, along with the optional
+  peers `@supabase/auth-js` and `@supabase/realtime-js`. Browser clients come
+  only from `@supabase/ssr`'s `createBrowserClient`, so sessions follow its
+  cookies everywhere (ADR 0846).
+  
+  | Before                                                                  | After                                                   |
+  | ----------------------------------------------------------------------- | ------------------------------------------------------- |
+  | `import { createLiteBrowserClient } from "better-supabase/client/lite"` | `import { createClient } from "better-supabase/client"` |
+  
+  A route that used the lite client loads about 12 KB more. You can uninstall
+  `@supabase/auth-js` and `@supabase/realtime-js` if nothing else in the app
+  imports them.
+
+- [#955](https://github.com/ScaleDockHQ/better-supabase/pull/955) [`d8bec10`](https://github.com/ScaleDockHQ/better-supabase/commit/d8bec1092f28371687840780f5845a3bda5dba60) Thanks [@martijn00](https://github.com/martijn00)! - `deals`, `tasks`, `messaging`, `channels`, `collections` and `accounting` get a
+  `restore` next to their `archive`, and a restore records an event. `archive`
+  with `archived: false` still works and records the same event. Each method
+  needs the permission its `archive` needs.
+  
+  | Block         | New method                        | New event               |
+  | ------------- | --------------------------------- | ----------------------- |
+  | `deals`       | `restore(dealId)`                 | `deal.restored`         |
+  | `tasks`       | `restore(taskId)`, `restore(ids)` | `task.restored`         |
+  | `messaging`   | `restore(conversationId)`         | `conversation.restored` |
+  | `channels`    | `restore(channelId)`              | `conversation.restored` |
+  | `collections` | `restore(id)`                     | `collection.restored`   |
+  | `accounting`  | `restoreAccount(accountId)`       | none                    |
+  
+  Run `better-supabase upgrade` and apply the migration, which replaces
+  `archive_deal`, `archive_task`, `archive_tasks`, `archive_conversation` and
+  `archive_collection`.
+
+- [#944](https://github.com/ScaleDockHQ/better-supabase/pull/944) [`d341c50`](https://github.com/ScaleDockHQ/better-supabase/commit/d341c50352513aa0568a18dc84532599f9cf7dbd) Thanks [@martijn00](https://github.com/martijn00)! - `leave`, `qualifications`, `donations` and `expenses` can restore what they
+  archive, and record the change. Each new method needs the permission its
+  `archive*` twin needs.
+  
+  | Block            | Archive           | New restore       | Events                                                   |
+  | ---------------- | ----------------- | ----------------- | -------------------------------------------------------- |
+  | `leave`          | `archiveType`     | `restoreType`     | `leave_type.archived`, `leave_type.restored`             |
+  | `qualifications` | `archiveType`     | `restoreType`     | `qualification_type.restored` (archived existed)         |
+  | `donations`      | `archiveFund`     | `restoreFund`     | `donation_fund.archived`, `donation_fund.restored`       |
+  | `expenses`       | `archiveCategory` | `restoreCategory` | `expense_category.archived`, `expense_category.restored` |
+  
+  Run `better-supabase upgrade` and apply the migration. The SQL functions are
+  `restore_leave_type`, `restore_qualification_type`, `restore_donation_fund`
+  and `restore_expense_category`.
+
+- [#966](https://github.com/ScaleDockHQ/better-supabase/pull/966) [`449594a`](https://github.com/ScaleDockHQ/better-supabase/commit/449594a21a8263a23f6353a48bc7845c3fcfe7e6) Thanks [@martijn00](https://github.com/martijn00)! - `cases`, `lims`, `contacts`, `consents`, `shifts` and `observations` get a
+  restore next to their archive. Each needs the permission its archive needs,
+  and restoring an entity that is not archived changes nothing.
+  
+  | Block          | New method                                | New event                             |
+  | -------------- | ----------------------------------------- | ------------------------------------- |
+  | `cases`        | `restoreKind(kindId)`                     | `case_kind.restored`                  |
+  | `lims`         | `restoreMethod(methodId)`                 | `lims_method.restored`                |
+  | `contacts`     | `restoreCompany(id)`, `restorePerson(id)` | `company.restored`, `person.restored` |
+  | `consents`     | `restorePurpose(purposeId)`               | `consent_purpose.updated`             |
+  | `shifts`       | `restoreTemplate(templateId)`             | none                                  |
+  | `observations` | `restoreDefinition(definitionId)`         | `observation_definition.updated`      |
+  
+  `archiveCompany` and `archivePerson` with `archived: false` now record the
+  restored event too. Run `better-supabase upgrade` and apply the migration.
+
+- [#968](https://github.com/ScaleDockHQ/better-supabase/pull/968) [`f1a4204`](https://github.com/ScaleDockHQ/better-supabase/commit/f1a4204cf9a85c5bae2f9185ed0d90ff05e64ed4) Thanks [@martijn00](https://github.com/martijn00)! - `assets`, `medications`, `compliance`, `content`, `option-sets` and `pipelines`
+  get a restore next to their archive. Each needs the permission its archive
+  needs, and restoring an entity that is not archived changes nothing.
+  
+  | Block         | New method                         | New event                                      |
+  | ------------- | ---------------------------------- | ---------------------------------------------- |
+  | `assets`      | `restoreLocation(locationId)`      | `asset_location.restored`                      |
+  | `medications` | `restoreMedication(medicationId)`  | none                                           |
+  | `compliance`  | `restorePolicy(policyId)`          | none                                           |
+  | `content`     | `restore(entryId)` (back as draft) | `content_entry.restored`                       |
+  | `option-sets` | `restoreItem(itemId)`              | `option_set_item.restored`                     |
+  | `pipelines`   | `restore(id)`, `restoreStage(id)`  | `pipeline.restored`, `pipeline_stage.restored` |
+  
+  Run `better-supabase upgrade` and apply the migration.
+
+- [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) [`9c33569`](https://github.com/ScaleDockHQ/better-supabase/commit/9c33569a145662dc46e11ba9170d1fd78cad65e3) Thanks [@martijn00](https://github.com/martijn00)! - An import run now indexes search once per record when it closes. While a run
+  writes through `import_upsert_batch`, the search triggers note each record in
+  `better_supabase.import_search_dirty`, and `finish_import_run` or
+  `cancel_import_run` indexes the noted records through the new
+  `search_refresh_run`. A record that several batches of one run change is
+  indexed once; it becomes searchable when the run closes.
+  
+  `recordTypes.<type>.search.statement: true` indexes a record type through
+  statement triggers (`bsb_search_<type>_insert`, `_update`, `_delete`) instead of
+  the row trigger, so a set-based write fires one search call per statement.
+  Switching a type renames its triggers: run `better-supabase upgrade` and
+  generate a migration.
+  
+  A batch import target now receives `subjectId` on each item, as documented.
+  Before, an update batch inserted duplicates and fell back to one `write` per
+  item.
+  
+  Run `better-supabase upgrade` (search 4, imports 3).
+
+- [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) [`c5302d0`](https://github.com/ScaleDockHQ/better-supabase/commit/c5302d0313dd9b65ccd8ad41b9035dc25af5c54a) Thanks [@martijn00](https://github.com/martijn00)! - Request stats now count the raw `ctx.supabase` client and remote cache
+  fills. While `debug` collects, each PostgREST, RPC, Storage and Edge Function
+  request the context's `supabase` client sends is a call on the request's
+  stats, named after its table, `name()`, `storage/<bucket>` or
+  `functions/<name>`; Auth calls don't count. A `'use cache: remote'` fill
+  called through `bsb.remote()` records on the request that called it, where
+  before it recorded nothing. With a request recorder, `ctx.db` keeps its own
+  PostgREST client instead of reusing `ctx.supabase`, so no call is counted
+  twice.
+
+- [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) [`3eacc2c`](https://github.com/ScaleDockHQ/better-supabase/commit/3eacc2cf424db3c45ab3bea9af444f75fca1877e) Thanks [@martijn00](https://github.com/martijn00)! - Comment counters and search lists now check record access once per list
+  instead of once per row. The subjects module adds `can_subjects(subject_type,
+  subject_ids, action)`, which returns the ids the caller can act on in one
+  read of the record's table. `comment_counts` uses it and then finds the
+  records' conversations by key, through the new `comment_count_keys`;
+  `comment_count_rows` is removed. `search_page`, `search_recents` and
+  `search_favorites` check each batch or record type with one call. The results
+  don't change.
+  
+  Run `better-supabase upgrade` (subjects 2, comments 10, search 5).
+
+- [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) [`93260d1`](https://github.com/ScaleDockHQ/better-supabase/commit/93260d1bb889098e4894355c81906f589329b28b) Thanks [@martijn00](https://github.com/martijn00)! - `sessionStatus`, `asSignedInUser` and the flags-sdk Data API transport now
+  call Supabase through supabase-js (`auth.getUser`, `auth.signInWithPassword`
+  and `rpc`) instead of building the requests.
+  
+  Breaking: the notifications block's `avatars` option takes only a function of
+  the object path. Pass `getPublicUrl` from a supabase-js client for a public
+  bucket:
+  
+  | Before                              | After                                                        |
+  | ----------------------------------- | ------------------------------------------------------------ |
+  | `avatars: { url, bucket: "users" }` | `avatars: (path) => users.getPublicUrl(path).data.publicUrl` |
+  
+  `sessionStatus` reads a 403 whose body is not Auth's JSON as `unknown`
+  instead of `ended`, so a proxy or firewall response no longer ends a session.
+
+- [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) [`316250d`](https://github.com/ScaleDockHQ/better-supabase/commit/316250d1102b56e5a422aeb0e05d395babf2af0f) Thanks [@martijn00](https://github.com/martijn00)! - The Supabase peers now start at their newest releases. `@supabase/supabase-js`, `@supabase/auth-js` and `@supabase/realtime-js` need `^2.119.0` (was `^2.118.0`), `@supabase/server` needs `^1.9.2`, and `@supabase/config` needs `^1.6.1` (was `>=0.9.0 <2`). `@supabase/postgrest-typegen` and `@supabase/mcp-server-supabase` have a floor and no upper bound: `>=0.8.1` (was `>=0.6.0 <0.7`) and `>=0.16.1` (was `>=0.13.0 <0.15`). The CLI is tested against postgrest-typegen 0.8.1, so install that release (`pnpm add -D @supabase/postgrest-typegen@0.8.1`) to keep `database.types.ts` equal to `supabase gen types`.
+
+- [#967](https://github.com/ScaleDockHQ/better-supabase/pull/967) [`ee85abb`](https://github.com/ScaleDockHQ/better-supabase/commit/ee85abb787c3afc8e7c2bca64594aa29b505ed20) Thanks [@martijn00](https://github.com/martijn00)! - `tasks.bulk(ids, action, options)` archives, restores or removes many tasks with the common bulk shape: `{ succeeded, failed: [{ id, error }] }`, with ids the set statement skipped as `failed` with `not_found`, and `BULK_TOO_MANY` beyond 500 ids. The array overloads of `archive`, `restore` and `remove` keep working. `TaskBulkAction` is exported from `better-supabase/blocks/tasks`.
+
+- [#917](https://github.com/ScaleDockHQ/better-supabase/pull/917) [`3eacc2c`](https://github.com/ScaleDockHQ/better-supabase/commit/3eacc2cf424db3c45ab3bea9af444f75fca1877e) Thanks [@martijn00](https://github.com/martijn00)! - The usage module adds `usage_quotas_for(tenants, meters)`, which returns the
+  quota of every tenant and meter pair and resolves each tenant's entitlements
+  and plans once. The usage block's admin client calls it through
+  `usage.quotas({ organizationIds, meters })`, which returns one `UsageQuota`
+  per pair that has a quota. `usage_quota(tenant, meter)` now reads from it and
+  returns the same row as before.
+  
+  Run `better-supabase upgrade` (usage 9).
+
+- [#933](https://github.com/ScaleDockHQ/better-supabase/pull/933) [`3803a77`](https://github.com/ScaleDockHQ/better-supabase/commit/3803a77c63d729d1217d5f726c502ea6c8a4c839) Thanks [@martijn00](https://github.com/martijn00)! - `createPostgres({ attachDatabasePool })` takes `attachDatabasePool` from `@vercel/functions` and calls it with the pool it opens, so a function instance stays alive until its idle connections close. `createServer({ auth: { jwksStore } })` and `verifyPassport({ store })` share the fetched JWKS between instances through a `JwksStore`; `vercelRuntimeCache(getCache)` builds one on the Vercel Runtime Cache. A stored key set keeps the time of its original fetch, so a Supabase key set is still never served more than 600 seconds after it was fetched, and a store that fails or takes over 500 ms is skipped. `accessTokenResolver` takes it as `cache: { store }`.
+
+- [#933](https://github.com/ScaleDockHQ/better-supabase/pull/933) [`3803a77`](https://github.com/ScaleDockHQ/better-supabase/commit/3803a77c63d729d1217d5f726c502ea6c8a4c839) Thanks [@martijn00](https://github.com/martijn00)! - Two new entries for apps on Vercel. `better-supabase/vercel-security` guards the sign-up, OTP and magic-link routes: `botIdGuard({ checkBotId })` refuses bots with a `problem+json` 403 (`BOT_DETECTED`), and `firewallRateLimit({ checkRateLimit, id })` answers a limited request with a 429 and `Retry-After` (a Firewall block is a 403 with `FIREWALL_BLOCKED`). `combineGuards` and `withGuards` compose them, and `botIdCheck` covers Server Actions. `better-supabase/vercel-passport` adds `verifyPassport(request, options)`, which verifies the Vercel Passport token against Vercel's keys through the shared JWKS cache and passes `{ iss, sub, claims }` to your `resolveUser`. `botid`, `@vercel/firewall` and `@vercel/passport` are optional peers that you pass in; the entries import none of them.
+
+- [#940](https://github.com/ScaleDockHQ/better-supabase/pull/940) [`3cff4d8`](https://github.com/ScaleDockHQ/better-supabase/commit/3cff4d87657c78a7cf7f9a1767703f5cd43490de) Thanks [@martijn00](https://github.com/martijn00)! - Workflow editor: three additions and a migration. An `event` trigger kind starts
+  a run for each block event whose type is `config.event` (or a `prefix.*`
+  pattern): `builder.triggers.fire(event)` does it, and
+  `subscribeEventTriggers(betterSupabase, builder)` calls it from
+  `betterSupabase.events.on("block", ...)` without ever changing the result of
+  the work that emitted the event. A node kind with `waits: true` pauses the run
+  after its step: `GraphRuntime.waitFor` registers the hook `nodeWaitToken(runKey,
+  node)`, and the node is called a second time with `call.resumed` once the hook
+  resumes (`compileGraph` emits the same calls); `nodeRunReporter` takes `{ waits:
+  true }` to record `waiting`. Node run records keep the step's input
+  (`WorkflowNodeRun.input`, `NodeRunRecord.input`), recorded with `running`.
+  
+  Run `better-supabase upgrade` and apply the migration it generates: it adds
+  `workflow_node_runs.input`, replaces `record_workflow_node_run` with a version
+  that takes `input` last, adds `workflow_event_targets`, and adds `event` to the
+  trigger kind check. An app whose own enum types the trigger kind adds the value
+  `event` to it.
+
+- [#935](https://github.com/ScaleDockHQ/better-supabase/pull/935) [`04a78d4`](https://github.com/ScaleDockHQ/better-supabase/commit/04a78d455f9656c11f006a60fad20c13be39ed87) Thanks [@martijn00](https://github.com/martijn00)! - `useWorkflowRuns` and `createWorkflowRunsController` take a `mode` option
+  (`live`, `test` or `all`, default `live`), so an editor can list the test runs
+  it starts instead of tracking their ids itself. `WorkflowRunMode` is exported
+  from `better-supabase/blocks/workflows`.
+
+- [#961](https://github.com/ScaleDockHQ/better-supabase/pull/961) [`f774819`](https://github.com/ScaleDockHQ/better-supabase/commit/f7748192d197c8e5ba296423a0bbd50a9e4fb919) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/workflow-sdk/world` speaks the `@workflow/world` 5.2
+  protocol (`WORKFLOW_WORLD_PROTOCOL` is `5.2.0`), so the peer ranges are now
+  `workflow` `>=5.5.0 <6` and `@workflow/world` and `@workflow/world-postgres`
+  `>=5.2.0 <5.3`; `@vercel/functions` starts at 3.11.1, the release
+  `@workflow/core` 5.5 depends on. The `workflow-sdk` SQL module is version 5:
+  it adds the `workflow.workflow_job_lock_holders` table of world-postgres
+  migration 0030, closed to the API roles. Run `better-supabase upgrade` and
+  apply its migration before you deploy. The World declares
+  `queueAuthMode: "skip"`, because its flow route already checks the HMAC
+  signature of every delivery, and keeps the world-postgres capabilities, so
+  `WORKFLOW_SPEC_VERSION=9` can create spec 9 runs. See the 0.66 to 0.67 guide.
+
+### Patch Changes
+
+- [#927](https://github.com/ScaleDockHQ/better-supabase/pull/927) [`f13c347`](https://github.com/ScaleDockHQ/better-supabase/commit/f13c347235c5c7cbacbbcc320c4c2b706edac4c3) Thanks [@martijn00](https://github.com/martijn00)! - Security: the service-role AI blocks `prompts`, `ai-evals` and `ai-guardrails`
+  did not check which organization or permission a call acted for, so an app
+  that skipped its own check could read or write another organization's prompts,
+  datasets, runs and decision log. Each block now takes an optional `access`
+  (`{ organizationId, allowed, permission }`). With it, every method fails with
+  `forbidden` unless the caller has an organization and the permission, a call
+  must name that organization, a dataset or run of another organization reads as
+  `not_found`, and `decisions.purge` is refused. Without it the blocks behave as
+  before. `ai-evals` also gains `datasets.get` and the `get_eval_dataset` SQL
+  function, which `upgrade` writes into the module; run `better-supabase upgrade`
+  and apply the migration it generates. Apps that call these blocks for a
+  signed-in caller should pass `access`.
+
+- [#936](https://github.com/ScaleDockHQ/better-supabase/pull/936) [`d1cf8e4`](https://github.com/ScaleDockHQ/better-supabase/commit/d1cf8e438e322f0bec7109c5f5ff937f29deb971) Thanks [@martijn00](https://github.com/martijn00)! - The `attachments-uploader`, `related-items-panel`, `subject-timeline`,
+  `sequence-builder`, `quote-builder`, `contact-detail`, `deal-board` and
+  `command-search` recipes show the new example sources. The record sections now
+  take a subject (`customer`, `company`, `person` or `deal`) instead of a customer
+  id, the sequence builder renders one sequence on its own page, and the command
+  search can open a create dialog with `?new=1`.
+
+- [#925](https://github.com/ScaleDockHQ/better-supabase/pull/925) [`0ac1137`](https://github.com/ScaleDockHQ/better-supabase/commit/0ac11377b8ab0bd0ffd5fd245b1ffe10db4d5de1) Thanks [@martijn00](https://github.com/martijn00)! - `doctor` no longer reports BS503 for an exported `SUPABASE_JWKS` whose keys the
+  running stack's JWKS URL serves, such as the local public keys `env:local`
+  writes. Keys the stack does not serve are still reported.
+
+- [#926](https://github.com/ScaleDockHQ/better-supabase/pull/926) [`276e13f`](https://github.com/ScaleDockHQ/better-supabase/commit/276e13f353462fe40aa50d153dde00bdd8ecd8cf) Thanks [@martijn00](https://github.com/martijn00)! - Fix: `better-supabase gen` accepts `search` (`{ title, body }` or `false`) on an
+  entity under `blocks.<name>.names`, as the config type and ADR 0831 already
+  allowed. It failed with "blocks.contacts.names: Invalid type".
+
+- [#963](https://github.com/ScaleDockHQ/better-supabase/pull/963) [`014bf64`](https://github.com/ScaleDockHQ/better-supabase/commit/014bf64cc8e2ba8777b9a04e6c8929786dbe3fd2) Thanks [@martijn00](https://github.com/martijn00)! - The risk register UI recipe now sorts by residual score, number and next review
+  date, and reads its list state from the generated `risksList`.
+
 ## 0.66.0
 
 ### Minor Changes
