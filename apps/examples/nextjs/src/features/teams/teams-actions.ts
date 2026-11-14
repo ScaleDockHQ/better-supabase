@@ -99,7 +99,7 @@ export const setTeamArchived = bsb.action(
 export const deleteTeam = bsb.action(
   { input: v.object({ id: Id }), requireTenant: true },
   async ({ id }, { tenant, db, auth }) => {
-    const deleted = await db.teams.delete(id);
+    const deleted = await db.teams.purge(id);
 
     if (!deleted.ok) {
       return deleted;

@@ -55,7 +55,7 @@ const BLOCKS: AnyBlocksConfig = {
     permissions: {
       create: "team.create",
       update: "team.update",
-      delete: "team.delete",
+      purge: "team.purge",
       members: "team.update",
     },
     options: {

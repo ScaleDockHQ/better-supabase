@@ -34483,7 +34483,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "team.updated",
           "team.archived",
           "team.restored",
-          "team.deleted",
+          "team.purged",
           "team_member.added",
           "team_member.deleted"
         ]
