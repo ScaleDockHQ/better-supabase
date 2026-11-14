@@ -115,6 +115,9 @@ export default defineConfig({
           columns: ["title", "category", "status", "residualScore"],
           sections: ["overview", "assessments"],
           area: "quality",
+          // The register sorts by score, then number (ADR 0896): `gen` writes the composite index
+          // and BS636 asks for it. The risks block still orders by the first term only.
+          sortLists: [["residualScore", "number"]],
         }),
         // The dispatch board: the block's input schema asks only for a title, so the page
         // seeds five demo work orders (`work-orders.seed.ts`, applied by `pnpm db:seed:pages`).

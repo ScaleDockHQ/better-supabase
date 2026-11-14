@@ -87,10 +87,96 @@ describe("listFilters", () => {
     }
   });
 
+  it("sends the first term of a list of sorts and keeps the single form unchanged", () => {
+    const single = listFilters(SPEC, {
+      sort: { by: "title", direction: "desc" },
+    });
+
+    const several = listFilters(SPEC, {
+      sort: [{ by: "title", direction: "desc" }, { by: "createdAt" }],
+    });
+
+    expect(several).toEqual(single);
+    expect(several.ok && several.data).toEqual({
+      sort: "title",
+      direction: "desc",
+    });
+  });
+
+  it("rejects an undeclared, repeated or fourth sort term in a list", () => {
+    const sorts = (...by: string[]) =>
+      listFilters(SPEC, { sort: by.map((name) => ({ by: name })) });
+
+    expect(sorts("title", "colour").error?.message).toContain('"colour"');
+    expect(sorts("title", "title").error?.message).toContain("twice");
+    expect(
+      sorts("title", "createdAt", "title", "createdAt").error?.message,
+    ).toContain("at most 3");
+    expect(sorts().ok).toBe(true);
+  });
+
   it("ignores an empty text", () => {
     const result = listFilters({ entity: "thing", surface: {} }, { q: "" });
 
     expect(result.ok).toBe(true);
+  });
+});
+
+describe("entityList sorted report", () => {
+  const empty = () => ({ items: [], hasMore: false, nextCursor: null });
+
+  it("lists the first term as applied and the rest as ignored", async () => {
+    const { list, calls } = listOf(empty);
+
+    const page = await list
+      .page({
+        sort: [
+          { by: "title", direction: "asc" },
+          { by: "createdAt", direction: "desc" },
+        ],
+      })
+      .orThrow();
+
+    expect(page.sorted).toEqual({
+      applied: [{ by: "title", direction: "asc" }],
+      ignored: [{ by: "createdAt", direction: "desc" }],
+    });
+    expect(calls[0]).toEqual({
+      tenant: "org-1",
+      filters: { sort: "title", direction: "asc", paged: true },
+    });
+  });
+
+  it("reports a single sort as applied with nothing ignored, and nothing without a sort", async () => {
+    const { list } = listOf(empty);
+
+    const one = await list.page({ sort: { by: "title" } }).orThrow();
+    const none = await list.page().orThrow();
+
+    expect(one.sorted).toEqual({ applied: [{ by: "title" }], ignored: [] });
+    expect(none).not.toHaveProperty("sorted");
+  });
+
+  it("keeps the keyset cursor of the first term when the list is longer", async () => {
+    const cursor = ["2026-01-01", "id-1"];
+    const reply = () => ({ items: [], hasMore: true, nextCursor: cursor });
+    const { list, calls } = listOf(reply);
+
+    const first = await list.page({ sort: { by: "title" } }).orThrow();
+
+    const second = await list
+      .page({
+        sort: [{ by: "title" }, { by: "createdAt" }],
+        after: first.nextCursor ?? [],
+      })
+      .orThrow();
+
+    expect(second.nextCursor).toEqual(first.nextCursor);
+    expect(calls[1]?.["filters"]).toEqual({
+      sort: "title",
+      after: cursor,
+      paged: true,
+    });
   });
 });
 

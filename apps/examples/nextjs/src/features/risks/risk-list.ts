@@ -1,6 +1,7 @@
 import type { PageOptions } from "better-supabase/blocks";
 import type { RecordListUrl } from "better-supabase/react";
 
+import { sortsOf } from "better-supabase/blocks";
 import * as v from "valibot";
 
 import type { RecordListUrlQuery } from "@/components/record-list/record-list-types";
@@ -97,7 +98,8 @@ export const riskList: RecordListUrl<RecordListUrlQuery> = {
     const { q, sort, filters, after } = parsed.value;
 
     const value: DraftQuery = {
-      sort: sort?.by ?? RISK_DEFAULT_SORT,
+      // The risk list sorts by one column: the first term of a list.
+      sort: sortsOf(sort)[0]?.by ?? RISK_DEFAULT_SORT,
       facets: Object.fromEntries(
         RISK_FACETS.map((key) => [key, filters?.[key]]),
       ),

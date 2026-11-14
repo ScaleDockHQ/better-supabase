@@ -385553,6 +385553,20 @@
             "predicate": null
           },
           {
+            "name": "risks_tenant_id_residual_score_number_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "residual_score",
+              "number",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "risks_tenant_id_status_page_idx",
             "columns": [
               "tenant_id",

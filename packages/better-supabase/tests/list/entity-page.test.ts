@@ -125,6 +125,94 @@ describe("parse", () => {
   });
 });
 
+describe("multi-column sort (ADR 0896)", () => {
+  it("reads a comma list and repeated sort parameters as a list", () => {
+    const expected = {
+      ok: true,
+      value: {
+        sort: [
+          { by: "number", direction: "asc" },
+          { by: "residualScore", direction: "desc" },
+        ],
+      },
+    };
+
+    expect(list.parse({ sort: "number:asc,residualScore:desc" })).toStrictEqual(
+      expected,
+    );
+    expect(
+      list.parse(
+        new URLSearchParams([
+          ["sort", "number:asc"],
+          ["sort", "residualScore:desc"],
+        ]),
+      ),
+    ).toStrictEqual(expected);
+  });
+
+  it("keeps one term in the single form", () => {
+    expect(list.parse({ sort: "number" })).toStrictEqual({
+      ok: true,
+      value: { sort: { by: "number" } },
+    });
+  });
+
+  it("names an undeclared, repeated or fourth term and a bad direction", () => {
+    const issues = (sort: string) => {
+      const result = list.parse({ sort });
+
+      return result.ok ? [] : result.issues.map((issue) => issue.message);
+    };
+
+    expect(issues("number,colour")).toStrictEqual([
+      "Sort by colour is not declared; use residualScore, number.",
+    ]);
+    expect(issues("number,number")).toStrictEqual([
+      "Sort by each column once.",
+    ]);
+    expect(issues("number,residualScore,number,residualScore")).toContain(
+      "Sort by at most 3 columns.",
+    );
+    expect(issues("number,residualScore:up")).toStrictEqual([
+      "A sort direction is asc or desc.",
+    ]);
+  });
+
+  it("round-trips a list through toSearchParams", () => {
+    const value = {
+      sort: [
+        { by: "number", direction: "asc" as const },
+        { by: "residualScore" },
+      ],
+      after: ["1", "2"],
+    };
+
+    const params = list.toSearchParams(value);
+
+    expect(params.get("sort")).toBe("number:asc,residualScore");
+    expect(list.parse(params)).toStrictEqual({ ok: true, value });
+    expect(list.toSearchParams({ sort: [{ by: "number" }] }).toString()).toBe(
+      "sort=number",
+    );
+  });
+
+  it("accepts a list in the schema and refuses a list without a column", async () => {
+    const validate = list.schema["~standard"].validate;
+
+    expect(
+      await validate({ sort: [{ by: "number" }, { by: "residualScore" }] }),
+    ).toStrictEqual({
+      value: { sort: [{ by: "number" }, { by: "residualScore" }] },
+    });
+    expect(await validate({ sort: [{ by: "number" }, {}] })).toHaveProperty(
+      "issues",
+    );
+    expect(
+      await validate({ sort: [{ by: "number" }, { by: "number" }] }),
+    ).toHaveProperty("issues");
+  });
+});
+
 describe("filter trees", () => {
   const rule = (
     field: string,

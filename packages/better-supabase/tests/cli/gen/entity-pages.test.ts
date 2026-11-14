@@ -100,6 +100,41 @@ describe("entityPageIndexes", () => {
     ]);
   });
 
+  it("indexes each declared multi-column sort as one composite index, and keeps it out of the scale plan", () => {
+    const page = defineEntityPage({
+      ...risks,
+      sortLists: [["residualScore", "number"]],
+    });
+
+    const resolved = resolveEntityPage(config([page]), page);
+
+    const lists = entityPageIndexes(resolved).filter(
+      (index) => index.kind === "sort-list",
+    );
+
+    expect(lists.map((index) => [index.serves, index.columns])).toStrictEqual([
+      ["residualScore+number", ["tenant_id", "residual_score", "number", "id"]],
+    ]);
+
+    const scale = emitEntityPages(config([page]), "better-supabase").find(
+      (file) => file.path.endsWith("scale_list_risks.test.sql"),
+    );
+
+    expect(scale?.contents).toContain("select plan(5);");
+  });
+
+  it("refuses a sort list with one key, an undeclared key or too many keys", () => {
+    for (const lists of [
+      [["number"]],
+      [["number", "colour"]],
+      [["number", "residualScore", "nextReviewOn", "number"]],
+    ]) {
+      const page = defineEntityPage({ ...risks, sortLists: lists });
+
+      expect(() => resolveEntityPages(config([page]))).toThrow(/sortLists/);
+    }
+  });
+
   it("indexes searched columns with a trigram index", () => {
     const resolved = resolveEntityPage(config(), risks);
 
