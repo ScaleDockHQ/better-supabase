@@ -80,18 +80,22 @@ you call `checkout`, `portal` or `syncSeats`: they act as the service role.
 
 ```ts title="app/billing/actions.ts"
 const { url } = await billing
-  .checkout(organizationId, {
-    price: env.STRIPE_SEAT_PRICE,
-    quantity: "seats", // the tenant's seat count
-    successUrl: `${origin}/billing?done=1`,
-    cancelUrl: `${origin}/billing`,
-    email: user.email,
+  .checkout({
+    organizationId,
+    options: {
+      price: env.STRIPE_SEAT_PRICE,
+      quantity: "seats", // the tenant's seat count
+      successUrl: `${origin}/billing?done=1`,
+      cancelUrl: `${origin}/billing`,
+      email: user.email,
+    },
   })
   .orThrow();
 redirect(url!);
 
-const portal = await billing.portal(organizationId, {
-  returnUrl: `${origin}/billing`,
+const portal = await billing.portal({
+  organizationId,
+  options: { returnUrl: `${origin}/billing` },
 });
 ```
 
@@ -136,7 +140,7 @@ records `billing.account_linked`), and opens Checkout with
 `customer_account`. `resolve` returns an existing account to reuse instead,
 which needs the `customer` configuration before Stripe bills it. `portal`
 passes `customer_account` too. `account(organizationId)` reads the linked
-account and `ensureAccount(organizationId, details)` creates or reuses it
+account and `ensureAccount({ organizationId, details })` creates or reuses it
 without a checkout. Creating an account needs `v2.core.accounts` on the
 Stripe client, which the `stripe` package has; `customerAccounts: true` uses
 the defaults.
@@ -187,10 +191,9 @@ billing: {
 ```
 
 ```ts
-await billing.checkout(organizationId, {
-  plan: "pro",
-  interval: "year",
-  successUrl,
+await billing.checkout({
+  organizationId,
+  options: { plan: "pro", interval: "year", successUrl },
 });
 ```
 
@@ -206,10 +209,13 @@ price or a plan key with its own `interval`, `variant` and `quantity`, for
 add-on packages next to the plan:
 
 ```ts
-await billing.checkout(organizationId, {
-  plan: "pro",
-  items: [{ plan: "credits", variant: "5000", quantity: 2 }],
-  successUrl,
+await billing.checkout({
+  organizationId,
+  options: {
+    plan: "pro",
+    items: [{ plan: "credits", variant: "5000", quantity: 2 }],
+    successUrl,
+  },
 });
 ```
 
@@ -235,7 +241,10 @@ export const startCheckout = bsb.action(
     authorize: (session) => can(session, "billing.manage"),
   },
   async ({ plan }, { tenant }) =>
-    billing.checkout(tenant, { plan, successUrl, cancelUrl }),
+    billing.checkout({
+      organizationId: tenant,
+      options: { plan, successUrl, cancelUrl },
+    }),
 );
 ```
 
@@ -329,14 +338,14 @@ Stripe calls run with the block's Stripe client, so guard the route or action
 with your own permission check (such as `billing.manage`).
 
 ```ts
-await billing.changePlan(organizationId, { plan: "business" }); // or { price }
-await billing.cancelAtPeriodEnd(organizationId, true); // false resumes it
+await billing.changePlan({ organizationId, change: { plan: "business" } }); // or { price }
+await billing.cancelAtPeriodEnd({ organizationId, cancel: true }); // false resumes it
 const invoices = await billing
-  .invoices(organizationId, { limit: 20 })
+  .invoices({ organizationId, limit: 20 })
   .orThrow();
 const methods = await billing.paymentMethods(organizationId).orThrow();
-await billing.voidInvoice(organizationId, invoiceId);
-await billing.markInvoiceUncollectible(organizationId, invoiceId);
+await billing.voidInvoice({ organizationId, invoiceId });
+await billing.markInvoiceUncollectible({ organizationId, invoiceId });
 ```
 
 `changePlan` moves the subscription item to the new price with prorations
@@ -440,22 +449,22 @@ Stripe is the record for the billing contact: email, name, address, phone and
 tax ids live on the Stripe customer, the Sync Engine mirrors them into
 `stripe.customers`, and invoices use them. `customerDetails(organizationId)`
 reads that row (`billing_customer_details`), and
-`updateCustomer(organizationId, { email, name, address, params })` writes the
+`updateCustomer({ organizationId, update: { email, name, address, params } })` writes the
 customer, creating it first when the tenant has none. There is no second copy
 in the module's tables to keep in sync.
 
 Tax ids (VAT, GST and the other Stripe tax id types) live on the Stripe
-customer too. `taxIds(organizationId)` lists them, `addTaxId(organizationId,
-{ type, value })` adds one (creating the customer when the tenant has none),
-and `removeTaxId(organizationId, taxId)` removes one. Stripe validates the
+customer too. `taxIds({ organizationId })` lists them, `addTaxId({ organizationId,
+taxId: { type, value } })` adds one (creating the customer when the tenant has none),
+and `removeTaxId({ organizationId, taxId })` removes one. Stripe validates the
 value and reports `verification.status` for the types it checks:
 
 ```ts
-await billing.addTaxId(organizationId, {
-  type: "eu_vat",
-  value: "DE123456789",
+await billing.addTaxId({
+  organizationId,
+  taxId: { type: "eu_vat", value: "DE123456789" },
 });
-const taxIds = await billing.taxIds(organizationId).orThrow();
+const taxIds = await billing.taxIds({ organizationId }).orThrow();
 // [{ id, type, value, country, verification, created }]
 ```
 
@@ -463,7 +472,7 @@ They need `customers.listTaxIds`, `createTaxId` and `deleteTaxId` on the
 Stripe client, which the `stripe` package has. Guard them with your own
 `billing.manage` check, as the other Stripe calls.
 
-`taxIds(organizationId, { from: "sync" })` reads the Sync Engine's
+`taxIds({ organizationId, options: { from: "sync" } })` reads the Sync Engine's
 `stripe.tax_ids` instead, without a Stripe call, through
 `billing_tax_ids(tenant)`. That function checks `billing.read` (or platform
 staff) itself and returns the same shape, newest first, with `created` in
@@ -530,7 +539,7 @@ export default defineConfig({
 });
 ```
 
-`syncSeats(organizationId)` sets the active subscription item's quantity
+`syncSeats({ organizationId })` sets the active subscription item's quantity
 (the `seatPrice` item, or the first one) to that count. Relay the membership
 events from the [outbox](/docs/blocks/outbox) to `seatSink()` to keep it in
 step:
