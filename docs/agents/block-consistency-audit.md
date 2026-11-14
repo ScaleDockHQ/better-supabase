@@ -977,11 +977,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane L
 
 - Scope: Bulk, export, import target and job shape
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-l`
 - PR: none yet
 - Findings: EX-1209, EX-1210, EX-1211, EX-1324, EX-515 (check #917's set checks first)
 - Log: 2026-11-12, planned.
+  2026-11-14, lane L started from main (aa43c1d009) in `../bsb-audit-l`.
 
 ### Lane M1
 
