@@ -249,6 +249,8 @@ Define the function in the hooks schema (`public` by default) and the
 module calls it when it exists; [SQL hooks](/docs/extending/events#sql-hooks)
 shows how to point a module at another schema or function.
 
+Your own block declares plan limits and meters the same way as the shipped ones: `defineBlock({ limits: { add: { meter: "seats" } }, meters: { add: { meter: "seats" } } })`. Keys are client method names. `createBlocks({ metering: true })` applies them when the `usage` block is in the set; see [usage](/docs/blocks/usage).
+
 ## Transport middleware
 
 Every block calls its SQL functions through a transport. `wrapTransport`

@@ -34018,7 +34018,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/usage"
       },
       "consumes": {},
-      "provides": []
+      "provides": [
+        "meter"
+      ]
     },
     {
       "name": "vector-search",

@@ -566,6 +566,48 @@ Stripe client of your own.
 | `unreported_usage(max_rows, skip_meters, skip_tenants)`                    | `service_role`                  | counters with `value > reported_value`                                                                                  |
 | `mark_usage_reported(tenant, meter, day, value)`                           | `service_role`                  | whether the counter exists                                                                                              |
 
+## Plan limits and meters declared by blocks
+
+A block manifest can declare a `limits` entry (a method that must fit a quota
+before it runs) and a `meters` entry (a method that records usage after it
+succeeds). With `createBlocks({ metering: true })` and the `usage` block in the
+set, `createBlocks` applies them to the blocks' methods. Without the option, or
+without `usage`, nothing is applied, so installing `usage` never starts counting
+by itself.
+
+```ts title="src/lib/supabase/blocks.ts"
+const blocks = createBlocks(
+  { transport, metering: true },
+  { organizations: organizationsBlock, usage: usageBlock },
+);
+
+await blocks.organizations.invite({ organizationId, email, role: "member" });
+```
+
+`organizations.invite` declares `limits: { invite: { meter: "seats" } }`. When
+the organization's quota on `seats` (set per plan with `setQuota`, so the plan
+the `billing` and `entitlements` blocks resolve decides the limit) is used up,
+the call returns a `quota_exceeded` error with the `meter` and `limit` before
+it reaches the database. `api-keys.create` declares both a limit and a meter on
+`api_keys_created`, so each key counts against the plan's quota.
+
+A declaration reads the organization from `organizationId` on the method's
+first argument (`tenant` names another property); a call without one isn't
+checked or counted. The check uses `canConsume`, so it answers right now and
+two concurrent calls can both pass; use `consume` where that matters. Set
+`seats` as a `computed` meter so it counts members rather than invites.
+
+A limit is a gate: it can refuse a call, which an event handler or sink never
+can. A meter is not: when recording fails, the logger gets the error and the
+caller still gets the call's result. Declared checks run before your own
+`hooks`, so a `before` hook can't skip a plan limit.
+
+Every block option that limits use is named `quota` and takes
+`{ meter, quantity? }` (`blocks.drive.options.quota`). A per-row `rateLimit`,
+as on an API key, is data, not an option. A quota and a rate limit return
+different codes: `quota_exceeded` for a used-up quota or plan limit and
+`rate_limited` for a request rate, both with status 429 and `retryAfter`.
+
 ## Hooks
 
 `createUsage` takes `hooks` around its methods, such as a rule before

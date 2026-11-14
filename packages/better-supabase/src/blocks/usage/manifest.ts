@@ -5,10 +5,17 @@ import { usageSqlOptions } from "./options.ts";
 import { createUsage } from "./usage.ts";
 
 /** The `usage` block's manifest (ADR 0029). */
-export const usageBlock: BlockOf<"usage", typeof createUsage> = defineBlock({
+export const usageBlock: BlockOf<
+  "usage",
+  typeof createUsage,
+  Record<never, never>,
+  Record<never, never>,
+  "meter"
+> = defineBlock({
   name: "usage",
   sql: ["usage"],
   options: { usage: usageSqlOptions },
+  provides: { meter: (client) => client },
   create: createUsage,
   category: "commerce",
   entities: { usage: { mutability: "append-only", emits: { create: false } } },

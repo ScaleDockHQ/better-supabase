@@ -10,6 +10,7 @@ import type { BlockConcern, BlockLink } from "./composition.ts";
 import type { BlockContext } from "./create-blocks.ts";
 import type { BlockSchemas } from "./entity-schema.ts";
 import type { BlockEntities } from "./entity-surface.ts";
+import type { BlockLimits, BlockMeters } from "./metering.ts";
 import type { BlockOptionsSchema } from "./options.ts";
 import type { BlockPorts, PortName } from "./ports.ts";
 import type { AnyRecordBinding } from "./record-bindings.ts";
@@ -152,6 +153,19 @@ export interface BlockDefinition<
    */
   readonly entities?: BlockEntities;
   /**
+   * The plan limits of the block's methods (ADR 0909): with `createBlocks({
+   * metering: true })` and the `usage` block in the set, a method refuses with
+   * `quota_exceeded` before it creates when the tenant's quota on the meter is
+   * used up. Keys are client method names.
+   */
+  readonly limits?: BlockLimits;
+  /**
+   * The meter each method increments (ADR 0909): with `createBlocks({ metering:
+   * true })`, a successful call records usage on it. Keys are client method
+   * names.
+   */
+  readonly meters?: BlockMeters;
+  /**
    * The links from this block's entities to other blocks' entities (ADR 0196,
    * 0830). `NAMES.links` of the SQL module holds the same list.
    */
@@ -257,6 +271,10 @@ export interface Block<
   readonly schemas: BlockSchemas;
   /** What each entity declares about itself, by entity key. */
   readonly entities: BlockEntities;
+  /** The plan limit each method checks, by method name. */
+  readonly limits: BlockLimits;
+  /** The meter each method increments, by method name. */
+  readonly meters: BlockMeters;
   /** The links to other blocks' entities. */
   readonly links: readonly BlockLink[];
   /** The row-level concerns beyond audit and events. */
@@ -333,6 +351,8 @@ export interface AnyBlock {
   readonly recipes: readonly string[];
   readonly schemas?: BlockSchemas;
   readonly entities?: BlockEntities;
+  readonly limits?: BlockLimits;
+  readonly meters?: BlockMeters;
   readonly links?: readonly BlockLink[];
   readonly concerns?: readonly BlockConcern[];
   readonly importTarget?: readonly string[];
@@ -451,6 +471,8 @@ function blockOf<
     recipes: parts.recipes ?? [],
     schemas: parts.schemas ?? {},
     entities: parts.entities ?? {},
+    limits: parts.limits ?? {},
+    meters: parts.meters ?? {},
     links: parts.links ?? [],
     concerns: parts.concerns ?? [],
     importTarget: parts.importTarget ?? [],
