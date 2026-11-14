@@ -12988,6 +12988,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "access_request.emergency_opened",
           "access_request.emergency_reviewed"
         ]
+      },
+      "entityLists": {
+        "access_request": {
+          "sorts": [
+            "createdAt"
+          ],
+          "facets": [
+            "status",
+            "role"
+          ],
+          "filters": [
+            "status",
+            "role",
+            "mine"
+          ]
+        }
       }
     },
     {
@@ -16539,6 +16555,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "hostname.primary_changed",
           "hostname.deleted"
         ]
+      },
+      "entityLists": {
+        "hostname": {
+          "sorts": [
+            "hostname",
+            "createdAt"
+          ],
+          "facets": [
+            "kind",
+            "verified"
+          ],
+          "filters": [
+            "kind",
+            "verified"
+          ]
+        }
       }
     },
     {
@@ -17011,6 +17043,24 @@ export const PRESET_CATALOG: PresetCatalog = {
           "enrollment.completed",
           "enrollment.cancelled"
         ]
+      },
+      "entityLists": {
+        "enrollment": {
+          "sorts": [
+            "updatedAt",
+            "enrolledAt"
+          ],
+          "facets": [
+            "status",
+            "program"
+          ],
+          "filters": [
+            "status",
+            "program",
+            "subjectType",
+            "subjectId"
+          ]
+        }
       }
     },
     {
@@ -17432,6 +17482,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "pass.credit_used",
           "pass.credit_refunded"
         ]
+      },
+      "entityLists": {
+        "pass": {
+          "sorts": [
+            "createdAt",
+            "validFrom",
+            "validUntil"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status",
+            "holderUserId"
+          ]
+        }
       }
     },
     {
@@ -17783,6 +17849,25 @@ export const PRESET_CATALOG: PresetCatalog = {
           "lease.charged",
           "lease.paid"
         ]
+      },
+      "entityLists": {
+        "lease": {
+          "sorts": [
+            "startsOn",
+            "endsOn",
+            "createdAt"
+          ],
+          "facets": [
+            "status",
+            "unitId"
+          ],
+          "filters": [
+            "status",
+            "unitId",
+            "partyType",
+            "partyId"
+          ]
+        }
       }
     },
     {
@@ -18526,7 +18611,39 @@ export const PRESET_CATALOG: PresetCatalog = {
           "description": "Takes payments; without one, payments are recorded by hand.",
           "example": "stripePayments({ stripe })"
         }
-      ]
+      ],
+      "entityLists": {
+        "donation": {
+          "sorts": [
+            "receivedOn",
+            "createdAt"
+          ],
+          "facets": [
+            "status",
+            "fundId"
+          ],
+          "filters": [
+            "donorType",
+            "donorId",
+            "fundId",
+            "pledgeId",
+            "status"
+          ]
+        },
+        "pledge": {
+          "sorts": [
+            "createdAt"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "donorType",
+            "donorId",
+            "status"
+          ]
+        }
+      }
     },
     {
       "name": "dispatch",
@@ -19106,7 +19223,25 @@ export const PRESET_CATALOG: PresetCatalog = {
           "description": "Quotes, labels and tracks shipments; without one, shipments are recorded by hand.",
           "example": "[yourCarrier]"
         }
-      ]
+      ],
+      "entityLists": {
+        "shipment": {
+          "sorts": [
+            "createdAt",
+            "deliveredAt"
+          ],
+          "facets": [
+            "status",
+            "carrier"
+          ],
+          "filters": [
+            "status",
+            "carrier",
+            "subjectType",
+            "subjectId"
+          ]
+        }
+      }
     },
     {
       "name": "contracts",
@@ -20801,6 +20936,19 @@ export const PRESET_CATALOG: PresetCatalog = {
           "course_certificate.issued",
           "course_certificate.revoked"
         ]
+      },
+      "entityLists": {
+        "course": {
+          "sorts": [
+            "title"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status"
+          ]
+        }
       }
     },
     {
@@ -21003,7 +21151,21 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "runDue()",
           "description": "Sends the due steps of every active enrollment and moves each to its next wait."
         }
-      ]
+      ],
+      "entityLists": {
+        "sequence": {
+          "sorts": [
+            "name",
+            "updatedAt"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status"
+          ]
+        }
+      }
     },
     {
       "name": "lead-scoring",
@@ -21388,7 +21550,32 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "publishDue()",
           "description": "Publishes the scheduled entries whose time has come."
         }
-      ]
+      ],
+      "entityLists": {
+        "content_entry": {
+          "sorts": [
+            "updatedAt",
+            "title",
+            "createdAt",
+            "publishedAt"
+          ],
+          "facets": [
+            "type",
+            "locale",
+            "status"
+          ],
+          "filters": [
+            "type",
+            "locale",
+            "status",
+            "translationGroupId"
+          ],
+          "search": [
+            "title",
+            "slug"
+          ]
+        }
+      }
     },
     {
       "name": "qualifications",
@@ -22076,7 +22263,29 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "notifyDueReviews()",
           "description": "Reports the risks whose review date has come."
         }
-      ]
+      ],
+      "entityLists": {
+        "risk": {
+          "sorts": [
+            "residualScore",
+            "number",
+            "nextReviewOn"
+          ],
+          "facets": [
+            "status",
+            "category",
+            "band"
+          ],
+          "filters": [
+            "status",
+            "category",
+            "band",
+            "ownerId",
+            "reviewDue"
+          ],
+          "search": true
+        }
+      }
     },
     {
       "name": "cases",
@@ -23004,7 +23213,30 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "notifyOverdue()",
           "description": "Tells the lead of each inspection past its planned end, once per planned end."
         }
-      ]
+      ],
+      "entityLists": {
+        "inspection": {
+          "sorts": [
+            "plannedStart",
+            "number"
+          ],
+          "facets": [
+            "status",
+            "kind"
+          ],
+          "filters": [
+            "programId",
+            "kind",
+            "status",
+            "leadId",
+            "from",
+            "to",
+            "auditeeType",
+            "auditeeId"
+          ],
+          "search": true
+        }
+      }
     },
     {
       "name": "meetings",
@@ -23410,6 +23642,26 @@ export const PRESET_CATALOG: PresetCatalog = {
           "meeting_decision.decided",
           "meeting_action_item.created"
         ]
+      },
+      "entityLists": {
+        "meeting": {
+          "sorts": [
+            "startsAt",
+            "title"
+          ],
+          "facets": [
+            "kind",
+            "status"
+          ],
+          "filters": [
+            "kind",
+            "status",
+            "from",
+            "to",
+            "attendeeId"
+          ],
+          "search": true
+        }
       }
     },
     {
@@ -23746,6 +23998,37 @@ export const PRESET_CATALOG: PresetCatalog = {
           "maintenance_meter_reading.recorded",
           "maintenance_calibration.recorded"
         ]
+      },
+      "entityLists": {
+        "maintenance_plan": {
+          "sorts": [
+            "nextDueAt",
+            "title"
+          ],
+          "facets": [
+            "status",
+            "kind"
+          ],
+          "filters": [
+            "status",
+            "kind",
+            "assetId",
+            "due"
+          ]
+        },
+        "maintenance_calibration": {
+          "sorts": [
+            "performedAt",
+            "dueAt"
+          ],
+          "facets": [
+            "result"
+          ],
+          "filters": [
+            "assetId",
+            "dueBefore"
+          ]
+        }
       }
     },
     {
@@ -23901,6 +24184,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "dam_usage_right.revoked",
           "dam_usage_right.expiry_notified"
         ]
+      },
+      "entityLists": {
+        "dam_usage_right": {
+          "sorts": [
+            "expiresOn",
+            "startsOn"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "nodeId",
+            "status",
+            "expiringWithinDays"
+          ]
+        }
       }
     },
     {
@@ -24134,6 +24433,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "lims_result.recorded",
           "lims_result.flagged"
         ]
+      },
+      "entityLists": {
+        "lims_sample": {
+          "sorts": [
+            "number",
+            "receivedOn"
+          ],
+          "facets": [
+            "status",
+            "kind"
+          ],
+          "filters": [
+            "status",
+            "kind"
+          ]
+        }
       }
     },
     {
@@ -24384,6 +24699,23 @@ export const PRESET_CATALOG: PresetCatalog = {
           "appraisal.finalized",
           "appraisal_review.submitted"
         ]
+      },
+      "entityLists": {
+        "appraisal": {
+          "sorts": [
+            "createdAt",
+            "rating"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "cycleId",
+            "status",
+            "subjectUserId",
+            "mine"
+          ]
+        }
       }
     },
     {
@@ -24700,6 +25032,25 @@ export const PRESET_CATALOG: PresetCatalog = {
           "count_plan.created",
           "count_plan.executed"
         ]
+      },
+      "entityLists": {
+        "pick_list": {
+          "sorts": [
+            "createdAt",
+            "pickedAt"
+          ],
+          "facets": [
+            "status",
+            "documentType"
+          ],
+          "filters": [
+            "waveId",
+            "status",
+            "documentType",
+            "documentId",
+            "mine"
+          ]
+        }
       }
     },
     {
@@ -24739,6 +25090,21 @@ export const PRESET_CATALOG: PresetCatalog = {
           "warranty_claim.decided",
           "warranty_claim.closed"
         ]
+      },
+      "entityLists": {
+        "warranty_claim": {
+          "sorts": [
+            "createdAt",
+            "amount"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status",
+            "assetId"
+          ]
+        }
       }
     },
     {
@@ -24907,6 +25273,20 @@ export const PRESET_CATALOG: PresetCatalog = {
           "rfq_quote.submitted",
           "rfq_quote.withdrawn"
         ]
+      },
+      "entityLists": {
+        "rfq": {
+          "sorts": [
+            "number",
+            "dueAt"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status"
+          ]
+        }
       }
     },
     {
@@ -25066,6 +25446,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "till_deposit.recorded",
           "till_deposit.reconciled"
         ]
+      },
+      "entityLists": {
+        "till_session": {
+          "sorts": [
+            "openedAt",
+            "closedAt"
+          ],
+          "facets": [
+            "status",
+            "tillId"
+          ],
+          "filters": [
+            "tillId",
+            "status"
+          ]
+        }
       }
     },
     {
@@ -25120,6 +25516,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "periods.read",
           "create": "periods.write",
           "manage": "periods.manage"
+        }
+      },
+      "entityLists": {
+        "period": {
+          "sorts": [
+            "startsOn",
+            "endsOn"
+          ],
+          "facets": [
+            "kind",
+            "status"
+          ],
+          "filters": [
+            "kind",
+            "status"
+          ]
         }
       }
     },
@@ -25313,6 +25725,50 @@ export const PRESET_CATALOG: PresetCatalog = {
           "update": "commissions.write",
           "manage": "commissions.manage"
         }
+      },
+      "entityLists": {
+        "commission_plan": {
+          "sorts": [
+            "createdAt",
+            "name"
+          ],
+          "facets": [
+            "kind"
+          ],
+          "filters": [
+            "archived"
+          ]
+        },
+        "commission": {
+          "sorts": [
+            "occurredOn",
+            "createdAt",
+            "amount"
+          ],
+          "facets": [
+            "status",
+            "seller"
+          ],
+          "filters": [
+            "status",
+            "seller"
+          ]
+        },
+        "commission_statement": {
+          "sorts": [
+            "endsOn",
+            "createdAt",
+            "total"
+          ],
+          "facets": [
+            "status",
+            "seller"
+          ],
+          "filters": [
+            "status",
+            "seller"
+          ]
+        }
       }
     },
     {
@@ -25386,6 +25842,32 @@ export const PRESET_CATALOG: PresetCatalog = {
         "referral": {
           "read": "referrals.read",
           "manage": "referrals.manage"
+        }
+      },
+      "entityLists": {
+        "referral_code": {
+          "sorts": [
+            "createdAt"
+          ],
+          "facets": [
+            "referrer"
+          ],
+          "filters": [
+            "referrer"
+          ]
+        },
+        "referral": {
+          "sorts": [
+            "createdAt"
+          ],
+          "facets": [
+            "status",
+            "referrer"
+          ],
+          "filters": [
+            "status",
+            "referrer"
+          ]
         }
       }
     },
@@ -25517,6 +25999,38 @@ export const PRESET_CATALOG: PresetCatalog = {
           "agent_mandate.consumed",
           "agent_mandate.revoked"
         ]
+      },
+      "entityLists": {
+        "checkout_session": {
+          "sorts": [
+            "createdAt",
+            "expiresAt"
+          ],
+          "facets": [
+            "status",
+            "protocol"
+          ],
+          "filters": [
+            "status",
+            "protocol",
+            "cartId"
+          ]
+        },
+        "agent_mandate": {
+          "sorts": [
+            "createdAt",
+            "expiresAt"
+          ],
+          "facets": [
+            "status",
+            "vct"
+          ],
+          "filters": [
+            "sessionId",
+            "status",
+            "vct"
+          ]
+        }
       }
     },
     {
@@ -25759,6 +26273,24 @@ export const PRESET_CATALOG: PresetCatalog = {
           "prescription.dispensed",
           "prescription.cancelled"
         ]
+      },
+      "entityLists": {
+        "prescription": {
+          "sorts": [
+            "createdAt",
+            "signedAt"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status",
+            "orderId",
+            "subjectType",
+            "subjectId",
+            "prescriberId"
+          ]
+        }
       }
     },
     {
@@ -26166,6 +26698,22 @@ export const PRESET_CATALOG: PresetCatalog = {
           "production_order.completed",
           "production_order.cancelled"
         ]
+      },
+      "entityLists": {
+        "production_order": {
+          "sorts": [
+            "dueOn",
+            "createdAt",
+            "number"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status",
+            "variantId"
+          ]
+        }
       }
     },
     {
@@ -26701,6 +27249,21 @@ export const PRESET_CATALOG: PresetCatalog = {
           "legal_entity.created",
           "legal_entity.updated"
         ]
+      },
+      "entityLists": {
+        "legal_entity": {
+          "sorts": [
+            "code",
+            "name"
+          ],
+          "facets": [
+            "isDefault"
+          ],
+          "filters": [
+            "includeArchived",
+            "isDefault"
+          ]
+        }
       }
     },
     {
@@ -27044,6 +27607,20 @@ export const PRESET_CATALOG: PresetCatalog = {
           "payroll_run.created",
           "payroll_run.exported"
         ]
+      },
+      "entityLists": {
+        "payroll_run": {
+          "sorts": [
+            "periodFrom",
+            "createdAt"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status"
+          ]
+        }
       }
     },
     {
@@ -29725,6 +30302,21 @@ export const PRESET_CATALOG: PresetCatalog = {
           "form_submission.reviewed",
           "form_submission.deleted"
         ]
+      },
+      "entityLists": {
+        "form": {
+          "sorts": [
+            "createdAt",
+            "title",
+            "key"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status"
+          ]
+        }
       }
     },
     {
@@ -29874,6 +30466,21 @@ export const PRESET_CATALOG: PresetCatalog = {
           "import.failed",
           "import.entity_completed"
         ]
+      },
+      "entityLists": {
+        "import": {
+          "sorts": [
+            "createdAt"
+          ],
+          "facets": [
+            "source",
+            "status"
+          ],
+          "filters": [
+            "source",
+            "status"
+          ]
+        }
       }
     },
     {

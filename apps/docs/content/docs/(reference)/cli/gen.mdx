@@ -263,6 +263,40 @@ Platform keys get a catalog row and no default grant. The command needs the
 managed catalog tables; it stops with `config_invalid` when
 `blocks.permissions.tables` or `columns` rename them.
 
+## Entity pages
+
+With `gen.entityPages`, `gen` writes the list of each page you declare with
+[`defineEntityPage`](/docs/platform/list#entity-pages). The block manifest of
+the entity supplies its sorts, facets, filters and search, so the descriptor
+stays small. For a page named `risks`, the run writes:
+
+| File                                              | Holds                                                                                                               |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `pages/risks.list.ts` next to `output`            | `risksList`, a `defineEntityListQuery` over the declared surface                                                    |
+| `<appDir>/api/risks/list/route.ts`                | The `GET` handler that parses the URL, runs the list and answers 400 with the issues                                |
+| `<stamp>_better_supabase_entity_page_indexes.sql` | A migration with one `create index if not exists` per sort, facet and searched column that is a column of the table |
+| `<scaleDir>/scale_list_risks.test.sql`            | A pgTAP file that plans each sort and facet with sequential scans off                                               |
+
+An index is a btree on `(tenant, column, id)` for a sort and `(tenant, column)`
+for a facet, or a trigram index for a searched column. A name that is not a
+column of the table, such as a derived sort, has no index. The scale file fails
+when a sort needs a sort step or a facet count is not an index-only scan, and it
+reads the rows of the running stack, so run `pnpm db:seed:scale` first to
+measure a large table. [BS636](/docs/cli/doctor#bs636) reports the same gap in a
+running database.
+
+The settings:
+
+| Key        | Default                                    | Effect                                                   |
+| ---------- | ------------------------------------------ | -------------------------------------------------------- |
+| `pages`    | none                                       | The descriptors                                          |
+| `appDir`   | `src/app`, or `app` without a `src` folder | Where the route handlers go                              |
+| `server`   | `@/lib/supabase/server-core`, `bsbCore`    | The module and export the routes get `route()` from      |
+| `scaleDir` | `supabase/tests/scale`                     | Where the pgTAP files go; it may sit outside the project |
+
+`gen` stops with `config_invalid` when the block is not installed, when its
+manifest declares no list for the entity, or when two pages share a name.
+
 ## Options
 
 | Option                 | Effect                                                                                                                                                           |

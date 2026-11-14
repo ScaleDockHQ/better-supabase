@@ -3366,15 +3366,26 @@
   "./list": {
     "values": [
       "decodeFilterQuery",
+      "defineEntityListQuery",
+      "defineEntityPage",
       "defineListQuery",
       "enableFilterTrees",
       "encodeFilterQuery",
+      "ENTITY_PAGE_API_VERSION",
       "evaluateFilterQuery",
       "FILTER_OPERATOR_LABELS",
       "FILTER_OPERATORS",
       "UNSET"
     ],
     "types": [
+      "EntityListParse",
+      "EntityListQuery",
+      "EntityListQueryOptions",
+      "EntityListReads",
+      "EntityListResult",
+      "EntityListSearchParams",
+      "EntityPage",
+      "EntityPageInput",
       "FacetCountFields",
       "FacetCounts",
       "FacetInfo",
