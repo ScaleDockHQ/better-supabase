@@ -9,6 +9,7 @@ import type { EntityListSurface } from "../core/entity-list.ts";
 import type { DbError, ValidationIssue } from "../core/errors.ts";
 
 import { AsyncResult, err, ok } from "../core/result.ts";
+import { decodeFilterQuery } from "./filter-query.ts";
 
 /** The version of the `EntityPage` descriptor `gen` reads (ADR 0859). */
 export const ENTITY_PAGE_API_VERSION = 1;
@@ -144,6 +145,17 @@ export interface EntityListQuery {
    * values and one parameter per declared filter (`status=open,closed`).
    */
   parse(input: EntityListSearchParams | undefined): EntityListParse;
+  /**
+   * The filters of a ReUI filter tree (`FilterQuery`): an `and` group of `is`,
+   * `is_any_of` and `has_any_of` rules, one per declared filter. Any other
+   * operator, a nested group, a negated rule or a repeated field is an issue.
+   * `parse` reads the same tree from the `filter` parameter.
+   */
+  fromFilterTree(
+    tree: unknown,
+  ):
+    | { readonly ok: true; readonly value: NonNullable<PageOptions["filters"]> }
+    | { readonly ok: false; readonly issues: readonly ValidationIssue[] };
   /** The same checks over typed input, as a Standard Schema. */
   readonly schema: StandardSchemaV1<unknown, PageOptions>;
   /** The URL form of `options`, the inverse of `parse`. */
@@ -236,6 +248,82 @@ export function defineEntityListQuery(
     return issues;
   }
 
+  const TREE_OPERATORS: ReadonlySet<string> = new Set([
+    "is",
+    "is_any_of",
+    "has_any_of",
+  ]);
+
+  function fromFilterTree(
+    tree: unknown,
+  ): ReturnType<EntityListQuery["fromFilterTree"]> {
+    const issues: ValidationIssue[] = [];
+    const filters: Record<string, readonly string[]> = {};
+    const path = ["filter"];
+
+    if (
+      !isPlain(tree) ||
+      tree["type"] !== "group" ||
+      tree["combinator"] !== "and"
+    ) {
+      return {
+        ok: false,
+        issues: [{ message: "A filter tree is one `and` group.", path }],
+      };
+    }
+
+    const rules: unknown = tree["rules"];
+
+    for (const rule of Array.isArray(rules) ? rules : []) {
+      if (
+        !isPlain(rule) ||
+        rule["type"] !== "rule" ||
+        rule["negated"] === true ||
+        !TREE_OPERATORS.has(String(rule["operator"]))
+      ) {
+        issues.push({
+          message:
+            "A filter rule is `is` or `is any of`, not negated, on a declared filter.",
+          path,
+        });
+        continue;
+      }
+
+      const fieldPath: unknown = rule["path"];
+
+      // SAFETY: Array.isArray narrows to any[]; the entry is checked as a string below.
+      const field: unknown = Array.isArray(fieldPath)
+        ? (fieldPath as unknown[])[0]
+        : undefined;
+
+      const raw: unknown = rule["value"];
+      const values = typeof raw === "string" ? [raw] : raw;
+
+      if (typeof field !== "string" || !filterNames.includes(field)) {
+        issues.push({
+          message: `Filter ${String(field)} is not declared; use ${listOf(filterNames)}.`,
+          path: [...path, String(field)],
+        });
+      } else if (field in filters) {
+        issues.push({
+          message: `Filter ${field} appears twice.`,
+          path: [...path, field],
+        });
+      } else if (!isStrings(values) || values.length === 0) {
+        issues.push({
+          message: `Filter ${field} needs one or more values.`,
+          path: [...path, field],
+        });
+      } else {
+        filters[field] = values;
+      }
+    }
+
+    return issues.length > 0
+      ? { ok: false, issues }
+      : { ok: true, value: filters };
+  }
+
   function parse(input: EntityListSearchParams | undefined): EntityListParse {
     const source = input ?? new URLSearchParams();
     const issues: ValidationIssue[] = [];
@@ -271,6 +359,27 @@ export function defineEntityListQuery(
 
       if (values.length > 0) {
         filters[key] = values;
+      }
+    }
+
+    const [treeText] = valuesOf(source, "filter");
+
+    if (treeText !== undefined) {
+      const tree = fromFilterTree(decodeFilterQuery(treeText));
+
+      if (tree.ok) {
+        for (const [key, values] of Object.entries(tree.value)) {
+          if (key in filters) {
+            issues.push({
+              message: `Filter ${key} is set by its parameter and by the filter tree.`,
+              path: ["filter", key],
+            });
+          } else {
+            filters[key] = values;
+          }
+        }
+      } else {
+        issues.push(...tree.issues);
       }
     }
 
@@ -357,6 +466,7 @@ export function defineEntityListQuery(
     entity: options.entity,
     surface,
     parse,
+    fromFilterTree,
     schema,
     toSearchParams(page) {
       const params = new URLSearchParams();

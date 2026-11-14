@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import type { FilterQuery } from "../../src/list/filter-query.ts";
+
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import {
   defineEntityListQuery,
   defineEntityPage,
 } from "../../src/list/entity-page.ts";
+import { encodeFilterQuery } from "../../src/list/filter-query.ts";
 
 const surface = {
   sorts: ["residualScore", "number"],
@@ -119,6 +122,95 @@ describe("parse", () => {
     expect(
       list.toSearchParams({ q: "", sort: { by: "number" } }).toString(),
     ).toBe("sort=number");
+  });
+});
+
+describe("filter trees", () => {
+  const rule = (
+    field: string,
+    operator: string,
+    value: unknown,
+    extra = {},
+  ) => ({
+    id: field,
+    type: "rule" as const,
+    path: [field],
+    operator,
+    value,
+    ...extra,
+  });
+
+  const group = (...rules: unknown[]): FilterQuery => ({
+    id: "root",
+    type: "group",
+    combinator: "and",
+    // SAFETY: the tests build rules and nested groups of any shape on purpose.
+    rules: rules as FilterQuery["rules"],
+  });
+
+  it("maps is, is any of and has any of rules to filters", () => {
+    expect(
+      list.fromFilterTree(
+        group(
+          rule("status", "is_any_of", ["open", "closed"]),
+          rule("category", "is", "fire"),
+        ),
+      ),
+    ).toStrictEqual({
+      ok: true,
+      value: { status: ["open", "closed"], category: ["fire"] },
+    });
+
+    expect(
+      list.fromFilterTree(group(rule("status", "has_any_of", ["a"]))),
+    ).toStrictEqual({ ok: true, value: { status: ["a"] } });
+  });
+
+  it("reads the tree from the filter parameter", () => {
+    const tree = encodeFilterQuery(group(rule("status", "is", "open")));
+
+    expect(list.parse({ filter: tree, q: "x" })).toStrictEqual({
+      ok: true,
+      value: { q: "x", filters: { status: ["open"] } },
+    });
+  });
+
+  it("names what a page cannot express", () => {
+    const messages = (tree: unknown): string[] => {
+      const result = list.fromFilterTree(tree);
+
+      return result.ok ? [] : result.issues.map((issue) => issue.message);
+    };
+
+    expect(messages("x")).toStrictEqual(["A filter tree is one `and` group."]);
+    expect(messages({ ...group(), combinator: "or" })).toHaveLength(1);
+    expect(messages(group(rule("status", "contains", "o")))).toHaveLength(1);
+    expect(
+      messages(group(rule("status", "is", "o", { negated: true }))),
+    ).toHaveLength(1);
+    expect(messages(group(group()))).toHaveLength(1);
+
+    expect(messages(group(rule("color", "is", "red")))[0]).toContain(
+      "Filter color is not declared",
+    );
+
+    expect(
+      messages(group(rule("status", "is", "a"), rule("status", "is", "b"))),
+    ).toStrictEqual(["Filter status appears twice."]);
+
+    expect(messages(group(rule("status", "is_any_of", [])))).toStrictEqual([
+      "Filter status needs one or more values.",
+    ]);
+  });
+
+  it("refuses a filter set twice and a tree that cannot be read", () => {
+    const tree = encodeFilterQuery(group(rule("status", "is", "open")));
+
+    const twice = list.parse({ filter: tree, status: "closed" });
+    const broken = list.parse({ filter: "***" });
+
+    expect(twice.ok).toBe(false);
+    expect(broken.ok).toBe(false);
   });
 });
 

@@ -40,7 +40,7 @@ the permission catalog.
 
 `defineEntityListQuery` is the runtime half. It takes the surface and an entity
 name, and returns `parse` (URL state), `schema` (a Standard Schema over typed
-input), `toSearchParams` and `run`, which reads `page` and `facets` in one wave
+input), `fromFilterTree` (a ReUI filter tree reduced to the declared filters, EX-003), `toSearchParams` and `run`, which reads `page` and `facets` in one wave
 under the same filters. It never touches the database itself: the route hands it
 the reads, so the generated code does not depend on a block's type.
 

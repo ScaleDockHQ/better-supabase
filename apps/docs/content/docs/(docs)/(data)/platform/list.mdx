@@ -538,3 +538,9 @@ const { page, facets } = await risksList
 The URL form reads `q`, `sort` (`key` or `key:asc` or `key:desc`), `limit`, repeated `after` values
 and one parameter per declared filter (`status=open,closed`). A sort, filter or `q` the entity does
 not declare comes back as an issue with its path, never as a database error.
+
+A ReUI filter tree works too. `parse` reads the `filter` parameter (`encodeFilterQuery`), and
+`fromFilterTree` maps an `and` group of `is`, `is any of` and `has any of` rules, one per declared
+filter, to the same `filters`. An `or` group, a nested group, a negated rule, another operator or a
+field that appears twice comes back as an issue, because the entity's `page` filters by lists of
+values only.
