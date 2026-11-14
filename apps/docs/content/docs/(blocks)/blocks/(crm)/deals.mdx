@@ -161,12 +161,14 @@ const call = await deals
 
 `dealsBinding` loads the deals that name a record as their company or as one of their contacts, newest first, through `deals.list({ subject, limit })`. Archived deals stay out. The organization comes from `options.tenant`: without it the call fails with `TENANT_REQUIRED`. The read runs as the caller, so it returns only the deals the caller can read, shows at most `limit` deals (default 50, up to 200) and goes stale on `deal.*` events. It has no writes, because a deal carries money and dates, which a Server Action can't carry.
 
+`archive({ dealId })` hides a deal and `restore(dealId)` brings it back; a restore records `deal.restored`.
+
 ## Events
 
-| Event                                                                            | Data                                                                     |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `deal.created`, `deal.updated`, `deal.reopened`, `deal.archived`, `deal.deleted` | `organizationId`, `dealId`, `subjectType`, `subjectId`, `name`, `fields` |
-| `deal.closed`                                                                    | the same, with `outcome`, `amount`, `currency` and the lost `reason`     |
+| Event                                                                                             | Data                                                                     |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `deal.created`, `deal.updated`, `deal.reopened`, `deal.archived`, `deal.restored`, `deal.deleted` | `organizationId`, `dealId`, `subjectType`, `subjectId`, `name`, `fields` |
+| `deal.closed`                                                                                     | the same, with `outcome`, `amount`, `currency` and the lost `reason`     |
 
 With the [notifications](/docs/blocks/notifications) module installed, the owner and the team watch the deal, and winning or losing it notifies its watchers.
 

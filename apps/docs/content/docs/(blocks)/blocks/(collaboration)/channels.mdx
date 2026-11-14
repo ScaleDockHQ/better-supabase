@@ -89,8 +89,10 @@ sender.
 
 `update` takes a partial change; `null` clears the topic or the purpose. Only
 the owner or a holder of `channels.manage` updates a channel.
-`archive(channelId)` makes it read-only and `archive(channelId, false)`
-restores it; the owner or a holder of `messages.moderate` archives.
+`archive(channelId)` makes it read-only and `restore(channelId)` brings it
+back (the same as `archive({ channelId, archived: false })`); the owner or a
+holder of `messages.moderate` does either. A restore records
+`conversation.restored`.
 
 ## Channels on a record
 

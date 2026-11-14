@@ -258,6 +258,7 @@ export const blockEvents: Events<BlockEvents> = {
     "conversation.created",
     "conversation.member_added",
     "conversation.member_removed",
+    "conversation.restored",
     "enrollment.cancelled",
     "enrollment.completed",
     "enrollment.created",
@@ -352,6 +353,7 @@ export const blockEvents: Events<BlockEvents> = {
     "ticket.created",
     "ticket.deleted",
     "ticket.reopened",
+    "ticket.restored",
     "ticket.updated",
   ],
 };
@@ -393,6 +395,7 @@ export const blockEventSchemas = {
   "conversation.created": true,
   "conversation.member_added": true,
   "conversation.member_removed": true,
+  "conversation.restored": true,
   "enrollment.cancelled": true,
   "enrollment.completed": true,
   "enrollment.created": true,
@@ -487,6 +490,7 @@ export const blockEventSchemas = {
   "ticket.created": true,
   "ticket.deleted": true,
   "ticket.reopened": true,
+  "ticket.restored": true,
   "ticket.updated": true,
 } as const;
 

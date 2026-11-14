@@ -318,6 +318,8 @@ export interface Deals<F extends object = Record<never, never>> {
     dealId: string;
     archived?: boolean | undefined;
   }): AsyncResult<boolean>;
+  /** Brings an archived deal back and records `deal.restored`. */
+  restore(dealId: string): AsyncResult<boolean>;
   remove(dealId: string): AsyncResult<boolean>;
   forecast(input: {
     organizationId: string;
@@ -745,6 +747,12 @@ export function createDeals<S extends StandardSchemaV1 | undefined = undefined>(
       call(
         "archive_deal",
         { deal: dealId, archived },
+        (value) => value === true,
+      ),
+    restore: (dealId) =>
+      call(
+        "archive_deal",
+        { deal: dealId, archived: false },
         (value) => value === true,
       ),
     remove: (dealId) =>

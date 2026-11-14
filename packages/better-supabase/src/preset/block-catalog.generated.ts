@@ -2573,6 +2573,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "deal.created",
         "deal.deleted",
         "deal.reopened",
+        "deal.restored",
         "deal.updated"
       ],
       "subpath": "better-supabase/blocks/deals",
@@ -2615,6 +2616,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "task.created",
         "task.deleted",
         "task.reopened",
+        "task.restored",
         "task.updated"
       ],
       "subpath": "better-supabase/blocks/tasks",
@@ -2875,6 +2877,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "collection.created",
         "collection.entry_added",
         "collection.entry_removed",
+        "collection.restored",
         "saved_item.reminded"
       ],
       "subpath": "better-supabase/blocks/collections",
@@ -3684,6 +3687,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "conversation.created",
         "conversation.member_added",
         "conversation.member_removed",
+        "conversation.restored",
         "message.deleted",
         "message.pinned",
         "message.resolved",

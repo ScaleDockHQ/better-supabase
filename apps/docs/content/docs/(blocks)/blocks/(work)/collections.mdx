@@ -77,7 +77,8 @@ These stars are separate from the [search](/docs/blocks/search) module's starred
 | `listsOf(subject)`                                       | The active lists the caller sees that hold a record, for a record's "In lists" panel                        |
 | `list(organizationId, { subjectType, includeArchived })` | The lists the caller sees, by name                                                                          |
 | `rename(id, { name, description })`                      | Changes the name or the description (`null` clears it)                                                      |
-| `archive(id, archived?)`                                 | Archives a list, or restores it with `false`; an archived list keeps its entries but takes no changes       |
+| `archive(id, archived?)`                                 | Archives a list; an archived list keeps its entries but takes no changes                                    |
+| `restore(id)`                                            | Brings an archived list back and records `collection.restored`                                              |
 
 `add` checks every record before it writes one: a record that is unknown, in another organization or unreadable fails the whole call (`COLLECTION_SUBJECT_FORBIDDEN`). `entries` returns `next` while there may be more; pass it as `cursor`.
 

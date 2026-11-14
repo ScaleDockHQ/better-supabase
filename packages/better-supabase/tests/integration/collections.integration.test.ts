@@ -442,6 +442,7 @@ describe.skipIf(!live)("collections", () => {
         "collection.entry_added",
         "collection.entry_added",
         "collection.entry_added",
+        "collection.restored",
       ]);
     } finally {
       await s.close();
