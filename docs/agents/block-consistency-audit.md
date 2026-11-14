@@ -1148,11 +1148,12 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X8
 
 - Scope: Commerce and finance (after G3)
-- Status: planned
+- Status: in progress
 - Branch: `feat/findings-x8`
 - PR: none yet
 - Findings: EX-805, EX-818, EX-1106, EX-1110 to EX-1113, EX-701
 - Log: 2026-11-14, planned.
+- Log: 2026-11-14, started in `../bsb-findings-x8`.
 
 ### Lane X9
 
