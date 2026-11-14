@@ -154,7 +154,11 @@ an activity (`work_item_id`, `activity_id`) become `task_id` and
    took effect), `voided` (an issued document made invalid and kept),
    `closed` (finished and reopenable), `withdrawn` (taken back by whoever
    submitted it), `revoked` (taken back by whoever granted it) and
-   `rejected` (refused by a reviewer). Payload keys are camelCase and carry
+   `rejected` (refused by a reviewer). `check:naming` rejects the synonyms
+   `aborted`, `abandoned`, `dismissed`, `discarded`, `deactivated`,
+   `invalidated`, `finished`, `stopped` and `terminated`; two events keep a
+   domain verb on purpose (`lease.terminated`, `medication_order.stopped`).
+   Payload keys are camelCase and carry
    `organizationId` when the event has a tenant.
 8. A hint code is `<ENTITY>_<REASON>` in upper snake case, from the entity
    singular: `CONTROL_FORBIDDEN`, `TASK_NOT_FOUND`. The prefix is a run of
