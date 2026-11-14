@@ -23,5 +23,5 @@ export const GET = bsb.route(
       }),
     );
   },
-  { requireTenant: true, permission: "numbering.assign" },
+  { requireTenant: true, permission: "numbering.read" },
 );

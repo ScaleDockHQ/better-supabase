@@ -48,7 +48,10 @@ begin
     )));
   end if;
 
-  if octet_length(permission_keys::text) > 2048 then
+  -- jsonb prints `", "` and `": "` with a space, and the token carries the
+  -- compact JSON, so the budget measures the compact form. An owner is 7.5 KB
+  -- of keys, 2.0 KB compacted and 2,040 bytes in the token.
+  if octet_length(replace(replace(permission_keys::text, '", "', '","'), '": [', '":[')) > 2048 then
     claims := jsonb_set(claims, '{permissions}', '{}'::jsonb);
     claims := jsonb_set(claims, '{permissions_truncated}', 'true'::jsonb);
   else

@@ -26,6 +26,8 @@ export interface OpenListRun {
   readonly extraWhere: Record<string, unknown> | undefined;
   readonly options: Record<string, unknown>;
   readonly cachedCounts: FacetCountResult<string> | undefined;
+  /** The per-call `facetCountMode`, when the caller set one. */
+  readonly facetCountMode: "exact" | "capped" | undefined;
 }
 
 function cachedFacetCounts(
@@ -72,6 +74,7 @@ export function openListRun(input: {
     select,
     include,
     facetCounts: _facetCounts,
+    facetCountMode,
     ...options
   } = parsed;
 
@@ -103,7 +106,17 @@ export function openListRun(input: {
       ? AsyncResult.ok(undefined)
       : repository.page(pageInput);
 
-  return { page, repository, extraWhere, options, cachedCounts };
+  return {
+    page,
+    repository,
+    extraWhere,
+    options,
+    cachedCounts,
+    facetCountMode:
+      facetCountMode === "exact" || facetCountMode === "capped"
+        ? facetCountMode
+        : undefined,
+  };
 }
 
 /**

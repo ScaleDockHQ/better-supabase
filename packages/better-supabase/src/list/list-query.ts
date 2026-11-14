@@ -404,6 +404,12 @@ export interface ListExtra<M extends AnyModels, T extends keyof M> {
    * `facetCacheKey`. `run` attaches them and does not count again.
    */
   readonly facetCounts?: FacetCountFields<string>;
+  /**
+   * Overrides the config's `facetCountMode` for this call: `exact` for a
+   * dashboard number on a list that is capped by default, or `capped` for a
+   * list that counts exactly.
+   */
+  readonly facetCountMode?: "exact" | "capped";
 }
 
 export type ListParsers<S extends string, F extends string> = {
@@ -1129,7 +1135,7 @@ export function defineListQuery<
 
     const counts = loadFacetCounts({
       enabled: config.facetCounts === true,
-      mode: facetCountMode,
+      mode: loaded.facetCountMode ?? facetCountMode,
       facets: countable,
       facetLimit,
       scanCap: facetScanCap,

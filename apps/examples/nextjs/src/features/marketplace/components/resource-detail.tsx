@@ -1,4 +1,4 @@
-import { getExtracted, getFormatter } from "next-intl/server";
+import { getExtracted } from "next-intl/server";
 import { notFound } from "next/navigation";
 
 import { RecordDetailFrame } from "@/components/record-detail/record-detail-frame";
@@ -17,10 +17,9 @@ import { resourceBadge } from "./marketplace-overview";
 
 /** Render inside `<Suspense>`; the fallback is `ResourceDetailSkeleton`. */
 export async function ResourceDetail({ externalId }: { externalId: string }) {
-  const [found, t, format] = await Promise.all([
+  const [found, t] = await Promise.all([
     getMarketplaceResource(externalId),
     getExtracted("marketplace"),
-    getFormatter(),
   ]);
 
   if (!found) {
@@ -49,12 +48,6 @@ export async function ResourceDetail({ externalId }: { externalId: string }) {
               {installation.configurationId}
             </Fact>
             <Fact label={t("Vercel team")}>{installation.teamId ?? "-"}</Fact>
-            <Fact label={t("Provisioned")}>
-              {format.dateTime(new Date(resource.createdAt), {
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
-            </Fact>
           </dl>
         </CardContent>
       </Card>

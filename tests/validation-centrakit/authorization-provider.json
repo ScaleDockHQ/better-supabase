@@ -215,6 +215,11 @@
       "scopes": ["organization"]
     },
     {
+      "key": "numbering.read",
+      "sqlComplete": true,
+      "scopes": ["organization"]
+    },
+    {
       "key": "organization.delete",
       "sqlComplete": true,
       "scopes": ["organization"]

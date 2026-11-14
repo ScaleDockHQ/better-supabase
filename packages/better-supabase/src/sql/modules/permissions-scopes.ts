@@ -88,7 +88,7 @@ export const MODULE_PERMISSION_SCOPES: {
   connectors: { read: "tenant", use: "tenant", manage: "tenant" },
   "ai-schedules": { create: "tenant", manage: "tenant" },
   "ai-keys": { use: "tenant", manage: "tenant" },
-  numbering: { assign: "tenant" },
+  numbering: { read: "tenant", assign: "tenant" },
   teams: { manage: "tenant", read: "tenant" },
   subjects: { manage: "tenant" },
   permissions: { listRoles: "tenant", setOverride: "tenant" },
