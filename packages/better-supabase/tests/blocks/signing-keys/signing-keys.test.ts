@@ -1,103 +1,22 @@
 import { describe, expect, it } from "vitest";
 
+import type { KeyProvider } from "../../../src/blocks/signing-keys/index.ts";
+
 import {
   createSigningKeys,
   jwksOf,
   jwtType,
   PLATFORM_OWNER,
+  vaultKeyProvider,
+  vercelKmsKeyProvider,
   verifyCompact,
 } from "../../../src/blocks/signing-keys/index.ts";
-
-interface Row {
-  owner: string;
-  kid: string;
-  alg: string;
-  publicJwk: Record<string, unknown>;
-  privateJwk: string;
-  state: "active" | "retired";
-}
-
-/** The signing-keys module in memory. */
-function store() {
-  const rows: Row[] = [];
-  const calls: [string, Record<string, unknown>][] = [];
-
-  const owner = (args: Record<string, unknown>) =>
-    `${String(args["owner_type"])}:${String(args["owner_id"])}`;
-
-  const fns: Record<string, (args: Record<string, unknown>) => unknown> = {
-    add_signing_key(args) {
-      const previous = rows.find(
-        (row) => row.owner === owner(args) && row.state === "active",
-      );
-
-      if (previous) {
-        previous.state = "retired";
-      }
-
-      rows.push({
-        owner: owner(args),
-        kid: String(args["kid"]),
-        alg: String(args["alg"]),
-        // SAFETY: the client sends the public JWK as an object.
-        publicJwk: args["public_jwk"] as Record<string, unknown>,
-        privateJwk: String(args["private_jwk"]),
-        state: "active",
-      });
-
-      return {
-        kid: args["kid"],
-        alg: args["alg"],
-        retired: previous?.kid ?? null,
-      };
-    },
-    signing_key(args) {
-      const row = rows.find(
-        (item) => item.owner === owner(args) && item.state === "active",
-      );
-
-      return row
-        ? { kid: row.kid, alg: row.alg, privateKey: row.privateJwk }
-        : null;
-    },
-    signing_jwks(args) {
-      return {
-        keys: rows
-          .filter((row) => row.owner === owner(args))
-          .map((row) => ({ ...row.publicJwk, kid: row.kid, use: "sig" })),
-      };
-    },
-    note_signing_key_exp: (args) => rows.some((row) => row.kid === args["kid"]),
-    retire_signing_key(args) {
-      const row = rows.find(
-        (item) => item.kid === args["kid"] && item.state === "active",
-      );
-
-      if (row) {
-        row.state = "retired";
-      }
-
-      return row !== undefined;
-    },
-    delete_signing_keys: () => 0,
-    purge_signing_keys: () => 0,
-  };
-
-  return {
-    rows,
-    calls,
-    call(_schema: string, fn: string, args: Record<string, unknown>) {
-      calls.push([fn, args]);
-      const handler = fns[fn];
-
-      if (!handler) {
-        return Promise.reject(new Error(`unexpected ${fn}`));
-      }
-
-      return Promise.resolve(handler(args));
-    },
-  };
-}
+import { fromBase64 } from "../../../src/core/base64.ts";
+import { AsyncResult } from "../../../src/core/result.ts";
+import {
+  fakeKms,
+  signingKeysStore as store,
+} from "../../fixtures/signing-keys.ts";
 
 const OWNER = { type: "organization", id: "o1" };
 
@@ -263,5 +182,197 @@ describe("signing-keys block", () => {
     expect(response.headers.get("content-type")).toBe(
       "application/problem+json",
     );
+  });
+});
+
+/** A provider that records its calls and signs nothing real. */
+function recordingProvider(withNoteExp: boolean) {
+  const calls: [string, unknown][] = [];
+
+  const provider: KeyProvider = {
+    apiVersion: 1,
+    name: "recording",
+    sign: (input) => {
+      calls.push(["sign", input]);
+
+      return AsyncResult.ok({
+        kid: "k1",
+        alg: "ES256",
+        signature: new Uint8Array([1]),
+      });
+    },
+    signJwt: (input) => {
+      calls.push(["signJwt", input]);
+
+      return AsyncResult.ok({ token: "a.b.c", kid: "k1", alg: "ES256" });
+    },
+    ...(withNoteExp
+      ? {
+          noteExp: (input: { kid: string; exp: Temporal.Instant }) => {
+            calls.push(["noteExp", input]);
+
+            return AsyncResult.ok(true);
+          },
+        }
+      : {}),
+  };
+
+  return { provider, calls };
+}
+
+describe("signing-keys with a key provider", () => {
+  it("keeps the Vault path's SQL calls, their order and the header", async () => {
+    const t = store();
+
+    const signer = createSigningKeys({ transport: t }).signer({
+      owner: OWNER,
+      create: "Ed25519",
+    });
+
+    const token = await signer
+      .signJwt({ sub: "u1", exp: 1_900_000_000 }, { cty: "x" })
+      .orThrow();
+
+    expect(t.calls.map(([fn]) => fn)).toEqual([
+      "signing_key",
+      "add_signing_key",
+      "signing_key",
+      "note_signing_key_exp",
+    ]);
+    expect(
+      new TextDecoder().decode(fromBase64(token.split(".")[0] ?? "")),
+    ).toBe(
+      JSON.stringify({
+        alg: "EdDSA",
+        kid: t.rows[0]!.kid,
+        typ: "JWT",
+        cty: "x",
+      }),
+    );
+  });
+
+  it("signs through the provider, with typ, create and the claims", async () => {
+    const t = store();
+    const { provider, calls } = recordingProvider(true);
+
+    const signer = createSigningKeys({ transport: t, keys: provider }).signer({
+      owner: OWNER,
+      create: "ES256",
+    });
+
+    expect(await signer.signJwt({ sub: "u1" }).orThrow()).toBe("a.b.c");
+    expect(
+      (await signer.sign(new Uint8Array([9])).orThrow()).signature,
+    ).toEqual(new Uint8Array([1]));
+    expect(calls).toEqual([
+      [
+        "signJwt",
+        {
+          owner: OWNER,
+          claims: { sub: "u1" },
+          header: { typ: "JWT" },
+          create: "ES256",
+        },
+      ],
+      ["sign", { owner: OWNER, data: new Uint8Array([9]), create: "ES256" }],
+    ]);
+    expect(t.calls).toEqual([]);
+  });
+
+  it("notes the exp through the provider once per hour, and not at all without noteExp", async () => {
+    const exp = 1_900_000_000;
+    const noting = recordingProvider(true);
+
+    const signer = createSigningKeys({
+      transport: store(),
+      keys: noting.provider,
+    }).signer({ owner: OWNER });
+
+    await signer.signJwt({ exp }).orThrow();
+    await signer.signJwt({ exp: exp + 60 }).orThrow();
+    expect(noting.calls.filter(([name]) => name === "noteExp")).toEqual([
+      [
+        "noteExp",
+        {
+          kid: "k1",
+          exp: Temporal.Instant.fromEpochMilliseconds(
+            Math.ceil(exp / 3600) * 3600 * 1000,
+          ),
+        },
+      ],
+    ]);
+
+    const t = store();
+    const plain = recordingProvider(false);
+
+    await createSigningKeys({ transport: t, keys: plain.provider })
+      .signer({ owner: OWNER })
+      .signJwt({ exp })
+      .orThrow();
+
+    expect(plain.calls.map(([name]) => name)).toEqual(["signJwt"]);
+    expect(t.calls).toEqual([]);
+  });
+
+  it("refuses a bad typ before the provider is called", async () => {
+    const { provider, calls } = recordingProvider(true);
+
+    const result = await createSigningKeys({
+      transport: store(),
+      keys: provider,
+    })
+      .signer({ owner: OWNER })
+      .signJwt({ sub: "u1" }, { typ: "invite" });
+
+    expect(!result.ok && result.error.hint).toBe("SIGNING_TYP_INVALID");
+    expect(calls).toEqual([]);
+  });
+
+  it("signs with Vercel KMS and leaves the Vault keys alone", async () => {
+    const t = store();
+    const fake = await fakeKms();
+
+    const keys = createSigningKeys({
+      transport: t,
+      keys: vercelKmsKeyProvider(fake.kms, { issuer: "iss_1" }),
+    });
+
+    const signer = keys.signer({ owner: OWNER, create: "Ed25519" });
+
+    const token = await signer
+      .signJwt({ sub: "u1", exp: 1_900_000_000 })
+      .orThrow();
+
+    const verified = await verifyCompact(token, fake.jwks, { typ: "JWT" });
+    expect(verified.header).toMatchObject({ kid: fake.kid, alg: "EdDSA" });
+    expect(t.calls).toEqual([]);
+
+    await keys.create({ owner: OWNER }).orThrow();
+    expect(t.calls.map(([fn]) => fn)).toEqual(["add_signing_key"]);
+  });
+
+  it("clears the cache of a Vault provider the app passes", async () => {
+    const t = store();
+
+    const keys = createSigningKeys({
+      transport: t,
+      keys: vaultKeyProvider({ transport: t }),
+    });
+
+    const signer = keys.signer({ owner: OWNER, create: "Ed25519" });
+    const first = await signer.sign(new Uint8Array([1])).orThrow();
+    await keys.rotate({ owner: OWNER }).orThrow();
+    const next = await signer.sign(new Uint8Array([2])).orThrow();
+    expect(next.kid).not.toBe(first.kid);
+  });
+
+  it("refuses a provider built for another apiVersion", () => {
+    expect(() =>
+      createSigningKeys({
+        transport: store(),
+        // SAFETY: simulates a provider built for a newer contract.
+        keys: { ...recordingProvider(false).provider, apiVersion: 2 as never },
+      }),
+    ).toThrow(TypeError);
   });
 });

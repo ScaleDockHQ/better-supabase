@@ -5,13 +5,24 @@ export {
   PLATFORM_OWNER,
   type JwksOptions,
   type JwksResponseOptions,
-  type Signature,
   type Signer,
   type SignerOptions,
-  type SigningKeyOwner,
   type SigningKeys,
   type SigningKeysOptions,
 } from "./signing-keys.ts";
+
+export {
+  type KeyProvider,
+  keyProviderOf,
+  type SignedJwt,
+  type Signature,
+  type SigningKeyOwner,
+  type VaultKeyProviderOptions,
+  vaultKeyProvider,
+  type VercelKmsKeyProviderOptions,
+  type VercelKmsModule,
+  vercelKmsKeyProvider,
+} from "./key-provider.ts";
 
 export {
   type Jwk,

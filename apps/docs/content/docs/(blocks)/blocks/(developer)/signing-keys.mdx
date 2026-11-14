@@ -116,6 +116,62 @@ await verifyCompact(token, jwks, { typ }); // throws JWS_TYP for another kind
 A numeric `exp` claim is noted on the key, rounded up to the hour, so a
 retired key stays in the JWKS until the last token it signed has expired.
 
+## Keys in Vercel KMS
+
+Signers get their keys from the `keys` option, a `KeyProvider`. The default
+is `vaultKeyProvider`, which keeps the private keys in Vault and signs with
+WebCrypto as described above (ADR 0033). To keep the private key out of your
+app entirely, sign with a [Vercel KMS](https://vercel.com/docs) issuer
+instead. Install the SDK, an optional peer (`>=0.3.12 <0.4`):
+
+```bash
+pnpm add @vercel/kms
+```
+
+```ts title="lib/signing-keys.ts"
+import * as kms from "@vercel/kms";
+import {
+  createSigningKeys,
+  sqlTransport,
+  vercelKmsKeyProvider,
+} from "better-supabase/blocks/signing-keys";
+
+export const signingKeys = createSigningKeys({
+  transport: sqlTransport(postgres.admin),
+  keys: vercelKmsKeyProvider(kms, { issuer: "iss_abc123" }),
+});
+```
+
+`signer(owner)` then signs with the issuer's managed key: `sign` calls
+`signMessage` and `signJwt` calls `signJWT`, and neither ever sees a private
+key. Pass a function as `issuer` to pick one issuer per owner, and `token`,
+`region` or `baseUrl` when the function's own OIDC token and region don't
+fit. `create` is ignored, because the issuer holds its keys.
+
+`signJwt` passes `ttl: null`, so the `exp` in your claims decides the
+lifetime and KMS adds none; set `exp` yourself. The `typ` check
+(`SIGNING_TYP_INVALID`) still runs before KMS is called. Failures come back
+as results: a missing issuer key is `not_found` with the hint
+`SIGNING_KEY_MISSING`, 401 and 403 are `forbidden`, 429 is `rate_limited`,
+and anything else is `network`. A KMS key whose algorithm is not a JWS `alg`
+this entry knows fails with `SIGNING_ALG_UNSUPPORTED`.
+
+Verifiers fetch the issuer's JWK Set, which Vercel KMS publishes, not the
+set from `jwksResponse`; the `kid` in each token names a key in that set.
+`create`, `rotate`, `retire`, `noteExp`, `jwks`, `jwksResponse`, `remove`
+and `purge` keep managing the Vault keys only, so with KMS you don't need
+them and Vault holds no keys for the owner.
+
+### Your own provider
+
+A `KeyProvider` has `apiVersion: 1`, a `name`, `sign` and `signJwt`, and
+optionally `noteExp` when its published key set has to keep a key until a
+token's `exp`. It sets `alg` and `kid` in the JWT header and takes the rest
+of the header (`typ` and your members) from the signer. Run
+`testKeyProvider` from `better-supabase/testing` against it: it checks the
+API version, the `kid` and `alg` of a signature, the JWT header, and, given
+the owner's JWK Set, that both signatures verify with `verifyCompact`.
+
 ## Publish the JWKS
 
 ```ts title="app/.well-known/jwks.json/route.ts"
