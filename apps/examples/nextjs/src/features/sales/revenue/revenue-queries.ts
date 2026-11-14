@@ -7,6 +7,7 @@ import { cacheTag } from "next/cache";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { bsb } from "@/lib/supabase/server";
 
+import { contractOf, contractsFrom } from "../list-reads/contracts-reads";
 import { SALES_TAG } from "../sales-cache";
 
 export interface ContractRow {
@@ -22,34 +23,6 @@ export interface ContractRow {
   readonly counterpartyId: string | null;
 }
 
-type ContractLike = {
-  readonly id: string;
-  readonly title: string;
-  readonly status: string;
-  readonly value?: Money | undefined;
-  readonly startsOn?: { toString(): string } | undefined;
-  readonly endsOn?: { toString(): string } | undefined;
-  readonly noticeDeadline?: { toString(): string } | undefined;
-  readonly autoRenew: boolean;
-  readonly ownerId?: string | undefined;
-  readonly counterparty?: { readonly id: string } | undefined;
-};
-
-function contractOf(contract: ContractLike): ContractRow {
-  return {
-    id: contract.id,
-    title: contract.title,
-    status: contract.status,
-    value: contract.value ?? null,
-    startsOn: contract.startsOn?.toString() ?? null,
-    endsOn: contract.endsOn?.toString() ?? null,
-    noticeDeadline: contract.noticeDeadline?.toString() ?? null,
-    autoRenew: contract.autoRenew,
-    ownerId: contract.ownerId ?? null,
-    counterpartyId: contract.counterparty?.id ?? null,
-  };
-}
-
 /** The newest 200 contracts; the overview filters and pages them. */
 export async function loadContracts(): Promise<readonly ContractRow[] | null> {
   "use cache: private";
@@ -61,11 +34,7 @@ export async function loadContracts(): Promise<readonly ContractRow[] | null> {
     return null;
   }
 
-  const contracts = await db.contracts
-    .list({ organizationId: tenant, pageSize: 200 })
-    .orThrow();
-
-  return contracts.map(contractOf);
+  return contractsFrom(db, tenant).orThrow();
 }
 
 export interface ObligationRow {

@@ -234,6 +234,173 @@ export default defineConfig({
             },
           },
         }),
+        // The array lists of the CRM (EX-607): each block returns its rows as an array, so an
+        // `arrayReads` module (ADR 0894) loads the array and answers `page` and `facets` with
+        // the spec the overview uses. The table is the block's, for the indexes and scale test.
+        defineEntityPage({
+          entity: "app.deals",
+          route: "/crm/deals",
+          name: "deals",
+          tenantOption: "tenant",
+          columns: ["name", "stage", "closing"],
+          area: "sales",
+          app: {
+            surface: {
+              sorts: ["closing", "amount", "stale", "name"],
+              facets: ["stage"],
+              search: ["name"],
+            },
+            table: {
+              schema: "better_supabase",
+              name: "deals",
+              tenant: "tenant_id",
+              columns: {
+                closing: "expected_close_on",
+                amount: "amount",
+                name: "name",
+                stage: "stage_id",
+              },
+            },
+            reads: {
+              module: "@/features/sales/list-reads/deals-reads",
+              export: "dealsReads",
+            },
+          },
+        }),
+        defineEntityPage({
+          entity: "app.pipelines",
+          route: "/crm/pipelines",
+          name: "pipelines",
+          tenantOption: "tenant",
+          columns: ["name", "key"],
+          area: "sales",
+          app: {
+            surface: { sorts: ["name"], search: ["name"] },
+            table: {
+              schema: "better_supabase",
+              name: "pipelines",
+              tenant: "tenant_id",
+              columns: { name: "name", key: "key" },
+            },
+            reads: {
+              module: "@/features/sales/list-reads/pipelines-reads",
+              export: "pipelinesReads",
+            },
+          },
+        }),
+        defineEntityPage({
+          entity: "app.segments",
+          route: "/crm/segments",
+          name: "segments",
+          tenantOption: "tenant",
+          columns: ["name", "subjectType", "members"],
+          area: "sales",
+          app: {
+            surface: {
+              sorts: ["name", "members"],
+              facets: ["subjectType"],
+              search: ["name"],
+            },
+            table: {
+              schema: "better_supabase",
+              name: "segments",
+              tenant: "tenant_id",
+              columns: {
+                name: "name",
+                members: "member_count",
+                subjectType: "subject_type",
+              },
+            },
+            reads: {
+              module: "@/features/sales/list-reads/segments-reads",
+              export: "segmentsReads",
+            },
+          },
+        }),
+        defineEntityPage({
+          entity: "app.queues",
+          route: "/crm/queues",
+          name: "assignment-queues",
+          tenantOption: "tenant",
+          columns: ["name", "strategy", "rank"],
+          area: "sales",
+          app: {
+            surface: {
+              sorts: ["rank", "name", "assigned"],
+              facets: ["strategy"],
+              search: ["name"],
+            },
+            table: {
+              schema: "better_supabase",
+              name: "assignment_queues",
+              tenant: "tenant_id",
+              columns: { rank: "rank", name: "name", strategy: "strategy" },
+            },
+            reads: {
+              module: "@/features/sales/list-reads/queues-reads",
+              export: "queuesReads",
+            },
+          },
+        }),
+        defineEntityPage({
+          entity: "app.scores",
+          route: "/crm/scoring",
+          name: "scores",
+          tenantOption: "tenant",
+          columns: ["name", "key", "subjectType"],
+          area: "sales",
+          app: {
+            surface: {
+              sorts: ["name"],
+              facets: ["subjectType"],
+              search: ["name"],
+            },
+            table: {
+              schema: "better_supabase",
+              name: "score_models",
+              tenant: "tenant_id",
+              columns: {
+                name: "name",
+                key: "key",
+                subjectType: "subject_type",
+              },
+            },
+            reads: {
+              module: "@/features/sales/list-reads/scores-reads",
+              export: "scoreModelsReads",
+            },
+          },
+        }),
+        defineEntityPage({
+          entity: "app.contracts",
+          route: "/crm/contracts",
+          name: "contracts",
+          tenantOption: "tenant",
+          columns: ["title", "status", "endsOn"],
+          area: "sales",
+          app: {
+            surface: {
+              sorts: ["ending", "notice", "title"],
+              facets: ["status"],
+              search: ["title"],
+            },
+            table: {
+              schema: "better_supabase",
+              name: "contracts",
+              tenant: "tenant_id",
+              columns: {
+                ending: "ends_on",
+                title: "title",
+                status: "status",
+                endsOn: "ends_on",
+              },
+            },
+            reads: {
+              module: "@/features/sales/list-reads/contracts-reads",
+              export: "contractsReads",
+            },
+          },
+        }),
       ],
       server: { module: "@/lib/supabase/server", export: "bsb" },
       scaleDir: "../../../supabase/tests/scale",

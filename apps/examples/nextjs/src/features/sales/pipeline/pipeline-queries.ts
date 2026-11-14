@@ -9,6 +9,8 @@ import { Temporal } from "temporal-polyfill";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { bsb } from "@/lib/supabase/server";
 
+import { dealsFrom } from "../list-reads/deals-reads";
+import { pipelinesFrom } from "../list-reads/pipelines-reads";
 import { SALES_TAG } from "../sales-cache";
 
 export interface PipelineStageRow {
@@ -59,61 +61,7 @@ export async function loadDeals(): Promise<DealsData | undefined | null> {
     return null;
   }
 
-  const pipelines = await db.pipelines
-    .list({ organizationId: tenant, subjectType: "deal", limit: 50 })
-    .orThrow();
-
-  const pipeline = pipelines.find((item) => item.isDefault) ?? pipelines[0];
-
-  if (!pipeline) {
-    return undefined;
-  }
-
-  const [board, columns] = await Promise.all([
-    db.deals.board({ pipelineId: pipeline.id }).orThrow(),
-    db.pipelines
-      .board({ subjectType: "deal", pipelineId: pipeline.id })
-      .orThrow(),
-  ]);
-
-  const weightedOf = new Map(
-    columns.map((column) => [
-      column.stageId,
-      column.totals.map((total) => total.weighted),
-    ]),
-  );
-
-  return {
-    pipeline: { id: pipeline.id, name: pipeline.name },
-    stages: board.stages.map((stage) => ({
-      id: stage.id,
-      name: stage.name,
-      category: stage.category,
-      probability: stage.probability,
-      count: stage.count,
-      totals: stage.totals.map((total) =>
-        money(BigInt(total.amount), total.currency),
-      ),
-      weighted: weightedOf.get(stage.id) ?? [],
-    })),
-    deals: board.stages.flatMap((stage) =>
-      stage.deals.map((deal): DealRow => ({
-        id: deal.id,
-        identifier: deal.identifier,
-        name: deal.name,
-        stageId: stage.id,
-        stage: stage.name,
-        category: stage.category,
-        amount: money(BigInt(deal.amount), deal.currency),
-        ownerId: deal.ownerId,
-        closeOn: deal.closeOn,
-        probability: deal.probability,
-        daysInStage: deal.daysInStage,
-        rotting: deal.rotting,
-        nextStep: deal.nextStep,
-      })),
-    ),
-  };
+  return dealsFrom(db, tenant).orThrow();
 }
 
 export interface DealDetail {
@@ -220,17 +168,7 @@ export async function loadPipelines(): Promise<readonly PipelineRow[] | null> {
     return null;
   }
 
-  const pipelines = await db.pipelines
-    .list({ organizationId: tenant, subjectType: "deal", limit: 100 })
-    .orThrow();
-
-  return pipelines.map((pipeline) => ({
-    id: pipeline.id,
-    name: pipeline.name,
-    key: pipeline.key,
-    isDefault: pipeline.isDefault,
-    stages: pipeline.stages.length,
-  }));
+  return pipelinesFrom(db, tenant).orThrow();
 }
 
 export interface PipelineDetail {

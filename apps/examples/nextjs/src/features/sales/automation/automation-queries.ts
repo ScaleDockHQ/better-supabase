@@ -6,6 +6,9 @@ import { cacheTag } from "next/cache";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { bsb } from "@/lib/supabase/server";
 
+import { queueOf, queuesFrom } from "../list-reads/queues-reads";
+import { scoreModelsFrom } from "../list-reads/scores-reads";
+import { segmentOf, segmentsFrom } from "../list-reads/segments-reads";
 import { SALES_TAG } from "../sales-cache";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
@@ -39,26 +42,6 @@ export interface SegmentRow {
   readonly rules: number;
 }
 
-function segmentOf(segment: {
-  readonly id: string;
-  readonly name: string;
-  readonly description: string | undefined;
-  readonly subjectType: string;
-  readonly memberCount: number;
-  readonly refreshedAt: { toString(): string } | undefined;
-  readonly conditions: { readonly rules: readonly unknown[] };
-}): SegmentRow {
-  return {
-    id: segment.id,
-    name: segment.name,
-    description: segment.description ?? null,
-    subjectType: segment.subjectType,
-    memberCount: segment.memberCount,
-    refreshedAt: segment.refreshedAt?.toString() ?? null,
-    rules: segment.conditions.rules.length,
-  };
-}
-
 export async function loadSegments(): Promise<readonly SegmentRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
@@ -69,9 +52,7 @@ export async function loadSegments(): Promise<readonly SegmentRow[] | null> {
     return null;
   }
 
-  const segments = await db.segments.list({ organizationId: tenant }).orThrow();
-
-  return segments.map(segmentOf);
+  return segmentsFrom(db, tenant).orThrow();
 }
 
 export interface SegmentDetail extends SegmentRow {
@@ -139,30 +120,6 @@ export interface QueueMemberRow {
   readonly lastAssignedAt: string | null;
 }
 
-function queueOf(queue: {
-  readonly id: string;
-  readonly name: string;
-  readonly subjectType: string;
-  readonly strategy: string;
-  readonly rank: number;
-  readonly enabled: boolean;
-  readonly members: readonly { readonly assignedCount: number }[];
-}): QueueRow {
-  return {
-    id: queue.id,
-    name: queue.name,
-    subjectType: queue.subjectType,
-    strategy: queue.strategy,
-    rank: queue.rank,
-    enabled: queue.enabled,
-    members: queue.members.length,
-    assigned: queue.members.reduce(
-      (sum, member) => sum + member.assignedCount,
-      0,
-    ),
-  };
-}
-
 export async function loadQueues(): Promise<readonly QueueRow[] | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
@@ -173,11 +130,7 @@ export async function loadQueues(): Promise<readonly QueueRow[] | null> {
     return null;
   }
 
-  const queues = await db.assignment
-    .queues({ organizationId: tenant })
-    .orThrow();
-
-  return queues.map(queueOf);
+  return queuesFrom(db, tenant).orThrow();
 }
 
 export interface QueueDetail extends QueueRow {
@@ -241,19 +194,7 @@ export async function loadScoreModels(): Promise<
     return null;
   }
 
-  const models = await db.scores.models().orThrow();
-
-  return models.map((model) => ({
-    id: model.id,
-    key: model.key,
-    name: model.name,
-    subjectType: model.subjectType,
-    enabled: model.enabled,
-    version: model.version,
-    rules: model.rules.length,
-    metrics: model.metrics.length,
-    bands: model.bands.map((band) => band.label).join(", "),
-  }));
+  return scoreModelsFrom(db).orThrow();
 }
 
 export interface ScoredRecord {

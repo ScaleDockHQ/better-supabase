@@ -52,12 +52,23 @@ export interface BlockListResult<Item> {
   readonly facetCounts: Readonly<Record<string, number>>;
 }
 
-/** Searches, filters, sorts and pages `items` for one URL state. */
-export function applyBlockList<Item>(
+export interface BlockListSelection<Item> {
+  /** Rows after the search, the facet filter and the sort. */
+  readonly sorted: readonly Item[];
+  /** Rows per facet value after the search, before the facet filter. */
+  readonly facetCounts: Readonly<Record<string, number>>;
+}
+
+/**
+ * The search, facet filter and sort of one URL state, before it pages. The
+ * generated entity page reads (`lib/array-reads.ts`) and `applyBlockList` share
+ * it.
+ */
+export function selectBlockList<Item>(
   items: readonly Item[],
-  query: BlockListQuery,
+  query: Pick<BlockListQuery, "q" | "facet" | "sort">,
   spec: BlockListSpec<Item>,
-): BlockListResult<Item> {
+): BlockListSelection<Item> {
   const needle = query.q.toLowerCase();
 
   const searched =
@@ -82,7 +93,20 @@ export function applyBlockList<Item>(
       : searched;
 
   const compare = spec.sorts[query.sort] ?? spec.sorts[spec.defaultSort];
-  const sorted = compare ? filtered.toSorted(compare) : filtered;
+
+  return {
+    sorted: compare ? filtered.toSorted(compare) : filtered,
+    facetCounts,
+  };
+}
+
+/** Searches, filters, sorts and pages `items` for one URL state. */
+export function applyBlockList<Item>(
+  items: readonly Item[],
+  query: BlockListQuery,
+  spec: BlockListSpec<Item>,
+): BlockListResult<Item> {
+  const { sorted, facetCounts } = selectBlockList(items, query, spec);
   const pages = Math.max(1, Math.ceil(sorted.length / BLOCK_LIST_PAGE_SIZE));
   const page = Math.min(query.page, pages);
   const start = (page - 1) * BLOCK_LIST_PAGE_SIZE;

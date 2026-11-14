@@ -8,8 +8,8 @@ import { CreateDealDialog } from "@/features/crm/components/create-deal-dialog";
 import { CreatePipelineButton } from "@/features/crm/components/create-pipeline-button";
 import { settle } from "@/features/crm/crm-queries";
 
-import type { DealRow } from "../pipeline/pipeline-queries";
-
+import { dealsSpec } from "../list-reads/deals-reads";
+import { pipelinesSpec } from "../list-reads/pipelines-reads";
 import {
   loadDeals,
   loadForecasts,
@@ -79,20 +79,7 @@ export async function DealOverview({ query }: { query: BlockListQuery }) {
             : loaded
         }
         query={query}
-        spec={{
-          search: (deal: DealRow) =>
-            `${deal.identifier} ${deal.name} ${deal.nextStep ?? ""}`,
-          facet: (deal) => deal.stageId,
-          defaultSort: "closing",
-          sorts: {
-            closing: (a, b) => a.closeOn.localeCompare(b.closeOn),
-            amount: (a, b) =>
-              Number(b.amount.amount - a.amount.amount) ||
-              a.name.localeCompare(b.name),
-            stale: (a, b) => b.daysInStage - a.daysInStage,
-            name: (a, b) => a.name.localeCompare(b.name),
-          },
-        }}
+        spec={dealsSpec}
         toRow={(deal) => ({
           id: deal.id,
           identifier: deal.identifier,
@@ -186,11 +173,7 @@ export async function PipelineOverview({ query }: { query: BlockListQuery }) {
     <BlockOverview
       loaded={loaded}
       query={query}
-      spec={{
-        search: (pipeline) => `${pipeline.name} ${pipeline.key}`,
-        defaultSort: "name",
-        sorts: { name: (a, b) => a.name.localeCompare(b.name) },
-      }}
+      spec={pipelinesSpec}
       toRow={(pipeline) => ({
         id: pipeline.id,
         name: pipeline.name,
