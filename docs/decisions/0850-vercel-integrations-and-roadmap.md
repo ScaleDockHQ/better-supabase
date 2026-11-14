@@ -83,6 +83,15 @@ needs `better-supabase upgrade` and a migration. Passport and KMS key set URLs
 are Vercel's to change; Passport's issuer and JWKS URL are exported constants
 an app can override with `jwks`.
 
+The Next.js example's sign-up form runs BotID through a Server Action. It
+starts BotID in the form, not in `instrumentation-client.ts`, so only the
+sign-up route loads the script: its first load goes from 672767 to 678685
+bytes raw (217138 to 218698 gzip). The customers detail route grows from
+1495491 to 1498765 bytes raw with the attachments client's `FileStore`. The
+next-build server baseline is raised to the sizes measured on this branch for
+316 of 352 routes (median 8.9 KB raw, 3.3 KB gzip; the Workflow flow route
+grows most, 34.8 KB raw) and gains `/api/auth/callback`; no route is lowered.
+
 ## Roadmap kept out of this PR
 
 - Remaining checks: that `gatewayOptions` sets AI Gateway's `gateway.user` and
