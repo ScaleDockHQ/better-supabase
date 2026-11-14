@@ -997,6 +997,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Log: 2026-11-14, slice 1 merged (#944, ADR 0839): restore for leave, qualifications, donations and expenses. Slice 2 merged (#949, ADR 0851): teams `delete` became `purge`.
 - Log: 2026-11-14, slice 3 (ADR 1024): `restore` and `restored` events for the blocks whose archive takes an `archived` flag (deals, tasks, messaging, channels, collections, accounting). Teams and legal entities already paired. Slices 4 (restore for blocks with none) and 5 (verb adoption) are next.
 - Log: 2026-11-14, slice 4a (ADR 1025, branch `feat/audit-i-4`): `restore` for cases, lims, contacts, consents, shifts and observations. Slice 4b (assets, medications, compliance, content, care-plans, pipelines, option-sets) follows. Invoices, risks, shipments and bookings stay deferred (needs: an archive method first; only an `archived_at` column mapping exists).
+- Log: 2026-11-14, slice 4b (ADR 1026, branch `feat/audit-i-5`): `restore` for assets, medications, compliance, content, option-sets and pipelines. Deferred (needs: an archive method first): invoices, risks, shipments, bookings. Deferred (needs: a product decision on restoring a care plan, whose archive ends its actions): care-plans.
 
 ### Lane L
 

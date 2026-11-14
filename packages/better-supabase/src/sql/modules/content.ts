@@ -35,6 +35,7 @@ const EVENTS: BlockSqlEvents<ContentEvents> = {
   "content_entry.unscheduled": entry,
   "content_entry.published": entry,
   "content_entry.archived": entry,
+  "content_entry.restored": entry,
 };
 
 const NAMES: BlockSqlNames = {
@@ -148,6 +149,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "create_content_entry", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "update_content_entry", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "archive_content_entry", args: ["uuid"], returns: "jsonb" },
+    { name: "restore_content_entry", args: ["uuid"], returns: "jsonb" },
     { name: "get_content_entry", args: ["uuid"], returns: "jsonb" },
     { name: "list_content_entries", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "publish_content_entry", args: ["uuid"], returns: "jsonb" },

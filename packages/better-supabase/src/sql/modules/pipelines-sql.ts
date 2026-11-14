@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the pipeline and stage restores add 62 lines past the limit. 1 finding. */
 import type { BlockSqlContext } from "../context.ts";
 import type { Names, PipelineBinding } from "./pipelines-bindings.ts";
 
@@ -768,6 +769,32 @@ end;
 $$;
 ${userGrant(`${fn("archive_pipeline")}(uuid)`)}
 
+-- Restores an archived pipeline. It does not become the default again.
+create or replace function ${fn("restore_pipeline")}(pipeline uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+  v_subject_type text;
+  v_pipeline uuid := restore_pipeline.pipeline;
+begin
+  select x.${p("tenant")}, x.${p("subjectType")} into v_tenant, v_subject_type
+  from ${t("pipelines")} x where x.${p("id")} = restore_pipeline.pipeline and x.${p("archivedAt")} is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  ${guard("v_tenant")}
+  update ${t("pipelines")} x set ${p("archivedAt")} = null${touched(names, "pipelines")}
+  where x.${p("id")} = restore_pipeline.pipeline;
+  ${configured("pipeline.restored", "jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'subjectType', v_subject_type)", "'pipelines/' || v_pipeline::text", "v_tenant::text", "'restored a pipeline'")}
+  return true;
+end;
+$$;
+${userGrant(`${fn("restore_pipeline")}(uuid)`)}
+
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 drop function if exists ${fn("save_pipeline_stage")}(uuid, uuid, text, text, text, integer, integer, integer, text);
@@ -929,6 +956,49 @@ begin
 end;
 $$;
 ${userGrant(`${fn("archive_pipeline_stage")}(uuid, uuid)`)}
+
+-- Restores an archived stage of an active pipeline.
+create or replace function ${fn("restore_pipeline_stage")}(stage uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+  v_pipeline uuid;
+  v_pipeline_archived timestamptz;
+  v_stage uuid := restore_pipeline_stage.stage;
+begin
+  select x.${s("tenant")}, x.${s("pipeline")}, y.${p("archivedAt")}
+    into v_tenant, v_pipeline, v_pipeline_archived
+  from ${t("stages")} x join ${t("pipelines")} y on y.${p("id")} = x.${s("pipeline")}
+  where x.${s("id")} = restore_pipeline_stage.stage and x.${s("archivedAt")} is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  ${guard("v_tenant")}
+  if v_pipeline_archived is not null then
+    ${fail("PIPELINE_ARCHIVED", "restore the pipeline first", "55000")}
+  end if;
+  update ${t("stages")} x set ${s("archivedAt")} = null${touched(names, "stages")} where x.${s("id")} = restore_pipeline_stage.stage;
+  ${ctx.record({
+    type: "pipeline_stage.restored",
+    payload:
+      "jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage)",
+    subject: "'pipelines/' || v_pipeline::text",
+    tenant: "v_tenant::text",
+    audit: {
+      category: "configuration",
+      targetType: "pipeline_stage",
+      recordId: "v_stage::text",
+      summary: "'restored a pipeline stage'",
+    },
+  })}
+  return true;
+end;
+$$;
+${userGrant(`${fn("restore_pipeline_stage")}(uuid)`)}
 ${transitions}`;
 }
 

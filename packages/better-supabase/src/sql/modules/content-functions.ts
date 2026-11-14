@@ -246,6 +246,36 @@ begin
 end;
 $$;
 ${userGrant(`${fn("archive_content_entry")}(uuid)`)}
+
+-- Brings an archived entry back as a draft; publishing it again is a separate
+-- step with its own permission.
+create or replace function ${fn("restore_content_entry")}(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${entries};
+begin
+  ${load("restore_content_entry")}
+  if not ${q.allowed(`v_row.${e("tenant")}`, q.write)} then
+    ${forbidden("not allowed to restore this entry")}
+  end if;
+  if v_row.${e("status")} <> 'archived' then
+    return ${json("v_row")};
+  end if;
+  update ${entries} x set
+    ${e("status")} = ${q.cast("status", "'draft'")},
+    ${e("updatedAt")} = now()
+  where x.${e("id")} = v_row.${e("id")}
+  returning * into v_row;
+  ${q.record("content_entry.restored", "v_row", "restored a content entry")}
+  return ${json("v_row")};
+end;
+$$;
+${userGrant(`${fn("restore_content_entry")}(uuid)`)}
 `;
 }
 

@@ -460,6 +460,32 @@ end;
 $$;
 ${userGrant(`${fn("archive_medication")}(uuid)`)}
 
+-- Restores an archived medication: new orders can use it again.
+create or replace function ${fn("restore_medication")}(medication_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_medication ${medications}%rowtype;
+begin
+  select * into v_medication from ${medications} x where x.${m("id")} = restore_medication.medication_id;
+  if not found then
+    ${medicationNotFound}
+  end if;
+  if not ${allowed(`v_medication.${m("tenant")}`, prescribe)} then
+    ${forbidden("not allowed to change the medication catalog")}
+  end if;
+  update ${medications} x set ${m("archivedAt")} = null${touch("medications")}
+  where x.${m("id")} = v_medication.${m("id")}
+  returning x.* into v_medication;
+  return ${medicationJson(ctx, "v_medication")};
+end;
+$$;
+${userGrant(`${fn("restore_medication")}(uuid)`)}
+
 -- Stores an item picked from a MedicationCatalog (name, unit, codeSystem,
 -- code, form, strength, highRisk) in the organization's catalog. An item
 -- already there under its code is updated, so picking it twice is safe.

@@ -404,6 +404,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "archive_medication", args: ["uuid"], returns: "jsonb" },
+    { name: "restore_medication", args: ["uuid"], returns: "jsonb" },
     { name: "import_medication", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "list_medications",

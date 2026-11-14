@@ -34,6 +34,7 @@ export type OptionSetsEvents = {
   readonly "option_set_item.created": OptionSetItemEventData;
   readonly "option_set_item.updated": OptionSetItemEventData;
   readonly "option_set_item.archived": OptionSetItemArchivedEventData;
+  readonly "option_set_item.restored": OptionSetItemArchivedEventData;
 };
 
 /** The `option-sets` block's event types, for its manifest and `onBlockEvent`. */
@@ -43,4 +44,5 @@ export const optionSetsEvents: Events<OptionSetsEvents> = defineEvents({
   "option_set_item.created": event<OptionSetItemEventData>(),
   "option_set_item.updated": event<OptionSetItemEventData>(),
   "option_set_item.archived": event<OptionSetItemArchivedEventData>(),
+  "option_set_item.restored": event<OptionSetItemArchivedEventData>(),
 });

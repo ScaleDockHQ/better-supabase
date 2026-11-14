@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:6bcb5467b18206005502b07b1c8d710d91d462c472924f4d5b91d5092fe66506
+-- @bsb-hash sha256:307cf053ea99bfe6ee126c7db3836dd8770de0d55a0524a1468b5b142d68bded
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -293,6 +293,42 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_asset_location"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_asset_location"(uuid) to authenticated, service_role;
+
+-- Restores an archived location, unless its parent is still archived.
+create or replace function "better_supabase"."restore_asset_location"(location_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."asset_locations"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."asset_locations" x where x."id" = restore_asset_location.location_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.read'), false)) then
+    raise exception 'location not found' using errcode = 'P0002', hint = 'ASSETS_LOCATION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.manage'), false)) then
+    raise exception 'not allowed to manage locations' using errcode = '42501', hint = 'ASSETS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    if v_row."parent_id" is not null and exists (select 1 from "better_supabase"."asset_locations" y where y."id" = v_row."parent_id" and y."archived_at" is not null) then
+      raise exception 'restore the parent location first' using errcode = '55000', hint = 'ASSETS_LOCATION_IN_USE';
+    end if;
+    update "better_supabase"."asset_locations" x set "archived_at" = null, "updated_at" = now()
+      where x."id" = v_row."id"
+      returning * into v_row;
+    null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'parentId', v_row."parent_id", 'kind', v_row."kind", 'name', v_row."name", 'code', v_row."code", 'address', v_row."address", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'area', null::jsonb, 'metadata', v_row."metadata", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_asset_location"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_asset_location"(uuid) to authenticated, service_role;
 
 -- A location with its path from the top (path ends with the location itself)
 -- and how many sublocations and assets it holds.

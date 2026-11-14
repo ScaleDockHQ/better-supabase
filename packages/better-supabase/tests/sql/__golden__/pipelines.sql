@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:3e93c947d09989f12b1405883b5d8605b23450583480d3221899ea299b91a286
+-- @bsb-hash sha256:009cae2e6cffe22c2ece3aa3848beb70c78ff9b87b848740d4d73df40c8fb54a
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -255,6 +255,38 @@ $$;
 revoke execute on function "better_supabase"."archive_pipeline"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenticated, service_role;
 
+-- Restores an archived pipeline. It does not become the default again.
+create or replace function "better_supabase"."restore_pipeline"(pipeline uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_subject_type text;
+  v_pipeline uuid := restore_pipeline.pipeline;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
+  from "better_supabase"."pipelines" x where x."id" = restore_pipeline.pipeline and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  update "better_supabase"."pipelines" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = restore_pipeline.pipeline;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_pipeline"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_pipeline"(uuid) to authenticated, service_role;
+
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
@@ -436,6 +468,43 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
+
+-- Restores an archived stage of an active pipeline.
+create or replace function "better_supabase"."restore_pipeline_stage"(stage uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_pipeline uuid;
+  v_pipeline_archived timestamptz;
+  v_stage uuid := restore_pipeline_stage.stage;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."pipeline_id", y."archived_at"
+    into v_tenant, v_pipeline, v_pipeline_archived
+  from "better_supabase"."pipeline_stages" x join "better_supabase"."pipelines" y on y."id" = x."pipeline_id"
+  where x."id" = restore_pipeline_stage.stage and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  if v_pipeline_archived is not null then
+    raise exception 'restore the pipeline first' using errcode = '55000', hint = 'PIPELINE_ARCHIVED';
+  end if;
+  update "better_supabase"."pipeline_stages" x set "archived_at" = null, "updated_at" = now() where x."id" = restore_pipeline_stage.stage;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_pipeline_stage"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_pipeline_stage"(uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.
@@ -668,7 +737,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:8f92f77fc4229a881369e0a21fcd6db60acc423cf04e4ef0f1aeb0997ff0a373
+-- @bsb-hash sha256:06e56b7d94ab294843d4b8a455d0c3703144d82c616bd4f6ad6bf88ad16d2f8e
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1522,6 +1591,47 @@ $$;
 revoke execute on function "better_supabase"."archive_pipeline"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenticated, service_role;
 
+-- Restores an archived pipeline. It does not become the default again.
+create or replace function "better_supabase"."restore_pipeline"(pipeline uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_subject_type text;
+  v_pipeline uuid := restore_pipeline.pipeline;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
+  from "better_supabase"."pipelines" x where x."id" = restore_pipeline.pipeline and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  update "better_supabase"."pipelines" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = restore_pipeline.pipeline;
+  perform "better_supabase".emit_event('pipeline.restored', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'subjectType', v_subject_type), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
+  perform better_supabase.audit_event(
+    event_type => 'pipeline.restored',
+    category => 'configuration',
+    target_type => 'pipeline',
+    record_id => v_pipeline::text,
+    summary => 'restored a pipeline',
+    tenant => (v_tenant::text)::uuid,
+    metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'subjectType', v_subject_type)
+  );
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_pipeline"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_pipeline"(uuid) to authenticated, service_role;
+
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
@@ -1802,6 +1912,52 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
+
+-- Restores an archived stage of an active pipeline.
+create or replace function "better_supabase"."restore_pipeline_stage"(stage uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_pipeline uuid;
+  v_pipeline_archived timestamptz;
+  v_stage uuid := restore_pipeline_stage.stage;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."pipeline_id", y."archived_at"
+    into v_tenant, v_pipeline, v_pipeline_archived
+  from "better_supabase"."pipeline_stages" x join "better_supabase"."pipelines" y on y."id" = x."pipeline_id"
+  where x."id" = restore_pipeline_stage.stage and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  if v_pipeline_archived is not null then
+    raise exception 'restore the pipeline first' using errcode = '55000', hint = 'PIPELINE_ARCHIVED';
+  end if;
+  update "better_supabase"."pipeline_stages" x set "archived_at" = null, "updated_at" = now() where x."id" = restore_pipeline_stage.stage;
+  perform "better_supabase".emit_event('pipeline_stage.restored', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
+  perform better_supabase.audit_event(
+    event_type => 'pipeline_stage.restored',
+    category => 'configuration',
+    target_type => 'pipeline_stage',
+    record_id => v_stage::text,
+    summary => 'restored a pipeline stage',
+    tenant => (v_tenant::text)::uuid,
+    metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage)
+  );
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_pipeline_stage"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_pipeline_stage"(uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.
@@ -2184,7 +2340,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:4a54e6a5cd144a4b5d85a6e62bee68e8bd837a24d4d97e32b11d26f57b54b72f
+-- @bsb-hash sha256:1518ef4da2eea0872f009306c0a1309a0986b3873312c3640c79eef1117888f1
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2443,6 +2599,38 @@ $$;
 revoke execute on function "app_private"."archive_pipeline"(uuid) from public, anon;
 grant execute on function "app_private"."archive_pipeline"(uuid) to authenticated, service_role;
 
+-- Restores an archived pipeline. It does not become the default again.
+create or replace function "app_private"."restore_pipeline"(pipeline uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_subject_type text;
+  v_pipeline uuid := restore_pipeline.pipeline;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
+  from "app_private"."pipelines" x where x."id" = restore_pipeline.pipeline and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  update "app_private"."pipelines" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = restore_pipeline.pipeline;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."restore_pipeline"(uuid) from public, anon;
+grant execute on function "app_private"."restore_pipeline"(uuid) to authenticated, service_role;
+
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
@@ -2624,6 +2812,43 @@ end;
 $$;
 revoke execute on function "app_private"."archive_pipeline_stage"(uuid, uuid) from public, anon;
 grant execute on function "app_private"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
+
+-- Restores an archived stage of an active pipeline.
+create or replace function "app_private"."restore_pipeline_stage"(stage uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_pipeline uuid;
+  v_pipeline_archived timestamptz;
+  v_stage uuid := restore_pipeline_stage.stage;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."pipeline_id", y."archived_at"
+    into v_tenant, v_pipeline, v_pipeline_archived
+  from "app_private"."pipeline_stages" x join "app_private"."pipelines" y on y."id" = x."pipeline_id"
+  where x."id" = restore_pipeline_stage.stage and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  if v_pipeline_archived is not null then
+    raise exception 'restore the pipeline first' using errcode = '55000', hint = 'PIPELINE_ARCHIVED';
+  end if;
+  update "app_private"."pipeline_stages" x set "archived_at" = null, "updated_at" = now() where x."id" = restore_pipeline_stage.stage;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."restore_pipeline_stage"(uuid) from public, anon;
+grant execute on function "app_private"."restore_pipeline_stage"(uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.
@@ -2856,7 +3081,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:6e1a93c397889db14848f034aa2b71ef2a9c981aaa5ae5a8f3c2794b2231465f
+-- @bsb-hash sha256:8813006dd8fd54cac5222cc39fa6db95ba0e16e73dee4c99bc2c23f2d0a919fa
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3110,6 +3335,38 @@ $$;
 revoke execute on function "better_supabase"."archive_pipeline"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenticated, service_role;
 
+-- Restores an archived pipeline. It does not become the default again.
+create or replace function "better_supabase"."restore_pipeline"(pipeline uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_subject_type text;
+  v_pipeline uuid := restore_pipeline.pipeline;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
+  from "better_supabase"."pipelines" x where x."id" = restore_pipeline.pipeline and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  update "better_supabase"."pipelines" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = restore_pipeline.pipeline;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_pipeline"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_pipeline"(uuid) to authenticated, service_role;
+
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
@@ -3291,6 +3548,43 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
+
+-- Restores an archived stage of an active pipeline.
+create or replace function "better_supabase"."restore_pipeline_stage"(stage uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_pipeline uuid;
+  v_pipeline_archived timestamptz;
+  v_stage uuid := restore_pipeline_stage.stage;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."pipeline_id", y."archived_at"
+    into v_tenant, v_pipeline, v_pipeline_archived
+  from "better_supabase"."pipeline_stages" x join "better_supabase"."pipelines" y on y."id" = x."pipeline_id"
+  where x."id" = restore_pipeline_stage.stage and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  if v_pipeline_archived is not null then
+    raise exception 'restore the pipeline first' using errcode = '55000', hint = 'PIPELINE_ARCHIVED';
+  end if;
+  update "better_supabase"."pipeline_stages" x set "archived_at" = null, "updated_at" = now() where x."id" = restore_pipeline_stage.stage;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_pipeline_stage"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_pipeline_stage"(uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.
@@ -3537,6 +3831,15 @@ as $$ select "better_supabase"."archive_pipeline"($1) $$;
 revoke execute on function "api"."archive_pipeline"(uuid) from public, anon;
 grant execute on function "api"."archive_pipeline"(uuid) to authenticated, service_role;
 
+create or replace function "api"."restore_pipeline"(pipeline uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_pipeline"($1) $$;
+revoke execute on function "api"."restore_pipeline"(uuid) from public, anon;
+grant execute on function "api"."restore_pipeline"(uuid) to authenticated, service_role;
+
 create or replace function "api"."save_pipeline_stage"(pipeline uuid, stage uuid, key text, name text, category text, probability integer, rotting_after_days integer, wip_limit integer, color text, icon text default null)
 returns jsonb
 language sql
@@ -3563,6 +3866,15 @@ set search_path = ''
 as $$ select "better_supabase"."archive_pipeline_stage"($1, $2) $$;
 revoke execute on function "api"."archive_pipeline_stage"(uuid, uuid) from public, anon;
 grant execute on function "api"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_pipeline_stage"(stage uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_pipeline_stage"($1) $$;
+revoke execute on function "api"."restore_pipeline_stage"(uuid) from public, anon;
+grant execute on function "api"."restore_pipeline_stage"(uuid) to authenticated, service_role;
 
 create or replace function "api"."set_pipeline_transitions"(pipeline uuid, pairs jsonb)
 returns integer
@@ -3630,7 +3942,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:81406c37c79d298609c15870ccff3f7f564b31c26c3254fdec612f3154563be6
+-- @bsb-hash sha256:f5788f39c33d50120eabe1fd2f95b164971c7c682dfde5fe40df71f2720600c0
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3877,6 +4189,38 @@ $$;
 revoke execute on function "better_supabase"."archive_pipeline"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenticated, service_role;
 
+-- Restores an archived pipeline. It does not become the default again.
+create or replace function "better_supabase"."restore_pipeline"(pipeline uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_subject_type text;
+  v_pipeline uuid := restore_pipeline.pipeline;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."subject_type" into v_tenant, v_subject_type
+  from "better_supabase"."pipelines" x where x."id" = restore_pipeline.pipeline and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  update "better_supabase"."pipelines" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = restore_pipeline.pipeline;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_pipeline"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_pipeline"(uuid) to authenticated, service_role;
+
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
@@ -4058,6 +4402,43 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
+
+-- Restores an archived stage of an active pipeline.
+create or replace function "better_supabase"."restore_pipeline_stage"(stage uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_pipeline uuid;
+  v_pipeline_archived timestamptz;
+  v_stage uuid := restore_pipeline_stage.stage;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."pipeline_id", y."archived_at"
+    into v_tenant, v_pipeline, v_pipeline_archived
+  from "better_supabase"."pipeline_stages" x join "better_supabase"."pipelines" y on y."id" = x."pipeline_id"
+  where x."id" = restore_pipeline_stage.stage and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  if v_pipeline_archived is not null then
+    raise exception 'restore the pipeline first' using errcode = '55000', hint = 'PIPELINE_ARCHIVED';
+  end if;
+  update "better_supabase"."pipeline_stages" x set "archived_at" = null, "updated_at" = now() where x."id" = restore_pipeline_stage.stage;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_pipeline_stage"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_pipeline_stage"(uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.
@@ -4290,7 +4671,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:16d0aa7d8a002fcd5321fe59413b7be648ac33dd4f1128c701911b66f2215805
+-- @bsb-hash sha256:4bde08999f4cc80885bad1b80997c17bd45f46e216d7f6f38ea5258489959715
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4544,6 +4925,38 @@ $$;
 revoke execute on function "better_supabase"."archive_pipeline"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_pipeline"(uuid) to authenticated, service_role;
 
+-- Restores an archived pipeline. It does not become the default again.
+create or replace function "better_supabase"."restore_pipeline"(pipeline uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_subject_type text;
+  v_pipeline uuid := restore_pipeline.pipeline;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."org_id", x."subject_type" into v_tenant, v_subject_type
+  from "better_supabase"."pipelines" x where x."id" = restore_pipeline.pipeline and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  update "better_supabase"."pipelines" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = restore_pipeline.pipeline;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_pipeline"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_pipeline"(uuid) to authenticated, service_role;
+
 -- Creates a stage at the end of a pipeline (stage null) or changes one.
 -- The category must be one the subject type declares; it sets the outcome.
 
@@ -4725,6 +5138,43 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."archive_pipeline_stage"(uuid, uuid) to authenticated, service_role;
+
+-- Restores an archived stage of an active pipeline.
+create or replace function "better_supabase"."restore_pipeline_stage"(stage uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_pipeline uuid;
+  v_pipeline_archived timestamptz;
+  v_stage uuid := restore_pipeline_stage.stage;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."org_id", x."pipeline_id", y."archived_at"
+    into v_tenant, v_pipeline, v_pipeline_archived
+  from "better_supabase"."pipeline_stages" x join "better_supabase"."pipelines" y on y."id" = x."pipeline_id"
+  where x."id" = restore_pipeline_stage.stage and x."archived_at" is not null;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'pipelines.manage'), false)) then
+    raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
+  end if;
+  if v_pipeline_archived is not null then
+    raise exception 'restore the pipeline first' using errcode = '55000', hint = 'PIPELINE_ARCHIVED';
+  end if;
+  update "better_supabase"."pipeline_stages" x set "archived_at" = null, "updated_at" = now() where x."id" = restore_pipeline_stage.stage;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_pipeline_stage"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_pipeline_stage"(uuid) to authenticated, service_role;
 
 -- Replaces the allowed stage changes of a pipeline. An empty list allows
 -- every change; pairs is a list of { "from": stage id, "to": stage id }.

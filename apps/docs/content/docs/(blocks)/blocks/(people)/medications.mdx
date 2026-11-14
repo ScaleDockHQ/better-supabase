@@ -70,7 +70,7 @@ const list = await db.medications
 
 `codeSystem` is `gtin`, `hpk` (the Dutch G-Standaard), `atc`, `rxnorm` or
 `custom`, the default. A code is unique per code system in an organization.
-`archiveMedication` takes a medication off the list; its orders keep it.
+`archiveMedication` takes a medication off the list; its orders keep it. `restoreMedication` puts it back on the list.
 `importMedication` adds a catalog item, or updates the one with its code
 system and code.
 

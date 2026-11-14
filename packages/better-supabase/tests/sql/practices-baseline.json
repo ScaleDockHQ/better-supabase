@@ -57,7 +57,7 @@
     "security-definer-functions": 157
   },
   "assets": {
-    "security-definer-functions": 170,
+    "security-definer-functions": 176,
     "row-triggers": 18
   },
   "assignment": {
@@ -121,7 +121,7 @@
     "security-definer-functions": 108
   },
   "compliance": {
-    "security-definer-functions": 78
+    "security-definer-functions": 84
   },
   "connectors": {
     "security-definer-functions": 66
@@ -133,7 +133,7 @@
     "security-definer-functions": 206
   },
   "content": {
-    "security-definer-functions": 72
+    "security-definer-functions": 78
   },
   "contracts": {
     "security-definer-functions": 66,
@@ -306,7 +306,7 @@
     "security-definer-functions": 151
   },
   "medications": {
-    "security-definer-functions": 78
+    "security-definer-functions": 84
   },
   "meetings": {
     "security-definer-functions": 103,
@@ -362,7 +362,7 @@
     "security-definer-functions": 12
   },
   "option-sets": {
-    "security-definer-functions": 43,
+    "security-definer-functions": 49,
     "row-triggers": 1
   },
   "orders": {

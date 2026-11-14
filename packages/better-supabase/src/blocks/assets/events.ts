@@ -65,6 +65,7 @@ export type AssetsEvents = {
   readonly "asset_location.created": AssetLocationEventData;
   readonly "asset_location.updated": AssetLocationEventData;
   readonly "asset_location.archived": AssetLocationEventData;
+  readonly "asset_location.restored": AssetLocationEventData;
   readonly "asset.created": AssetEventData;
   readonly "asset.updated": AssetEventData;
   readonly "asset.assigned": AssetEventData;
@@ -78,6 +79,7 @@ export const assetsEvents: Events<AssetsEvents> = defineEvents({
   "asset_location.created": event<AssetLocationEventData>(),
   "asset_location.updated": event<AssetLocationEventData>(),
   "asset_location.archived": event<AssetLocationEventData>(),
+  "asset_location.restored": event<AssetLocationEventData>(),
   "asset.created": event<AssetEventData>(),
   "asset.updated": event<AssetEventData>(),
   "asset.assigned": event<AssetEventData>(),

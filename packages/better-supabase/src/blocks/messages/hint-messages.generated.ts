@@ -1276,6 +1276,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "PERIOD_INVALID": "A period needs a lower case kind and a range that ends on or after it starts.",
   "PERIOD_NOT_FOUND": "No such period.",
   "PERIOD_OVERLAP": "The range overlaps a period of this kind.",
+  "PIPELINE_ARCHIVED": "Restore the pipeline first.",
   "PIPELINE_CATEGORY_UNKNOWN": "This subject type has no such category.",
   "PIPELINE_FORBIDDEN": "Not allowed to manage pipelines.",
   "PIPELINE_IN_USE": "Records are still in this pipeline; move them first.",

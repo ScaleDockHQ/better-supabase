@@ -16890,6 +16890,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "asset_location.created",
           "asset_location.updated",
           "asset_location.archived",
+          "asset_location.restored",
           "asset.created",
           "asset.updated",
           "asset.assigned",
@@ -21638,7 +21639,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "content_entry.scheduled",
           "content_entry.unscheduled",
           "content_entry.published",
-          "content_entry.archived"
+          "content_entry.archived",
+          "content_entry.restored"
         ]
       },
       "schedules": [
@@ -33301,7 +33303,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "option_set.updated",
           "option_set_item.created",
           "option_set_item.updated",
-          "option_set_item.archived"
+          "option_set_item.archived",
+          "option_set_item.restored"
         ]
       }
     },
@@ -33371,9 +33374,11 @@ export const PRESET_CATALOG: PresetCatalog = {
           "pipeline.created",
           "pipeline.updated",
           "pipeline.archived",
+          "pipeline.restored",
           "pipeline_stage.created",
           "pipeline_stage.updated",
           "pipeline_stage.archived",
+          "pipeline_stage.restored",
           "pipeline.stage_changed"
         ]
       }
