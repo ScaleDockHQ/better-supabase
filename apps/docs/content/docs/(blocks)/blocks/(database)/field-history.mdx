@@ -87,6 +87,23 @@ shared partition helper (ADR 0038). The id comes from a sequence because a
 partitioned primary key must include the partition key. It is off by default;
 switch it on before the table grows.
 
+## Show a history tab by declaration
+
+An entity declares `history: true` (or the columns it keeps) in its manifest.
+`historyTabs` lists those entities, so a page adds a history tab without probing
+the database for a binding.
+
+```ts
+import { historyTabs } from "better-supabase/blocks/field-history";
+import { dealsBlock } from "better-supabase/blocks/deals";
+
+const tabs = historyTabs([dealsBlock]);
+```
+
+The `field_history` entity itself declares a monthly partition by `changedAt`,
+the `audit` retention class and `anonymize` for an erasure, so a person's
+changes stay as rows with the personal columns blanked.
+
 ## Without the client
 
 `db.fieldHistory` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:
