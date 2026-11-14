@@ -5,6 +5,7 @@ import { PII_KINDS } from "better-supabase/blocks/ai-guardrails";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { actionAccess } from "@/features/assistant/assistant-ops";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { guardrailsBlock } from "./guardrails-server";
@@ -36,7 +37,9 @@ export const savePolicy = bsbCore.action(
     permission: "ai_chat.manage",
   },
   async (input, { tenant }) => {
-    const saved = await guardrailsBlock().policies.upsert({
+    const saved = await guardrailsBlock(
+      actionAccess(tenant, "ai_chat.manage"),
+    ).policies.upsert({
       agent: input.agent,
       stage: input.stage,
       organizationId: tenant,
@@ -89,12 +92,9 @@ export const testPolicy = bsbCore.action(
     permission: "ai_chat.manage",
   },
   async ({ agent, stage, text }, { tenant }) => {
-    const verdict = await guardrailsBlock().check({
-      agent,
-      stage,
-      text,
-      organizationId: tenant,
-    });
+    const verdict = await guardrailsBlock(
+      actionAccess(tenant, "ai_chat.manage"),
+    ).check({ agent, stage, text, organizationId: tenant });
 
     if (!verdict.ok) {
       return verdict;

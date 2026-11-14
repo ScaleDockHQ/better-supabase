@@ -146,11 +146,14 @@ export interface StoredChatData {
 }
 
 /**
- * The active branch of a chat as UI messages; `undefined` when it doesn't exist
- * yet.
+ * The branch of a chat as UI messages: the one that ends at `leafId` (the
+ * `leaf` search param, so a branch has a URL) or, without one, the active
+ * branch; `undefined` when the chat doesn't exist yet. A `leafId` that is not a
+ * message of this chat falls back to the active branch.
  */
 export async function getStoredChat(
   chatId: string,
+  leafId?: string,
 ): Promise<StoredChatData | undefined> {
   const { supabase } = await bsbCore.context();
   const chats = aiChat(supabase);
@@ -164,8 +167,15 @@ export async function getStoredChat(
     throw new Error(chat.error.message);
   }
 
+  const requested =
+    leafId === undefined
+      ? undefined
+      : await chats.messages.path({ chatId, native: true, leafId });
+
   const [path, runs] = await Promise.all([
-    chats.messages.path({ chatId, native: true }).orThrow(),
+    requested?.ok && requested.data.length > 0
+      ? requested.data
+      : chats.messages.path({ chatId, native: true }).orThrow(),
     aiRuns(supabase).list({ chatId, limit: 1 }).orThrow(),
   ]);
 
@@ -199,7 +209,7 @@ export async function getStoredChat(
     title: chat.data.title,
     pinned: chat.data.pinned,
     model: chat.data.model,
-    leafId: chat.data.leafId,
+    leafId: path.at(-1)?.id ?? chat.data.leafId,
     branches,
     messages: toUIMessages(path),
     streaming: chat.data.activeStreamId !== undefined,

@@ -78,7 +78,11 @@ function StandardPanel({
       onModelChange={onModelChange}
       branches={branches}
       onSwitchBranch={(messageId) => {
-        void switchChatBranch({ chatId: id, messageId }).then(() => {
+        void switchChatBranch({ chatId: id, messageId }).then((result) => {
+          // The leaf goes in the URL, so a reload or a shared link opens this branch.
+          router.replace(
+            result.ok ? `?leaf=${encodeURIComponent(result.data)}` : "?",
+          );
           router.refresh();
         });
       }}

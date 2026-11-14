@@ -4,6 +4,7 @@ import { ok } from "better-supabase";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { actionAccess } from "@/features/assistant/assistant-ops";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { promptsBlock } from "./prompts-server";
@@ -31,7 +32,9 @@ export const savePromptVersion = bsbCore.action(
     permission: "ai_chat.manage",
   },
   async ({ name, template, label }, { tenant }) => {
-    const saved = await promptsBlock().create({
+    const saved = await promptsBlock(
+      actionAccess(tenant, "ai_chat.manage"),
+    ).create({
       name,
       template,
       organizationId: tenant,
@@ -60,12 +63,9 @@ export const setPromptLabel = bsbCore.action(
     permission: "ai_chat.manage",
   },
   async ({ name, label, version }, { tenant }) => {
-    const moved = await promptsBlock().setLabel({
-      name,
-      label,
-      version,
-      organizationId: tenant,
-    });
+    const moved = await promptsBlock(
+      actionAccess(tenant, "ai_chat.manage"),
+    ).setLabel({ name, label, version, organizationId: tenant });
 
     if (!moved.ok) {
       return moved;

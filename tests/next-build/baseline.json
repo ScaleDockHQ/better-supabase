@@ -100,9 +100,9 @@
     "brotli": 422483
   },
   "/[locale]/(app)/assistant/guardrails/page": {
-    "raw": 1551241,
-    "gzip": 494607,
-    "brotli": 432781
+    "raw": 1552041,
+    "gzip": 494907,
+    "brotli": 433081
   },
   "/[locale]/(app)/assistant/page": {
     "raw": 1522677,

@@ -100,6 +100,10 @@ export function DecisionTable({
           { value: "block", label: t("Blocked") },
           { value: "redact", label: t("Redacted") },
           { value: "allow", label: t("Allowed") },
+          { value: "rule:injection", label: t("Rule: prompt injection") },
+          { value: "rule:pii", label: t("Rule: personal data") },
+          { value: "rule:topic", label: t("Rule: denied topic") },
+          { value: "rule:tool_depth", label: t("Rule: tool depth") },
         ],
       }}
       sorts={[

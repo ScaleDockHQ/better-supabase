@@ -89,9 +89,9 @@ sign-up route loads the script: its first load goes from 672639 to 678685
 bytes raw (216596 to 218698 gzip). The customers detail route grows from
 1495594 to 1498995 bytes raw with the attachments client's `FileStore`. The
 next-build server baseline, which also carries the queue scheduler change
-(ADR 0849), is raised to the sizes measured on this branch for 316 of 353
-routes (median 12.1 KB raw, 4.2 KB gzip; `/api/queues/block-ticks` grows
-most, 38.9 KB raw). It gains `/api/auth/callback`, `/api/jobs/drain` and
+(ADR 0849), is raised to the sizes measured on this branch for 280 of 353
+routes (median 12.2 KB raw, 4.2 KB gzip; `/api/queues/block-ticks` grows
+most, 37.0 KB raw). It gains `/api/auth/callback`, `/api/jobs/drain` and
 `/api/queues/schedules`, and no route is lowered.
 
 ## Roadmap kept out of this PR

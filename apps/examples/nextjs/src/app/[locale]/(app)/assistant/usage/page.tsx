@@ -2,6 +2,8 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
+import { usageRangeOf } from "@/features/ai-usage/ai-usage-queries";
+import { loadUsageRange } from "@/features/ai-usage/ai-usage-search-params";
 import {
   UsageOverview,
   UsageOverviewSkeleton,
@@ -10,7 +12,9 @@ import {
 export const ensureStatic = "prefetch";
 export const instant = true;
 
-export default function AiUsagePage() {
+export default function AiUsagePage({
+  searchParams,
+}: PageProps<"/[locale]/assistant/usage">) {
   const t = useExtracted("aiUsage");
 
   return (
@@ -22,7 +26,9 @@ export default function AiUsagePage() {
         )}
       />
       <Suspense fallback={<UsageOverviewSkeleton />}>
-        <UsageOverview />
+        {loadUsageRange(searchParams).then(({ range }) => (
+          <UsageOverview range={usageRangeOf(range)} />
+        ))}
       </Suspense>
     </>
   );

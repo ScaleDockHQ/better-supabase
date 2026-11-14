@@ -3790,6 +3790,21 @@ msgid "Failed runs"
 msgstr "Mislukte runs"
 
 #: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.vhQqLj"
+msgid "Range"
+msgstr ""
+
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.lPyu8U"
+msgid "All runs"
+msgstr ""
+
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.kGgl2m"
+msgid "Last {days, number} days"
+msgstr ""
+
+#: src/features/ai-usage/components/usage-overview.tsx
 msgctxt "aiUsage.790BsN"
 msgid "Spend per day"
 msgstr "Uitgaven per dag"
@@ -12259,6 +12274,16 @@ msgctxt "evals.YP0XGk"
 msgid "Run the dataset against a prompt version and compare the pass rate with earlier runs."
 msgstr "Voer de dataset uit op een promptversie en vergelijk het slagingspercentage met eerdere runs."
 
+#: src/features/evals/components/eval-workspace.tsx
+msgctxt "evals.pigFsJ"
+msgid "Scripted runs"
+msgstr ""
+
+#: src/features/evals/components/eval-workspace.tsx
+msgctxt "evals.4GjTZU"
+msgid "No AI Gateway key is set, so a run answers from a script and is recorded as scripted. The pass rate measures the script, not a model."
+msgstr ""
+
 #: src/features/evals/components/pass-rate-chart.tsx
 msgctxt "evals.8NFplr"
 msgid "Pass rate"
@@ -14497,6 +14522,26 @@ msgstr "Geredigeerd"
 msgctxt "guardrails.zvO43R"
 msgid "Allowed"
 msgstr "Toegestaan"
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.odQZ5w"
+msgid "Rule: prompt injection"
+msgstr ""
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.7NxllJ"
+msgid "Rule: personal data"
+msgstr ""
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails.AulYOL"
+msgid "Rule: denied topic"
+msgstr ""
+
+#: src/features/guardrails/components/decision-table.tsx
+msgctxt "guardrails._Ov0Hc"
+msgid "Rule: tool depth"
+msgstr ""
 
 #: src/features/guardrails/components/decision-table.tsx
 msgctxt "guardrails.MeKajs"

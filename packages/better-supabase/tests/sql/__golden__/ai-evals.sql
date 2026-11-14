@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:169ce4458d8646e3f9837ac63310b6f7f99459cb25517e36413bc37e13b67feb
+-- @bsb-hash sha256:da1557e8352724aeeaca03dd040160f1dc38efc80508ff8fb2314617bd8b4de1
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,6 +94,30 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
+
+-- The dataset with that id, or null. The service role's caller compares its
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
+create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."eval_datasets"%rowtype;
+begin
+  select x.* into v_row from "better_supabase"."eval_datasets" x where x."id" = get_eval_dataset.dataset;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_eval_dataset"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_eval_dataset"(uuid) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -452,7 +476,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:804fc23bb6cf2245d75c534f8d1bfac3ec6b6646173a179d2f47122e6a7bde4d
+-- @bsb-hash sha256:4428f22634ba0c69aaad16c5e7250650e753afd0d9d5dc6c23475a4040688e28
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -545,6 +569,30 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
+
+-- The dataset with that id, or null. The service role's caller compares its
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
+create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."eval_datasets"%rowtype;
+begin
+  select x.* into v_row from "better_supabase"."eval_datasets" x where x."id" = get_eval_dataset.dataset;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_eval_dataset"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_eval_dataset"(uuid) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -944,7 +992,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:f426ad6ff154a76d79f86e2be9233514c859cd893647c50f544422d77d2a4ae5
+-- @bsb-hash sha256:b203f8bad5239169818b71bc8c08a85332056e683c02a9e15bc74bfb3c258376
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1042,6 +1090,30 @@ end;
 $$;
 revoke execute on function "app_private"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
 grant execute on function "app_private"."create_eval_dataset"(text, uuid, text) to service_role;
+
+-- The dataset with that id, or null. The service role's caller compares its
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
+create or replace function "app_private"."get_eval_dataset"(dataset uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."eval_datasets"%rowtype;
+begin
+  select x.* into v_row from "app_private"."eval_datasets" x where x."id" = get_eval_dataset.dataset;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+end;
+$$;
+revoke execute on function "app_private"."get_eval_dataset"(uuid) from public, anon, authenticated;
+grant execute on function "app_private"."get_eval_dataset"(uuid) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -1400,7 +1472,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:3b118991c5e8b4792667f3782551fa6aeec144fa102dd8eb0c11c991e1e0e319
+-- @bsb-hash sha256:21b4ff433103b1193f63d6baed82c8c182ff7ab77af8b9fd37898ce87e2f2565
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1493,6 +1565,30 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
+
+-- The dataset with that id, or null. The service role's caller compares its
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
+create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."eval_datasets"%rowtype;
+begin
+  select x.* into v_row from "better_supabase"."eval_datasets" x where x."id" = get_eval_dataset.dataset;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_eval_dataset"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_eval_dataset"(uuid) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -1847,6 +1943,16 @@ as $$ select "better_supabase"."create_eval_dataset"($1, $2, $3) $$;
 revoke execute on function "api"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
 grant execute on function "api"."create_eval_dataset"(text, uuid, text) to service_role;
 
+create or replace function "api"."get_eval_dataset"(dataset uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_eval_dataset"($1) $$;
+revoke execute on function "api"."get_eval_dataset"(uuid) from public, anon, authenticated;
+grant execute on function "api"."get_eval_dataset"(uuid) to service_role;
+
 create or replace function "api"."add_eval_items"(dataset uuid, items jsonb)
 returns integer
 language sql
@@ -1969,7 +2075,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:d0fe1b4ffd910906aa90f8548a9112c83b79f499366fc14be0f7d280512f3052
+-- @bsb-hash sha256:1f37fc7ac0d19bb022d400d639ab2ae10fa5ae9c2e394ec7609db2aab0d58714
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2053,6 +2159,30 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
+
+-- The dataset with that id, or null. The service role's caller compares its
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
+create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."eval_datasets"%rowtype;
+begin
+  select x.* into v_row from "better_supabase"."eval_datasets" x where x."id" = get_eval_dataset.dataset;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_eval_dataset"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_eval_dataset"(uuid) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -2411,7 +2541,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:28756c47e205a01419f92d9ac9b2c32d75cd377e35ff7be386e39c253c08c5f3
+-- @bsb-hash sha256:b651628d4408a7d2bfcc2cf5524ba5e886559924db6e8955dfeb5aec50807d30
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2504,6 +2634,30 @@ end;
 $$;
 revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
+
+-- The dataset with that id, or null. The service role's caller compares its
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
+create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."eval_datasets"%rowtype;
+begin
+  select x.* into v_row from "better_supabase"."eval_datasets" x where x."id" = get_eval_dataset.dataset;
+  if not found then
+    return null;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_eval_dataset"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_eval_dataset"(uuid) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.

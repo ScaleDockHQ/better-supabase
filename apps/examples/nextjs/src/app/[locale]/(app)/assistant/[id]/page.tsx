@@ -3,6 +3,7 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { buttonVariants } from "@/components/ui/button";
+import { loadChatBranch } from "@/features/assistant/assistant-search-params";
 import {
   StoredChat,
   StoredChatSkeleton,
@@ -15,6 +16,7 @@ export const instant = true;
 /** The back link is the static shell; the stored chat streams in. */
 export default function AssistantChatPage({
   params,
+  searchParams,
 }: PageProps<"/[locale]/assistant/[id]">) {
   const t = useExtracted("assistant");
 
@@ -32,9 +34,11 @@ export default function AssistantChatPage({
         {t("All chats")}
       </Link>
       <Suspense fallback={<StoredChatSkeleton />}>
-        {params.then(({ id }) => (
-          <StoredChat id={id} />
-        ))}
+        {Promise.all([params, loadChatBranch(searchParams)]).then(
+          ([{ id }, { leaf }]) => (
+            <StoredChat id={id} leaf={leaf ?? undefined} />
+          ),
+        )}
       </Suspense>
     </>
   );

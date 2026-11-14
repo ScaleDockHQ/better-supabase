@@ -6340,6 +6340,7 @@
       "sqlTransport"
     ],
     "types": [
+      "AiAccess",
       "BlockTransport",
       "Prompt",
       "PromptOptions",
@@ -6363,6 +6364,7 @@
       "toPromptfooConfig"
     ],
     "types": [
+      "AiAccess",
       "AiEvals",
       "AiEvalsOptions",
       "BlockTransport",
@@ -6410,6 +6412,7 @@
       "sqlTransport"
     ],
     "types": [
+      "AiAccess",
       "AiGuardrails",
       "AiGuardrailsEvents",
       "AiGuardrailsOptions",

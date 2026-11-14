@@ -5,7 +5,7 @@ import { agentsBlock } from "@/features/agents/agents-server";
 import {
   agentPrompt,
   ASSISTANT_PROMPT,
-  opsTenant,
+  opsAccess,
 } from "@/features/assistant/assistant-ops";
 import { bsbCore } from "@/lib/supabase/server-core";
 
@@ -58,13 +58,14 @@ export async function promptSubjects(
 
 /** One page of the prompt registry: names searched, filtered and sorted here. */
 export async function getPromptPage(query: OpsListQuery): Promise<PromptPage> {
-  const organizationId = await opsTenant("ai_chat.manage");
+  const access = await opsAccess("ai_chat.manage");
+  const organizationId = access.allowed ? access.organizationId : undefined;
 
   if (organizationId === undefined) {
     return { items: [], nextCursor: null };
   }
 
-  const prompts = promptsBlock();
+  const prompts = promptsBlock(access);
   const needle = query.q.toLowerCase();
 
   const subjects = (await promptSubjects(organizationId)).filter(
@@ -137,13 +138,14 @@ export interface PromptDetail {
 export async function getPrompt(
   name: string,
 ): Promise<PromptDetail | undefined> {
-  const organizationId = await opsTenant("ai_chat.manage");
+  const access = await opsAccess("ai_chat.manage");
+  const organizationId = access.allowed ? access.organizationId : undefined;
 
   if (organizationId === undefined) {
     return undefined;
   }
 
-  const versions = await promptsBlock()
+  const versions = await promptsBlock(access)
     .versions({ name, organizationId })
     .orThrow();
 

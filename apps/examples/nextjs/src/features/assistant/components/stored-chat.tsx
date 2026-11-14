@@ -8,8 +8,17 @@ import { AssistantChatLazy } from "./assistant-chat-lazy";
 import { ChatActions } from "./chat-actions";
 
 /** Render inside `<Suspense>`: reads the `id` param and the stored branch. */
-export async function StoredChat({ id }: { id: string }) {
-  const [chat, models] = await Promise.all([getStoredChat(id), getModels()]);
+export async function StoredChat({
+  id,
+  leaf,
+}: {
+  id: string;
+  leaf?: string | undefined;
+}) {
+  const [chat, models] = await Promise.all([
+    getStoredChat(id, leaf),
+    getModels(),
+  ]);
 
   if (chat === undefined) {
     notFound();
