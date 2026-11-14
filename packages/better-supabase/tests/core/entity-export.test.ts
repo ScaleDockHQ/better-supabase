@@ -119,4 +119,11 @@ describe("exportCsv", () => {
     );
     expect((await response.text()).startsWith("id,title")).toBe(true);
   });
+
+  it("keeps formulas as they are when escaping is off", async () => {
+    const text = await read(exportCsv(pager(), { escapeFormulas: false }));
+
+    expect(text).toContain("=SUM(A1)");
+    expect(text).not.toContain("'=SUM(A1)");
+  });
 });

@@ -240,4 +240,39 @@ describe("entityList export", () => {
       filters: { status: ["open"], paged: true, limit: 2 },
     });
   });
+
+  it("sends the per-call organization id on every page", async () => {
+    const tenants: unknown[] = [];
+
+    const call: BlockCall = (_fn, args, then) => {
+      tenants.push(args["tenant"]);
+
+      return AsyncResult.from(async () =>
+        ok(
+          await then({
+            items: [{ id: "1" }],
+            hasMore: false,
+            nextCursor: null,
+          }),
+        ),
+      );
+    };
+
+    const list = entityList<{ id: string }, { organizationId?: string }>({
+      ...SPEC,
+      call,
+      tenant: tenantOrOption("block-org"),
+      fn: "list_things",
+      rowOf: (row) => ({ id: String(row["id"]) }),
+    });
+
+    let text = "";
+
+    for await (const chunk of list.export({ organizationId: "call-org" })) {
+      text += chunk;
+    }
+
+    expect(text).toBe("id\r\n1\r\n");
+    expect(tenants).toEqual(["call-org"]);
+  });
 });
