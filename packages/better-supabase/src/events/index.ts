@@ -37,6 +37,8 @@ export interface RowEventData {
   readonly table: string;
   readonly row: Readonly<Record<string, unknown>>;
   readonly actorId?: string;
+  /** The admin acting as `actorId` in an impersonation session. */
+  readonly impersonatedBy?: string;
 }
 
 function subjectOf(
@@ -80,6 +82,7 @@ export function toCloudEvents(
   const tenant = notice.tenant ?? notice.context.tenant;
   const rows = notice.rows.length > 0 ? notice.rows : (notice.keys ?? []);
   const actorId = notice.context.actor?.id;
+  const impersonatedBy = notice.context.actor?.impersonator;
   const dataschema = dataschemaOf(options, { type, table: notice.table });
 
   return rows.map((row) => {
@@ -94,7 +97,12 @@ export function toCloudEvents(
       time,
       datacontenttype: "application/json",
       ...dataschema,
-      data: { table: notice.table, row, ...(actorId ? { actorId } : {}) },
+      data: {
+        table: notice.table,
+        row,
+        ...(actorId ? { actorId } : {}),
+        ...(impersonatedBy ? { impersonatedBy } : {}),
+      },
       ...(tenant ? { partitionkey: tenant } : {}),
     };
   });

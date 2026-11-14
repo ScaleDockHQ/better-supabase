@@ -848,6 +848,13 @@ export interface BlockEventMeta {
   readonly tenant?: string;
   /** The user who caused it. */
   readonly actorId?: string;
+  /**
+   * The admin acting as that user in a support or impersonation session (the
+   * `act` claim's `sub`), so a mutating method records the acting member next
+   * to the impersonated user (ADR 0056, ADR 0921). Filled from
+   * `context.actor.impersonator` when the block does not name it.
+   */
+  readonly impersonatedBy?: string;
   readonly context?: RequestContext;
 }
 
@@ -947,8 +954,12 @@ export function emitBlockEvent<
   // `M[K]` data it was made from.
   const copy = cloneValue(data) as M[K];
 
+  const impersonatedBy =
+    meta.impersonatedBy ?? meta.context?.actor?.impersonator;
+
   const event: BlockEvent = {
     ...meta,
+    ...(impersonatedBy ? { impersonatedBy } : {}),
     type,
     data: copy,
     time: (events.now ?? nowInstant)(),
