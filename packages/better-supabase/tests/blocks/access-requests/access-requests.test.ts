@@ -113,22 +113,15 @@ describe("access requests client", () => {
         "list_access_requests",
         {
           tenant: "o",
-          status: "granted",
-          mine: true,
-          page_size: 5,
-          before: "2026-10-02T00:00:00Z",
+          filters: {
+            status: "granted",
+            mine: true,
+            limit: 5,
+            before: "2026-10-02T00:00:00Z",
+          },
         },
       ],
-      [
-        "list_access_requests",
-        {
-          tenant: "o",
-          status: null,
-          mine: false,
-          page_size: null,
-          before: null,
-        },
-      ],
+      ["list_access_requests", { tenant: "o", filters: {} }],
       ["end_access", { request_id: "r1" }],
     ]);
   });
@@ -421,5 +414,58 @@ describe("access requests client", () => {
         })
       ).ok,
     ).toBe(false);
+  });
+
+  it("pages, counts and facets requests of the organization named per call", async () => {
+    const fake = transport({
+      list_access_requests: (args) => {
+        const filters = (args as { filters: Record<string, unknown> }).filters;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: "status",
+            values: [{ value: "granted", count: { value: 1, exact: true } }],
+          };
+        }
+
+        return filters["count"] === true
+          ? { value: 1, exact: true }
+          : { items: [GRANTED], hasMore: false, nextCursor: null };
+      },
+    });
+
+    const access = createAccessRequests({ transport: fake, schema: "app" });
+
+    const page = await access
+      .page({
+        organizationId: "o",
+        sort: { by: "createdAt", direction: "asc" },
+        filters: { status: ["granted"], mine: ["true"] },
+        limit: 10,
+      })
+      .orThrow();
+
+    expect(page.items[0]).toMatchObject({ id: "r1", status: "granted" });
+    expect(await access.count({ organizationId: "o" }).orThrow()).toEqual({
+      value: 1,
+      exact: true,
+    });
+    expect(
+      (await access.facets({ organizationId: "o" }).orThrow())[0]?.facet,
+    ).toBe("status");
+    expect(fake.calls[0]).toEqual([
+      "list_access_requests",
+      {
+        tenant: "o",
+        filters: {
+          sort: "createdAt",
+          direction: "asc",
+          status: ["granted"],
+          mine: ["true"],
+          limit: 10,
+          paged: true,
+        },
+      },
+    ]);
   });
 });

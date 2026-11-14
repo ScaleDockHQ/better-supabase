@@ -62,15 +62,27 @@ describe("createDomains", () => {
   it("maps hostnames and the proxy lookup", async () => {
     const { calls, transport } = fakeTransport({
       add_hostname: hostnameRow(),
-      list_hostnames: [
-        hostnameRow({ ...verified, is_primary: true }),
-        hostnameRow({
-          id: "h2",
-          hostname: "acme.acme.app",
-          kind: "subdomain",
-          ...verified,
-        }),
-      ],
+      list_hostnames: (args: Record<string, unknown>) => {
+        const rows = [
+          hostnameRow({ ...verified, is_primary: true }),
+          hostnameRow({
+            id: "h2",
+            hostname: "acme.acme.app",
+            kind: "subdomain",
+            ...verified,
+          }),
+        ];
+
+        const filters = (args["filters"] ?? {}) as Record<string, unknown>;
+
+        if (filters["count"] === true) {
+          return { value: rows.length, exact: true };
+        }
+
+        return filters["paged"] === true
+          ? { items: rows, hasMore: false, nextCursor: null }
+          : rows;
+      },
       set_primary_hostname: hostnameRow({ ...verified, is_primary: true }),
       remove_hostname: true,
       resolve_hostname: {
@@ -105,6 +117,26 @@ describe("createDomains", () => {
     expect(list[0]!.record).toBeUndefined();
     expect(list[0]!.verifiedAt?.toString()).toBe("2026-10-19T12:05:00Z");
 
+    const page = await domains
+      .page({
+        organizationId: "org-2",
+        sort: { by: "hostname" },
+        filters: { verified: ["true"] },
+      })
+      .orThrow();
+
+    expect(page.items.map((row) => row.hostname)).toEqual([
+      "app.acme.test",
+      "acme.acme.app",
+    ]);
+    expect(await domains.count({ organizationId: "org-1" }).orThrow()).toEqual({
+      value: 2,
+      exact: true,
+    });
+    expect(
+      (await domains.page({ organizationId: "o", sort: { by: "x" } })).ok,
+    ).toBe(false);
+
     expect((await domains.setPrimary("h1").orThrow()).primary).toBe(true);
     expect(await domains.remove("h1").orThrow()).toBe(true);
     expect(await domains.resolve("Acme.Acme.App:443").orThrow()).toEqual({
@@ -117,6 +149,14 @@ describe("createDomains", () => {
     expect(calls).toEqual([
       ["add_hostname", { tenant: "org-1", hostname: "app.acme.test" }],
       ["list_hostnames", { tenant: "org-1" }],
+      [
+        "list_hostnames",
+        {
+          tenant: "org-2",
+          filters: { verified: ["true"], sort: "hostname", paged: true },
+        },
+      ],
+      ["list_hostnames", { tenant: "org-1", filters: { count: true } }],
       ["set_primary_hostname", { id: "h1" }],
       ["remove_hostname", { id: "h1" }],
       ["resolve_hostname", { hostname: "acme.acme.app" }],

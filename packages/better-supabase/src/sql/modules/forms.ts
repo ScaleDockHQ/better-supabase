@@ -23,6 +23,7 @@ import {
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { DURATION } from "./approvals-policies.ts";
+import { formListFunction } from "./forms-list.ts";
 import { formNpsFunction } from "./forms-nps.ts";
 import { formSchemaFunctions, formScoringFunctions } from "./forms-schema.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -675,27 +676,7 @@ end;
 $$;
 ${userGrant(`${fn("get_form_version")}(uuid)`)}
 
-create or replace function ${fn("list_forms")}(tenant ${ctx.idType}, status text default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-declare
-  v_rows jsonb;
-begin
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "list_forms.tenant", read)}) then
-    ${fail("FORM_FORBIDDEN", "not allowed to read forms")}
-  end if;
-  select coalesce(jsonb_agg(${formJson("x")} order by x.${f("createdAt")} desc), '[]'::jsonb) into v_rows
-  from ${forms} x
-  where x.${f("tenant")} = list_forms.tenant
-    and (list_forms.status is null or x.${f("status")}::text = list_forms.status);
-  return v_rows;
-end;
-$$;
-${userGrant(`${fn("list_forms")}(${ctx.idType}, text)`)}
+${formListFunction(ctx, formJson)}
 
 -- Writes a submission against the form's current version, validating the
 -- answers unless it is a draft. Only definer functions of this module call it.
