@@ -6,6 +6,26 @@ interface EntityPageInput {
   route: string;
   name?: string | undefined;
   reads?: string | undefined;
+  tenantOption?: string | undefined;
+  app?:
+    | {
+        surface: {
+          sorts?: string[] | undefined;
+          facets?: string[] | undefined;
+          filters?: string[] | undefined;
+          search?: boolean | string[] | undefined;
+        };
+        table?:
+          | {
+              schema?: string | undefined;
+              name: string;
+              tenant?: string | undefined;
+              columns: Record<string, string>;
+            }
+          | undefined;
+        reads: { module: string; export: string };
+      }
+    | undefined;
   methods?:
     | { page?: string | undefined; facets?: string | undefined }
     | undefined;
@@ -47,6 +67,26 @@ export const entityPageSchema: v.GenericSchema<EntityPageInput> =
     route: v.pipe(v.string(), v.startsWith("/")),
     name: v.optional(v.pipe(v.string(), v.regex(/^[a-z][a-z0-9-]*$/))),
     reads: v.optional(v.string()),
+    tenantOption: v.optional(v.pipe(v.string(), v.regex(/^[A-Za-z_$][\w$]*$/))),
+    app: v.optional(
+      v.strictObject({
+        surface: v.strictObject({
+          sorts: v.optional(v.array(v.string())),
+          facets: v.optional(v.array(v.string())),
+          filters: v.optional(v.array(v.string())),
+          search: v.optional(v.union([v.boolean(), v.array(v.string())])),
+        }),
+        table: v.optional(
+          v.strictObject({
+            schema: v.optional(v.string()),
+            name: v.string(),
+            tenant: v.optional(v.string()),
+            columns: v.record(v.string(), v.string()),
+          }),
+        ),
+        reads: v.strictObject({ module: v.string(), export: v.string() }),
+      }),
+    ),
     methods: v.optional(
       v.strictObject({
         page: v.optional(v.pipe(v.string(), v.regex(/^[A-Za-z_$][\w$]*$/))),

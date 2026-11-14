@@ -14,6 +14,41 @@ import { decodeFilterQuery } from "./filter-query.ts";
 /** The version of the `EntityPage` descriptor `gen` reads (ADR 0859). */
 export const ENTITY_PAGE_API_VERSION = 1;
 
+/**
+ * The list surface and reads of an entity no block owns: an app table, or a
+ * list the app reads itself. `defineEntityPage` takes it as `app` with an
+ * entity named `app.<key>`.
+ */
+export interface EntityAppSource {
+  /** What the list sorts, counts, filters and searches by. */
+  readonly surface: {
+    readonly sorts?: readonly string[];
+    readonly facets?: readonly string[];
+    /** Default: `facets`. */
+    readonly filters?: readonly string[];
+    readonly search?: boolean | readonly string[];
+  };
+  /**
+   * The table behind the entity, so `gen` writes its indexes and scale test.
+   * `columns` maps each sort, facet and column key to the database column.
+   */
+  readonly table?: {
+    /** Default `public`. */
+    readonly schema?: string;
+    readonly name: string;
+    /** The tenant column, when the table has one. */
+    readonly tenant?: string;
+    readonly columns: Readonly<Record<string, string>>;
+  };
+  /**
+   * The module that holds the reads: its export is a function that takes the
+   * route's `db` and returns the entity's `page` and `facets`
+   * (`EntityListReads`). The generated routes call it in place of
+   * `db.<reads>.<page>`.
+   */
+  readonly reads: { readonly module: string; readonly export: string };
+}
+
 /** One entity's page: what the app writes, and what every generator reads. */
 export interface EntityPage {
   /** The version of this descriptor, so a breaking change needs a new one. */
@@ -41,6 +76,18 @@ export interface EntityPage {
    * (`periodPage`, `periodFacets`).
    */
   readonly methods?: { readonly page?: string; readonly facets?: string };
+  /**
+   * Names the per-call option a block takes for the organization
+   * (`organizationId`, a `RequiredTenantOption`). The generated routes pass the
+   * request's tenant under that name to `page`, `facets` and the export.
+   */
+  readonly tenantOption?: string;
+  /**
+   * An entity no block owns: an app table or a list the app reads itself. Then
+   * `entity` is `app.<key>` and the surface, the table and the reads come from
+   * here instead of a block manifest.
+   */
+  readonly app?: EntityAppSource;
   /** The list's paging; the entity documents its own default and cap. */
   readonly list?: {
     /** The `limit` a request gets without one. */
@@ -98,6 +145,18 @@ export function defineEntityPage(input: EntityPageInput): EntityPage {
   if (!input.route.startsWith("/")) {
     throw new TypeError(
       `defineEntityPage: route "${input.route}" must start with "/".`,
+    );
+  }
+
+  if (input.app !== undefined && !input.entity.startsWith("app.")) {
+    throw new TypeError(
+      `defineEntityPage: entity "${input.entity}" sets \`app\`, so it must be named "app.<entity>".`,
+    );
+  }
+
+  if (input.app === undefined && input.entity.startsWith("app.")) {
+    throw new TypeError(
+      `defineEntityPage: entity "${input.entity}" is an app entity; set \`app\` with its surface and reads.`,
     );
   }
 

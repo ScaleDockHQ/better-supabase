@@ -168,6 +168,7 @@ describe("the columns, detail and forms outputs", () => {
   it("writes the three modules beside the list", () => {
     expect([...files.keys()].toSorted()).toStrictEqual([
       "app/api/risks/list/route.ts",
+      "src/lib/supabase/pages/coverage.ts",
       "src/lib/supabase/pages/risks.columns.ts",
       "src/lib/supabase/pages/risks.detail.ts",
       "src/lib/supabase/pages/risks.form.ts",

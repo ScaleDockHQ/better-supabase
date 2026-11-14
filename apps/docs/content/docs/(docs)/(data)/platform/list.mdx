@@ -499,19 +499,21 @@ export default defineConfig({
 });
 ```
 
-| Field      | Meaning                                                                                       |
-| ---------- | --------------------------------------------------------------------------------------------- |
-| `entity`   | The block entity as `<block>.<entity>`. The block manifest supplies the surface.              |
-| `route`    | The page's route in the app. The last segment names the generated files unless `name` is set. |
-| `name`     | The file stem of the generated files. Defaults to the last segment of `route`.                |
-| `reads`    | The expression under `db` that holds the reads. Defaults to the block name.                   |
-| `methods`  | The `page` and `facets` method names on `reads`. Default `page` and `facets`.                 |
-| `list`     | `pageSize` and `maxPageSize` of the generated list query.                                     |
-| `columns`  | The logical columns of the list, in order. `gen` writes `pages/<name>.columns.ts` from them.  |
-| `sections` | The sections of the detail page, in order. `gen` writes `pages/<name>.detail.ts` from them.   |
-| `area`     | The nav area of the page. `gen` writes `pages/<name>.navigation.ts` when it is set.           |
-| `seed`     | `demo` rows (default 10, at most 500) and `tiers`. `gen` writes `pages/<name>.seed.ts`.       |
-| `export`   | `filename`, `columns` and `maxRows` of a CSV download. `gen` writes `/api/<name>/export`.     |
+| Field          | Meaning                                                                                                                          |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `entity`       | The block entity as `<block>.<entity>`. The block manifest supplies the surface.                                                 |
+| `route`        | The page's route in the app. The last segment names the generated files unless `name` is set.                                    |
+| `name`         | The file stem of the generated files. Defaults to the last segment of `route`.                                                   |
+| `reads`        | The expression under `db` that holds the reads. Defaults to the block name.                                                      |
+| `methods`      | The `page` and `facets` method names on `reads`. Default `page` and `facets`.                                                    |
+| `list`         | `pageSize` and `maxPageSize` of the generated list query.                                                                        |
+| `columns`      | The logical columns of the list, in order. `gen` writes `pages/<name>.columns.ts` from them.                                     |
+| `sections`     | The sections of the detail page, in order. `gen` writes `pages/<name>.detail.ts` from them.                                      |
+| `area`         | The nav area of the page. `gen` writes `pages/<name>.navigation.ts` when it is set.                                              |
+| `seed`         | `demo` rows (default 10, at most 500) and `tiers`. `gen` writes `pages/<name>.seed.ts`.                                          |
+| `export`       | `filename`, `columns` and `maxRows` of a CSV download. `gen` writes `/api/<name>/export`.                                        |
+| `tenantOption` | The per-call option a block takes for the organization (`organizationId`). The routes pass the request's tenant under that name. |
+| `app`          | The surface, table and reads of an entity no block owns (`app.<entity>`). See below.                                             |
 
 The generated module calls `defineEntityListQuery` with the entity's surface. It has no database
 access of its own: `parse` checks the URL, `schema` checks typed input as a Standard Schema, and `run`
@@ -546,6 +548,45 @@ A ReUI filter tree works too. `parse` reads the `filter` parameter (`encodeFilte
 filter, to the same `filters`. An `or` group, a nested group, a negated rule, another operator or a
 field that appears twice comes back as an issue, because the entity's `page` filters by lists of
 values only.
+
+### Blocks that take the organization per call
+
+A block whose `page`, `facets` and `count` take `organizationId` on every call (a
+`RequiredTenantOption`, such as `incidents`) needs the tenant in the generated route. Set
+`tenantOption: "organizationId"` and the list and export routes read `tenant` from the route context
+and pass `{ organizationId: tenant }` to `page` and `facets`.
+
+### An app table or a list the app reads itself
+
+An entity no block owns has no manifest. Name it `app.<entity>` and give `defineEntityPage` the `app`
+descriptor: the `surface` (`sorts`, `facets`, `filters`, `search`), the `table` when `gen` should
+write its indexes and scale test, and the `reads` module.
+
+```ts title="better-supabase.config.ts"
+defineEntityPage({
+  entity: "app.customer",
+  route: "/customers",
+  columns: ["name", "status"],
+  app: {
+    surface: {
+      sorts: ["name", "newest"],
+      facets: ["status"],
+      search: ["name"],
+    },
+    table: {
+      name: "customers",
+      tenant: "tenant_id",
+      columns: { name: "name", status: "status" },
+    },
+    reads: { module: "@/lib/customer-reads", export: "customerReads" },
+  },
+});
+```
+
+The `reads` export is a function that takes the route's `db` and returns `{ page, facets }`
+(`EntityListReads`). The generated list and export routes call it in place of `db.<reads>.page`.
+An app entity has no input schema, so it writes no form or seed file, and it writes no coverage entry
+because it belongs to no block.
 
 ### Columns, detail and forms
 

@@ -2957,6 +2957,89 @@
                   "reads": {
                     "type": "string"
                   },
+                  "tenantOption": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_$][\\w$]*$"
+                  },
+                  "app": {
+                    "type": "object",
+                    "properties": {
+                      "surface": {
+                        "type": "object",
+                        "properties": {
+                          "sorts": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "facets": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "filters": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "search": {
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "table": {
+                        "type": "object",
+                        "properties": {
+                          "schema": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "tenant": {
+                            "type": "string"
+                          },
+                          "columns": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": ["name", "columns"],
+                        "additionalProperties": false
+                      },
+                      "reads": {
+                        "type": "object",
+                        "properties": {
+                          "module": {
+                            "type": "string"
+                          },
+                          "export": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["module", "export"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": ["surface", "reads"],
+                    "additionalProperties": false
+                  },
                   "methods": {
                     "type": "object",
                     "properties": {

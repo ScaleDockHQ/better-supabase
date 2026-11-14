@@ -1055,11 +1055,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M5
 
 - Scope: Remaining example list helpers, app-table and inbox pages, free sort
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-lane-m5`
 - PR: none yet
 - Findings: EX-001, EX-014, EX-024, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
 - Log: 2026-11-14, planned from lane M4's leftovers. ADR numbers continue M4's range from 0890. Needs: a page descriptor for an app table (customers) and for a block entity with a per-call tenant, a list surface for the inbox conversations, a free multi-column sort in the blocks' `page`, and the pages that still read arrays (EX-600).
+- Log: 2026-11-14, lane M5 started from main (014bf64cc8) in `../bsb-audit-M5`. PR 1 (library, ADR 0890): `tenantOption`, `app` entities and the `coverage` output of `defineEntityPage`. PR 2 declares the example's pages and moves its coverage map, seeds and instant routes onto them.
 
 ### Lane O1
 
