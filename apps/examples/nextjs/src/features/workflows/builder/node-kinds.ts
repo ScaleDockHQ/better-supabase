@@ -13,9 +13,9 @@ const text = (node: WorkflowGraphNode, key: string): string =>
 /**
  * The deployment's own node kinds beside the five built-in ones (ADR 0126).
  * Each runs as one step: `loop` and `parallel` call library steps inside it,
- * `ai-step` calls a model, `human-task` asks a member and `sub-workflow` starts
- * another definition. The canvas builds the palette and the inspector form from
- * these `configSchema`s.
+ * `ai-step` calls a model, `human-task` asks a member and waits for them, and
+ * `sub-workflow` starts another definition and waits for its run. The canvas
+ * builds the palette and the inspector form from these `configSchema`s.
  */
 const loopKind = defineNodeKind({
   apiVersion: 1,
@@ -79,7 +79,9 @@ const humanTaskKind = defineNodeKind({
   apiVersion: 1,
   kind: "human-task",
   title: "Human task",
-  description: "Asks a member to do something and notifies them.",
+  description:
+    "Asks a member to do something, notifies them and waits until they mark it done.",
+  waits: true,
   configSchema: {
     type: "object",
     properties: {
@@ -135,7 +137,9 @@ const subWorkflowKind = defineNodeKind({
   apiVersion: 1,
   kind: "sub-workflow",
   title: "Sub-workflow",
-  description: "Starts another workflow and returns its run id.",
+  description:
+    "Starts another workflow and waits for its run to finish; its status is the output.",
+  waits: true,
   configSchema: {
     type: "object",
     properties: {

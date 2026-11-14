@@ -405,6 +405,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'node', ${alias}.${cn("node")},
     'status', ${alias}.${cn("status")},
     'attempts', ${alias}.${cn("attempts")},
+    'input', ${alias}.${cn("input")},
     'output', ${alias}.${cn("output")},
     'error', ${alias}.${cn("error")},
     'startedAt', ${alias}.${cn("startedAt")},
@@ -771,6 +772,32 @@ as $$
 $$;
 ${serviceGrant(`${fn("workflow_webhook_target")}(text)`)}
 
+-- The enabled event triggers that listen for a block event type: the ones
+-- whose config.event is the type, or a prefix.* pattern that covers it. A
+-- tenant narrows them to its definitions; system definitions (no tenant)
+-- always match. Service role; the event subscriber calls it.
+create or replace function ${fn("workflow_event_targets")}(event text, tenant ${id} default null)
+returns jsonb
+language sql
+stable
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('trigger', ${triggerJson("x")}, 'tenant', y.${cd("tenant")}) order by x.${ct("createdAt")}), '[]'::jsonb)
+  from ${t} x
+  join ${d} y on y.${cd("id")} = x.${ct("definition")}
+  where x.${ct("kind")} = 'event'
+    and x.${ct("enabled")}
+    and (
+      x.${ct("config")} ->> 'event' = workflow_event_targets.event
+      or (
+        x.${ct("config")} ->> 'event' like '%.*'
+        and workflow_event_targets.event like left(x.${ct("config")} ->> 'event', -1) || '%'
+      )
+    )
+    and (workflow_event_targets.tenant is null or y.${cd("tenant")} is null or y.${cd("tenant")} = workflow_event_targets.tenant);
+$$;
+${serviceGrant(`${fn("workflow_event_targets")}(text, ${id})`)}
+
 -- Creates or replaces a credential reference: workflow.admin in tenant.
 create or replace function ${fn("save_workflow_credential")}(
   tenant ${id},
@@ -901,14 +928,16 @@ ${callable(`${fn("workflow_steps_list")}()`)}
 
 -- Records a node's status for a run (by its id or its engine's id) and
 -- pings the run's topic. attempt raises attempts; started_at keeps the
--- first start and ended_at is set by completed, failed and skipped.
+-- first start and ended_at is set by completed, failed and skipped. input
+-- is the step's input; a later call without one keeps it.
 create or replace function ${fn("record_workflow_node_run")}(
   run text,
   node text,
   status text,
   attempt integer default null,
   output jsonb default null,
-  error text default null
+  error text default null,
+  input jsonb default null
 )
 returns boolean
 language plpgsql
@@ -927,11 +956,12 @@ begin
   if not found then
     return false;
   end if;
-  insert into ${n} as x (${cn("run")}, ${cn("node")}, ${cn("status")}, ${cn("attempts")}, ${cn("output")}, ${cn("error")}, ${cn("startedAt")}, ${cn("endedAt")})
-  values (v_run, node, ${nodeRunStatus("status")}, coalesce(attempt, 0), output, left(error, 4000), now(), case when v_ended then now() end)
+  insert into ${n} as x (${cn("run")}, ${cn("node")}, ${cn("status")}, ${cn("attempts")}, ${cn("input")}, ${cn("output")}, ${cn("error")}, ${cn("startedAt")}, ${cn("endedAt")})
+  values (v_run, node, ${nodeRunStatus("status")}, coalesce(attempt, 0), input, output, left(error, 4000), now(), case when v_ended then now() end)
   on conflict (${cn("run")}, ${cn("node")}) do update set
     ${cn("status")} = excluded.${cn("status")},
     ${cn("attempts")} = greatest(x.${cn("attempts")}, excluded.${cn("attempts")}),
+    ${cn("input")} = coalesce(excluded.${cn("input")}, x.${cn("input")}),
     ${cn("output")} = coalesce(excluded.${cn("output")}, x.${cn("output")}),
     ${cn("error")} = excluded.${cn("error")},
     ${cn("startedAt")} = coalesce(x.${cn("startedAt")}, excluded.${cn("startedAt")}),
@@ -940,7 +970,7 @@ begin
   return true;
 end;
 $$;
-${serviceGrant(`${fn("record_workflow_node_run")}(text, text, text, integer, jsonb, text)`)}
+${serviceGrant(`${fn("record_workflow_node_run")}(text, text, text, integer, jsonb, text, jsonb)`)}
 
 -- The node statuses of a run the caller may read.
 create or replace function ${fn("workflow_node_runs_list")}(run text)

@@ -5,6 +5,7 @@ import type {
   GraphNodeCall,
   GraphStepCall,
 } from "../../src/blocks/workflow-editor/executor.ts";
+import type { WorkflowGraph } from "../../src/blocks/workflow-editor/graph.ts";
 import type { BuilderStartCall } from "../../src/blocks/workflow-editor/workflow-editor.ts";
 
 import { executeGraph } from "../../src/blocks/workflow-editor/executor.ts";
@@ -598,6 +599,15 @@ describe("graphStarter", () => {
   });
 });
 
+const CALL_FOR_REPORT: GraphStepCall = {
+  node: "n",
+  step: "s",
+  config: {},
+  input: { x: 1 },
+  results: {},
+  runKey: "k",
+};
+
 describe("nodeRunReporter", () => {
   const call: GraphStepCall = {
     node: "n",
@@ -626,7 +636,7 @@ describe("nodeRunReporter", () => {
       }),
     ).rejects.toBe("raw");
     expect(record.mock.calls.map(([input]) => input)).toEqual([
-      { run: "wrun_7", node: "n", status: "running", attempt: 2 },
+      { run: "wrun_7", node: "n", status: "running", attempt: 2, input: {} },
       {
         run: "wrun_7",
         node: "n",
@@ -634,7 +644,7 @@ describe("nodeRunReporter", () => {
         attempt: 2,
         output: { ok: 1 },
       },
-      { run: "wrun_7", node: "n", status: "running", attempt: 2 },
+      { run: "wrun_7", node: "n", status: "running", attempt: 2, input: {} },
       {
         run: "wrun_7",
         node: "n",
@@ -642,9 +652,9 @@ describe("nodeRunReporter", () => {
         attempt: 2,
         output: undefined,
       },
-      { run: "wrun_7", node: "n", status: "running", attempt: 2 },
+      { run: "wrun_7", node: "n", status: "running", attempt: 2, input: {} },
       { run: "wrun_7", node: "n", status: "failed", attempt: 2, error: "boom" },
-      { run: "wrun_7", node: "n", status: "running", attempt: 2 },
+      { run: "wrun_7", node: "n", status: "running", attempt: 2, input: {} },
       { run: "wrun_7", node: "n", status: "failed", attempt: 2, error: "raw" },
     ]);
 
@@ -655,6 +665,94 @@ describe("nodeRunReporter", () => {
     });
 
     expect(await lossy(call, async () => 5)).toBe(5);
+  });
+});
+
+describe("waiting nodes", () => {
+  const graph: WorkflowGraph = {
+    nodes: [
+      { id: "start", kind: "trigger" },
+      { id: "task", kind: "human-task", config: { title: "Call" } },
+      { id: "done", kind: "step", step: "email.send" },
+    ],
+    edges: [
+      { id: "e1", source: "start", target: "task" },
+      { id: "e2", source: "task", target: "done" },
+    ],
+  };
+
+  const kinds = [{ kind: "human-task", waits: true }];
+
+  const node = async (call: GraphNodeCall): Promise<unknown> =>
+    call.resumed === undefined
+      ? { started: true }
+      : {
+          ...(call.resumed.output as object),
+          resumedWith: call.resumed.payload,
+        };
+
+  it("compiles to a hook before the step and a second call after it, like executeGraph", async () => {
+    const compiled = compileGraph(graph, { nodes: kinds });
+    const tokens: string[] = [];
+
+    // oxlint-disable-next-line eslint/no-new-func, typescript/no-implied-eval -- the test runs the compiled source the way the SDK's VM does.
+    const factory = new Function(
+      "steps",
+      "sleep",
+      "createHook",
+      `${compiled.source}\nreturn workflow;`,
+    );
+
+    const steps = {
+      ...Object.fromEntries(
+        Object.keys(compiled.nodeAliases ?? {}).map((alias) => [alias, node]),
+      ),
+      ...Object.fromEntries(
+        Object.keys(compiled.aliases).map((alias) => [alias, () => undefined]),
+      ),
+    };
+
+    const run = factory(steps, undefined, ({ token }: { token: string }) => {
+      tokens.push(token);
+
+      return Promise.resolve({ completedBy: "u1" });
+    }) as Compiled;
+
+    const expected = await executeGraph(
+      graph,
+      {},
+      {
+        ...fakeRuntime("pro", undefined),
+        runKey: "k",
+        nodes: kinds,
+        node,
+        waitFor: async () => ({ completedBy: "u1" }),
+      },
+    );
+
+    expect(await run({}, { runKey: "k" })).toEqual(expected);
+    expect(tokens).toEqual(["node-wait:k:task"]);
+    expect(expected["task"]).toEqual({
+      started: true,
+      resumedWith: { completedBy: "u1" },
+    });
+
+    expect(
+      await run({}, { runKey: "k", mode: "test", stubs: {} }),
+    ).toMatchObject({ task: { stubbed: true } });
+    expect(tokens).toHaveLength(1);
+  });
+
+  it("records a waiting node as waiting, then completed on the resumed call", async () => {
+    const record = vi.fn(async (_input: unknown) => true);
+    const report = nodeRunReporter({ record });
+    attempt = 1;
+
+    await report(CALL_FOR_REPORT, async () => ({ a: 1 }), { waits: true });
+
+    expect(
+      record.mock.calls.map(([input]) => (input as { status: string }).status),
+    ).toEqual(["running", "waiting"]);
   });
 });
 

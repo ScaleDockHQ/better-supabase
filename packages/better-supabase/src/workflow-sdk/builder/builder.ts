@@ -22,7 +22,10 @@ import type {
 import type { Actor, RequestContext } from "../../core/plugin.ts";
 import type { WorkflowFn } from "../workflow-sdk.ts";
 
-import { startNodeOf } from "../../blocks/workflow-editor/executor.ts";
+import {
+  NODE_WAIT_PREFIX,
+  startNodeOf,
+} from "../../blocks/workflow-editor/executor.ts";
 import {
   branchesOn,
   durationMs,
@@ -30,6 +33,7 @@ import {
   isGraphRecord,
   topologicalOrder,
   validateGraph,
+  waitsOn,
 } from "../../blocks/workflow-editor/graph.ts";
 import { subjectAttribute, WORKFLOW_ATTRIBUTES } from "../attributes.ts";
 import { contextAttributes, runForKey } from "../workflow-sdk.ts";
@@ -152,8 +156,18 @@ function customNodeBody(
   node: WorkflowGraphNode,
   alias: string | undefined,
   branches: boolean,
+  waits: boolean,
 ): string {
   const id = literal(node.id);
+
+  if (waits) {
+    return `const waiting = testing ? null : createHook({ token: ${literal(NODE_WAIT_PREFIX)} + runKey + ":" + ${id} });
+    const started = testing ? stub(${id}, { stubbed: true }) : await steps.${alias ?? ""}({ node: ${id}, kind: ${literal(node.kind)}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId, tenant, subject });
+    const payload = testing ? null : await waiting;
+    const output = testing ? started : await steps.${alias ?? ""}({ node: ${id}, kind: ${literal(node.kind)}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId, tenant, subject, resumed: { payload: payload === undefined ? null : payload, output: started === undefined ? null : started } });
+    results[${id}] = output === undefined ? null : output;
+    ran[${id}] = ${branches ? "Boolean(output)" : "true"};`;
+  }
 
   return `const output = testing ? stub(${id}, { stubbed: true }) : await steps.${alias ?? ""}({ node: ${id}, kind: ${literal(node.kind)}, config: ${literal(node.config ?? {})}, input, results: Object.assign({}, results), runKey, version: versionId, tenant, subject });
     results[${id}] = output === undefined ? null : output;
@@ -260,7 +274,12 @@ export function compileGraph(
     }
 
     const body = custom
-      ? customNodeBody(node, alias, branchesOn(node.kind, kinds))
+      ? customNodeBody(
+          node,
+          alias,
+          branchesOn(node.kind, kinds),
+          waitsOn(node.kind, kinds),
+        )
       : nodeBody(node, alias);
 
     const comment = `  // ${node.kind} node ${String(index)}`;
@@ -592,6 +611,15 @@ export interface NodeRunSink {
   record(input: NodeRunRecord): PromiseLike<unknown>;
 }
 
+export interface NodeRunReportOptions {
+  /**
+   * The node waits after this step (its kind sets `waits`): record `waiting`
+   * with the step's output instead of `completed`; the resume path records
+   * `completed` once it wakes the run.
+   */
+  readonly waits?: boolean;
+}
+
 /**
  * Wraps a step so it records its node in `workflow_node_runs`: `running` with
  * the attempt when it starts, then `completed` with its output or `failed` with
@@ -608,7 +636,11 @@ export interface NodeRunSink {
  */
 export function nodeRunReporter(
   sink: NodeRunSink,
-): <T>(call: GraphStepCall, run: () => Promise<T>) => Promise<T> {
+): <T>(
+  call: GraphStepCall,
+  run: () => Promise<T>,
+  options?: NodeRunReportOptions,
+) => Promise<T> {
   const record = async (input: NodeRunRecord): Promise<void> => {
     try {
       await sink.record(input);
@@ -617,17 +649,23 @@ export function nodeRunReporter(
     }
   };
 
-  return async (call, run) => {
+  return async (call, run, options) => {
     const runId = getWorkflowMetadata().workflowRunId;
     const attempt = getStepMetadata().attempt;
-    await record({ run: runId, node: call.node, status: "running", attempt });
+    await record({
+      run: runId,
+      node: call.node,
+      status: "running",
+      attempt,
+      input: call.input,
+    });
 
     try {
       const output = await run();
       await record({
         run: runId,
         node: call.node,
-        status: "completed",
+        status: options?.waits === true ? "waiting" : "completed",
         attempt,
         output,
       });

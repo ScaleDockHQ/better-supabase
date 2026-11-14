@@ -48,6 +48,7 @@ const TRIGGER_KINDS: readonly WorkflowTriggerKind[] = [
   "schedule",
   "form",
   "chat",
+  "event",
 ];
 
 const SCOPES: readonly WorkflowDefinitionScope[] = ["tenant", "system"];
@@ -216,6 +217,7 @@ export function nodeRunOf(row: Record<string, unknown>): WorkflowNodeRun {
     node: textOf(row["node"]),
     status: enumOrThrow(row["status"], NODE_RUN_STATUSES, "node status"),
     attempts: Number(row["attempts"] ?? 0),
+    input: row["input"] ?? undefined,
     output: row["output"] ?? undefined,
     error: optionalText(row["error"]),
     startedAt: optionalInstant(row["startedAt"]),

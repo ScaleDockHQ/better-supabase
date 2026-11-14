@@ -10,6 +10,7 @@ import { bsb } from "@/lib/supabase/server";
 import { builderFor } from "./builder-server";
 import { GRAPH_APPROVAL } from "./graph-steps";
 import { runInput } from "./run-input";
+import { wakeHumanTask } from "./wake-waiting-nodes";
 import { templateOf, workflowTemplates } from "./workflow-templates";
 
 const Id = v.pipe(v.string(), v.minLength(1), v.maxLength(100));
@@ -276,7 +277,7 @@ export const removeDefinition = bsb.action(
   },
 );
 
-const TriggerKind = v.picklist(["manual", "webhook", "schedule"]);
+const TriggerKind = v.picklist(["manual", "webhook", "schedule", "event"]);
 
 export const saveTrigger = bsb.action(
   {
@@ -284,14 +285,35 @@ export const saveTrigger = bsb.action(
       definition: Id,
       kind: TriggerKind,
       cron: v.optional(v.pipe(v.string(), v.trim(), v.maxLength(100))),
+      event: v.optional(
+        v.pipe(
+          v.string(),
+          v.trim(),
+          v.regex(/^(?:[a-z][a-z0-9_.-]{0,99}|[a-z][a-z0-9_-]{0,60}\.\*)?$/u),
+        ),
+      ),
     }),
     requireTenant: true,
     permission: "workflow_editor.manage",
   },
-  async ({ definition, kind, cron }, { tenant, supabase }) => {
+  async ({ definition, kind, cron, event }, { tenant, supabase }) => {
     const builder = builderFor(supabase);
 
-    const config = kind === "schedule" ? { cron: cron ?? "0 9 * * *" } : {};
+    if (kind === "event" && (event === undefined || event === "")) {
+      return err(
+        dbError(
+          "invalid_input",
+          "An event trigger names the event it listens for",
+        ),
+      );
+    }
+
+    const config =
+      kind === "schedule"
+        ? { cron: cron ?? "0 9 * * *" }
+        : kind === "event"
+          ? { event }
+          : {};
 
     const saved = await builder.triggers.upsert({ definition, kind, config });
 
@@ -460,6 +482,65 @@ export const decideNode = bsb.action(
         payload: { id: decided.data.id },
       });
     }
+
+    return ok(true);
+  },
+);
+
+/**
+ * Marks a graph run's human task done, then resumes the run. The run is read
+ * under RLS and must belong to the active organization, the node must be
+ * waiting, and only the member the task was assigned to may complete it.
+ */
+export const completeHumanTask = bsb.action(
+  {
+    input: v.object({ run: Id, node: Id }),
+    requireTenant: true,
+    permission: "workflow_editor.run",
+  },
+  async ({ run, node }, { tenant, auth, supabase, db }) => {
+    if (auth.kind !== "user") {
+      return err(dbError("unauthorized", "Sign in to complete the task"));
+    }
+
+    const found = await db.workflows.runs.get(run);
+
+    if (!found.ok) {
+      return found;
+    }
+
+    const key = found.data?.attributes["bsb.key"];
+
+    if (found.data?.tenant !== tenant || !v.is(v.string(), key)) {
+      return err(dbError("not_found", "No such run"));
+    }
+
+    const nodes = await builderFor(supabase).nodeRuns.list(run);
+
+    if (!nodes.ok) {
+      return nodes;
+    }
+
+    const waiting = nodes.data.find(
+      (candidate) => candidate.node === node && candidate.status === "waiting",
+    );
+
+    if (waiting === undefined) {
+      return err(dbError("not_found", "The node is not waiting on a task"));
+    }
+
+    const assignee = v.safeParse(
+      v.object({ assignee: v.string() }),
+      waiting.output,
+    );
+
+    if (!assignee.success || assignee.output.assignee !== auth.user.id) {
+      return err(
+        dbError("forbidden", "Only the assignee can complete the task"),
+      );
+    }
+
+    await wakeHumanTask(key, node, auth.user.id);
 
     return ok(true);
   },
