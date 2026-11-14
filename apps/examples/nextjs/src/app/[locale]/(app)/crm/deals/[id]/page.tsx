@@ -2,7 +2,10 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
-import { activeTab } from "@/components/record-detail/record-detail-tabs";
+import {
+  activeTab,
+  searchValue,
+} from "@/components/record-detail/record-detail-tabs";
 import { buttonVariants } from "@/components/ui/button";
 import {
   DealDetail,
@@ -35,7 +38,16 @@ export default function DealPage({
       </Link>
       <Suspense fallback={<DealDetailSkeleton />}>
         {Promise.all([params, searchParams]).then(([{ id }, raw]) => (
-          <DealDetail id={id} tab={activeTab(raw, ["overview", "activity"])} />
+          <DealDetail
+            id={id}
+            tab={activeTab(raw, [
+              "overview",
+              "activity",
+              "related",
+              "conversation",
+            ])}
+            conversation={searchValue(raw, "conversation")}
+          />
         ))}
       </Suspense>
     </>

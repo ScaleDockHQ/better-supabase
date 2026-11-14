@@ -6,6 +6,8 @@ import { useAction, useErrorMessage } from "better-supabase/react";
 import { HistoryIcon, TriangleAlertIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
+import type { Loaded } from "@/features/records/records-queries";
+
 import {
   Alert,
   AlertAction,
@@ -53,15 +55,18 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { snapshotCustomerVersions } from "@/features/customers/customers-actions";
+import {
+  RecordCardSkeleton,
+  RecordLoadError,
+} from "@/features/records/components/record-card-states";
 import { toast } from "@/lib/toast";
 
-import type { Loaded, VersionRow } from "../customers-queries";
+import type { VersionRow } from "../customers-queries";
 
 import {
   compareCustomerVersions,
   restoreCustomerVersion,
 } from "../customers-actions";
-import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:version-history
 

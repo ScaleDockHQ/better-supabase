@@ -19,16 +19,16 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 
-import type { Loaded, TimelineRow } from "../customers-queries";
+import type { Loaded, TimelineRow } from "../records-queries";
 
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:subject-timeline
 /**
- * The customer's history from `customerRecord.timeline`: comments, files and
- * versions in one list, newest first.
+ * A record's history from its page's `timeline`: comments, files and versions
+ * in one list, newest first.
  */
-export async function CustomerTimeline({
+export async function RecordTimeline({
   timeline,
   authors,
 }: {
@@ -36,7 +36,7 @@ export async function CustomerTimeline({
   authors: Readonly<Record<string, string>>;
 }) {
   const [t, format] = await Promise.all([
-    getExtracted("customers"),
+    getExtracted("records"),
     getFormatter(),
   ]);
 
@@ -116,6 +116,6 @@ export async function CustomerTimeline({
 }
 // #endregion recipe:subject-timeline
 
-export function CustomerTimelineSkeleton() {
+export function RecordTimelineSkeleton() {
   return <RecordCardSkeleton rows={4} />;
 }

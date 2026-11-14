@@ -13,12 +13,12 @@ Web, with shadcn components:
 npx shadcn add badge button card empty
 ```
 
-```tsx title="apps/examples/nextjs/src/features/customers/components/customer-timeline.tsx"
+```tsx title="apps/examples/nextjs/src/features/records/components/record-timeline.tsx"
 /**
- * The customer's history from `customerRecord.timeline`: comments, files and
- * versions in one list, newest first.
+ * A record's history from its page's `timeline`: comments, files and versions
+ * in one list, newest first.
  */
-export async function CustomerTimeline({
+export async function RecordTimeline({
   timeline,
   authors,
 }: {
@@ -26,7 +26,7 @@ export async function CustomerTimeline({
   authors: Readonly<Record<string, string>>;
 }) {
   const [t, format] = await Promise.all([
-    getExtracted("customers"),
+    getExtracted("records"),
     getFormatter(),
   ]);
 

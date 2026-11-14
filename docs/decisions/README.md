@@ -502,3 +502,6 @@ add one, and link it from the code or config it explains.
 | [0949](0949-close-the-library-findings-of-lane-x2.md)                                | Close the library findings of lane X2                                                                                                                                                      |
 | [0989](0989-list-test-runs-with-a-mode-option-on-the-runs-controller.md)             | List test runs with a mode option on the runs controller                                                                                                                                   |
 | [0990](0990-keep-the-workflow-canvas-recipe-as-the-minimal-editor.md)                | Keep the workflow canvas recipe as the minimal editor                                                                                                                                      |
+| [1019](1019-make-the-record-sections-generic-over-a-subject.md) | Make the record sections generic over a subject |
+| [1020](1020-split-quotes-and-sequences-and-add-a-companies-route.md) | Split quotes and sequences into overview and detail, and add a companies route |
+| [1021](1021-add-schedule-views-owner-assignment-and-the-buyer-thread-to-the-deal-desk.md) | Add schedule views, owner assignment and the buyer thread to the deal desk |

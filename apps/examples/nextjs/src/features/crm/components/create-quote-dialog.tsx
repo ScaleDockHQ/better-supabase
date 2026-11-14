@@ -25,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
+import { useNewParam } from "@/lib/use-new-param";
 
 import { createQuote } from "../crm-actions";
 import { FormSelect } from "./form-select";
@@ -32,14 +33,18 @@ import { FormSelect } from "./form-select";
 /** Creates a draft quote, then opens the builder. */
 export function CreateQuoteDialog({
   variant = "default",
+  openFromUrl = false,
 }: {
   variant?: "default" | "outline";
+  /** Opens on mount when the URL carries `?new=1`, the command center link. */
+  openFromUrl?: boolean;
 }) {
   const t = useExtracted("crm");
   const fieldId = useId();
   const router = useRouter();
   const errorMessage = useErrorMessage();
-  const [open, setOpen] = useState(false);
+  const fromUrl = useNewParam();
+  const [open, setOpen] = useState(openFromUrl && fromUrl);
 
   const form = useActionForm(createQuote, {
     onSuccess: (quote) => {

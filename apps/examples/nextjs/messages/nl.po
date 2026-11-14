@@ -417,6 +417,28 @@ msgctxt "sales.UjHNPw"
 msgid "All statements"
 msgstr "Alle afrekeningen"
 
+#: src/app/[locale]/(app)/crm/companies/[id]/page.tsx
+msgctxt "crm.ZmUcAB"
+msgid "All companies"
+msgstr "Alle bedrijven"
+
+#: src/app/[locale]/(app)/crm/companies/page.tsx
+#: src/app/[locale]/(app)/crm/contacts/page.tsx
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.3IInif"
+msgid "Companies"
+msgstr "Bedrijven"
+
+#: src/app/[locale]/(app)/crm/companies/page.tsx
+msgctxt "sales.Sf58n5"
+msgid "The companies you sell to, with the people at each."
+msgstr "De bedrijven waaraan je verkoopt, met de mensen bij elk bedrijf."
+
+#: src/app/[locale]/(app)/crm/companies/page.tsx
+msgctxt "sales.IUQwPp"
+msgid "All contacts"
+msgstr "Alle contacten"
+
 #: src/app/[locale]/(app)/crm/contacts/[id]/page.tsx
 #: src/features/crm/components/contact-detail.tsx
 msgctxt "crm.IUQwPp"
@@ -454,6 +476,7 @@ msgid "All deals"
 msgstr "Alle deals"
 
 #: src/app/[locale]/(app)/crm/deals/page.tsx
+#: src/features/sales/components/assign-owners-form.tsx
 #: src/features/sales/components/crm-overviews.tsx
 #: src/features/sales/components/pipeline-details.tsx
 #: src/features/sales/components/pipeline-overviews.tsx
@@ -475,6 +498,16 @@ msgstr "Tabel"
 msgctxt "sales.5hUPMv"
 msgid "Board"
 msgstr "Bord"
+
+#: src/app/[locale]/(app)/crm/deals/page.tsx
+msgctxt "sales.Coy6SH"
+msgid "Calendar"
+msgstr "Kalender"
+
+#: src/app/[locale]/(app)/crm/deals/page.tsx
+msgctxt "sales.zWkvNO"
+msgid "Timeline"
+msgstr "Tijdlijn"
 
 #: src/app/[locale]/(app)/crm/forecasts/[id]/page.tsx
 msgctxt "sales.1Gamq4"
@@ -537,7 +570,6 @@ msgid "All quotes"
 msgstr "Alle offertes"
 
 #: src/app/[locale]/(app)/crm/quotes/page.tsx
-#: src/features/crm/components/quote-list.tsx
 msgctxt "crm.epJ5ty"
 msgid "Quotes"
 msgstr "Offertes"
@@ -592,6 +624,11 @@ msgstr "Segmenten"
 msgctxt "sales.r0f-xR"
 msgid "Saved filters over your companies, refreshed on a schedule."
 msgstr "Opgeslagen filters op je bedrijven, volgens schema ververst."
+
+#: src/app/[locale]/(app)/crm/sequences/[id]/page.tsx
+msgctxt "sequences.f1mToa"
+msgid "All sequences"
+msgstr "Alle reeksen"
 
 #: src/app/[locale]/(app)/crm/sequences/page.tsx
 msgctxt "sequences.fqIG9Q"
@@ -8567,6 +8604,7 @@ msgid "Task"
 msgstr "Taak"
 
 #: src/features/crm/components/activity-timeline.tsx
+#: src/features/crm/components/contact-detail.tsx
 msgctxt "crm.ZmlNQ3"
 msgid "Activity"
 msgstr "Activiteit"
@@ -8644,7 +8682,6 @@ msgstr "Telefoon"
 
 #: src/features/crm/components/contact-detail.tsx
 #: src/features/crm/components/create-quote-dialog.tsx
-#: src/features/crm/components/quote-list.tsx
 msgctxt "crm.9a9-ww"
 msgid "Title"
 msgstr "Titel"
@@ -8677,6 +8714,16 @@ msgstr "Persoon"
 msgctxt "crm.7bWVWx"
 msgid "No details yet."
 msgstr "Nog geen gegevens."
+
+#: src/features/crm/components/contact-detail.tsx
+msgctxt "crm.9uOFF3"
+msgid "Overview"
+msgstr "Overzicht"
+
+#: src/features/crm/components/contact-detail.tsx
+msgctxt "crm.KQsZBW"
+msgid "Related"
+msgstr "Gerelateerd"
 
 #: src/features/crm/components/contact-detail.tsx
 msgctxt "crm.Tpy00S"
@@ -9030,17 +9077,6 @@ msgid "Tax"
 msgstr "Btw"
 
 #: src/features/crm/components/quote-builder.tsx
-#: src/features/crm/components/quote-list.tsx
-msgctxt "crm.3E_Ujd"
-msgid "{identifier} rev. {revision, number}"
-msgstr "{identifier} versie {revision, number}"
-
-#: src/features/crm/components/quote-builder.tsx
-msgctxt "crm.g6rylQ"
-msgid "Valid until {date}"
-msgstr "Geldig tot {date}"
-
-#: src/features/crm/components/quote-builder.tsx
 #: src/features/crm/components/quote-lines-editor.tsx
 msgctxt "crm.Q8Qw5B"
 msgid "Description"
@@ -9076,10 +9112,39 @@ msgid "This quote has no lines."
 msgstr "Deze offerte heeft geen regels."
 
 #: src/features/crm/components/quote-builder.tsx
-#: src/features/crm/components/quote-list.tsx
+msgctxt "crm.3E_Ujd"
+msgid "{identifier} rev. {revision, number}"
+msgstr "{identifier} versie {revision, number}"
+
+#: src/features/crm/components/quote-builder.tsx
+msgctxt "crm.17bpAU"
+msgid "Totals"
+msgstr "Totalen"
+
+#: src/features/crm/components/quote-builder.tsx
+msgctxt "crm.g6rylQ"
+msgid "Valid until {date}"
+msgstr "Geldig tot {date}"
+
+#: src/features/crm/components/quote-builder.tsx
 msgctxt "crm.MJ2jZQ"
 msgid "Total"
 msgstr "Totaal"
+
+#: src/features/crm/components/quote-builder.tsx
+msgctxt "crm.FLpm0X"
+msgid "Line items"
+msgstr "Regels"
+
+#: src/features/crm/components/quote-builder.tsx
+msgctxt "crm.KZqoMK"
+msgid "Edit the lines, then send the quote for acceptance."
+msgstr "Bewerk de regels en verstuur de offerte ter acceptatie."
+
+#: src/features/crm/components/quote-builder.tsx
+msgctxt "crm.k6nVhN"
+msgid "This quote is no longer editable."
+msgstr "Deze offerte is niet meer te bewerken."
 
 #: src/features/crm/components/quote-lines-editor.tsx
 msgctxt "crm.BLhqJc"
@@ -9115,36 +9180,6 @@ msgstr "Regel toevoegen"
 msgctxt "crm.A4vg_c"
 msgid "Save lines"
 msgstr "Regels opslaan"
-
-#: src/features/crm/components/quote-list.tsx
-msgctxt "crm.7wJ9Pn"
-msgid "The quotes didn't load"
-msgstr "De offertes zijn niet geladen"
-
-#: src/features/crm/components/quote-list.tsx
-msgctxt "crm.X4C8jX"
-msgid "No quotes yet"
-msgstr "Nog geen offertes"
-
-#: src/features/crm/components/quote-list.tsx
-msgctxt "crm.zHWkjJ"
-msgid "Write a quote with line items and send it for acceptance."
-msgstr "Schrijf een offerte met regels en stuur hem ter acceptatie."
-
-#: src/features/crm/components/quote-list.tsx
-msgctxt "crm.7Lrxrs"
-msgid "{count, plural, one {# quote} other {# quotes}}"
-msgstr "{count, plural, one {# offerte} other {# offertes}}"
-
-#: src/features/crm/components/quote-list.tsx
-msgctxt "crm.atzUcB"
-msgid "Quote"
-msgstr "Offerte"
-
-#: src/features/crm/components/quote-list.tsx
-msgctxt "crm.tzMNF3"
-msgid "Status"
-msgstr "Status"
 
 #: src/features/crm/components/quote-status-actions.tsx
 msgctxt "crm.PwAgYr"
@@ -9505,163 +9540,22 @@ msgctxt "custom-fields.2iL2XF"
 msgid "Sensitive"
 msgstr "Gevoelig"
 
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.m4vqJl"
-msgid "Files"
-msgstr "Bestanden"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.7hEmx-"
-msgid "Drop or paste files to upload. They download after the virus scan."
-msgstr "Sleep of plak bestanden om ze te uploaden. Ze zijn te downloaden na de virusscan."
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.2Ne0Nv"
-msgid "Files download after the virus scan marks them clean."
-msgstr "Bestanden zijn te downloaden zodra de virusscan ze veilig heeft verklaard."
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.KYagRG"
-msgid "The files didn't load"
-msgstr "De bestanden zijn niet geladen"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.WdH4YV"
-msgid "No files yet"
-msgstr "Nog geen bestanden"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.nEebKA"
-msgid "Attach contracts, quotes or anything else about this customer."
-msgstr "Voeg contracten, offertes of iets anders over deze klant toe."
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.lrdlY6"
-msgid "File uploaded"
-msgstr "Bestand geüpload"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.hsYvDX"
-msgid "Uploading"
-msgstr "Bezig met uploaden"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.QLkzoS"
-msgid "Saving"
-msgstr "Opslaan"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.oCixBp"
-msgid "Waiting for scan"
-msgstr "Wacht op scan"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.LwdDVa"
-msgid "Uploaded"
-msgstr "Geüpload"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.qUJTsT"
-msgid "Blocked"
-msgstr "Geblokkeerd"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.vXCeIi"
-msgid "Failed"
-msgstr "Mislukt"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.minycD"
-msgid "Upload progress for {name}"
-msgstr "Uploadvoortgang van {name}"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.hRJjA7"
-msgid "Retry {name}"
-msgstr "{name} opnieuw proberen"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.OPIp6Z"
-msgid "Dismiss {name}"
-msgstr "{name} sluiten"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.5iaKnS"
-msgid "Upload unfinished"
-msgstr "Upload niet afgerond"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.IZFEUg"
-msgid "Ready"
-msgstr "Klaar"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.pRoW6a"
-msgid "Scan failed"
-msgstr "Scan mislukt"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.R3ptDD"
-msgid "Download {name}"
-msgstr "{name} downloaden"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.w6J38y"
-msgid "Upload more"
-msgstr "Meer uploaden"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.2jjdVz"
-msgid "Upload files"
-msgstr "Bestanden uploaden"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.88bXgO"
-msgid "File removed"
-msgstr "Bestand verwijderd"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.G_yZLu"
-msgid "Remove"
-msgstr "Verwijderen"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.cE7V7e"
-msgid "Remove {name}?"
-msgstr "{name} verwijderen?"
-
-#: src/features/customers/components/attachments-uploader.tsx
-msgctxt "customers.o4zCP0"
-msgid "The file is deleted from storage. This can't be undone."
-msgstr "Het bestand wordt uit de opslag verwijderd. Dit kun je niet ongedaan maken."
-
-#: src/features/customers/components/attachments-uploader.tsx
-#: src/features/customers/components/create-customer-form.tsx
-#: src/features/customers/components/share-link-dialog.tsx
-#: src/features/customers/components/version-history.tsx
-msgctxt "customers.47FYwb"
-msgid "Cancel"
-msgstr "Annuleren"
-
 #: src/features/customers/components/comment-thread.tsx
 msgctxt "customers.ZTbdfB"
 msgid "No comments yet."
 msgstr "Nog geen reacties."
 
 #: src/features/customers/components/comment-thread.tsx
-#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.XDWEZM"
 msgid "Someone"
 msgstr "Iemand"
 
 #: src/features/customers/components/comment-thread.tsx
-#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.LgbKvU"
 msgid "Comment"
 msgstr "Reageren"
 
 #: src/features/customers/components/comment-thread.tsx
-#: src/features/customers/components/customer-timeline.tsx
 msgctxt "customers.Y8zV4A"
 msgid "Write a comment"
 msgstr "Schrijf een reactie"
@@ -9696,6 +9590,13 @@ msgstr "Naam"
 msgctxt "customers.k0So_A"
 msgid "New customer"
 msgstr "Nieuwe klant"
+
+#: src/features/customers/components/create-customer-form.tsx
+#: src/features/customers/components/share-link-dialog.tsx
+#: src/features/customers/components/version-history.tsx
+msgctxt "customers.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
 
 #: src/features/customers/components/create-customer-form.tsx
 #: src/features/customers/components/tag-input.tsx
@@ -9804,41 +9705,6 @@ msgctxt "customers.gzp6xc"
 msgid "Change the filters to see more."
 msgstr "Pas de filters aan om meer te zien."
 
-#: src/features/customers/components/customer-timeline.tsx
-msgctxt "customers.gyrIEl"
-msgid "File"
-msgstr "Bestand"
-
-#: src/features/customers/components/customer-timeline.tsx
-msgctxt "customers.I3b4hn"
-msgid "Version"
-msgstr "Versie"
-
-#: src/features/customers/components/customer-timeline.tsx
-msgctxt "customers.zWkvNO"
-msgid "Timeline"
-msgstr "Tijdlijn"
-
-#: src/features/customers/components/customer-timeline.tsx
-msgctxt "customers.n9pcfi"
-msgid "Comments, files and versions, newest first."
-msgstr "Reacties, bestanden en versies, nieuwste eerst."
-
-#: src/features/customers/components/customer-timeline.tsx
-msgctxt "customers.0ABUGx"
-msgid "The timeline didn't load"
-msgstr "De tijdlijn is niet geladen"
-
-#: src/features/customers/components/customer-timeline.tsx
-msgctxt "customers.jx4Zxs"
-msgid "Nothing happened yet"
-msgstr "Er is nog niets gebeurd"
-
-#: src/features/customers/components/customer-timeline.tsx
-msgctxt "customers.WGEKkb"
-msgid "Comments, files and versions show up here."
-msgstr "Reacties, bestanden en versies verschijnen hier."
-
 #: src/features/customers/components/owner-team-select.tsx
 msgctxt "customers.2-MeFM"
 msgid "No owner team"
@@ -9880,66 +9746,6 @@ msgstr "Nog geen reacties. Kies er een om de eerste te zijn."
 msgctxt "customers.AycM5H"
 msgid "No reactions yet."
 msgstr "Nog geen reacties."
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.9TYSyV"
-msgid "Related customers"
-msgstr "Gerelateerde klanten"
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.NDzOI2"
-msgid "Link customers that belong together, such as a parent company."
-msgstr "Koppel klanten die bij elkaar horen, zoals een moederbedrijf."
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.oUrTsw"
-msgid "The related customers didn't load"
-msgstr "De gerelateerde klanten zijn niet geladen"
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.Fm2_qG"
-msgid "No related customers"
-msgstr "Geen gerelateerde klanten"
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.65c1qX"
-msgid "Pick a customer below to link it."
-msgstr "Kies hieronder een klant om die te koppelen."
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.a4qkjh"
-msgid "Nobody linked a customer yet."
-msgstr "Nog niemand heeft een klant gekoppeld."
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.rAJHJ7"
-msgid "Link removed"
-msgstr "Koppeling verwijderd"
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.cr1jN8"
-msgid "Remove link"
-msgstr "Koppeling verwijderen"
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.Pechof"
-msgid "Customer linked"
-msgstr "Klant gekoppeld"
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.TF8Q3F"
-msgid "Link a customer"
-msgstr "Klant koppelen"
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.QoaLp8"
-msgid "Pick a customer"
-msgstr "Kies een klant"
-
-#: src/features/customers/components/related-items-panel.tsx
-msgctxt "customers.JBWS0c"
-msgid "Link"
-msgstr "Koppelen"
 
 #: src/features/customers/components/share-link-dialog.tsx
 msgctxt "customers.86oph_"
@@ -15106,12 +14912,12 @@ msgstr "Notitie toevoegen"
 #: src/features/inbox/components/contact-deals.tsx
 msgctxt "inbox.oRCMD5"
 msgid "Open deals"
-msgstr ""
+msgstr "Open deals"
 
 #: src/features/inbox/components/contact-deals.tsx
 msgctxt "inbox.dO9fsB"
 msgid "The deals didn't load."
-msgstr ""
+msgstr "De deals zijn niet geladen."
 
 #: src/features/inbox/components/contact-deals.tsx
 #: src/features/inbox/components/conversation-queue.tsx
@@ -15123,7 +14929,7 @@ msgstr "Opnieuw proberen"
 #: src/features/inbox/components/contact-deals.tsx
 msgctxt "inbox.u4CArO"
 msgid "No open deals name this contact."
-msgstr ""
+msgstr "Geen open deal noemt dit contact."
 
 #: src/features/inbox/components/conversation-badges.tsx
 msgctxt "inbox.v7m7rk"
@@ -23238,6 +23044,261 @@ msgctxt "qualifications.VuNMpM"
 msgid "Change the search or the filters."
 msgstr "Pas de zoekopdracht of de filters aan."
 
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.m4vqJl"
+msgid "Files"
+msgstr "Bestanden"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.7hEmx-"
+msgid "Drop or paste files to upload. They download after the virus scan."
+msgstr "Sleep of plak bestanden om te uploaden. Ze zijn te downloaden na de virusscan."
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.2Ne0Nv"
+msgid "Files download after the virus scan marks them clean."
+msgstr "Bestanden zijn te downloaden nadat de virusscan ze schoon heeft verklaard."
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.KYagRG"
+msgid "The files didn't load"
+msgstr "De bestanden zijn niet geladen"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.WdH4YV"
+msgid "No files yet"
+msgstr "Nog geen bestanden"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.Bz_zoy"
+msgid "Attach contracts, quotes or anything else about this record."
+msgstr "Voeg contracten, offertes of iets anders over dit record toe."
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.lrdlY6"
+msgid "File uploaded"
+msgstr "Bestand geüpload"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.hsYvDX"
+msgid "Uploading"
+msgstr "Uploaden"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.QLkzoS"
+msgid "Saving"
+msgstr "Opslaan"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.oCixBp"
+msgid "Waiting for scan"
+msgstr "Wacht op scan"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.LwdDVa"
+msgid "Uploaded"
+msgstr "Geüpload"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.qUJTsT"
+msgid "Blocked"
+msgstr "Geblokkeerd"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.vXCeIi"
+msgid "Failed"
+msgstr "Mislukt"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.minycD"
+msgid "Upload progress for {name}"
+msgstr "Uploadvoortgang van {name}"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.hRJjA7"
+msgid "Retry {name}"
+msgstr "{name} opnieuw proberen"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.OPIp6Z"
+msgid "Dismiss {name}"
+msgstr "{name} sluiten"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.5iaKnS"
+msgid "Upload unfinished"
+msgstr "Upload niet afgerond"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.IZFEUg"
+msgid "Ready"
+msgstr "Klaar"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.pRoW6a"
+msgid "Scan failed"
+msgstr "Scan mislukt"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.R3ptDD"
+msgid "Download {name}"
+msgstr "{name} downloaden"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.w6J38y"
+msgid "Upload more"
+msgstr "Meer uploaden"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.2jjdVz"
+msgid "Upload files"
+msgstr "Bestanden uploaden"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.88bXgO"
+msgid "File removed"
+msgstr "Bestand verwijderd"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.G_yZLu"
+msgid "Remove"
+msgstr "Verwijderen"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.cE7V7e"
+msgid "Remove {name}?"
+msgstr "{name} verwijderen?"
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.o4zCP0"
+msgid "The file is deleted from storage. This can't be undone."
+msgstr "Het bestand wordt uit de opslag verwijderd. Dit kan niet ongedaan worden gemaakt."
+
+#: src/features/records/components/attachments-uploader.tsx
+msgctxt "records.47FYwb"
+msgid "Cancel"
+msgstr "Annuleren"
+
+#: src/features/records/components/record-sections.tsx
+msgctxt "records.wCgTu5"
+msgid "Comments"
+msgstr "Opmerkingen"
+
+#: src/features/records/components/record-sections.tsx
+msgctxt "records.p38jo8"
+msgid "Visible to everyone in the organization."
+msgstr "Zichtbaar voor iedereen in de organisatie."
+
+#: src/features/records/components/record-timeline.tsx
+msgctxt "records.LgbKvU"
+msgid "Comment"
+msgstr "Opmerking"
+
+#: src/features/records/components/record-timeline.tsx
+msgctxt "records.gyrIEl"
+msgid "File"
+msgstr "Bestand"
+
+#: src/features/records/components/record-timeline.tsx
+msgctxt "records.I3b4hn"
+msgid "Version"
+msgstr "Versie"
+
+#: src/features/records/components/record-timeline.tsx
+msgctxt "records.zWkvNO"
+msgid "Timeline"
+msgstr "Tijdlijn"
+
+#: src/features/records/components/record-timeline.tsx
+msgctxt "records.n9pcfi"
+msgid "Comments, files and versions, newest first."
+msgstr "Opmerkingen, bestanden en versies, nieuwste eerst."
+
+#: src/features/records/components/record-timeline.tsx
+msgctxt "records.0ABUGx"
+msgid "The timeline didn't load"
+msgstr "De tijdlijn is niet geladen"
+
+#: src/features/records/components/record-timeline.tsx
+msgctxt "records.jx4Zxs"
+msgid "Nothing happened yet"
+msgstr "Er is nog niets gebeurd"
+
+#: src/features/records/components/record-timeline.tsx
+msgctxt "records.WGEKkb"
+msgid "Comments, files and versions show up here."
+msgstr "Opmerkingen, bestanden en versies verschijnen hier."
+
+#: src/features/records/components/record-timeline.tsx
+msgctxt "records.Y8zV4A"
+msgid "Write a comment"
+msgstr "Schrijf een opmerking"
+
+#: src/features/records/components/record-timeline.tsx
+msgctxt "records.XDWEZM"
+msgid "Someone"
+msgstr "Iemand"
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.ec6yww"
+msgid "Related records"
+msgstr "Gerelateerde records"
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.nUfzCh"
+msgid "Link records that belong together, such as a parent company."
+msgstr "Koppel records die bij elkaar horen, zoals een moederbedrijf."
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.rlK5tr"
+msgid "The related records didn't load"
+msgstr "De gerelateerde records zijn niet geladen"
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.9Avc3L"
+msgid "No related records"
+msgstr "Geen gerelateerde records"
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.P_1v_h"
+msgid "Pick a record below to link it."
+msgstr "Kies hieronder een record om te koppelen."
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.0Eanb4"
+msgid "Nobody linked a record yet."
+msgstr "Nog niemand heeft een record gekoppeld."
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.rAJHJ7"
+msgid "Link removed"
+msgstr "Koppeling verwijderd"
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.cr1jN8"
+msgid "Remove link"
+msgstr "Koppeling verwijderen"
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.P-OCdS"
+msgid "Record linked"
+msgstr "Record gekoppeld"
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.ZHFRos"
+msgid "Link a record"
+msgstr "Een record koppelen"
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.1pIVr0"
+msgid "Pick a record"
+msgstr "Kies een record"
+
+#: src/features/records/components/related-items-panel.tsx
+msgctxt "records.JBWS0c"
+msgid "Link"
+msgstr "Koppelen"
+
 #: src/features/reviews/components/review-actions-bar.tsx
 msgctxt "reviews.sr0ajW"
 msgid "Review published"
@@ -24492,9 +24553,61 @@ msgid "Off"
 msgstr "Uit"
 
 #: src/features/sales/components/action-dialog.tsx
+#: src/features/sales/components/assign-owners-form.tsx
 msgctxt "sales.47FYwb"
 msgid "Cancel"
 msgstr "Annuleren"
+
+#: src/features/sales/components/assign-owners-dialog.tsx
+msgctxt "sales.Veb3fL"
+msgid "No owner"
+msgstr "Geen eigenaar"
+
+#: src/features/sales/components/assign-owners-form.tsx
+msgctxt "sales.GNOQPC"
+msgid "{count, plural, one {# deal assigned} other {# deals assigned}}"
+msgstr "{count, plural, one {# deal toegewezen} other {# deals toegewezen}}"
+
+#: src/features/sales/components/assign-owners-form.tsx
+msgctxt "sales.W4aUey"
+msgid "{assigned} assigned, {refused} refused"
+msgstr "{assigned} toegewezen, {refused} geweigerd"
+
+#: src/features/sales/components/assign-owners-form.tsx
+msgctxt "sales.AnouLv"
+msgid "Assign owner"
+msgstr "Eigenaar toewijzen"
+
+#: src/features/sales/components/assign-owners-form.tsx
+msgctxt "sales.B-G_Oa"
+msgid "Assign an owner to deals"
+msgstr "Een eigenaar aan deals toewijzen"
+
+#: src/features/sales/components/assign-owners-form.tsx
+msgctxt "sales.vrzcJ5"
+msgid "Choose the open deals that move to one owner."
+msgstr "Kies de open deals die naar één eigenaar gaan."
+
+#: src/features/sales/components/assign-owners-form.tsx
+#: src/features/sales/components/contact-sales-panel.tsx
+msgctxt "sales.zINlao"
+msgid "Owner"
+msgstr "Eigenaar"
+
+#: src/features/sales/components/assign-owners-form.tsx
+msgctxt "sales.KQkPg-"
+msgid "Select unowned"
+msgstr "Deals zonder eigenaar kiezen"
+
+#: src/features/sales/components/assign-owners-form.tsx
+msgctxt "sales._GCoTA"
+msgid "Clear"
+msgstr "Wissen"
+
+#: src/features/sales/components/assign-owners-form.tsx
+msgctxt "sales.dZa7bo"
+msgid "{count, plural, one {Assign # deal} other {Assign # deals}}"
+msgstr "{count, plural, one {# deal toewijzen} other {# deals toewijzen}}"
 
 #: src/features/sales/components/block-overview.tsx
 msgctxt "sales.qnf-Ea"
@@ -24582,11 +24695,6 @@ msgstr "In geen enkel segment"
 msgctxt "sales.a25V50"
 msgid "Assignment history"
 msgstr "Toewijzingsgeschiedenis"
-
-#: src/features/sales/components/contact-sales-panel.tsx
-msgctxt "sales.zINlao"
-msgid "Owner"
-msgstr "Eigenaar"
 
 #: src/features/sales/components/contact-sales-panel.tsx
 #: src/features/sales/components/crm-overviews.tsx
@@ -24701,6 +24809,7 @@ msgid "Expected close"
 msgstr "Verwachte sluiting"
 
 #: src/features/sales/components/crm-dashboard.tsx
+#: src/features/sales/components/deal-schedule.tsx
 msgctxt "sales.n66rHO"
 msgid "No open deals"
 msgstr "Geen open deals"
@@ -24955,11 +25064,6 @@ msgid "Records"
 msgstr "Records"
 
 #: src/features/sales/components/crm-overviews.tsx
-msgctxt "sales.3IInif"
-msgid "Companies"
-msgstr "Bedrijven"
-
-#: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.Tpy00S"
 msgid "People"
 msgstr "Personen"
@@ -25127,6 +25231,7 @@ msgid "Contract drafted"
 msgstr "Contract opgesteld"
 
 #: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/quote-overview.tsx
 #: src/features/sales/components/revenue-details.tsx
 msgctxt "sales.9a9-ww"
 msgid "Title"
@@ -25174,6 +25279,7 @@ msgid "Yes"
 msgstr "Ja"
 
 #: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/quote-overview.tsx
 msgctxt "sales.W6nwjo"
 msgid "Draft"
 msgstr "Concept"
@@ -25195,6 +25301,7 @@ msgid "Active"
 msgstr "Actief"
 
 #: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/quote-overview.tsx
 msgctxt "sales.RahCRH"
 msgid "Expired"
 msgstr "Verlopen"
@@ -25210,6 +25317,7 @@ msgid "Contract"
 msgstr "Contract"
 
 #: src/features/sales/components/crm-overviews.tsx
+#: src/features/sales/components/quote-overview.tsx
 #: src/features/sales/components/revenue-details.tsx
 #: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.tzMNF3"
@@ -25385,9 +25493,19 @@ msgid "Supplier"
 msgstr "Leverancier"
 
 #: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.orv8wZ"
+msgid "Search companies"
+msgstr "Bedrijven zoeken"
+
+#: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.D9pDXK"
 msgid "Search contacts"
 msgstr "Contacten zoeken"
+
+#: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.CqPjuA"
+msgid "The companies didn't load"
+msgstr "De bedrijven zijn niet geladen"
 
 #: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.qQSmVj"
@@ -25395,14 +25513,39 @@ msgid "The contacts didn't load"
 msgstr "De contacten zijn niet geladen"
 
 #: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.HqeqGq"
+msgid "No companies found"
+msgstr "Geen bedrijven gevonden"
+
+#: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.JhY7bA"
 msgid "No contacts found"
 msgstr "Geen contacten gevonden"
 
 #: src/features/sales/components/crm-overviews.tsx
+msgctxt "sales.oFzDyV"
+msgid "Add the companies you sell to."
+msgstr "Voeg de bedrijven toe waaraan je verkoopt."
+
+#: src/features/sales/components/crm-overviews.tsx
 msgctxt "sales.7cMBJi"
 msgid "Add the companies you sell to and the people you talk to."
 msgstr "Voeg de bedrijven toe aan wie je verkoopt en de mensen met wie je praat."
+
+#: src/features/sales/components/deal-conversation.tsx
+msgctxt "sales.RUE5-9"
+msgid "No conversation yet"
+msgstr "Nog geen gesprek"
+
+#: src/features/sales/components/deal-conversation.tsx
+msgctxt "sales.EnlMvw"
+msgid "A thread shows here once a contact on this deal writes to the inbox."
+msgstr "Een gesprek verschijnt hier zodra een contact van deze deal de inbox schrijft."
+
+#: src/features/sales/components/deal-conversation.tsx
+msgctxt "sales.1udzha"
+msgid "Conversations"
+msgstr "Gesprekken"
 
 #: src/features/sales/components/deal-detail.tsx
 msgctxt "sales.n92Sjh"
@@ -25451,6 +25594,7 @@ msgid "No next step"
 msgstr "Geen volgende stap"
 
 #: src/features/sales/components/deal-detail.tsx
+#: src/features/sales/components/deal-schedule.tsx
 msgctxt "sales.M0vCGv"
 msgid "Overdue"
 msgstr "Achterstallig"
@@ -25501,6 +25645,16 @@ msgid "Activity"
 msgstr "Activiteit"
 
 #: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.KQsZBW"
+msgid "Related"
+msgstr "Gerelateerd"
+
+#: src/features/sales/components/deal-detail.tsx
+msgctxt "sales.gegfoA"
+msgid "Conversation"
+msgstr "Gesprek"
+
+#: src/features/sales/components/deal-detail.tsx
 msgctxt "sales.G-xPb7"
 msgid "Move the deal to another stage."
 msgstr "Verplaats de deal naar een andere fase."
@@ -25524,6 +25678,61 @@ msgstr "Deal verplaatst"
 msgctxt "sales.Lv0zJu"
 msgid "Details"
 msgstr "Details"
+
+#: src/features/sales/components/deal-schedule.tsx
+msgctxt "sales.n-2wj3"
+msgid "The calendar didn't load"
+msgstr "De kalender is niet geladen"
+
+#: src/features/sales/components/deal-schedule.tsx
+msgctxt "sales.YPG7Lr"
+msgid "Deal calendar"
+msgstr "Dealkalender"
+
+#: src/features/sales/components/deal-schedule.tsx
+msgctxt "sales.AxDOiG"
+msgid "Months"
+msgstr "Maanden"
+
+#: src/features/sales/components/deal-schedule.tsx
+msgctxt "sales.8mRNBD"
+msgid "Previous month"
+msgstr "Vorige maand"
+
+#: src/features/sales/components/deal-schedule.tsx
+msgctxt "sales.zWgbGg"
+msgid "Today"
+msgstr "Vandaag"
+
+#: src/features/sales/components/deal-schedule.tsx
+msgctxt "sales.PqmLVn"
+msgid "Next month"
+msgstr "Volgende maand"
+
+#: src/features/sales/components/deal-schedule.tsx
+msgctxt "sales._zFGgP"
+msgid "+{count} more"
+msgstr "+{count} meer"
+
+#: src/features/sales/components/deal-schedule.tsx
+msgctxt "sales.0ABUGx"
+msgid "The timeline didn't load"
+msgstr "De tijdlijn is niet geladen"
+
+#: src/features/sales/components/deal-schedule.tsx
+msgctxt "sales.wwnW6o"
+msgid "Open deals appear here by the month they should close."
+msgstr "Open deals verschijnen hier per maand waarin ze moeten sluiten."
+
+#: src/features/sales/components/deal-schedule.tsx
+msgctxt "sales.jkaQnx"
+msgid "Deal timeline"
+msgstr "Dealtijdlijn"
+
+#: src/features/sales/components/deal-schedule.tsx
+msgctxt "sales.jgM4r2"
+msgid "{count, plural, one {# deal} other {# deals}}"
+msgstr "{count, plural, one {# deal} other {# deals}}"
 
 #: src/features/sales/components/field-history-table.tsx
 msgctxt "sales.dgbZqk"
@@ -25781,6 +25990,7 @@ msgid "Snapshot taken"
 msgstr "Momentopname gemaakt"
 
 #: src/features/sales/components/pipeline-overviews.tsx
+#: src/features/sales/components/quote-overview.tsx
 #: src/features/sales/components/revenue-overviews.tsx
 msgctxt "sales.MeKajs"
 msgid "Newest first"
@@ -25892,6 +26102,78 @@ msgstr "Lid"
 msgctxt "sales.HFw-a8"
 msgid "Add member"
 msgstr "Lid toevoegen"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.gcuDcH"
+msgid "Sent"
+msgstr "Verzonden"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.D_0ALU"
+msgid "Viewed"
+msgstr "Bekeken"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.aFyFm0"
+msgid "Accepted"
+msgstr "Geaccepteerd"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.5qaD7s"
+msgid "Rejected"
+msgstr "Afgewezen"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.ek1mCn"
+msgid "Changes requested"
+msgstr "Wijzigingen gevraagd"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.GH4LtS"
+msgid "Withdrawn"
+msgstr "Ingetrokken"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.atzUcB"
+msgid "Quote"
+msgstr "Offerte"
+
+#: src/features/sales/components/quote-overview.tsx
+#: src/features/sales/components/revenue-details.tsx
+#: src/features/sales/components/revenue-overviews.tsx
+msgctxt "sales.MJ2jZQ"
+msgid "Total"
+msgstr "Totaal"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.C3Fz7P"
+msgid "Valid until"
+msgstr "Geldig tot"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.ipMocl"
+msgid "Highest total"
+msgstr "Hoogste totaal"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.Tn82fY"
+msgid "Search quotes"
+msgstr "Offertes zoeken"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.7wJ9Pn"
+msgid "The quotes didn't load"
+msgstr "De offertes zijn niet geladen"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.X4C8jX"
+msgid "No quotes yet"
+msgstr "Nog geen offertes"
+
+#: src/features/sales/components/quote-overview.tsx
+msgctxt "sales.zHWkjJ"
+msgid "Write a quote with line items and send it for acceptance."
+msgstr "Schrijf een offerte met regels en verstuur die ter acceptatie."
 
 #: src/features/sales/components/revenue-details.tsx
 msgctxt "sales.QeyQnz"
@@ -26028,12 +26310,6 @@ msgstr "Afrekening afgerond"
 msgctxt "sales.zy8la3"
 msgid "Statement paid"
 msgstr "Afrekening betaald"
-
-#: src/features/sales/components/revenue-details.tsx
-#: src/features/sales/components/revenue-overviews.tsx
-msgctxt "sales.MJ2jZQ"
-msgid "Total"
-msgstr "Totaal"
 
 #: src/features/sales/components/revenue-details.tsx
 msgctxt "sales.T2ZVQY"
@@ -26409,6 +26685,36 @@ msgstr "Nieuwe klant"
 msgctxt "search.8DzYt6"
 msgid "create add customer"
 msgstr "aanmaken toevoegen klant"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.haj6Q5"
+msgid "New contact"
+msgstr "Nieuw contact"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.XxgyUQ"
+msgid "create add contact company person"
+msgstr "maken toevoegen contact bedrijf persoon"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.nSaKgf"
+msgid "New deal"
+msgstr "Nieuwe deal"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.LbjeMJ"
+msgid "create add deal opportunity"
+msgstr "maken toevoegen deal kans"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search.L-Xhxz"
+msgid "New quote"
+msgstr "Nieuwe offerte"
+
+#: src/features/search/components/command-center.tsx
+msgctxt "search._vK2Xp"
+msgid "create add quote proposal"
+msgstr "maken toevoegen offerte voorstel"
 
 #: src/features/search/components/command-center.tsx
 msgctxt "search.BUx5CV"
@@ -26948,9 +27254,9 @@ msgid "Receivers register a stream to get security event tokens; change the filt
 msgstr "Ontvangers registreren een stream om beveiligingsgebeurtenissen te krijgen; pas de filters aan om meer te zien."
 
 #: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.xiZz44"
-msgid "The sequences didn't load"
-msgstr "De reeksen zijn niet geladen"
+msgctxt "sequences.S62PnZ"
+msgid "The sequence didn't load"
+msgstr "De reeks is niet geladen"
 
 #: src/features/sequences/components/sequence-builder.tsx
 msgctxt "sequences.162kF7"
@@ -26963,36 +27269,25 @@ msgid "Retry"
 msgstr "Opnieuw proberen"
 
 #: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.uhLiFs"
-msgid "No sequences yet"
-msgstr "Nog geen reeksen"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.jo2BZv"
-msgid "Create a sample sequence, then activate it to enroll contacts."
-msgstr "Maak een voorbeeldreeks en activeer die om contacten in te schrijven."
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.OdK47I"
-msgid "An admin sets up the sequences your team enrolls contacts in."
-msgstr "Een beheerder stelt de reeksen in waarin je team contacten inschrijft."
-
-#: src/features/sequences/components/sequence-builder.tsx
+#: src/features/sequences/components/sequence-overview.tsx
 msgctxt "sequences.W6nwjo"
 msgid "Draft"
 msgstr "Concept"
 
 #: src/features/sequences/components/sequence-builder.tsx
+#: src/features/sequences/components/sequence-overview.tsx
 msgctxt "sequences.3a5wL8"
 msgid "Active"
 msgstr "Actief"
 
 #: src/features/sequences/components/sequence-builder.tsx
+#: src/features/sequences/components/sequence-overview.tsx
 msgctxt "sequences.C2iTEH"
 msgid "Paused"
 msgstr "Gepauzeerd"
 
 #: src/features/sequences/components/sequence-builder.tsx
+#: src/features/sequences/components/sequence-overview.tsx
 msgctxt "sequences.0HT-Ib"
 msgid "Archived"
 msgstr "Gearchiveerd"
@@ -27003,24 +27298,37 @@ msgid "Wait {minutes} minutes"
 msgstr "Wacht {minutes} minuten"
 
 #: src/features/sequences/components/sequence-builder.tsx
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.95stPq"
+msgid "Completed"
+msgstr "Voltooid"
+
+#: src/features/sequences/components/sequence-builder.tsx
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.9uiXdI"
+msgid "Replied"
+msgstr "Beantwoord"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.vAKAnI"
+msgid "{count, plural, one {# step} other {# steps}}"
+msgstr "{count, plural, one {# stap} other {# stappen}}"
+
+#: src/features/sequences/components/sequence-builder.tsx
+msgctxt "sequences.TYlQ6K"
+msgid "Enrollments"
+msgstr "Inschrijvingen"
+
+#: src/features/sequences/components/sequence-builder.tsx
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.huCHmk"
+msgid "Steps"
+msgstr "Stappen"
+
+#: src/features/sequences/components/sequence-builder.tsx
 msgctxt "sequences.8nWPbU"
 msgid "No steps yet."
 msgstr "Nog geen stappen."
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.bz-S_R"
-msgid "{count} active"
-msgstr "{count} actief"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.cjYin_"
-msgid "{count} completed"
-msgstr "{count} voltooid"
-
-#: src/features/sequences/components/sequence-builder.tsx
-msgctxt "sequences.TE_1u-"
-msgid "{count} replied"
-msgstr "{count} beantwoord"
 
 #: src/features/sequences/components/sequence-controls.tsx
 msgctxt "sequences.5YeDsT"
@@ -27146,6 +27454,51 @@ msgstr "Taaktitel"
 msgctxt "sequences.ifgK-P"
 msgid "Call the contact"
 msgstr "Bel het contact"
+
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.dtZG_H"
+msgid "Sequence"
+msgstr "Reeks"
+
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.HAlOn1"
+msgid "Name"
+msgstr "Naam"
+
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.-8EjeW"
+msgid "Most enrolled"
+msgstr "Meeste inschrijvingen"
+
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.kr7xJ0"
+msgid "Search sequences"
+msgstr "Reeksen zoeken"
+
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.xiZz44"
+msgid "The sequences didn't load"
+msgstr "De reeksen zijn niet geladen"
+
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.uhLiFs"
+msgid "No sequences yet"
+msgstr "Nog geen reeksen"
+
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.jo2BZv"
+msgid "Create a sample sequence, then activate it to enroll contacts."
+msgstr "Maak een voorbeeldreeks en activeer die om contacten in te schrijven."
+
+#: src/features/sequences/components/sequence-overview.tsx
+msgctxt "sequences.OdK47I"
+msgid "An admin sets up the sequences your team enrolls contacts in."
+msgstr "Een beheerder stelt de reeksen in waarin je team contacten inschrijft."
 
 #: src/features/service-principals/components/service-principal-controls.tsx
 #: src/features/service-principals/components/service-principals-table.tsx

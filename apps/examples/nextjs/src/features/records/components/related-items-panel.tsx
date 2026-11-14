@@ -29,42 +29,43 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  linkCustomerRelations,
-  unlinkCustomerRelations,
-} from "@/features/customers/customers-actions";
 import { SubjectLink } from "@/features/subjects/components/subject-link";
 import { toast } from "@/lib/toast";
 
-import type { Loaded, RelatedCustomer, Relations } from "../customers-queries";
+import type { RecordSubject } from "../record-subject";
+import type { Loaded, RelatedRecord, Relations } from "../records-queries";
 
+import { recordActions } from "../records-action-map";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:related-items-panel
 
-/** Customers linked to this one (the `relates` kind), and a picker to link more. */
+/**
+ * Records linked to this one (the `relates` kind), and a picker to link more of
+ * its type.
+ */
 export function RelatedItemsPanel({
-  customerId,
+  subject,
   relations,
   canManage,
 }: {
-  customerId: string;
+  subject: RecordSubject;
   relations: Loaded<Relations>;
   canManage: boolean;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
 
   return (
     <Card size="sm" data-recipe="related-items-panel">
       <CardHeader>
-        <CardTitle>{t("Related customers")}</CardTitle>
+        <CardTitle>{t("Related records")}</CardTitle>
         <CardDescription>
-          {t("Link customers that belong together, such as a parent company.")}
+          {t("Link records that belong together, such as a parent company.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {relations.kind === "error" ? (
-          <RecordLoadError title={t("The related customers didn't load")} />
+          <RecordLoadError title={t("The related records didn't load")} />
         ) : (
           <>
             {relations.data.links.length === 0 ? (
@@ -73,29 +74,29 @@ export function RelatedItemsPanel({
                   <EmptyMedia variant="icon">
                     <LinkIcon />
                   </EmptyMedia>
-                  <EmptyTitle>{t("No related customers")}</EmptyTitle>
+                  <EmptyTitle>{t("No related records")}</EmptyTitle>
                   <EmptyDescription>
                     {canManage
-                      ? t("Pick a customer below to link it.")
-                      : t("Nobody linked a customer yet.")}
+                      ? t("Pick a record below to link it.")
+                      : t("Nobody linked a record yet.")}
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
             ) : (
               <RelatedList
-                customerId={customerId}
+                subject={subject}
                 links={relations.data.links}
                 canManage={canManage}
               />
             )}
             {canManage ? (
               <LinkForm
-                customerId={customerId}
+                subject={subject}
                 options={relations.data.options.filter(
                   (option) =>
                     !relations.data.links.some(
                       (link) =>
-                        link.subjectType === "customer" &&
+                        link.subjectType === subject.type &&
                         link.subjectId === option.id,
                     ),
                 )}
@@ -109,18 +110,18 @@ export function RelatedItemsPanel({
 }
 
 function RelatedList({
-  customerId,
+  subject,
   links,
   canManage,
 }: {
-  customerId: string;
-  links: readonly RelatedCustomer[];
+  subject: RecordSubject;
+  links: readonly RelatedRecord[];
   canManage: boolean;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const errorMessage = useErrorMessage();
 
-  const unlink = useAction(unlinkCustomerRelations, {
+  const unlink = useAction(recordActions[subject.type].unlink, {
     onSuccess: () => {
       toast.success(t("Link removed"));
     },
@@ -130,7 +131,7 @@ function RelatedList({
   });
 
   return (
-    <ul className="flex flex-col divide-y" data-testid="related-customers">
+    <ul className="flex flex-col divide-y" data-testid="related-records">
       {links.map((link) => (
         <li
           key={link.id}
@@ -156,7 +157,7 @@ function RelatedList({
               )}
               onClick={() => {
                 void unlink.run({
-                  id: customerId,
+                  id: subject.id,
                   input: {
                     kind: link.kind,
                     target: { type: link.subjectType, id: link.subjectId },
@@ -174,21 +175,21 @@ function RelatedList({
 }
 
 function LinkForm({
-  customerId,
+  subject,
   options,
 }: {
-  customerId: string;
+  subject: RecordSubject;
   options: readonly { readonly id: string; readonly name: string }[];
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
   const [targetId, setTargetId] = useState<string | null>(null);
 
-  const link = useAction(linkCustomerRelations, {
+  const link = useAction(recordActions[subject.type].link, {
     onSuccess: () => {
       setTargetId(null);
-      toast.success(t("Customer linked"));
+      toast.success(t("Record linked"));
     },
   });
 
@@ -209,10 +210,10 @@ function LinkForm({
 
         if (targetId) {
           void link.run({
-            id: customerId,
+            id: subject.id,
             input: {
               kind: "relates",
-              target: { type: "customer", id: targetId },
+              target: { type: subject.type, id: targetId },
             },
           });
         }
@@ -220,7 +221,7 @@ function LinkForm({
     >
       <Field data-invalid={link.error ? true : undefined}>
         <FieldLabel htmlFor={`${fieldId}-related`}>
-          {t("Link a customer")}
+          {t("Link a record")}
         </FieldLabel>
         <Select
           value={targetId}
@@ -230,7 +231,7 @@ function LinkForm({
           }}
         >
           <SelectTrigger id={`${fieldId}-related`} className="w-full">
-            <SelectValue placeholder={t("Pick a customer")} />
+            <SelectValue placeholder={t("Pick a record")} />
           </SelectTrigger>
           <SelectContent>
             {items.map((item) => (

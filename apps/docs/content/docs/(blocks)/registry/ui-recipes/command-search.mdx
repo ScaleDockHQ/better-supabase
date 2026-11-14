@@ -30,6 +30,8 @@ import {
   BotIcon,
   ClockIcon,
   CompassIcon,
+  FileTextIcon,
+  HandshakeIcon,
   LanguagesIcon,
   MonitorIcon,
   MoonIcon,
@@ -95,6 +97,17 @@ function matches(query: string, ...texts: readonly string[]): boolean {
     .every((word) => haystack.includes(word));
 }
 
+/**
+ * The record types the caller may create; each has a page whose dialog opens on
+ * `?new=1`.
+ */
+export interface CommandCreate {
+  readonly customer?: boolean;
+  readonly contact?: boolean;
+  readonly deal?: boolean;
+  readonly quote?: boolean;
+}
+
 interface CommandAction {
   readonly id: string;
   readonly label: string;
@@ -112,10 +125,10 @@ interface CommandAction {
  */
 export function CommandCenter({
   pages,
-  canCreateCustomer,
+  canCreate,
 }: {
   pages: readonly CommandPage[];
-  canCreateCustomer: boolean;
+  canCreate: CommandCreate;
 }) {
   const t = useExtracted("search");
   const typeLabel = useSubjectTypeLabel();
@@ -143,7 +156,7 @@ export function CommandCenter({
   };
 
   const actions: readonly CommandAction[] = [
-    ...(canCreateCustomer
+    ...(canCreate.customer
       ? [
           {
             id: "new-customer",
@@ -152,6 +165,45 @@ export function CommandCenter({
             icon: UserPlusIcon,
             run: () => {
               go("/customers?new=1");
+            },
+          },
+        ]
+      : []),
+    ...(canCreate.contact
+      ? [
+          {
+            id: "new-contact",
+            label: t("New contact"),
+            keywords: t("create add contact company person"),
+            icon: UserPlusIcon,
+            run: () => {
+              go("/crm/contacts?new=1");
+            },
+          },
+        ]
+      : []),
+    ...(canCreate.deal
+      ? [
+          {
+            id: "new-deal",
+            label: t("New deal"),
+            keywords: t("create add deal opportunity"),
+            icon: HandshakeIcon,
+            run: () => {
+              go("/crm/deals?new=1");
+            },
+          },
+        ]
+      : []),
+    ...(canCreate.quote
+      ? [
+          {
+            id: "new-quote",
+            label: t("New quote"),
+            keywords: t("create add quote proposal"),
+            icon: FileTextIcon,
+            run: () => {
+              go("/crm/quotes?new=1");
             },
           },
         ]

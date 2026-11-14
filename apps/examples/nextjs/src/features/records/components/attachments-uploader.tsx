@@ -49,17 +49,18 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
-import { removeCustomerAttachments } from "@/features/customers/customers-actions";
 import { useAttachmentUpload } from "@/hooks/use-attachments";
 import { toast } from "@/lib/toast";
 
-import type { AttachmentRow, Loaded } from "../customers-queries";
+import type { RecordSubject } from "../record-subject";
+import type { AttachmentRow, Loaded } from "../records-queries";
 
+import { recordActions } from "../records-action-map";
 import {
   confirmAttachment,
   downloadAttachment,
   startAttachmentUpload,
-} from "../customers-actions";
+} from "../records-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:attachments-uploader
@@ -101,24 +102,24 @@ const VARIANT = {
 } as const satisfies Record<FileState, string>;
 
 /**
- * Files on the customer, in the private `attachments` bucket. Pick, drop or
- * paste files: the server records each one and signs its upload,
+ * Files on a record, in the private `attachments` bucket. Pick, drop or paste
+ * files: the server records each one and signs its upload,
  * `useAttachmentUpload` sends the bytes with progress, and the server confirms
  * it. A file downloads once the scanner marked it clean.
  */
 export function AttachmentsUploader({
-  customerId,
+  subject,
   files,
   canUpload,
   canRemove,
 }: {
-  customerId: string;
+  subject: RecordSubject;
   files: Loaded<readonly AttachmentRow[]>;
   canUpload: boolean;
   canRemove: boolean;
 }) {
-  const t = useExtracted("customers");
-  const upload = useCustomerUpload(customerId);
+  const t = useExtracted("records");
+  const upload = useRecordUpload(subject);
 
   return (
     <Card size="sm" data-recipe="attachments-uploader">
@@ -152,7 +153,7 @@ export function AttachmentsUploader({
                   <EmptyTitle>{t("No files yet")}</EmptyTitle>
                   <EmptyDescription>
                     {t(
-                      "Attach contracts, quotes or anything else about this customer.",
+                      "Attach contracts, quotes or anything else about this record.",
                     )}
                   </EmptyDescription>
                 </EmptyHeader>
@@ -165,7 +166,7 @@ export function AttachmentsUploader({
             )
           ) : (
             <FileList
-              customerId={customerId}
+              subject={subject}
               files={files.data}
               canRemove={canRemove}
             />
@@ -177,19 +178,19 @@ export function AttachmentsUploader({
 }
 
 /**
- * Uploads to the customer through the server actions, which check
+ * Uploads to the record through the server actions, which check
  * `attachments.upload` and read the page again once a file is confirmed.
  */
-function useCustomerUpload(customerId: string): AttachmentUploadState {
-  const t = useExtracted("customers");
+function useRecordUpload(subject: RecordSubject): AttachmentUploadState {
+  const t = useExtracted("records");
   const start = useAction(startAttachmentUpload);
   const confirm = useAction(confirmAttachment);
 
   return useAttachmentUpload({
-    subject: { type: "customer", id: customerId },
+    subject,
     start: (file) =>
       start.run({
-        customerId,
+        subject,
         name: file.name,
         mimeType: file.mimeType,
         size: file.size,
@@ -326,7 +327,7 @@ function UploadRow({
   onRetry: (key: string) => void;
   onDismiss: (key: string) => void;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const errorMessage = useErrorMessage();
 
   const label: Record<AttachmentUploadItem["status"], string> = {
@@ -388,15 +389,15 @@ function UploadRow({
 }
 
 function FileList({
-  customerId,
+  subject,
   files,
   canRemove,
 }: {
-  customerId: string;
+  subject: RecordSubject;
   files: readonly AttachmentRow[];
   canRemove: boolean;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const format = useFormatter();
   const errorMessage = useErrorMessage();
 
@@ -453,11 +454,7 @@ function FileList({
                 <DownloadIcon />
               </Button>
               {canRemove ? (
-                <RemoveFile
-                  id={file.id}
-                  customerId={customerId}
-                  name={file.name}
-                />
+                <RemoveFile id={file.id} subject={subject} name={file.name} />
               ) : null}
             </div>
           </li>
@@ -474,7 +471,7 @@ function UploadButton({
   busy: boolean;
   onPick: (files: readonly AttachmentFileInput[]) => void;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const input = useRef<HTMLInputElement>(null);
 
   const pick = (event: ChangeEvent<HTMLInputElement>) => {
@@ -507,17 +504,17 @@ function UploadButton({
 
 function RemoveFile({
   id,
-  customerId,
+  subject,
   name,
 }: {
   id: string;
-  customerId: string;
+  subject: RecordSubject;
   name: string;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const errorMessage = useErrorMessage();
 
-  const remove = useAction(removeCustomerAttachments, {
+  const remove = useAction(recordActions[subject.type].removeAttachment, {
     onSuccess: () => {
       toast.success(t("File removed"));
     },
@@ -545,7 +542,7 @@ function RemoveFile({
           <AlertDialogAction
             variant="destructive"
             onClick={() => {
-              void remove.run({ id: customerId, input: { id } });
+              void remove.run({ id: subject.id, input: { id } });
             }}
           >
             {t("Remove")}

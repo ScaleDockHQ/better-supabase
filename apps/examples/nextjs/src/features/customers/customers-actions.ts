@@ -5,7 +5,6 @@ import type { JsonPatchOperation } from "better-supabase/blocks/versions";
 
 import { fromBetterResult, dbError, err, ok } from "better-supabase";
 import { withBetterResult } from "better-supabase/better-result";
-import { refresh } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
@@ -18,7 +17,6 @@ import { logos } from "@/lib/buckets";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
-import { customerAttachments } from "./customer-attachments";
 import { customerPage } from "./customer-record";
 import { CUSTOMERS_TAG } from "./customers-cache";
 
@@ -86,20 +84,7 @@ export const uploadCustomerLogo = bsb.action(
 
 const SUBJECT = "customer";
 
-/** Reads the customer page again, for the cards' Retry buttons. */
-// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
-export async function retryCustomerRecord(): Promise<void> {
-  refresh();
-}
-
-export const linkCustomerRelations = customerPage.actions.relations.link;
-
-export const unlinkCustomerRelations = customerPage.actions.relations.unlink;
-
 export const revokeCustomerShareLinks = customerPage.actions.shareLinks.revoke;
-
-export const removeCustomerAttachments =
-  customerPage.actions.attachments.remove;
 
 export const snapshotCustomerVersions = customerPage.actions.versions.snapshot;
 
@@ -153,85 +138,6 @@ export const createShareLink = bsb.action(
 );
 
 // #endregion share links
-
-// #region attachments
-
-const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
-
-/**
- * Records a pending file and returns its signed upload URL for
- * `useAttachmentUpload`, which sends the bytes and calls `confirmAttachment`.
- */
-export const startAttachmentUpload = bsb.action(
-  {
-    input: v.object({
-      customerId: Id,
-      name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(255)),
-      mimeType: v.pipe(v.string(), v.maxLength(255)),
-      size: v.pipe(
-        v.number(),
-        v.integer(),
-        v.minValue(1),
-        v.maxValue(MAX_ATTACHMENT_BYTES),
-      ),
-    }),
-    requireTenant: true,
-    permission: "attachments.upload",
-  },
-  async (
-    { customerId, name, mimeType, size },
-    { tenant: organizationId, supabase },
-  ) => {
-    const upload = await customerAttachments(supabase, organizationId).upload({
-      subject: { type: SUBJECT, id: customerId },
-      attachment: {
-        name,
-        mimeType: mimeType === "" ? "application/octet-stream" : mimeType,
-        size,
-      },
-    });
-
-    if (!upload.ok) {
-      return upload;
-    }
-
-    return ok({
-      id: upload.data.attachment.id,
-      signedUrl: upload.data.signedUrl,
-    });
-  },
-);
-
-export const confirmAttachment = bsb.action(
-  {
-    input: v.object({ id: Id }),
-    requireTenant: true,
-    permission: "attachments.upload",
-  },
-  async ({ id }, { supabase, auth }) => {
-    const confirmed = await customerAttachments(supabase).confirm(id);
-
-    await refreshCaller(auth, [CUSTOMERS_TAG, CRM_TAG, DRIVE_TAG]);
-
-    return confirmed.ok ? ok(null) : confirmed;
-  },
-);
-
-/** A short-lived download URL; refused until the file was scanned clean. */
-export const downloadAttachment = bsb.action(
-  {
-    input: v.object({ id: Id }),
-    requireTenant: true,
-    permission: "attachments.read",
-  },
-  async ({ id }, { supabase }) =>
-    customerAttachments(supabase)
-      .download({ id, options: { as: "download" } })
-      .map((download) => ({ signedUrl: download.signedUrl })),
-);
-
-/** Removes a file; the customer's attachments section reads again. */
-// #endregion attachments
 
 // #region versions
 

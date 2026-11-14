@@ -13,12 +13,12 @@ import {
 import { blockConfig } from "@/lib/supabase/blocks.config";
 
 /**
- * The attachments block as the caller, in `tenant`. `db.attachments` builds it
- * without a Storage client, so this one passes the caller's `supabase.storage`:
- * the `attachments` bucket's policies only accept a file a pending record
- * expects.
+ * The attachments block, for any record type, as the caller, in `tenant`.
+ * `db.attachments` builds it without a Storage client, so this one passes the
+ * caller's `supabase.storage`: the `attachments` bucket's policies only accept
+ * a file a pending record expects.
  */
-export function customerAttachments(
+export function recordAttachments(
   supabase: RpcClient & { readonly storage: AttachmentStorage },
   tenant?: string | null,
 ): Attachments {

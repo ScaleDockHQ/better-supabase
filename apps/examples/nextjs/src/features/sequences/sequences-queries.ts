@@ -61,3 +61,17 @@ export async function getSequences(): Promise<Loaded<readonly SequenceCard[]>> {
     return { kind: "error" };
   }
 }
+
+/** One sequence, `undefined` when it is gone or hidden. */
+export async function getSequence(
+  id: string,
+): Promise<Loaded<SequenceCard | undefined>> {
+  const sequences = await getSequences();
+
+  return sequences.kind === "ok"
+    ? {
+        kind: "ok",
+        data: sequences.data.find((sequence) => sequence.id === id),
+      }
+    : sequences;
+}

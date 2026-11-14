@@ -670,3 +670,42 @@ export const createReferralCode = bsb.action(
     return ok({ code: created.data.code });
   },
 );
+
+/** Sets the owner of up to 100 deals; a refused deal does not stop the others. */
+export const assignDealOwners = bsb.action(
+  {
+    input: v.object({
+      ownerId: Id,
+      dealIds: v.pipe(
+        v.string(),
+        v.transform((value) => value.split(",")),
+        v.array(Id),
+        v.minLength(1),
+        v.maxLength(100),
+      ),
+    }),
+    requireTenant: true,
+    permission: "deals.write",
+  },
+  async ({ ownerId, dealIds }, { db, auth }) => {
+    const changed = await db.deals.update({
+      changes: dealIds.map((dealId) => ({
+        dealId,
+        field: "ownerId",
+        value: ownerId,
+      })),
+    });
+
+    if (!changed.ok) {
+      return changed;
+    }
+
+    await refreshCaller(auth, TAGS);
+
+    return ok({
+      assigned: new Set(changed.data.accepted.map((entry) => entry.dealId))
+        .size,
+      refused: new Set(changed.data.rejected.map((entry) => entry.dealId)).size,
+    });
+  },
+);

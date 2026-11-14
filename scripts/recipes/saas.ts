@@ -142,7 +142,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     description:
       "A drop zone that uploads files to a record and lists them with a download link.",
     web: {
-      file: `${WEB_APP}/src/features/customers/components/attachments-uploader.tsx`,
+      file: `${WEB_APP}/src/features/records/components/attachments-uploader.tsx`,
       components: ["alert-dialog", "badge", "button", "card", "empty"],
       glue: [],
     },
@@ -339,7 +339,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     description:
       "One record's comments, files and versions merged newest first, from `bsb.record(...).timeline`, skipping the bindings the caller can't read.",
     web: {
-      file: `${WEB_APP}/src/features/customers/components/customer-timeline.tsx`,
+      file: `${WEB_APP}/src/features/records/components/record-timeline.tsx`,
       components: ["badge", "button", "card", "empty"],
       glue: [],
     },
@@ -412,7 +412,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     description:
       "The records linked to a record, with a picker to add or remove a link.",
     web: {
-      file: `${WEB_APP}/src/features/customers/components/related-items-panel.tsx`,
+      file: `${WEB_APP}/src/features/records/components/related-items-panel.tsx`,
       components: ["badge", "button", "card", "empty", "field", "select"],
       glue: [],
     },

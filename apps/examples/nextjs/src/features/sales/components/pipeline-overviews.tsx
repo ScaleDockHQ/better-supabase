@@ -56,7 +56,11 @@ export async function DealOverview({ query }: { query: BlockListQuery }) {
 
   const action =
     data && canWrite ? (
-      <CreateDealDialog pipelineId={data.pipeline.id} stages={openStages} />
+      <CreateDealDialog
+        pipelineId={data.pipeline.id}
+        stages={openStages}
+        openFromUrl
+      />
     ) : data === undefined && canManage ? (
       <CreatePipelineButton />
     ) : undefined;
