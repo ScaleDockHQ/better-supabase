@@ -103,9 +103,16 @@ export function blockCloudEvent(
     time: (options.now?.() ?? event.time).toString(),
     datacontenttype: "application/json",
     ...dataschemaOf(options, { type }),
-    data: event.actorId
-      ? { ...event.data, actorId: event.actorId }
-      : event.data,
+    data:
+      event.actorId || event.impersonatedBy
+        ? {
+            ...event.data,
+            ...(event.actorId ? { actorId: event.actorId } : {}),
+            ...(event.impersonatedBy
+              ? { impersonatedBy: event.impersonatedBy }
+              : {}),
+          }
+        : event.data,
     ...(event.tenant ? { partitionkey: event.tenant } : {}),
   };
 }

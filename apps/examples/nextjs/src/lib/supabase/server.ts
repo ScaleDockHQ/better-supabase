@@ -2,8 +2,9 @@ import type { NextOptions } from "better-supabase/next";
 
 import "server-only";
 import { permissionsAuthorizer } from "better-supabase/blocks/permissions";
-import { createNext } from "better-supabase/next";
-import { createServer } from "better-supabase/server";
+import { createNext, supportSessions } from "better-supabase/next";
+import { createPostgres } from "better-supabase/postgres";
+import { createServer, sqlSupportStore } from "better-supabase/server";
 
 import { env } from "@/env";
 
@@ -28,12 +29,31 @@ const options: NextOptions = {
 
 const counters = sharedCounters();
 
+/**
+ * Support sessions need the `better_supabase` schema, which the Data API does
+ * not serve, so the store connects with `DATABASE_URL`. Without it the app runs
+ * with no "View as" action and `startSupport` refuses.
+ */
+const support = env.DATABASE_URL
+  ? supportSessions({
+      store: sqlSupportStore(
+        createPostgres({ connectionString: env.DATABASE_URL, max: 3 }),
+      ),
+      // The database decides who may start one (`is_platform('impersonation.start')`),
+      // and a second admin approves the request on /approvals.
+      authorize: "store",
+      policy: { ttl: 30 * 60, requireReason: true },
+    })
+  : undefined;
+
 // Built here, not inside `createNext`, so the testing route can read its
 // session memo: how many renders verified a token instead of reusing one.
-const bsbServer = createServer(betterSupabase, {
-  ...options,
-  sessions: { counters },
-});
+const serverOptions = { ...options, sessions: { counters } };
+
+const bsbServer = createServer(
+  betterSupabase,
+  support ? { ...serverOptions, support } : serverOptions,
+);
 
 export const bsb = createNext(betterSupabase, {
   ...options,
