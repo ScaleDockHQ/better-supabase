@@ -48,3 +48,7 @@ invariant (append-only rows never deleted) is checked in CI. The function adds
 six counted security-definer functions to `data-lifecycle` in the practices
 baseline. Tables of other blocks adopt `lifecycle.erase` as lane I and the block
 owners reach them; until then an erasure reports only the tables above.
+
+The `./blocks/data-lifecycle` entry grows from 39,030 to 41,046 B gzip (the plan
+functions from ADR 0899 and the erasure client), so `tests/bundle/baseline.json` is
+raised to the CI-measured number.
