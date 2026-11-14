@@ -11,6 +11,7 @@ export const APP_NAMESPACES = [
   "notifications",
   "offline",
   "organization",
+  "recordList",
   "search",
   "settings",
   "support",

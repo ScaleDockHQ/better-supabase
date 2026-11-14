@@ -1448,7 +1448,10 @@ import { CreateOrganizationDialog } from "./create-organization-dialog";
 
 function Mark({ name }: { name: string }) {
   return (
-    <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground">
+    <div
+      aria-hidden="true"
+      className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sm font-semibold text-sidebar-primary-foreground"
+    >
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -1514,7 +1517,6 @@ export function OrganizationSwitcherMenu({
             <SidebarMenuButton
               size="lg"
               className="data-popup-open:bg-sidebar-accent"
-              aria-label={t("Switch organization")}
             />
           }
         >
@@ -1530,6 +1532,7 @@ export function OrganizationSwitcherMenu({
               {active ? active.plan : t("Create one to start")}
             </span>
           </div>
+          <span className="sr-only">{t("Switch organization")}</span>
           <ChevronsUpDownIcon className="ml-auto" />
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-64" align="start" side="bottom">
