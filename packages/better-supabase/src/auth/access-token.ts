@@ -75,8 +75,15 @@ export interface AccessTokenResolverOptions {
   readonly claims?: (
     payload: Readonly<Record<string, unknown>>,
   ) => Readonly<Record<string, unknown>>;
-  /** How the JWKS is cached when `jwks` is a URL or a loader. */
-  readonly cache?: Pick<JwksSourceOptions, "cacheSeconds" | "refetchSeconds">;
+  /**
+   * How the JWKS is cached when `jwks` is a URL or a loader. `store` (a URL
+   * only) shares the fetched key set between instances, such as
+   * `vercelRuntimeCache(getCache)`.
+   */
+  readonly cache?: Pick<
+    JwksSourceOptions,
+    "cacheSeconds" | "refetchSeconds" | "store"
+  >;
   readonly fetch?: typeof fetch;
   /** Epoch milliseconds. */
   readonly now?: () => number;

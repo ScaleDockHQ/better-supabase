@@ -193,6 +193,74 @@ $$;`),
     ).resolves.toBeUndefined();
   });
 
+  it("confirms a file in another store from the service role's object, within the bucket's limits", async () => {
+    await expect(
+      run(`do $$
+declare
+  v_file jsonb;
+  v_hint text;
+begin
+  insert into storage.buckets (id, name, file_size_limit, allowed_mime_types)
+  values ('attachments', 'attachments', 100, array['application/pdf', 'image/*'])
+  on conflict (id) do update
+    set file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+  ${AS_ADA}
+  insert into public.files (id, org_id, file_name, content_type, byte_size)
+  values ('${FILE}', '${ORG}', 'Photo.png', 'image/png', 1);
+
+  begin
+    perform better_supabase.confirm_attachment('${FILE}', '{"size": 7, "mimetype": "image/png"}');
+    raise exception 'a user confirmed with an object';
+  exception when others then
+    get stacked diagnostics v_hint = pg_exception_hint;
+    if v_hint is distinct from 'ATTACHMENT_NOT_UPLOADED' then
+      raise exception 'a user object gave %', v_hint;
+    end if;
+  end;
+
+  ${SERVICE}
+  for v_file in select value from jsonb_array_elements('[
+    {"size": "7", "mimetype": "image/png"},
+    {"size": -1, "mimetype": "image/png"},
+    {"size": 1.5, "mimetype": "image/png"},
+    {"size": 7, "mimetype": "png"}
+  ]') loop
+    begin
+      perform better_supabase.confirm_attachment('${FILE}', v_file);
+      raise exception 'confirmed with %', v_file;
+    exception when others then
+      get stacked diagnostics v_hint = pg_exception_hint;
+      if v_hint is distinct from 'ATTACHMENT_OBJECT_INVALID' then
+        raise exception '% gave %', v_file, v_hint;
+      end if;
+    end;
+  end loop;
+
+  for v_file in select value from jsonb_array_elements('[
+    {"size": 101, "mimetype": "image/png"},
+    {"size": 7, "mimetype": "text/html"}
+  ]') loop
+    begin
+      perform better_supabase.confirm_attachment('${FILE}', v_file);
+      raise exception 'confirmed with %', v_file;
+    exception when others then
+      get stacked diagnostics v_hint = pg_exception_hint;
+      if v_hint is distinct from 'ATTACHMENT_OBJECT_REFUSED' then
+        raise exception '% gave %', v_file, v_hint;
+      end if;
+    end;
+  end loop;
+
+  v_file := better_supabase.confirm_attachment('${FILE}', '{"size": 7, "mimetype": "IMAGE/PNG"}');
+  if (v_file ->> 'size')::bigint <> 7 or v_file ->> 'mime_type' <> 'image/png'
+    or v_file ->> 'uploaded_at' is null then
+    raise exception 'confirmed %', v_file;
+  end if;
+end;
+$$;`),
+    ).resolves.toBeUndefined();
+  });
+
   it("starts a client's own insert pending, whatever status it sends", async () => {
     await expect(
       run(`do $$

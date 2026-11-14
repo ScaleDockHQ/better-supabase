@@ -1,10 +1,11 @@
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { AsyncResult } from "../../core/result.ts";
+import type { FileStore } from "../../storage/file-store.ts";
 import type { AttachmentStorage } from "./attachments.ts";
 
 import { ok } from "../../core/result.ts";
 import { blockCall, isRecord, optionalText } from "../shared.ts";
-import { stored } from "./attachments.ts";
+import { requiredFiles } from "./files.ts";
 
 export interface AttachmentSweeperOptions {
   /**
@@ -12,8 +13,13 @@ export interface AttachmentSweeperOptions {
    * `complete_attachment_cleanup()` are granted to `service_role` only.
    */
   readonly transport: BlockTransport;
-  /** A service-role `supabase.storage`, to delete the queued objects. */
-  readonly storage: AttachmentStorage;
+  /**
+   * A service-role `supabase.storage`, to delete the queued objects. Needs one
+   * of `storage` and `files`.
+   */
+  readonly storage?: AttachmentStorage;
+  /** The file store the blocks use, when it isn't Supabase Storage. */
+  readonly files?: FileStore;
   readonly schema?: string;
 }
 
@@ -69,6 +75,7 @@ export function createAttachmentSweeper(
   options: AttachmentSweeperOptions,
 ): AttachmentSweeper {
   const call = blockCall(options.transport, options.schema);
+  const files = requiredFiles("createAttachmentSweeper", options);
 
   return {
     sweepQueued: (sweep = {}) =>
@@ -82,10 +89,9 @@ export function createAttachmentSweeper(
         let failed = 0;
 
         for (const [bucket, objects] of byBucket) {
-          const removed = await stored(
-            options.storage
-              .from(bucket)
-              .remove(objects.map((object) => object.path)),
+          const removed = await files.delete(
+            bucket,
+            objects.map((object) => object.path),
           );
 
           if (removed.ok) {

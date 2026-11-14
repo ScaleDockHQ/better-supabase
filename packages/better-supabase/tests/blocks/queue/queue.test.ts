@@ -1963,6 +1963,90 @@ describe("custom queue backends", () => {
   });
 });
 
+describe("enqueueScheduledRun", () => {
+  const run = {
+    name: "nightly",
+    queue: "emails",
+    payload: { to: "a@example.com" },
+    executionId: "exec_1",
+  };
+
+  it("checks the probe, then enqueues once per execution id", async () => {
+    const fake = fakeSql([
+      ["schedule_has_work", [{ work: true }]],
+      ["enqueue_job_once", [{ id: "7", duplicate: false }]],
+    ]);
+
+    const jobs = createQueue({ sql: fake.sql, queues });
+
+    expect(
+      await jobs
+        .enqueueScheduledRun({ ...run, probe: "app.has_mail", maxAttempts: 2 })
+        .orThrow(),
+    ).toEqual({ id: 7, duplicate: false });
+
+    const once = fake.calls.find((call) =>
+      call.text.includes("enqueue_job_once"),
+    );
+
+    expect(once?.values).toEqual([
+      "emails",
+      JSON.stringify(run.payload),
+      "schedule:nightly:exec_1",
+      0,
+      2,
+    ]);
+  });
+
+  it("skips the run when the probe reports no work, and counts a missing answer as work", async () => {
+    const idle = fakeSql([["schedule_has_work", [{ work: false }]]]);
+
+    expect(
+      await createQueue({ sql: idle.sql, queues })
+        .enqueueScheduledRun({ ...run, probe: "app.has_mail" })
+        .orThrow(),
+    ).toBeNull();
+    expect(idle.texts().some((text) => text.includes("enqueue_job_once"))).toBe(
+      false,
+    );
+
+    const unknown = fakeSql([
+      ["schedule_has_work", []],
+      ["enqueue_job_once", [{ id: 8, duplicate: true }]],
+    ]);
+
+    expect(
+      await createQueue({ sql: unknown.sql, queues })
+        .enqueueScheduledRun({ ...run, probe: "app.has_mail" })
+        .orThrow(),
+    ).toEqual({ id: 8, duplicate: true });
+  });
+
+  it("fails when enqueue_job_once returns no row, or the backend can't probe or send once", async () => {
+    const empty = await createQueue({
+      sql: fakeSql().sql,
+      queues,
+    }).enqueueScheduledRun(run);
+
+    expect(empty.ok).toBe(false);
+
+    const bare: QueueProvider = { ...sqlQueueProvider(fakeSql().sql) };
+
+    delete bare.hasWork;
+    delete bare.sendOnce;
+
+    const jobs = createQueue({ backend: bare, queues });
+
+    for (const input of [{ ...run, probe: "app.has_mail" }, run]) {
+      const refused = await jobs.enqueueScheduledRun(input);
+
+      expect(refused.ok ? undefined : refused.error.kind).toBe(
+        "invalid_request",
+      );
+    }
+  });
+});
+
 describe("drain and work", () => {
   it("drains the queue with the validated payload and completes each job", async () => {
     const fake = fakeSql([

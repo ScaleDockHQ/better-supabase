@@ -1,3 +1,4 @@
+import { withBotId } from "botid/next/config";
 import createNextIntlPlugin from "next-intl/plugin";
 import { fileURLToPath } from "node:url";
 import { withWorkflow } from "workflow/next";
@@ -55,5 +56,6 @@ function remoteCache(): Pick<NextConfigOverrides, "remoteCacheHandler"> {
 }
 
 // Compiles the "use workflow" and "use step" functions and adds the
-// /.well-known/workflow routes the World delivers runs to.
-export default withWorkflow(withNextIntl(config));
+// /.well-known/workflow routes the World delivers runs to. `withBotId` adds the
+// rewrites BotID's client challenge loads through.
+export default withWorkflow(withBotId(withNextIntl(config)));

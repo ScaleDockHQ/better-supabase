@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:b070f56f5c58ec8adc66538ad4afebb82803f638ed5d7c964a7aaa919c33fb8d
+-- @bsb-hash sha256:c5b0fcf7c2111cd36ede57e5add11f5b4266235f663dcd8258b3e9417857ff53
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -17,6 +17,6 @@ where x."object_path" is distinct from (select "tenant_id"::text || '/attachment
 update "better_supabase"."attachments" set "storage_status" = 'stored' where "uploaded_at" is not null and "storage_status" = 'pending_upload';
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 9, 'managed')
+values ('attachments', 10, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -17,6 +17,7 @@ const context = (
       instances: Object.fromEntries(
         Object.entries(instances).map(([name, block]) => [name, { block }]),
       ),
+      blocks: {},
     },
     envFiles: [],
     sources: [],
@@ -234,5 +235,103 @@ describe("BS511", () => {
     expect(
       await run('import { blocks } from "@/lib/supabase/blocks.generated";'),
     ).toHaveLength(0);
+  });
+});
+
+describe("BS512", () => {
+  const vercel = (json: unknown): Partial<DoctorContext> => ({
+    vercelConfig: { path: "vercel.json", text: JSON.stringify(json) },
+  });
+
+  const targets = async (parts: Partial<DoctorContext>): Promise<string[]> =>
+    (await rule("BS512").check(context({}, parts))).map(
+      (finding) => finding.target ?? "",
+    );
+
+  it("flags crons, a path in both, and a function without its trigger", async () => {
+    expect(
+      await targets(
+        vercel({
+          crons: [
+            { path: "/api/drain", schedule: "* * * * *" },
+            { path: "/api/old", schedule: "0 * * * *" },
+          ],
+          schedules: {
+            drain: { schedule: "* * * * *", path: "/api/drain" },
+            tick: { schedule: "* * * * *", function: "app/api/tick/route.ts" },
+          },
+          functions: { "app/api/tick/route.ts": { maxDuration: 60 } },
+        }),
+      ),
+    ).toEqual(["crons:/api/drain", "crons:/api/old", "schedules:tick"]);
+  });
+
+  it("accepts schedules with their triggers, and a file that is not JSON", async () => {
+    expect(
+      await targets(
+        vercel({
+          schedules: {
+            drain: { schedule: "* * * * *", path: "/api/drain" },
+            tick: { schedule: "* * * * *", function: "app/api/tick/route.ts" },
+          },
+          functions: {
+            "app/api/tick/route.ts": {
+              experimentalTriggers: [{ type: "schedule/v1beta" }],
+            },
+          },
+        }),
+      ),
+    ).toEqual([]);
+    expect(
+      await targets({ vercelConfig: { path: "vercel.json", text: "{" } }),
+    ).toEqual([]);
+  });
+
+  it("checks pg_net and the Vault secrets while httpTick is on", async () => {
+    const config = (httpTick: boolean): Partial<DoctorContext> =>
+      // SAFETY: BS512 reads only config.blocks.queue.options.
+      ({
+        config: { instances: {}, blocks: { queue: { options: { httpTick } } } },
+      }) as unknown as Partial<DoctorContext>;
+
+    expect(await targets(config(false))).toEqual([]);
+    expect(await targets(config(true))).toEqual([
+      "blocks.queue.options.httpTick:pg_net",
+      "blocks.queue.options.httpTick:vault",
+    ]);
+    expect(
+      await targets({
+        ...config(true),
+        sqlFiles: [
+          {
+            path: "a.sql",
+            text: "create extension if not exists pg_net with schema extensions;",
+          },
+        ],
+        seedFiles: [
+          {
+            path: "seed.sql",
+            text: "select vault.create_secret('http://x/api/drain', 'jobs_tick_url');",
+          },
+        ],
+      }),
+    ).toEqual(["blocks.queue.options.httpTick:vault"]);
+    expect(
+      await targets({
+        ...config(true),
+        sqlFiles: [
+          {
+            path: "a.sql",
+            text: "create extension if not exists pg_net with schema extensions;",
+          },
+        ],
+        seedFiles: [
+          {
+            path: "seed.sql",
+            text: "select vault.create_secret('http://x/api/drain', 'jobs_tick_url');\nselect vault.create_secret('token', 'jobs_tick_token');",
+          },
+        ],
+      }),
+    ).toEqual([]);
   });
 });

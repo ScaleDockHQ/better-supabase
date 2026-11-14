@@ -21,12 +21,14 @@ token the app supplies per installation. Invoices keep the state of the newest
 event (`event_at`), and meter reports are stored before they are sent, so a
 failed send is retried.
 
-`vercelQueueBackend(client)` in `better-supabase/blocks/jobs` is a
-`QueueBackend` (`apiVersion: 1`) over `@vercel/queue`. The client is passed in
+`vercelQueueProvider(client)` in `better-supabase/blocks/queue` is a
+`QueueProvider` (`apiVersion: 1`) over `@vercel/queue`. The client is passed in
 and typed structurally, so the package is an optional peer with a tested range
-(`>=0.8 <0.9`) and never loaded by the library. Vercel Queues has no dead
-letters, stats or schedules, so those methods are absent or refuse and the
-backend declares `leases: false`.
+and never loaded by the library. Vercel Queues has no dead letters, stats or
+schedules, so those methods are absent or refuse and the provider declares
+`leases: false`. (The names were `vercelQueueBackend`, `QueueBackend` and
+`better-supabase/blocks/jobs` when this was written; ADR 0849 adds the
+schedulers that pair with it.)
 
 ## Alternatives considered
 

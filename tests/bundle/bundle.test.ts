@@ -294,7 +294,7 @@ function overBaseline(
 
 /**
  * Adapter entries that must import in plain Node ESM. `./expo` is left out:
- * expo-server 57's ESM build uses extensionless relative imports that only
+ * expo-server 58's ESM build uses extensionless relative imports that only
  * Metro resolves.
  */
 const NODE_LOADED = [

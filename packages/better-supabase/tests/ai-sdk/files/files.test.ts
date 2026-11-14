@@ -1,3 +1,5 @@
+import type { createDownload } from "ai";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { AiFileStorage } from "../../../src/blocks/ai-files/index.ts";
@@ -21,7 +23,9 @@ const sdkDownload = vi.hoisted(() =>
 
 vi.mock(import("ai"), async (importOriginal) => ({
   ...(await importOriginal()),
-  createDownload: () => sdkDownload,
+  // The SDK's download is overloaded; the adapter calls only the one-request form.
+  createDownload: () =>
+    sdkDownload as unknown as ReturnType<typeof createDownload>,
 }));
 
 const AT = "2026-01-01T00:00:00Z";

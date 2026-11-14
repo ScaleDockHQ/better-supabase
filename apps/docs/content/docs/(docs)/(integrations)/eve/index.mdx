@@ -17,7 +17,7 @@ pnpm better-supabase add workflow-sdk ai-chat memory knowledge credentials inbox
 pnpm better-supabase add approvals queue
 ```
 
-`eve` is an optional peer (`>=0.71 <1`). The entry types eve structurally
+`eve` is an optional peer (`>=0.83.3 <1`). The entry types eve structurally
 and imports nothing from it at load time; the memory provider loads
 `eve/tools` the first time it builds its tools. eve runs on Node, so the
 entry is Node-only, like the World. The inbox channel also needs `chat`
@@ -26,6 +26,7 @@ entry is Node-only, like the World. The inbox channel also needs `chat`
 | Export                    | Plugs into                                      | Does                                                                         |
 | ------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------- |
 | `supabaseAuth`            | `eveChannel({ auth })` and other channel `auth` | verifies the Supabase session locally and maps the user to an eve principal  |
+| `supabaseJwtAuth`         | `mcpChannel({ auth })` and other channel `auth` | the same for a bearer access token only, with an RFC 6750 `Bearer` challenge |
 | `supabaseTool`            | `defineTool()`                                  | runs the tool's `execute` as the session's user, under row-level security    |
 | `eveContext`              | `server.forContext()`                           | builds the user's request context with the agent's `act` claim               |
 | `approvalPolicy`          | a tool's `approval`                             | files each call as an approvals block request and settles it per decision    |
@@ -93,6 +94,36 @@ roles come from the `memberships` claim, or the claim in `membershipsClaim`
 when your authorization hook writes memberships elsewhere.
 `attributes(claims)` adds your own. `principalOf(auth)` builds the same
 principal from an `AuthState` you already have.
+
+### Bearer tokens for agents and MCP clients
+
+`supabaseJwtAuth` is the `AuthFn` for callers that send a Supabase access
+token as `Authorization: Bearer`: MCP clients, other agents and mobile apps.
+It verifies the token the same way, locally against the project's keys, and
+never reads the session cookie, so a browser can't authorize a request another
+site makes it send. A request without a bearer token falls through to the next
+entry. A token that fails verification gets a 401 with
+`WWW-Authenticate: Bearer error="invalid_token"` and never reaches a later
+entry such as `none()`. It declares the `Bearer` scheme, so eve's own 401 and
+`oauthResource` advertise it:
+
+```ts title="agent/channels/mcp.ts"
+import { mcpChannel } from "eve/channels/mcp";
+import { oauthResource } from "eve/channels/auth";
+import { loadEnv } from "better-supabase/env";
+import { supabaseJwtAuth } from "better-supabase/eve";
+
+const env = loadEnv();
+
+export default mcpChannel({
+  auth: oauthResource(supabaseJwtAuth({ env }), {
+    issuer: `${env.url}/auth/v1`,
+  }),
+});
+```
+
+It takes the options of `supabaseAuth` except the cookie, `verifySession` and
+`secret` ones, and builds the same principal.
 
 ## Tools that run as the user
 
@@ -469,3 +500,17 @@ contacts.
 - `queueSchedules` starts the sessions from the eve schedule's own task, so
   a drain is bounded by `budgetMs` (50 seconds by default). Jobs left over
   wait for the next minute.
+- The tested range ends before 1.0. eve 1.0 release candidates keep the
+  `AuthFn` contract `supabaseAuth` and `supabaseJwtAuth` follow; the range
+  moves to 1.0 once the rest of the entry is checked against it.
+
+## Queue schedulers
+
+`queueSchedules` calls `runSchedules` and then drains the
+[queue block](/docs/blocks/queue), so its schedules need the drain scheduler
+(`blocks.queue.options.scheduler: "drain"`, or `sqlScheduler(sql, { mode:
+"drain" })`). Under pg_cron or Vercel Schedules, `runSchedules` enqueues
+nothing and the runs reach the queue another way (see
+[Queues and schedulers](/docs/blocks/queue#queues-and-schedulers)).
+`ScheduleProvider` from `better-supabase/blocks/queue` is the port a
+scheduler implements.

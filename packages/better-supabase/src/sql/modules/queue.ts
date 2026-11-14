@@ -495,6 +495,71 @@ exception when others then
 end;
 $$;`;
 
+/** The Vault secrets `http_tick` posts with. */
+const JOBS_TICK_SECRETS = {
+  url: "jobs_tick_url",
+  token: "jobs_tick_token",
+} as const;
+
+/** The pg_cron job `blocks.queue.options.httpTick` registers. */
+const JOBS_TICK_JOB = "bsb_jobs_tick";
+
+const HTTP_TICK = `-- Supabase Cron as the clock: with blocks.queue.options.httpTick, pg_cron calls
+-- this every minute (job ${JOBS_TICK_JOB}). It posts to the URL in the Vault secret
+-- ${JOBS_TICK_SECRETS.url} (the drain route on pgmq, jobs.schedulesRoute on Vercel Queues)
+-- with the bearer token in ${JOBS_TICK_SECRETS.token}, usually CRON_SECRET. Returns the
+-- pg_net request id, or null with a warning while a secret is missing.
+create or replace function better_supabase.http_tick()
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  -- pg_net and Vault are looked up, not named, so plpgsql_check (supabase db
+  -- lint) passes without them.
+  v_post regprocedure := pg_catalog.to_regprocedure('net.http_post(text, jsonb, jsonb, jsonb, integer)');
+  v_url text;
+  v_token text;
+  v_id bigint;
+begin
+  if v_post is null then
+    raise exception 'the queue tick needs pg_net: create extension pg_net'
+      using hint = 'QUEUE_TICK_NO_PG_NET';
+  end if;
+  if pg_catalog.to_regclass('vault.decrypted_secrets') is null then
+    raise exception 'the queue tick reads its URL and token from Vault: create extension supabase_vault'
+      using hint = 'QUEUE_TICK_NO_VAULT';
+  end if;
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_url using '${JOBS_TICK_SECRETS.url}';
+  execute 'select decrypted_secret from vault.decrypted_secrets where name = $1'
+    into v_token using '${JOBS_TICK_SECRETS.token}';
+  if coalesce(v_url, '') = '' or coalesce(v_token, '') = '' then
+    raise warning 'http_tick skipped: set the Vault secrets ${JOBS_TICK_SECRETS.url} and ${JOBS_TICK_SECRETS.token}';
+    return null;
+  end if;
+  execute format('select %s(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)', v_post::oid::regproc)
+    into v_id
+    using v_url, '{}'::jsonb, jsonb_build_object(
+      'content-type', 'application/json',
+      'authorization', 'Bearer ' || v_token
+    ), 55000;
+  return v_id;
+end;
+$$;`;
+
+/** Registers the tick with pg_cron, for `blocks.queue.options.httpTick`. */
+const HTTP_TICK_JOB = `do $$
+begin
+  if pg_catalog.to_regnamespace('cron') is null then
+    raise exception 'blocks.queue.options.httpTick needs pg_cron: create extension pg_cron with schema pg_catalog'
+      using hint = 'QUEUE_TICK_NO_PG_CRON';
+  end if;
+  perform cron.schedule('${JOBS_TICK_JOB}', '* * * * *', 'select better_supabase.http_tick()');
+end;
+$$;`;
+
 const ensureQueue = (backend: JobsBackend): string =>
   backend === "pgmq"
     ? "\n  perform better_supabase.ensure_job_queue(queue);"
@@ -553,9 +618,18 @@ set search_path = ''
 as $$
 declare
   v_unschedule regprocedure := pg_catalog.to_regprocedure('cron.unschedule(text)');
+  v_jobs regclass := pg_catalog.to_regclass('cron.job');
+  v_found boolean;
   v_removed boolean;
 begin
-  if v_unschedule is null then
+  if v_unschedule is null or v_jobs is null then
+    return false;
+  end if;
+  -- cron.unschedule raises for a name it doesn't know.
+  execute format('select exists (select 1 from %s j where j.jobname = $1)', v_jobs)
+    into v_found
+    using job_name;
+  if not v_found then
     return false;
   end if;
   execute format('select %s($1::text)', v_unschedule::oid::regproc)
@@ -832,13 +906,14 @@ const GRANTS = (backend: JobsBackend): string =>
     "job_queue_stats(text)",
     "list_dead_jobs(text, integer, bigint)",
     "retry_dead_jobs(text, bigint[], integer)",
+    "http_tick()",
     ...LEASE_FUNCTIONS,
   ]);
 
 // Both tables exist only with their option: messages with backend "table",
 // schedules with scheduler "drain". pgmq keeps its own per-queue tables.
 const NAMES: BlockSqlNames = {
-  options: ["backend", "scheduler"],
+  options: ["backend", "scheduler", "httpTick"],
   tables: {
     messages: MESSAGES_TABLE,
     leases: LEASES_TABLE,
@@ -875,6 +950,7 @@ function jobsSql(ctx: BlockSqlContext): string {
       : table(ctx, archiveGuard(ctx)),
     SCHEDULE_HAS_WORK,
     scheduler === "pg_cron" ? PG_CRON(backend) : drain(ctx),
+    HTTP_TICK,
     leasesSql(ctx),
     GRANTS(backend),
   ].join("\n\n");
@@ -888,13 +964,26 @@ export const JOBS: BlockSqlDefinition = {
   requires: ["housekeeping"],
   integrates: ["data-lifecycle"],
   target: "schema",
-  version: 13,
+  version: 14,
   names: NAMES,
   data: (ctx) =>
-    jobsBackend(ctx) === "pgmq"
-      ? "-- Indexes the queues that existed before the module.\nselect better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;"
-      : "",
+    [
+      jobsBackend(ctx) === "pgmq"
+        ? "-- Indexes the queues that existed before the module.\nselect better_supabase.index_job_queue(q.queue_name) from pgmq.list_queues() q;"
+        : "",
+      ctx.flag("httpTick", false)
+        ? `-- Supabase Cron calls the drain or schedules route every minute (blocks.queue.options.httpTick).\n${HTTP_TICK_JOB}`
+        : "",
+    ]
+      .filter((part) => part !== "")
+      .join("\n\n"),
   upgrades: [
+    {
+      from: 13,
+      description:
+        "http_tick posts to the drain or schedules route with the URL and token in Vault, and blocks.queue.options.httpTick has pg_cron call it every minute, so Supabase Cron can be the clock of a queue. unschedule_job answers false for a pg_cron job that doesn't exist instead of raising.",
+      sql: () => "",
+    },
     {
       from: 12,
       description:

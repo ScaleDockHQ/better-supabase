@@ -1,10 +1,11 @@
 "use client";
 
 import { useSessionChange } from "better-supabase/next/client";
+import { initBotId } from "botid/client/core";
 import { MailCheckIcon } from "lucide-react";
 import { useExtracted, useLocale } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useActionState, useId } from "react";
+import { useActionState, useEffect, useId } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,8 +26,8 @@ import { Input } from "@/components/ui/input";
 import { sessionChanged } from "@/features/user/user-actions";
 import { Link } from "@/i18n/navigation";
 import { localizedPath } from "@/i18n/routing";
-import { loadBrowserClient } from "@/lib/supabase/load-client";
 
+import { signUp } from "../auth-actions";
 import { safeNext } from "../safe-next";
 
 type State =
@@ -39,43 +40,63 @@ type State =
   | null;
 
 /**
- * `full_name` goes to `raw_user_meta_data`, which the profiles module copies
- * into the profile. New users have no organization until they create one or
- * accept an invitation.
+ * The `signUp` Server Action runs BotID's check before it calls Auth. New users
+ * have no organization until they create one or accept an invitation.
  */
 export function SignupForm() {
   const t = useExtracted("auth");
+  const tSignup = useExtracted("signup");
   const fieldId = useId();
   const locale = useLocale();
   const router = useRouter();
   const changeSession = useSessionChange(sessionChanged, router);
+
+  // BotID loads here, not in instrumentation-client.ts, so only this route
+  // carries its script. The Server Action posts to this page.
+  useEffect(() => {
+    initBotId({
+      protect: [{ path: localizedPath(locale, "/signup"), method: "POST" }],
+    });
+  }, [locale]);
 
   const [state, submit, pending] = useActionState(
     async (_previous: State, form: FormData): Promise<State> => {
       const email = String(form.get("email"));
       const fullName = String(form.get("fullName"));
 
-      const bsb = await loadBrowserClient();
-
-      const { data, error } = await bsb.supabase.auth.signUp({
+      const result = await signUp({
         email,
         password: String(form.get("password")),
-        options: {
-          data: { full_name: fullName },
-          emailRedirectTo: `${window.location.origin}${localizedPath(locale, "/")}`,
-        },
+        fullName,
+        locale,
       });
 
-      if (error) {
-        return { error: error.message, fullName, email };
+      if (!result.ok) {
+        const { code, hint, message } = result.error;
+
+        return {
+          error:
+            code === "weak_password"
+              ? tSignup(
+                  "Use a longer password with upper and lower case letters and digits.",
+                )
+              : hint === "BOT_DETECTED"
+                ? tSignup(
+                    "This request looks automated. Try again from a browser.",
+                  )
+                : message,
+          fullName,
+          email,
+        };
       }
 
-      // With email confirmations on, there is no session until the link is opened.
-      if (!data.session) {
+      // With email confirmations on, there is no session until the link is
+      // opened; an email that already has an account gets the same screen.
+      if (result.data === null || "existingAccount" in result.data) {
         return { confirm: email };
       }
 
-      await changeSession(safeNext(localizedPath(locale, "/")));
+      await changeSession(safeNext(result.data.redirectTo));
 
       return null;
     },

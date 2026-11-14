@@ -36,6 +36,16 @@ export interface PgPool {
   on?(event: "error", listener: (error: Error) => void): unknown;
 }
 
+/**
+ * The pool `attachDatabasePool` receives, typed structurally so that
+ * `attachDatabasePool` from `@vercel/functions` accepts it and a `pg.Pool`
+ * satisfies it.
+ */
+export interface AttachablePool {
+  readonly options?: { readonly idleTimeoutMillis?: number | null };
+  on?(event: "release", listener: (...args: unknown[]) => void): unknown;
+}
+
 /** Statement timeouts in milliseconds by the role a transaction runs as. */
 export interface PostgresTimeouts {
   /**
@@ -70,6 +80,14 @@ export interface PostgresOptions {
       };
   /** An existing pool to run on instead of opening one. `end()` ends it. */
   readonly pool?: PgPool;
+  /**
+   * Called once with the pool `createPostgres` opens, right after opening it.
+   * Pass `attachDatabasePool` from `@vercel/functions`, so a Vercel Function
+   * instance stays alive until idle connections are closed. It is not called
+   * for a pool passed as `pool`: attach that one yourself. A throw is not
+   * caught, so `createPostgres` throws it.
+   */
+  readonly attachDatabasePool?: (pool: AttachablePool) => void;
   readonly max?: number;
   /**
    * Statement timeout in milliseconds, applied per transaction: one value for
@@ -196,7 +214,7 @@ export function connectionStringOf(
   );
 }
 
-function openPool(options: PostgresOptions): PgPool {
+function openPool(options: PostgresOptions): Pool {
   const connectionString = connectionStringOf(options);
 
   if (!connectionString) {
@@ -230,6 +248,12 @@ function openPool(options: PostgresOptions): PgPool {
   });
 }
 
+function attached(pool: Pool, options: PostgresOptions): Pool {
+  options.attachDatabasePool?.(pool);
+
+  return pool;
+}
+
 /**
  * Claims and role are both set for a user session, and both unset for the
  * connection role.
@@ -260,7 +284,7 @@ function checkSettings(settings: Readonly<Record<string, string>> = {}): void {
  * no timeout to set runs on its own, without `begin` and `commit`.
  */
 export function createPostgres(options: PostgresOptions = {}): BetterPostgres {
-  const pool = options.pool ?? openPool(options);
+  const pool = options.pool ?? attached(openPool(options), options);
 
   watchPoolErrors(pool, {
     ...(options.events ? { events: options.events } : {}),

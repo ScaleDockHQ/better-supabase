@@ -1,0 +1,141 @@
+---
+title: Passport
+description: Verify the Vercel Passport token of a request with verifyPassport and map the caller to a user in your own table.
+---
+
+`better-supabase/vercel-passport` verifies a
+[Vercel Passport](https://vercel.com/docs) token: the identity Vercel signs
+for a caller who signed in through a Passport connector. `verifyPassport`
+checks the token with the library's own JWS code and the shared key cache, so
+it needs no Vercel package and runs on every runtime.
+
+```bash
+pnpm add @vercel/passport
+```
+
+`@vercel/passport` (`>=1.2.0 <2`) is an optional peer. `verifyPassport` does
+not import it; install it only if you also call its `getIdentity` helpers.
+`PassportClaims` mirrors its `PassportIdentityPayload` type, so either type is
+assignable to the other.
+
+## Verify a request
+
+Pass the request and the Vercel project the token must be for. The result is
+a `Result`, so a missing or invalid token comes back as a `DbError`:
+
+```ts title="app/api/me/route.ts"
+import { problemResponse } from "better-supabase";
+import { verifyPassport } from "better-supabase/vercel-passport";
+
+export async function GET(request: Request) {
+  const passport = await verifyPassport(request, {
+    projectId: process.env.VERCEL_PROJECT_ID ?? "",
+    environment: process.env.VERCEL_TARGET_ENV ?? "production",
+  });
+
+  if (!passport.ok) {
+    return problemResponse(passport.error);
+  }
+
+  const { claims } = passport.data;
+
+  return Response.json({ email: claims.email, owner: claims.owner });
+}
+```
+
+The token is read from the `x-vercel-oidc-passport-token` header Vercel sets
+(`PASSPORT_HEADER`), then from `Authorization: Bearer` for a token another
+backend forwarded. Set `headers: "passport"` or `headers: "bearer"` to read
+only one. `.orThrow()` turns an error into a `DbException` where you prefer to
+throw.
+
+## Map the caller to your user
+
+Passport says who the caller is at the identity provider; which user that is
+in your app is your data. `resolveUser` receives the verified `iss`, `sub`
+and claims, and its return value becomes `user`. The library stores no
+mapping, so look it up in a table your app owns, here a `passport_links`
+table keyed by the provider subject:
+
+```ts title="lib/passport.ts"
+import { verifyPassport } from "better-supabase/vercel-passport";
+
+import { bsb } from "@/lib/supabase/server";
+
+export function passportUser(request: Request) {
+  return verifyPassport(request, {
+    projectId: process.env.VERCEL_PROJECT_ID ?? "",
+    environment: process.env.VERCEL_TARGET_ENV ?? "production",
+    resolveUser: async ({ claims }) => {
+      const { data } = await bsb
+        .admin()
+        .$client.from("passport_links")
+        .select("user_id")
+        .eq("connector_id", claims.connector_id ?? "")
+        .eq("external_sub", claims.external_sub ?? "")
+        .maybeSingle();
+
+      return data?.user_id ?? undefined;
+    },
+  });
+}
+```
+
+`user` is `undefined` when `resolveUser` finds nobody, which is not an error:
+send the caller to a sign-up or link step. Key the table on
+`connector_id` and `external_sub` (the subject at the identity provider), or
+on `iss` and `sub` when you accept several Vercel teams. A `resolveUser` that
+throws resolves to an `unexpected` error; `verifyPassport` never throws.
+
+## What is checked
+
+| Check     | Passes when                                                               |
+| --------- | ------------------------------------------------------------------------- |
+| signature | RS256 with a key from `https://oidc.vercel.com/.well-known/jwks`          |
+| `iss`     | `https://passport.vercel.com`, or that followed by `/` and the owner slug |
+| `typ`     | `passport`                                                                |
+| claims    | `sub`, `owner`, `connector_id` and `external_sub` are non-empty strings   |
+| `exp`     | present and in the future, with `leeway` (30 seconds)                     |
+| `nbf`     | absent, or in the past with `leeway`                                      |
+| project   | `project_id` is one of `projectId`, or `projectId` is `"*"`               |
+| env       | `environment` is one of `environment`, or it is `"*"` or unset            |
+| owner     | `owner_id` equals `ownerId`, when set                                     |
+| audience  | `aud` holds one of `audience`, when set                                   |
+
+An issuer that only starts with the Passport host, such as
+`https://passport.vercel.com.example`, fails. A token with a key id the cached
+key set lacks fetches the set again, at most once every 30 seconds.
+
+## Options
+
+| Option        | Sets                                                                                   |
+| ------------- | -------------------------------------------------------------------------------------- |
+| `projectId`   | the project id or ids a token must be for; `"*"` for any, with `ownerId` or `audience` |
+| `environment` | the environment or environments; default `"*"`                                         |
+| `ownerId`     | the Vercel team or user id the token must carry                                        |
+| `audience`    | audiences one of which the token's `aud` must hold                                     |
+| `resolveUser` | maps the verified caller to your user                                                  |
+| `headers`     | `both` (default), `passport` or `bearer`                                               |
+| `leeway`      | seconds of clock skew on `exp` and `nbf`; default 30                                   |
+| `jwks`        | a JWKS URL or inline keys; default `PASSPORT_JWKS_URL`                                 |
+| `store`       | shares the fetched key set between instances, see [Functions](/docs/vercel/functions)  |
+| `fetch`       | the `fetch` for the key set                                                            |
+| `now`         | the clock, in epoch milliseconds                                                       |
+
+`projectId` is required, so a token from another project of the same team
+can't pass by default. Pass `environment` too, or a preview deployment's token
+passes in production.
+
+## Errors
+
+| Case                                 | `kind`         | `code` or `hint`             |
+| ------------------------------------ | -------------- | ---------------------------- |
+| no token in the headers read         | `unauthorized` | code `MISSING_CREDENTIALS`   |
+| the signature or alg does not verify | `unauthorized` | hint `PASSPORT_TOKEN`        |
+| a claim check fails                  | `unauthorized` | hint `PASSPORT_CLAIMS`       |
+| the key set can't be fetched         | `network`      | code `JWKS_FETCH_FAILED`     |
+| `projectId` is empty, or `"*"` alone | `unexpected`   | hint `PASSPORT_OPTIONS`      |
+| `resolveUser` throws                 | `unexpected`   | hint `PASSPORT_RESOLVE_USER` |
+
+`problemResponse(error)` answers the `unauthorized` errors with a 401 and a
+`WWW-Authenticate: Bearer` challenge.

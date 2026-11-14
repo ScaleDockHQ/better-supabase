@@ -41,7 +41,7 @@ the service caller, so the audit log tells your jobs apart.
 ## Cron routes
 
 `cronHandler(bsb, { name, secret }, run)` returns a `(request) => Promise<Response>`
-for a scheduler such as Vercel Cron. It answers 405 to methods other than `GET`
+for a scheduler such as Vercel Schedules. It answers 405 to methods other than `GET`
 and `POST`, answers 401 without the `Authorization: Bearer <secret>` header, and
 only then runs `run(ctx, request)` with a service-role context. A `Response` is
 sent as is; any other value goes out as JSON, and nothing as `{ "ok": true }`. It

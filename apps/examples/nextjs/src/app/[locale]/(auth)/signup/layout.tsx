@@ -8,7 +8,9 @@ export default function SignupLayout({ children }: { children: ReactNode }) {
   const messages = useMessages();
 
   return (
-    <NextIntlClientProvider messages={pick(messages, ["auth", "offline"])}>
+    <NextIntlClientProvider
+      messages={pick(messages, ["auth", "offline", "signup"])}
+    >
       {children}
     </NextIntlClientProvider>
   );

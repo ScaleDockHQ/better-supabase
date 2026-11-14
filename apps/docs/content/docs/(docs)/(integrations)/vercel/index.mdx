@@ -1,0 +1,63 @@
+---
+title: Vercel
+description: The Vercel SDKs better-supabase plugs into, BotID, Firewall, Passport, the SDK for domains, Functions, KMS and Blob, and where each one goes.
+---
+
+better-supabase works with these Vercel products through small adapters. Each
+SDK is an optional peer: you install it and pass the module or client in, and
+the library types it structurally, so an app that doesn't use one never
+installs it.
+
+| Product       | What it does here                                                                  | Peer                            | Page                                                               |
+| ------------- | ---------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------ |
+| BotID         | Refuses bots on the sign-up, OTP and magic-link routes                             | `botid >=1.5.13 <2`             | [BotID and Firewall](/docs/vercel/security)                        |
+| Firewall      | Rate limits the same routes with a Firewall rule                                   | `@vercel/firewall >=1.2.6 <2`   | [BotID and Firewall](/docs/vercel/security)                        |
+| Passport      | Verifies the caller's Passport token and maps it to your user                      | `@vercel/passport >=1.2.0 <2`   | [Passport](/docs/vercel/passport)                                  |
+| Functions     | Keeps idle Postgres connections tidy and shares the JWKS between instances         | `@vercel/functions >=3.11.2 <4` | [Vercel Functions](/docs/vercel/functions)                         |
+| Domains (SDK) | Adds, verifies and removes an organization's hostname on your Vercel project       | `@vercel/sdk >=1.28.62 <2`      | [Domains block](/docs/blocks/domains#hosting-platforms)            |
+| KMS           | Signs the signing-keys block's tokens with keys that never leave KMS               | `@vercel/kms >=0.3.12 <0.4`     | [Signing keys block](/docs/blocks/signing-keys#keys-in-vercel-kms) |
+| Blob          | Stores the bytes of attachments and drive files, while Postgres keeps the policies | `@vercel/blob >=2.9.0 <3`       | [Attachments block](/docs/blocks/attachments#files-in-vercel-blob) |
+| v0            | Opens a UI recipe's registry items in a v0 chat                                    | none                            | [UI recipes](/docs/registry/ui-recipes)                            |
+
+The queue block's Vercel Queues backend and the Vercel Sandbox adapter have
+their own pages: [Queue](/docs/blocks/queue) and
+[Vercel Sandbox](/docs/vercel-sandbox).
+
+## The three swappable ports
+
+The domains, signing-keys, attachments and drive blocks reach the platform
+through versioned interfaces, so Vercel is one implementation next to the
+default and your own:
+
+- `DomainProvider` (`better-supabase/blocks/domains`): `add`, `verify`,
+  `remove` and `status` for a hostname. `vercelDomainProvider(sdk, {
+projectId, teamId })` calls the project domain endpoints of `@vercel/sdk`.
+  Without a provider, the block only checks its TXT record, as before.
+- `KeyProvider` (`better-supabase/blocks/signing-keys`): `sign` and
+  `signJwt`. `vaultKeyProvider` is the default and keeps the keys in Supabase
+  Vault; `vercelKmsKeyProvider(kms, { issuer })` signs in Vercel KMS.
+- `FileStore` (`better-supabase/storage`): `put`, `get`, `delete` and
+  `signedUrl`. `supabaseFileStore(storage)` is the default;
+  `vercelBlobStore(blob)` keeps the bytes in Vercel Blob.
+
+Each has `apiVersion: 1` and a conformance kit in `better-supabase/testing`
+(`testDomainProvider`, `testKeyProvider`, `testFileStore`). See
+[Extension interfaces](/docs/extending/interfaces).
+
+```ts title="lib/platform.ts"
+import * as blob from "@vercel/blob";
+import * as kms from "@vercel/kms";
+import { Vercel } from "@vercel/sdk";
+import { vercelDomainProvider } from "better-supabase/blocks/domains";
+import { vercelKmsKeyProvider } from "better-supabase/blocks/signing-keys";
+import { vercelBlobStore } from "better-supabase/storage";
+
+export const domainProvider = vercelDomainProvider(
+  new Vercel({ bearerToken: process.env.VERCEL_TOKEN }),
+  { projectId: "prj_...", teamId: "team_..." },
+);
+
+export const keys = vercelKmsKeyProvider(kms, { issuer: "iss_..." });
+
+export const files = vercelBlobStore(blob);
+```

@@ -12,6 +12,21 @@ export {
 } from "./domains.ts";
 
 export {
+  domainProviderOf,
+  vercelDomainProvider,
+  type DomainProvider,
+  type DomainProviderCallOptions,
+  type DomainProviderRecord,
+  type DomainProviderStatus,
+  type VercelDomainProviderOptions,
+  type VercelDomainsSdk,
+  type VercelDomainVerification,
+  type VercelProjectDomain,
+  type VercelProjectDomainRequest,
+  type VercelRequestOptions,
+} from "./provider.ts";
+
+export {
   domainsEvents,
   type DomainsEvents,
   type HostnameEventData,

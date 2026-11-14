@@ -12,6 +12,13 @@ export interface AttachmentUploadTicket {
   readonly id: string;
   /** The signed upload URL from `attachments.upload` or `replace`. */
   readonly signedUrl: string;
+  /** The upload's `method`, for a store other than Supabase. Default `PUT`. */
+  readonly method?: "PUT" | "POST";
+  /**
+   * The upload's `headers`, for a store other than Supabase. Without them the
+   * upload sends Supabase's `x-upsert: false`.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 /** What `confirm` and `refresh` answer: `null` when the caller can't tell. */
@@ -154,10 +161,20 @@ export const xhrSend: AttachmentSend = (ticket, body, progress, signal) =>
     }
 
     const request = new Request();
-    request.open("PUT", ticket.signedUrl);
-    request.setRequestHeader("x-upsert", "false");
+    request.open(ticket.method ?? "PUT", ticket.signedUrl);
 
-    if (body.type !== "") {
+    const headers = ticket.headers ?? { "x-upsert": "false" };
+
+    for (const [name, value] of Object.entries(headers)) {
+      request.setRequestHeader(name, value);
+    }
+
+    if (
+      body.type !== "" &&
+      !Object.keys(headers).some(
+        (name) => name.toLowerCase() === "content-type",
+      )
+    ) {
       request.setRequestHeader("content-type", body.type);
     }
 

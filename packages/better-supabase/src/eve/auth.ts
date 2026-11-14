@@ -1,3 +1,5 @@
+import { extractCredentials } from "@supabase/server/core";
+
 import type { AuthState, ResolveAuthOptions } from "../auth/resolve.ts";
 import type { EveSessionAuth } from "./types.ts";
 
@@ -14,14 +16,25 @@ export class EveAuthRejection extends Error {
   override readonly name = "EveAuthRejection";
   readonly response: Response;
 
-  constructor(message: string, status = 401) {
+  constructor(
+    message: string,
+    status = 401,
+    headers: Readonly<Record<string, string>> = {},
+  ) {
     super(message);
     this.response = Response.json(
       { error: message },
-      { status, headers: { "content-type": "application/json" } },
+      { status, headers: { "content-type": "application/json", ...headers } },
     );
   }
 }
+
+/**
+ * Where eve's `routeAuth` reads an `AuthFn`'s declared `www-authenticate`
+ * challenges (`withAuthChallenges`). A registered symbol, so better-supabase
+ * declares them without importing eve.
+ */
+const AUTH_CHALLENGES = Symbol.for("eve.channels.auth.challenges");
 
 export interface SupabaseAuthOptions extends Omit<
   ResolveAuthOptions,
@@ -128,4 +141,48 @@ export function supabaseAuth(
 
     return principalOf(auth, options);
   };
+}
+
+export type SupabaseJwtAuthOptions = Omit<
+  SupabaseAuthOptions,
+  "cookie" | "cookies" | "verifySession" | "endedSession" | "secret"
+>;
+
+/**
+ * An eve route `AuthFn` for agents and MCP clients that send a Supabase access
+ * token as `Authorization: Bearer`. It verifies the token locally against the
+ * project's JWKS, so a valid token costs no Auth server call, and it never
+ * reads the session cookie, so a browser can't authorize a request another site
+ * makes it send. A request without a bearer token falls through to the next
+ * entry; a token that fails verification is rejected with 401 and
+ * `WWW-Authenticate: Bearer error="invalid_token"` instead of reaching a later
+ * entry such as `none()`. It declares the `Bearer` challenge, so eve's 401 for
+ * an unauthenticated request and `oauthResource` advertise it.
+ */
+export function supabaseJwtAuth(
+  options: SupabaseJwtAuthOptions,
+): (request: Request) => Promise<EveSessionAuth | null> {
+  const authenticate = async (
+    request: Request,
+  ): Promise<EveSessionAuth | null> => {
+    if (!extractCredentials(request).token) {
+      return null;
+    }
+
+    const { auth } = await resolveAuth(request, { ...options, cookies: false });
+
+    if (auth.kind === "invalid") {
+      throw new EveAuthRejection(
+        "The Supabase access token is not valid",
+        401,
+        { "www-authenticate": 'Bearer error="invalid_token"' },
+      );
+    }
+
+    return principalOf(auth, options);
+  };
+
+  return Object.defineProperty(authenticate, AUTH_CHALLENGES, {
+    value: [{ scheme: "Bearer" }],
+  });
 }

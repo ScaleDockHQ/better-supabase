@@ -161,7 +161,8 @@ export default defineConfig({
     {
       // Blocks, streams and credentials stay SDK-neutral (ADR 0010): each SDK
       // gets an adapter subpath (`src/ai-sdk`, `src/vercel-connect`) that
-      // depends on them, never the other way round. 0 findings when added.
+      // depends on them, never the other way round; the Vercel SDKs blocks
+      // take as ports are typed structurally. 0 findings when added.
       files: [
         "src/blocks/**/*.{ts,tsx}",
         "src/streams/**/*.{ts,tsx}",
@@ -179,6 +180,9 @@ export default defineConfig({
                 "chat",
                 "@vercel/connect",
                 "@vercel/sandbox",
+                "@vercel/sdk",
+                "@vercel/kms",
+                "@vercel/blob",
                 "eve",
               ].map((name) => ({
                 name,

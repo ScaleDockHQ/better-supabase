@@ -600,6 +600,16 @@
       "types": "./dist/vercel-sandbox/index.d.ts",
       "default": "./dist/vercel-sandbox/index.js"
     },
+    "./vercel-security": {
+      "@better-supabase/source": "./src/vercel-security/index.ts",
+      "types": "./dist/vercel-security/index.d.ts",
+      "default": "./dist/vercel-security/index.js"
+    },
+    "./vercel-passport": {
+      "@better-supabase/source": "./src/vercel-passport/index.ts",
+      "types": "./dist/vercel-passport/index.d.ts",
+      "default": "./dist/vercel-passport/index.js"
+    },
     "./stripe": {
       "@better-supabase/source": "./src/stripe/index.ts",
       "types": "./dist/stripe/index.d.ts",
@@ -1989,6 +1999,14 @@
         "types": "./dist/vercel-sandbox/index.d.ts",
         "default": "./dist/vercel-sandbox/index.js"
       },
+      "./vercel-security": {
+        "types": "./dist/vercel-security/index.d.ts",
+        "default": "./dist/vercel-security/index.js"
+      },
+      "./vercel-passport": {
+        "types": "./dist/vercel-passport/index.d.ts",
+        "default": "./dist/vercel-passport/index.js"
+      },
       "./stripe": {
         "types": "./dist/stripe/index.d.ts",
         "default": "./dist/stripe/index.js"
@@ -2815,10 +2833,17 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@valibot/to-json-schema": "catalog:",
+    "@vercel/blob": "catalog:",
     "@vercel/connect": "catalog:",
     "@vercel/detect-agent": "catalog:",
+    "@vercel/firewall": "catalog:",
+    "@vercel/functions": "catalog:",
+    "@vercel/kms": "catalog:",
+    "@vercel/passport": "catalog:",
     "@vercel/queue": "catalog:",
     "@vercel/sandbox": "catalog:",
+    "@vercel/schedules": "catalog:",
+    "@vercel/sdk": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "@workflow/vitest": "catalog:",
     "@workflow/world": "catalog:",
@@ -2829,6 +2854,7 @@
     "ajv-formats": "catalog:",
     "astro": "catalog:",
     "better-result": "catalog:",
+    "botid": "catalog:",
     "c12": "catalog:",
     "chat": "catalog:",
     "citty": "catalog:",
@@ -2844,6 +2870,7 @@
     "fastify": "catalog:",
     "flags": "catalog:",
     "h3": "catalog:",
+    "h3-v1": "catalog:",
     "hono": "catalog:",
     "jsonpath-rfc9535": "catalog:",
     "koa": "catalog:",
@@ -2907,14 +2934,22 @@
     "@sveltejs/kit": "catalog:peers",
     "@tanstack/query-core": "catalog:peers",
     "@tanstack/react-start": "catalog:peers",
+    "@vercel/blob": "catalog:peers",
     "@vercel/connect": "catalog:peers",
+    "@vercel/firewall": "catalog:peers",
+    "@vercel/functions": "catalog:peers",
+    "@vercel/kms": "catalog:peers",
+    "@vercel/passport": "catalog:peers",
     "@vercel/queue": "catalog:peers",
     "@vercel/sandbox": "catalog:peers",
+    "@vercel/schedules": "catalog:peers",
+    "@vercel/sdk": "catalog:peers",
     "@workflow/world": "catalog:peers",
     "@workflow/world-postgres": "catalog:peers",
     "ai": "catalog:peers",
     "astro": "catalog:peers",
     "better-result": "catalog:peers",
+    "botid": "catalog:peers",
     "chat": "catalog:peers",
     "elysia": "catalog:peers",
     "eve": "catalog:peers",
@@ -3141,6 +3176,30 @@
       "optional": true
     },
     "zod": {
+      "optional": true
+    },
+    "@vercel/schedules": {
+      "optional": true
+    },
+    "botid": {
+      "optional": true
+    },
+    "@vercel/firewall": {
+      "optional": true
+    },
+    "@vercel/passport": {
+      "optional": true
+    },
+    "@vercel/sdk": {
+      "optional": true
+    },
+    "@vercel/functions": {
+      "optional": true
+    },
+    "@vercel/kms": {
+      "optional": true
+    },
+    "@vercel/blob": {
       "optional": true
     }
   },

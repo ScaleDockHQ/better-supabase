@@ -72,13 +72,102 @@ const total = await domains.count({ organizationId }).orThrow();
 import { createDomainsAdmin } from "better-supabase/blocks/domains";
 
 const admin = createDomainsAdmin({ transport: serviceTransport });
-const result = await admin.verify(hostnameId, { actorId: user.id });
+const result = await admin.verify({ hostnameId, actorId: user.id });
 // DOMAIN_RECORD_MISSING until DNS has the record
 ```
 
-Run it from a button on the settings page, or from a [job](/docs/blocks/queue) that retries until the record appears. Pass `resolver` to look up TXT records another way. Verification proves the organization controls the hostname; your host still has to serve it, so add the domain to your Vercel or Cloudflare project in the same step.
+Run it from a button on the settings page, or from a [job](/docs/blocks/queue) that retries until the record appears. Pass `resolver` to look up TXT records another way. Verification proves the organization controls the hostname; your host still has to serve it, so pass a [hosting platform provider](#hosting-platforms) to add the domain to your project in the same flow.
 
 Only one organization can hold a verified hostname. Several can claim one while it is pending, and the first to verify it wins, so a pending claim can't block the real owner.
+
+## Hosting platforms
+
+Pass a `provider` to `createDomainsAdmin` and the admin client also adds each hostname to the project that serves your app, waits for the platform to verify it, and removes it again. `vercelDomainProvider` is the provider for a Vercel project. It calls the Vercel SDK client you pass:
+
+```bash
+pnpm add @vercel/sdk
+```
+
+`@vercel/sdk` is an optional peer (`>=1.28.62 <2`). Use a Vercel access token that can manage the project's domains, and keep it on the server.
+
+```ts title="src/lib/domains-admin.ts"
+import { createClient } from "@supabase/supabase-js";
+import { Vercel } from "@vercel/sdk";
+import {
+  createDomainsAdmin,
+  rpcTransport,
+  vercelDomainProvider,
+} from "better-supabase/blocks/domains";
+
+export const domainsAdmin = createDomainsAdmin({
+  transport: rpcTransport(
+    createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SECRET_KEY!,
+    ),
+  ),
+  provider: vercelDomainProvider(
+    new Vercel({ bearerToken: process.env.VERCEL_TOKEN! }),
+    {
+      projectId: process.env.VERCEL_PROJECT_ID!,
+      // Leave teamId out for a project on a personal account.
+      teamId: process.env.VERCEL_TEAM_ID!,
+    },
+  ),
+});
+```
+
+Add the hostname to Vercel when the block records `hostname.added`, and remove it on `hostname.deleted`. The deleted row is gone by then, so `remove` takes the hostname from the event instead of its id:
+
+```ts title="src/lib/domains-events.ts"
+import { domainsEvents } from "better-supabase/blocks/domains";
+import { onBlockEvent } from "better-supabase/events";
+
+import { domainsAdmin } from "./domains-admin";
+import { bsb } from "./supabase/server";
+
+onBlockEvent(bsb, domainsEvents, "hostname.added", async (event) => {
+  const added = await domainsAdmin.add({ hostnameId: event.data.hostnameId });
+
+  if (!added.ok) {
+    console.error("Vercel did not add the hostname", added.error);
+  }
+});
+
+onBlockEvent(bsb, domainsEvents, "hostname.deleted", async (event) => {
+  const removed = await domainsAdmin.remove({ hostname: event.data.hostname });
+
+  if (!removed.ok) {
+    console.error("Vercel did not remove the hostname", removed.error);
+  }
+});
+```
+
+The handlers only observe: a failed call never undoes the block's write. Run the calls from a [job](/docs/blocks/queue) instead when they must be retried.
+
+`add` returns `verified` and `records`: the DNS records the platform still asks for, such as the TXT record Vercel needs when the domain is in use on another Vercel account. Show them next to the block's own TXT record. Adding a hostname that is already on the project returns its status. `status({ hostnameId })` reads it again for the settings page, and returns `undefined` when the hostname isn't on the project.
+
+With a provider, `verify` checks the TXT record first and then asks the platform to verify the hostname; only when both pass does it mark the hostname verified. A subdomain has no TXT record, so only the platform check runs. Until the platform has verified it, `verify` fails with `DOMAIN_PROVIDER_UNVERIFIED`, and the message names the records still missing:
+
+```ts
+const result = await domainsAdmin.verify({ hostnameId, actorId: user.id });
+// DOMAIN_RECORD_MISSING until DNS has the block's TXT record
+// DOMAIN_PROVIDER_UNVERIFIED until Vercel has verified the domain
+```
+
+Errors from Vercel come back as `DbError`s: `forbidden` for a token without access, `rate_limited` with `retryAfter`, and `network` with `DOMAIN_PROVIDER_FAILED` when Vercel can't be reached. Without a provider, `verify` works as before, and `add`, `remove` and `status` fail with `DOMAIN_PROVIDER_MISSING`.
+
+### Write your own provider
+
+For another platform, implement `DomainProvider`: `apiVersion: 1`, a `name`, and `add`, `verify`, `remove` and `status`, each taking the hostname and returning an `AsyncResult`. `remove` returns `false` and `status` returns `undefined` for a hostname the platform doesn't have, and `verify` reports `verified: false` instead of failing while the platform's checks don't pass. `testDomainProvider` from `better-supabase/testing` runs that contract against your provider and a test project:
+
+```ts
+import { testDomainProvider } from "better-supabase/testing";
+
+const report = await testDomainProvider(cloudflareDomains, {
+  hostname: "conformance.example.com",
+});
+```
 
 ## Platform subdomains
 
@@ -138,15 +227,19 @@ Cache the answer for a minute or so when every request goes through the proxy: a
 
 ## Errors
 
-| Hint                    | Cause                                                               |
-| ----------------------- | ------------------------------------------------------------------- |
-| `DOMAIN_FORBIDDEN`      | the caller lacks `domains.manage` or `domains.read`                 |
-| `DOMAIN_INVALID`        | not a hostname, or more than one label below the platform domain    |
-| `HOSTNAME_RESERVED`     | the platform domain itself, or a subdomain `reserved-slugs` refuses |
-| `DOMAIN_TAKEN`          | another organization has verified this hostname                     |
-| `DOMAIN_NOT_FOUND`      | no hostname the caller manages has this id                          |
-| `DOMAIN_NOT_VERIFIED`   | only a verified hostname can be primary                             |
-| `DOMAIN_RECORD_MISSING` | `verify` found no TXT record with the value yet                     |
+| Hint                         | Cause                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `DOMAIN_FORBIDDEN`           | the caller lacks `domains.manage` or `domains.read`                       |
+| `DOMAIN_INVALID`             | not a hostname, or more than one label below the platform domain          |
+| `HOSTNAME_RESERVED`          | the platform domain itself, or a subdomain `reserved-slugs` refuses       |
+| `DOMAIN_TAKEN`               | another organization has verified this hostname                           |
+| `DOMAIN_NOT_FOUND`           | no hostname the caller manages has this id                                |
+| `DOMAIN_NOT_VERIFIED`        | only a verified hostname can be primary                                   |
+| `DOMAIN_RECORD_MISSING`      | `verify` found no TXT record with the value yet                           |
+| `DOMAIN_PROVIDER_UNVERIFIED` | the hosting platform hasn't verified the hostname yet                     |
+| `DOMAIN_PROVIDER_CONFLICT`   | the hostname is on another project of the platform account                |
+| `DOMAIN_PROVIDER_FAILED`     | the hosting platform couldn't be reached or answered with an error        |
+| `DOMAIN_PROVIDER_MISSING`    | `add`, `remove` or `status` on an admin client created without `provider` |
 
 ## Events
 

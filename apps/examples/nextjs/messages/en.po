@@ -5303,6 +5303,16 @@ msgid "Change password"
 msgstr "Change password"
 
 #: src/features/auth/components/signup-form.tsx
+msgctxt "signup.nrRDf_"
+msgid "Use a longer password with upper and lower case letters and digits."
+msgstr "Use a longer password with upper and lower case letters and digits."
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "signup.7O-xhj"
+msgid "This request looks automated. Try again from a browser."
+msgstr "This request looks automated. Try again from a browser."
+
+#: src/features/auth/components/signup-form.tsx
 msgctxt "auth.zx7CKB"
 msgid "Check your email"
 msgstr "Check your email"

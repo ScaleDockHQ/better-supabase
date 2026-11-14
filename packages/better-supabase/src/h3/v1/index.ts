@@ -17,10 +17,7 @@ import {
 
 export type { RouteGuardOptions } from "../../server/refusal.ts";
 
-/**
- * The part of an H3 1 event (Nitro 2, Nuxt 3 and 4) the bridge reads and
- * writes.
- */
+/** The part of an H3 1 event (Nitro 2 and Nuxt 4) the bridge reads and writes. */
 export interface H3V1Event<Context extends object = Record<string, unknown>> {
   readonly node: {
     readonly req: NodeRequestHead;

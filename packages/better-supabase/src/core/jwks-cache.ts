@@ -8,6 +8,17 @@ import { err, ok } from "./result.ts";
 /** Where a key set comes from: inline, a URL fetched and cached, or a loader. */
 export type JwksInput = Jwks | URL | (() => Promise<Jwks>);
 
+/**
+ * A key-value store that instances share, holding the key sets they fetched so
+ * a new instance can skip the fetch. The Vercel Runtime Cache (`getCache()`
+ * from `@vercel/functions`) has this shape; `vercelRuntimeCache` wraps it.
+ */
+export interface JwksStore {
+  get(key: string): Promise<unknown>;
+  /** `ttl` is in seconds. */
+  set(key: string, value: unknown, options?: { ttl?: number }): Promise<void>;
+}
+
 export interface JwksSourceOptions extends JwksOfOptions {
   /**
    * How long a fetched key set is used before a refresh starts. Default: 300.
@@ -28,6 +39,14 @@ export interface JwksSourceOptions extends JwksOfOptions {
   readonly fetch?: typeof fetch;
   /** Epoch milliseconds. */
   readonly now?: () => number;
+  /**
+   * Shares a fetched key set (URL inputs only) between instances. A stored copy
+   * keeps the time of its original fetch, so it is used only inside the same
+   * windows as a copy in memory: a Supabase key set is still never served more
+   * than 600 seconds after it was fetched. A store that fails or takes longer
+   * than 500 ms is skipped, and the key set is fetched instead.
+   */
+  readonly store?: JwksStore;
 }
 
 /**
@@ -80,14 +99,47 @@ function isSupabaseJwksUrl(url: URL): boolean {
 /** The most bytes read from a JWKS response. */
 const MAX_JWKS_BYTES = 256 * 1024;
 
+/** A fetched key set and the epoch milliseconds of its fetch. */
+interface CachedJwks {
+  readonly keys: RawJwks;
+  readonly at: number;
+}
+
 interface SharedEntry {
-  cached: { readonly keys: RawJwks; readonly at: number } | undefined;
+  cached: CachedJwks | undefined;
   pending: Promise<Result<RawJwks>> | undefined;
+}
+
+/**
+ * What `purgeJwks` asked of the stores: a stored copy fetched before the purge
+ * must not come back. A purge is numbered, and the first store read after it
+ * fixes the cutoff with that call's clock.
+ */
+interface StorePurges {
+  sequence: number;
+  all: number;
+  readonly byUrl: Map<string, number>;
+  readonly seen: Map<string, number>;
+  readonly cutoff: Map<string, number>;
 }
 
 interface SharedRegistry {
   readonly byUrl: Map<string, SharedEntry>;
   byFetch: WeakMap<typeof fetch, Map<string, SharedEntry>>;
+  /** Unset in a registry an older copy of this module created. */
+  purges?: StorePurges;
+}
+
+function purgesOf(shared: SharedRegistry): StorePurges {
+  shared.purges ??= {
+    sequence: 0,
+    all: 0,
+    byUrl: new Map(),
+    seen: new Map(),
+    cutoff: new Map(),
+  };
+
+  return shared.purges;
 }
 
 const REGISTRY = Symbol.for("better-supabase.jwks");
@@ -134,21 +186,29 @@ function entryFor(url: string, customFetch?: typeof fetch): SharedEntry {
   return entry;
 }
 
-/** Forgets every shared key set. For tests and benchmarks. */
+/**
+ * Forgets every shared key set, as a new process would start. For tests and
+ * benchmarks.
+ */
 export function clearJwksCache(): void {
   const shared = registry();
   shared.byUrl.clear();
   shared.byFetch = new WeakMap();
+  delete shared.purges;
 }
 
 /**
  * Forgets the shared key set of `url` (every fetch implementation's copy), so
  * the next verification fetches it again; no argument forgets all of them. Use
- * it after a key was revoked or rotated, instead of waiting for the cache.
+ * it after a key was revoked or rotated, instead of waiting for the cache. A
+ * copy in a `store` that was fetched before the purge is not used again.
  */
 export function purgeJwks(url?: URL | string): void {
   if (url === undefined) {
     clearJwksCache();
+    const purges = purgesOf(registry());
+    purges.sequence += 1;
+    purges.all = purges.sequence;
 
     return;
   }
@@ -161,6 +221,96 @@ export function purgeJwks(url?: URL | string): void {
   // A custom fetch keeps its own map, which a WeakMap can't enumerate: it is
   // replaced as a whole.
   shared.byFetch = new WeakMap();
+
+  const purges = purgesOf(shared);
+  purges.sequence += 1;
+  purges.byUrl.set(href, purges.sequence);
+}
+
+/**
+ * The fetch time a stored copy of `href` must be newer than: the time of the
+ * first store read after the latest purge.
+ */
+function storeCutoff(href: string, now: number): number {
+  const purges = purgesOf(registry());
+  const latest = Math.max(purges.byUrl.get(href) ?? 0, purges.all);
+
+  if (latest > (purges.seen.get(href) ?? 0)) {
+    purges.seen.set(href, latest);
+    purges.cutoff.set(href, now);
+  }
+
+  return purges.cutoff.get(href) ?? Number.NEGATIVE_INFINITY;
+}
+
+/** The longest a store read may take before the key set is fetched instead. */
+const STORE_READ_MS = 500;
+
+const storeKeyOf = (url: URL): string => `better-supabase:jwks:${url.href}`;
+
+/** A stored copy, when it has the shape `writeStored` gives it. */
+function cachedJwksOf(value: unknown): CachedJwks | undefined {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("at" in value) ||
+    !("keys" in value) ||
+    typeof value.at !== "number" ||
+    !Number.isFinite(value.at) ||
+    typeof value.keys !== "object" ||
+    value.keys === null ||
+    !("keys" in value.keys) ||
+    !Array.isArray(value.keys.keys)
+  ) {
+    return undefined;
+  }
+
+  return { keys: rawJwksOf(value.keys), at: value.at };
+}
+
+/** The store's copy of `url`, or `undefined` when it fails or is slow. */
+async function readStored(
+  store: JwksStore,
+  url: URL,
+): Promise<CachedJwks | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const late = new Promise<undefined>((resolve) => {
+    timer = setTimeout(resolve, STORE_READ_MS, undefined);
+  });
+
+  try {
+    const value = await Promise.race([
+      Promise.resolve().then(() => store.get(storeKeyOf(url))),
+      late,
+    ]);
+
+    return cachedJwksOf(value);
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Writes a fetched copy without waiting for the store, and ignores failures. */
+function writeStored(
+  store: JwksStore,
+  url: URL,
+  cached: CachedJwks,
+  ttl: number,
+): void {
+  try {
+    void Promise.resolve(
+      store.set(
+        storeKeyOf(url),
+        { keys: { keys: cached.keys.keys }, at: cached.at },
+        { ttl },
+      ),
+    ).catch(() => undefined);
+  } catch {
+    // A store that throws is skipped like one that rejects.
+  }
 }
 
 function rawJwksOf(value: unknown): RawJwks {
@@ -217,7 +367,9 @@ async function fetchRawJwks(
  * is an error. A refresh for an unknown `kid` refetches at most once per
  * `refetchSeconds`, so a stream of forged `kid`s can't hammer the issuer.
  * Concurrent callers share one fetch. A failed fetch keeps the keys already
- * known while they are still inside that window.
+ * known while they are still inside that window. With a `store`, a newer copy
+ * another instance fetched is used instead of a fetch while it is inside the
+ * same windows, and every fetch is written back.
  */
 export async function sharedJwks(
   url: URL,
@@ -235,11 +387,38 @@ export async function sharedJwks(
   );
 
   const refetchMs = (options.refetchSeconds ?? 30) * 1000;
+  const { store } = options;
 
-  const age = entry.cached ? now() - entry.cached.at : Number.POSITIVE_INFINITY;
+  const ageOf = (): number =>
+    entry.cached ? now() - entry.cached.at : Number.POSITIVE_INFINITY;
+
+  let age = ageOf();
 
   if (entry.cached && age < (refresh ? refetchMs : cacheMs)) {
     return ok(entry.cached.keys);
+  }
+
+  // Another instance may have fetched a newer copy. It counts from its own
+  // fetch time, so it fits the same windows as one fetched here.
+  if (store && !entry.pending) {
+    const stored = await readStored(store, url);
+    const time = now();
+    const cutoff = storeCutoff(url.href, time);
+
+    if (
+      stored &&
+      stored.at <= time &&
+      stored.at > cutoff &&
+      stored.at > (entry.cached?.at ?? Number.NEGATIVE_INFINITY) &&
+      time - stored.at < (refresh ? refetchMs : limitMs)
+    ) {
+      entry.cached = stored;
+      age = ageOf();
+
+      if (age < (refresh ? refetchMs : cacheMs)) {
+        return ok(stored.keys);
+      }
+    }
   }
 
   const refreshKeys = (): Promise<Result<RawJwks>> => {
@@ -256,6 +435,15 @@ export async function sharedJwks(
       .then((result) => {
         if (result.ok) {
           entry.cached = { keys: result.data, at: now() };
+
+          if (store) {
+            writeStored(
+              store,
+              url,
+              entry.cached,
+              Math.max(1, Math.ceil(limitMs / 1000)),
+            );
+          }
         }
 
         return result;

@@ -163,10 +163,10 @@ describe("vercelQueueProvider", () => {
     await expect(backend.read("q", 30, 1)).rejects.toThrow(/vercelQueueRoute/);
   });
 
-  it("needs the SQL backend for schedules", () => {
+  it("needs a scheduler for schedules", () => {
     const backend = vercelQueueProvider(fakeClient());
 
-    expect(() => backend.unschedule("x")).toThrow(/SQL connection/);
+    expect(() => backend.unschedule("x")).toThrow(/keeps no schedules/);
   });
 
   it("settles held messages, and ignores jobs it does not hold", async () => {

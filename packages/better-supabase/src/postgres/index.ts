@@ -21,6 +21,7 @@ export type {
 export { usesTransactionPooler } from "./pooler.ts";
 
 export type {
+  AttachablePool,
   PgPool,
   PgPoolClient,
   BetterPostgres,

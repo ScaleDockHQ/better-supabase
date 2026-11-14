@@ -602,5 +602,9 @@
   "standards/webhooks",
   "supabase-packages",
   "testing",
-  "vercel-sandbox"
+  "vercel",
+  "vercel-sandbox",
+  "vercel/functions",
+  "vercel/passport",
+  "vercel/security"
 ]

@@ -1,22 +1,18 @@
-import type {
-  Attachment,
-  AttachmentStorage,
-} from "../attachments/attachments.ts";
+import type { AsyncResult } from "../../core/result.ts";
+import type { FileStore } from "../../storage/file-store.ts";
+import type { Attachment } from "../attachments/attachments.ts";
+import type { UploadTicket } from "../attachments/files.ts";
 
-import { dbError } from "../../core/errors.ts";
-import { AsyncResult } from "../../core/result.ts";
-import { stored } from "../attachments/attachments.ts";
+import { hinted } from "../attachments/files.ts";
 
 /**
  * A file from a caller who may only add files to the folder: PUT the bytes to
  * `signedUrl`, then call `commitContribution`. It carries the new file's id and
  * no node, because the caller can't read it.
  */
-export interface DriveContribution {
+export interface DriveContribution extends UploadTicket {
   readonly id: string;
   readonly attachment: Attachment;
-  readonly signedUrl: string;
-  readonly token: string;
 }
 
 /** A file request: an upload share link on a folder. */
@@ -38,24 +34,14 @@ export type DriveRequestUpload =
 
 /** Uploads the bytes of a file sent through a file request. */
 export function putRequestFile(
-  storage: AttachmentStorage,
+  files: FileStore,
   attachment: Attachment,
   file: Blob,
 ): AsyncResult<unknown> {
-  const target = storage.from(attachment.bucket);
-
-  if (!target.upload) {
-    return AsyncResult.err(
-      dbError("invalid_request", "The storage client has no upload", {
-        hint: "DRIVE_STORAGE_CLIENT",
-      }),
-    );
-  }
-
-  return stored(
-    target.upload(attachment.path, file, {
+  return files
+    .put(attachment.bucket, attachment.path, file, {
       contentType: attachment.mimeType,
       upsert: false,
-    }),
-  );
+    })
+    .mapError(hinted("DRIVE_STORAGE_CLIENT"));
 }

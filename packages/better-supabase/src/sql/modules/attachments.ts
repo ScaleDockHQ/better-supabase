@@ -28,6 +28,8 @@ import {
   columnOrNull,
   namedRowJson,
   scanColumns,
+  CONFIRM_UPGRADE,
+  externalObjectSql,
   HASH_UPGRADE,
   hashColumnsSql,
   statusAssignments,
@@ -736,7 +738,8 @@ $$;
 
 -- Marks the upload done once the object exists, taking its size and type
 -- from Storage, and writes attachment.uploaded for the scan job.${requireScan ? "" : "\n-- Without requireScan the file is clean right away."}
-create or replace function ${fn("confirm_attachment")}(id uuid)
+-- For a file in another store (Vercel Blob), only the service role may pass object.
+create or replace function ${fn("confirm_attachment")}(id uuid, object jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -756,7 +759,7 @@ begin
   select o.metadata into v_meta from storage.objects o
   where o.bucket_id = v_row.${c("bucket")} and o.name = ${current("v_row")};
   if not found then
-    ${fail("ATTACHMENT_NOT_UPLOADED", "The file was not uploaded yet", "P0002")}
+    ${externalObjectSql(`v_row.${c("bucket")}`)}
   end if;
   update ${t} a set
     ${c("uploadedAt")} = now(),
@@ -980,13 +983,13 @@ grant execute on function ${fn("object_clean")}(text, text) to authenticated, se
 grant execute on function ${fn("object_scan")}(text, text) to service_role;
 grant execute on function ${fn("set_object_scan")}(text, text, text, text) to service_role;
 revoke execute on function ${fn("create_attachment")}(${CREATE_ARGS(id, documents)}${extraFieldsArg(extras).type}) from public, anon;
-revoke execute on function ${fn("confirm_attachment")}(uuid) from public, anon;
+revoke execute on function ${fn("confirm_attachment")}(uuid, jsonb) from public, anon;
 revoke execute on function ${fn("set_attachment_status")}(uuid, text, text, text) from public, anon, authenticated;
 revoke execute on function ${fn("list_attachments")}(${id}, text, text) from public, anon;
 revoke execute on function ${fn("get_attachment")}(uuid) from public, anon;
 revoke execute on function ${fn("delete_attachment")}(uuid) from public, anon;
 grant execute on function ${fn("create_attachment")}(${CREATE_ARGS(id, documents)}${extraFieldsArg(extras).type}) to authenticated, service_role;
-grant execute on function ${fn("confirm_attachment")}(uuid) to authenticated, service_role;
+grant execute on function ${fn("confirm_attachment")}(uuid, jsonb) to authenticated, service_role;
 grant execute on function ${fn("set_attachment_status")}(uuid, text, text, text) to service_role;
 grant execute on function ${fn("list_attachments")}(${id}, text, text) to authenticated, service_role;
 grant execute on function ${fn("get_attachment")}(uuid) to authenticated, service_role;
@@ -1040,7 +1043,7 @@ export const ATTACHMENTS: BlockSqlDefinition = {
   integrates: ["profiles", "subjects", "imports"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 9,
+  version: 10,
   upgrades: [
     {
       from: 1,
@@ -1089,6 +1092,7 @@ export const ATTACHMENTS: BlockSqlDefinition = {
           : "",
     },
     HASH_UPGRADE,
+    CONFIRM_UPGRADE,
   ],
   names: NAMES,
   topics: (ctx) => [`${attachmentsTopicOf(ctx)}:{tenant}`],

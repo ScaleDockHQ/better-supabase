@@ -27,9 +27,17 @@ const INTEGRATIONS = [
   "@supabase-labs/middleware-openfeature",
   "@supabase/pg-delta",
   "@supabase/pg-topo",
+  "@vercel/blob",
   "@vercel/connect",
+  "@vercel/firewall",
+  "@vercel/functions",
+  "@vercel/kms",
+  "@vercel/passport",
   "@vercel/queue",
   "@vercel/sandbox",
+  "@vercel/schedules",
+  "@vercel/sdk",
+  "botid",
   "eve",
   "flags",
   "stripe",
@@ -44,8 +52,8 @@ const INTEGRATIONS = [
 
 /**
  * Frameworks the adapters type structurally. Each is an optional peer with a
- * tested range: `tests/frameworks.test-d.ts` checks the current major, and
- * `tests/types/frameworks-previous` the previous one where the range keeps it.
+ * tested range of one major (two for h3, whose 1.x is the `h3/v1` entry), and
+ * `tests/frameworks.test-d.ts` checks it.
  */
 const FRAMEWORKS = [
   "@solidjs/start",

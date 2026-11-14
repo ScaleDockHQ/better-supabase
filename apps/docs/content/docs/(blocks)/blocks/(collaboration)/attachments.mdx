@@ -448,6 +448,119 @@ const attachment = await attachments
   .orThrow();
 ```
 
+## Files in Vercel Blob
+
+The bytes of a file can live outside Supabase Storage. `files` takes a
+`FileStore`, and `vercelBlobStore(blob)` keeps the bytes in
+[Vercel Blob](https://vercel.com/docs/vercel-blob). The records, who may upload,
+the scan gate and the events stay in Postgres; only the bytes move. Without
+`files`, the block uses `supabaseFileStore(storage)`, which is the behaviour
+described above.
+
+Install the SDK, an optional peer (`@vercel/blob` `>=2.9.0 <3`), and set
+`BLOB_READ_WRITE_TOKEN` on the server (or use Vercel OIDC with
+`BLOB_STORE_ID`):
+
+```bash
+pnpm add @vercel/blob
+```
+
+```ts title="lib/attachments.ts"
+import * as blob from "@vercel/blob";
+import {
+  createAttachments,
+  rpcTransport,
+  vercelBlobStore,
+} from "better-supabase/blocks/attachments";
+
+export const attachmentsFor = (
+  supabase: SupabaseClient,
+  admin: SupabaseClient,
+  organizationId: string,
+) =>
+  createAttachments({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+    files: vercelBlobStore(blob),
+    tenant: organizationId,
+  });
+```
+
+Blobs are private by default (`access: "private"`), so a file is read only
+through the signed URL that `download` returns after the scan passes.
+`vercelBlobStore(blob, { prefix: "files/", token, access })` puts a prefix
+before every pathname, passes a token instead of the environment one, or
+makes the blobs public. A pathname is `<prefix><bucket>/<object_path>`, the
+same path the file would have in Storage.
+
+`upload` and `replace` still create the record first, so the table policies
+decide who may upload. The signed upload URL they return is a presigned Blob
+`PUT` that only accepts that pathname, the declared MIME type and at most
+the declared size, and never overwrites a blob. Send the file with the
+`method` and `headers` the result carries: `useAttachmentUpload` and
+`xhrSend` do this when `start` passes them on, and `uploadFile` sends the file
+with `fetch`.
+
+```ts title="app/projects/[id]/upload.ts"
+const upload = await startUpload(projectId, {
+  name: file.name,
+  mimeType: file.type,
+  size: file.size,
+});
+
+await fetch(upload.signedUrl, {
+  method: upload.method ?? "PUT",
+  headers: upload.headers,
+  body: file,
+});
+
+await confirmUpload(upload.attachment.id);
+```
+
+Postgres can't see a blob, so `confirm` takes two steps. It first calls
+`confirm_attachment(id)` as the caller, which keeps the rule that only the
+uploader confirms; it fails with `ATTACHMENT_NOT_UPLOADED` because Storage has
+no object. Then it reads the blob's size and type with `head` and passes them
+to `confirm_attachment(id, object)` through `service`, the only caller whose
+`object` the function accepts. The browser never says what it uploaded. The
+function checks the size and type against the bucket's `file_size_limit` and
+`allowed_mime_types`, and refuses others with `ATTACHMENT_OBJECT_REFUSED`.
+Without `service`, `confirm` uses `transport`, which works when that is a
+service-role transport and otherwise fails with `ATTACHMENT_SERVICE_REQUIRED`.
+`put`, `download`, `read` and `remove` go through the store as well, and
+`createAttachmentScanner`, `createObjectScanner` and `createAttachmentSweeper`
+take the same `files`.
+
+A few features need Supabase Storage and stay there. Image transforms
+(`images().signedUrl` with a variant) and `publicUrl` return
+`invalid_request` with the hint `ATTACHMENT_STORE_UNSUPPORTED`; an image
+without a variant still gets a signed URL. The upload claim of a
+[support session](/docs/auth/impersonation#storage-in-a-support-session) is a
+Storage feature, so it doesn't run. Storage policies on `storage.objects` don't
+apply to blobs, and a `download` name (`as`) only asks the browser to save
+the file, under its pathname.
+
+### Your own file store
+
+`FileStore` is a versioned interface (`apiVersion: 1`): `put`, `get`,
+`delete` and `signedUrl`, plus `head` to confirm uploads and
+`signedUploadUrl` for browser uploads. Every method returns an `AsyncResult`
+and never throws. Check one with `testFileStore` from
+`better-supabase/testing` against a test bucket:
+
+```ts title="tests/file-store.test.ts"
+import { testFileStore } from "better-supabase/testing";
+
+it("conforms", async () => {
+  await testFileStore(myStore, { bucket: "conformance", fetch });
+});
+```
+
+It puts a file and reads it back, refuses a second `put` without `upsert`,
+overwrites with `upsert`, signs a download URL (and fetches it with `fetch`),
+checks `head` and `signedUploadUrl` when the store has them, and deletes the
+files it wrote.
+
 ## Versions
 
 `replace(id, file)` starts a new version of a file and returns a signed
@@ -520,7 +633,13 @@ export async function GET(): Promise<Response> {
 
 ```json title="vercel.json"
 {
-  "crons": [{ "path": "/api/cron/attachment-cleanup", "schedule": "0 * * * *" }]
+  "schedules": {
+    "attachment-cleanup": {
+      "schedule": "0 * * * *",
+      "path": "/api/cron/attachment-cleanup",
+      "requestMethod": "GET"
+    }
+  }
 }
 ```
 

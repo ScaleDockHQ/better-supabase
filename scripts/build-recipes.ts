@@ -437,12 +437,35 @@ function renderDocsIndex(recipes: readonly Recipe[]): string {
   ].join("\n");
 }
 
+const V0_OPEN = "https://v0.app/chat/api/open";
+
+/**
+ * "Open in v0" links for a recipe's registry items. The markup stays out of the
+ * registry (ADR 0031), so only a recipe with glue items has JSON to open.
+ */
+function openInV0(recipe: AvailableRecipe): string[] {
+  const links = recipe.web.glue.map(
+    (item) =>
+      `[Open \`${item}\` in v0](${V0_OPEN}?url=${encodeURIComponent(`${SITE}/r/${item}.json`)})`,
+  );
+
+  if (links.length === 0) {
+    return [];
+  }
+
+  return [
+    `To start a v0 chat with the recipe's registry ${links.length === 1 ? "item" : "items"} installed: ${links.join(", ")}.`,
+    "",
+  ];
+}
+
 /** One recipe's docs page. */
 function renderDocsRecipe(recipe: AvailableRecipe): string {
   return [
     ...frontmatter(recipe.title, recipe.description),
     `${recipeUses(recipe)} Its page on bettersupabase.com is [/recipes/${recipe.slug}](${SITE}/recipes/${recipe.slug}).`,
     "",
+    ...openInV0(recipe),
     recipeCode(recipe),
     "",
   ].join("\n");

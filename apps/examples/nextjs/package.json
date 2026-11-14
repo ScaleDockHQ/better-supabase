@@ -51,6 +51,7 @@
     "ai": "catalog:",
     "better-result": "catalog:",
     "better-supabase": "workspace:*",
+    "botid": "catalog:",
     "chat": "catalog:",
     "class-variance-authority": "catalog:",
     "cmdk": "catalog:",

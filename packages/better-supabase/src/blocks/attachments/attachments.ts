@@ -9,10 +9,16 @@ import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { ImageTransform, TransformOptions } from "../../storage/bucket.ts";
+import type {
+  FileStore,
+  SupabaseFileBucket,
+  SupabaseFileStorage,
+} from "../../storage/file-store.ts";
 import type { TtlPreset } from "../../storage/ttl.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { UploadClaimStorage } from "../upload-claim.ts";
 import type { DocumentField, DocumentType } from "./document-types.ts";
+import type { UploadTicket } from "./files.ts";
 
 import { authorOf } from "../../core/block-authors.ts";
 import {
@@ -27,7 +33,7 @@ import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
-import { fromStorageError } from "../../storage/errors.ts";
+import { storageReply } from "../../storage/file-store.ts";
 import { ttlSeconds } from "../../storage/ttl.ts";
 import { transformFor } from "../../storage/variants.ts";
 import {
@@ -43,6 +49,17 @@ import {
 } from "../shared.ts";
 import { claimsUploads, claimUpload } from "../upload-claim.ts";
 import { documentTypeOf } from "./document-types.ts";
+import {
+  blockFiles,
+  confirmInStore,
+  hinted,
+  notUploaded,
+  sendToSignedUrl,
+  signUpload,
+  supabaseOf,
+  unsupported,
+  uploadTicket,
+} from "./files.ts";
 
 interface StorageReply<T> {
   readonly data: T | null;
@@ -50,7 +67,7 @@ interface StorageReply<T> {
 }
 
 /** The `supabase.storage.from(bucket)` methods attachments use. */
-export interface AttachmentBucket {
+export interface AttachmentBucket extends SupabaseFileBucket {
   createSignedUploadUrl(
     path: string,
   ): PromiseLike<
@@ -84,7 +101,8 @@ export interface AttachmentBucket {
 }
 
 /** `supabase.storage`, typed structurally. */
-export interface AttachmentStorage extends UploadClaimStorage {
+export interface AttachmentStorage
+  extends UploadClaimStorage, SupabaseFileStorage {
   from(bucket: string): AttachmentBucket;
 }
 
@@ -111,8 +129,25 @@ export interface AttachmentsOptions<
   readonly logger?: Logger;
   /** The caller's transport (`rpcTransport(supabase)`). */
   readonly transport: BlockTransport;
-  /** The caller's `supabase.storage`, so the bucket policies apply. */
-  readonly storage: AttachmentStorage;
+  /**
+   * The caller's `supabase.storage`, so the bucket policies apply. The file
+   * store unless `files` names another; image transforms, `publicUrl` and the
+   * upload claim need it.
+   */
+  readonly storage?: AttachmentStorage;
+  /**
+   * Where the bytes go: `vercelBlobStore(blob)` or another `FileStore`. Default
+   * `supabaseFileStore(storage)`. The records, the upload rules and the scan
+   * gate stay in Postgres.
+   */
+  readonly files?: FileStore;
+  /**
+   * A service-role transport, for `confirm` on a store Postgres can't see (any
+   * `files` but Supabase): it reads the file's size and type with `files.head`
+   * and only the service role may pass them. Default `transport`, which works
+   * when it is a service-role transport.
+   */
+  readonly service?: BlockTransport;
   /**
    * The module schema, or its API schema: `defineBlocks` passes it from
    * `blocks.generated.ts`. Default `better_supabase`.
@@ -311,14 +346,16 @@ export interface AttachmentImages<V extends string = never> {
   ): AsyncResult<string>;
 }
 
-export interface AttachmentUpload<F extends object = Record<never, never>> {
+export interface AttachmentUpload<
+  F extends object = Record<never, never>,
+> extends UploadTicket {
   readonly attachment: Attachment & F;
   /**
    * PUT the file here, or pass `token` to `uploadToSignedUrl(path, token,
-   * file)`.
+   * file)`. On a store other than Supabase, send it with `method` and
+   * `headers`.
    */
   readonly signedUrl: string;
-  readonly token: string;
 }
 
 export interface AttachmentDownload<F extends object = Record<never, never>> {
@@ -571,23 +608,7 @@ export const notFound = (): DbError =>
 export function stored<T>(
   reply: PromiseLike<StorageReply<T>>,
 ): AsyncResult<NonNullable<T>> {
-  return AsyncResult.from(async () => {
-    try {
-      const { data, error } = await reply;
-
-      if (error) {
-        return err(fromStorageError(error, "storage.objects"));
-      }
-
-      if (data === null || data === undefined) {
-        return err(dbError("network", "Storage returned no data"));
-      }
-
-      return ok(data);
-    } catch (cause) {
-      return err(fromStorageError(cause, "storage.objects"));
-    }
-  });
+  return storageReply(reply);
 }
 
 export function lookup(
@@ -624,6 +645,15 @@ export function createAttachments<
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const service = blockCall(
+    options.service ?? options.transport,
+    options.schema,
+    options.mappers,
+  );
+
+  const files = blockFiles(options);
+  const supabase = supabaseOf(files);
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "attachment fields",
@@ -649,22 +679,70 @@ export function createAttachments<
   const confirmed = (id: string): AsyncResult<Attachment & F> =>
     call("confirm_attachment", { id }, (value) => value).andThen(typed);
 
-  const confirm = (id: string): AsyncResult<Attachment & F> =>
-    claimsUploads(options.storage)
+  /**
+   * The caller's own `confirm_attachment` keeps the uploader rule; when it
+   * fails only because Storage has no object, the file is in another store.
+   */
+  const confirmStored = (id: string): AsyncResult<Attachment & F> =>
+    AsyncResult.from(async () => {
+      const own = await call("confirm_attachment", { id }, (value) => value);
+
+      if (own.ok) {
+        return typed(own.data);
+      }
+
+      if (files === undefined || !notUploaded(own.error)) {
+        return own;
+      }
+
+      const found = await lookup(service, id);
+
+      if (!found.ok) {
+        return found;
+      }
+
+      const done = await confirmInStore(
+        files,
+        service,
+        found.data,
+        "ATTACHMENT_STORAGE_CLIENT",
+      );
+
+      return done.ok ? typed(done.data) : done;
+    });
+
+  const confirm = (id: string): AsyncResult<Attachment & F> => {
+    if (supabase === undefined) {
+      return confirmStored(id);
+    }
+
+    return claimsUploads(supabase)
       ? lookup(call, id).andThen((attachment) =>
           attachment.uploadedAt === undefined
-            ? claimUpload(options.storage, attachment, CLAIM_HINTS).andThen(
-                () => confirmed(id),
+            ? claimUpload(supabase, attachment, CLAIM_HINTS).andThen(() =>
+                confirmed(id),
               )
             : confirmed(id),
         )
       : confirmed(id);
+  };
 
   const requireScan = options.requireScan ?? options.offline !== true;
   const ttl = options.downloadTtl ?? 300;
 
-  const bucket = (attachment: Attachment): AttachmentBucket =>
-    options.storage.from(attachment.bucket);
+  const noFiles = (): DbError =>
+    dbError(
+      "invalid_request",
+      "createAttachments needs storage or files for the bytes",
+      { hint: "ATTACHMENT_STORAGE_CLIENT" },
+    );
+
+  const withFiles = <T>(
+    run: (store: FileStore) => AsyncResult<T>,
+  ): AsyncResult<T> =>
+    files === undefined
+      ? AsyncResult.err(noFiles())
+      : run(files).mapError(hinted("ATTACHMENT_STORAGE_CLIENT"));
 
   /** Why a file can't be read yet, or `undefined` once it can. */
   const gate = (
@@ -693,9 +771,13 @@ export function createAttachments<
     attachment: Attachment,
     url: { download?: string | boolean; transform?: TransformOptions } = {},
   ): Result<string> => {
-    const target = bucket(attachment);
+    if (files !== undefined && supabase === undefined) {
+      return err(unsupported(files, "Public URLs"));
+    }
 
-    if (!publicBuckets.has(attachment.bucket) || !target.getPublicUrl) {
+    const target = supabase?.from(attachment.bucket);
+
+    if (!publicBuckets.has(attachment.bucket) || !target?.getPublicUrl) {
       return err(
         dbError("invalid_request", "The file's bucket is not public", {
           hint: "ATTACHMENT_PRIVATE",
@@ -729,8 +811,8 @@ export function createAttachments<
           async (deleted) => {
             if (deleted) {
               // A failed delete leaves the files queued for sweepQueued.
-              await stored(
-                bucket(attachment).remove([
+              await withFiles((store) =>
+                store.delete(attachment.bucket, [
                   attachment.path,
                   ...earlier.map((version) => version.path),
                 ]),
@@ -765,6 +847,13 @@ export function createAttachments<
 
     return err(error);
   };
+
+  const signedUpload = (created: Attachment): AsyncResult<UploadTicket> =>
+    files === undefined
+      ? AsyncResult.err(noFiles())
+      : signUpload(files, created, "ATTACHMENT_STORAGE_CLIENT").map((url) =>
+          uploadTicket(files, url),
+        );
 
   const create = (
     subject: RecordRef | null,
@@ -808,19 +897,13 @@ export function createAttachments<
     attachment: NewAttachment;
   }): AsyncResult<AttachmentUpload<F>> =>
     create(subject, attachment).andThen(async (created) => {
-      const url = await stored(
-        bucket(created).createSignedUploadUrl(created.path),
-      );
+      const url = await signedUpload(created);
 
       if (!url.ok) {
         return discard(created, url.error);
       }
 
-      return ok({
-        attachment: created,
-        signedUrl: url.data.signedUrl,
-        token: url.data.token,
-      });
+      return ok({ attachment: created, ...url.data });
     });
 
   const client: Attachments<F> = {
@@ -858,17 +941,12 @@ export function createAttachments<
             return Promise.resolve(err(blocked));
           }
 
-          return stored(
-            options.storage
-              .from(chosen.bucket)
-              .createSignedUrl(
-                chosen.path,
-                ttl,
-                download.as === undefined
-                  ? undefined
-                  : { download: download.as },
-              ),
-          ).map((url) => ({ attachment, signedUrl: url.signedUrl }));
+          return withFiles((store) =>
+            store.signedUrl(chosen.bucket, chosen.path, {
+              expiresIn: ttl,
+              ...(download.as === undefined ? {} : { download: download.as }),
+            }),
+          ).map((signedUrl) => ({ attachment, signedUrl }));
         });
       }),
     replace: ({ id, file }) =>
@@ -887,13 +965,10 @@ export function createAttachments<
       )
         .andThen(typed)
         .andThen((replaced) =>
-          stored(bucket(replaced).createSignedUploadUrl(replaced.path)).map(
-            (url) => ({
-              attachment: replaced,
-              signedUrl: url.signedUrl,
-              token: url.token,
-            }),
-          ),
+          signedUpload(replaced).map((url) => ({
+            attachment: replaced,
+            ...url,
+          })),
         ),
     versions: listVersions,
     publicUrl: ({ attachment, options: url = {} }) =>
@@ -953,30 +1028,49 @@ export function createAttachments<
             return Promise.resolve(err(toDbError(cause)));
           }
 
-          return stored(
-            bucket(attachment).createSignedUrl(
-              attachment.path,
-              url.ttl === undefined ? ttl : ttlSeconds(url.ttl),
-              transform === undefined ? undefined : { transform },
-            ),
-          ).map((signed) => signed.signedUrl);
+          const expiresIn = url.ttl === undefined ? ttl : ttlSeconds(url.ttl);
+
+          if (transform === undefined) {
+            return withFiles((store) =>
+              store.signedUrl(attachment.bucket, attachment.path, {
+                expiresIn,
+              }),
+            );
+          }
+
+          if (supabase === undefined) {
+            return Promise.resolve(
+              err(
+                files === undefined
+                  ? noFiles()
+                  : unsupported(files, "Image transforms"),
+              ),
+            );
+          }
+
+          const target = supabase.from(attachment.bucket);
+
+          return target.createSignedUrl
+            ? stored(
+                target.createSignedUrl(attachment.path, expiresIn, {
+                  transform,
+                }),
+              ).map((signed) => signed.signedUrl)
+            : Promise.resolve(
+                err(
+                  dbError(
+                    "invalid_request",
+                    "The storage client has no createSignedUrl",
+                    { hint: "ATTACHMENT_STORAGE_CLIENT" },
+                  ),
+                ),
+              );
         }),
     }),
     put: ({ subject, attachment, file }) =>
       create(subject, attachment).andThen(async (created) => {
-        const target = bucket(created);
-
-        if (!target.upload) {
-          return discard(
-            created,
-            dbError("invalid_request", "The storage client has no upload", {
-              hint: "ATTACHMENT_STORAGE_CLIENT",
-            }),
-          );
-        }
-
-        const sent = await stored(
-          target.upload(created.path, file, {
+        const sent = await withFiles((store) =>
+          store.put(created.bucket, created.path, file, {
             contentType: created.mimeType,
             upsert: false,
           }),
@@ -986,7 +1080,9 @@ export function createAttachments<
           return discard(created, sent.error);
         }
 
-        return confirmed(created.id);
+        return supabase === undefined
+          ? confirmStored(created.id)
+          : confirmed(created.id);
       }),
     uploadFile: ({ subject, file, attachment, onProgress }) =>
       hooked
@@ -1001,11 +1097,11 @@ export function createAttachments<
           } as NewAttachment & Partial<F>,
         })
         .andThen(async (created) => {
-          const target = bucket(created.attachment);
+          const target = supabase?.from(created.attachment.bucket);
           const total = file.size;
           const contentType = created.attachment.mimeType;
 
-          if (!target.uploadToSignedUrl) {
+          if (supabase !== undefined && !target?.uploadToSignedUrl) {
             return discard(
               created.attachment,
               dbError(
@@ -1018,14 +1114,16 @@ export function createAttachments<
 
           onProgress?.({ loaded: 0, total });
 
-          const sent = await stored(
-            target.uploadToSignedUrl(
-              created.attachment.path,
-              created.token,
-              file,
-              { contentType },
-            ),
-          );
+          const sent = await (target?.uploadToSignedUrl
+            ? stored(
+                target.uploadToSignedUrl(
+                  created.attachment.path,
+                  created.token,
+                  file,
+                  { contentType },
+                ),
+              )
+            : sendToSignedUrl(created, file));
 
           if (!sent.ok) {
             return discard(created.attachment, sent.error);
@@ -1043,9 +1141,9 @@ export function createAttachments<
           return Promise.resolve(err(blocked));
         }
 
-        return stored(bucket(attachment).download(attachment.path)).map(
-          (file) => ({ attachment, file }),
-        );
+        return withFiles((store) =>
+          store.get(attachment.bucket, attachment.path),
+        ).map((file) => ({ attachment, file }));
       }),
     claim: (id) =>
       call("claim_attachment_upload", { id }, (value) => value).andThen(typed),
@@ -1091,8 +1189,8 @@ export function createAttachments<
         : find(id)
             .andThen((attachment) =>
               listVersions(id).andThen((earlier) =>
-                stored(
-                  bucket(attachment).remove([
+                withFiles((store) =>
+                  store.delete(attachment.bucket, [
                     attachment.path,
                     ...earlier.map((version) => version.path),
                   ]),

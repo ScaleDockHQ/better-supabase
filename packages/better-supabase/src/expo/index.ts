@@ -536,7 +536,7 @@ export function createExpo<
         if (!incoming) {
           throw new StatusError(
             500,
-            'better-supabase: bsb.loader() needs a request, and static rendering has none. Turn on unstable_useServerRendering on Expo SDK 57, or read public data in a loader built with createStaticLoader from "expo-server".',
+            'better-supabase: bsb.loader() needs a request, and static rendering has none. Set "web.output": "server" in app.json, or read public data in a loader built with createStaticLoader from "expo-server".',
           );
         }
 

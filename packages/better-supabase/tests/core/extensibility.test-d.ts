@@ -12,6 +12,7 @@ import type {
 } from "../../src/blocks/activities/index.ts";
 import type { AiTaskRunner } from "../../src/blocks/ai-schedules/index.ts";
 import type { FieldPack } from "../../src/blocks/custom-fields/index.ts";
+import type { DomainProvider } from "../../src/blocks/domains/index.ts";
 import type { Embedder } from "../../src/blocks/knowledge/index.ts";
 import type {
   DeliveryTransport,
@@ -22,8 +23,12 @@ import type {
   InviteRequest,
 } from "../../src/blocks/organizations/index.ts";
 import type { Profiles } from "../../src/blocks/profiles/index.ts";
-import type { QueueProvider } from "../../src/blocks/queue/index.ts";
+import type {
+  QueueProvider,
+  ScheduleProvider,
+} from "../../src/blocks/queue/index.ts";
 import type { ShippingProvider } from "../../src/blocks/shipments/index.ts";
+import type { KeyProvider } from "../../src/blocks/signing-keys/index.ts";
 import type {
   IncomingDestination,
   WebhookSecretStore,
@@ -94,6 +99,7 @@ import type {
   VersionOf,
 } from "../../src/spec/format.ts";
 import type { ApiModel } from "../../src/spec/model.ts";
+import type { FileStore } from "../../src/storage/index.ts";
 import type { StreamStore } from "../../src/streams/index.ts";
 import type {
   RedisStreamClient,
@@ -101,6 +107,7 @@ import type {
 } from "../../src/streams/redis/index.ts";
 import type { TestDocumentFormatOptions } from "../../src/testing/document-format.ts";
 
+import { vercelDomainProvider } from "../../src/blocks/domains/index.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { createOrganizations } from "../../src/blocks/organizations/index.ts";
 import { permissionsAuthorizer } from "../../src/blocks/permissions/index.ts";
@@ -108,8 +115,15 @@ import { createProfiles } from "../../src/blocks/profiles/index.ts";
 import {
   pgmqPublicBackend,
   sqlQueueProvider,
+  sqlScheduler,
+  transportScheduler,
+  vercelScheduler,
 } from "../../src/blocks/queue/index.ts";
 import { flatRateCarrier } from "../../src/blocks/shipments/index.ts";
+import {
+  vaultKeyProvider,
+  vercelKmsKeyProvider,
+} from "../../src/blocks/signing-keys/index.ts";
 import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
 import {
@@ -147,6 +161,7 @@ import { postgresExecutor, sqlCompiler } from "../../src/postgres/index.ts";
 import { queryCache } from "../../src/query/index.ts";
 import { sqlSupportStore } from "../../src/server/index.ts";
 import { defineDocumentFormat } from "../../src/spec/format.ts";
+import { supabaseFileStore, vercelBlobStore } from "../../src/storage/index.ts";
 import { staticAuthorizer } from "../../src/testing/authorizer.ts";
 import { testDocumentFormat } from "../../src/testing/document-format.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -168,6 +183,11 @@ describe("extension interfaces", () => {
     expectTypeOf(sqlQueueProvider).returns.toExtend<QueueProvider>();
     expectTypeOf(pgmqPublicBackend).returns.toExtend<QueueProvider>();
     expectTypeOf<QueueProvider["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(sqlScheduler).returns.toExtend<ScheduleProvider>();
+    expectTypeOf(transportScheduler).returns.toExtend<ScheduleProvider>();
+    expectTypeOf(vercelScheduler).returns.toExtend<ScheduleProvider>();
+    expectTypeOf<QueueProvider>().toExtend<ScheduleProvider>();
+    expectTypeOf<ScheduleProvider["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf(sqlSupportStore).returns.toExtend<SupportSessionStore>();
     expectTypeOf<SupportSessionStore["apiVersion"]>().toEqualTypeOf<1>();
     expectTypeOf<NotificationChannel["apiVersion"]>().toEqualTypeOf<1>();
@@ -555,5 +575,18 @@ describe("block extension", () => {
     expectTypeOf(withBlockHooks<Profiles>)
       .parameter(1)
       .toEqualTypeOf<BlockHooks<Profiles> | undefined>();
+  });
+});
+
+describe("ports for hosting platforms", () => {
+  it("are versioned, with the first-party providers implementing them", () => {
+    expectTypeOf<DomainProvider["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(vercelDomainProvider).returns.toExtend<DomainProvider>();
+    expectTypeOf<KeyProvider["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(vaultKeyProvider).returns.toExtend<KeyProvider>();
+    expectTypeOf(vercelKmsKeyProvider).returns.toExtend<KeyProvider>();
+    expectTypeOf<FileStore["apiVersion"]>().toEqualTypeOf<1>();
+    expectTypeOf(supabaseFileStore).returns.toExtend<FileStore>();
+    expectTypeOf(vercelBlobStore).returns.toExtend<FileStore>();
   });
 });

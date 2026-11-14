@@ -337,6 +337,36 @@ trash: {
 
 `download(id)` signs a download URL for the current content through the `attachments` option, the attachments block over the same transport; `createBlocks` passes it as the `attachments` port when the set has `attachmentsBlock`. Without it, `download` fails with the hint `DRIVE_ATTACHMENTS_CLIENT`. With `requireScan` on the attachments block (the default), a file that isn't scanned clean yet can't be downloaded.
 
+### Files in Vercel Blob
+
+The drive keeps its bytes wherever the attachments block does. Pass the same `files` to both, such as `vercelBlobStore(blob)`, and a service-role transport as `service`, so `commit` and `commitContribution` can confirm an upload that Postgres can't see:
+
+```ts title="lib/drive.ts"
+import * as blob from "@vercel/blob";
+import { createAttachments } from "better-supabase/blocks/attachments";
+import {
+  createDrive,
+  rpcTransport,
+  vercelBlobStore,
+} from "better-supabase/blocks/drive";
+
+const files = vercelBlobStore(blob);
+
+export const driveFor = (supabase: SupabaseClient, admin: SupabaseClient) =>
+  createDrive({
+    transport: rpcTransport(supabase),
+    service: rpcTransport(admin),
+    files,
+    attachments: createAttachments({
+      transport: rpcTransport(supabase),
+      service: rpcTransport(admin),
+      files,
+    }),
+  });
+```
+
+`upload`, `uploadRevision` and `contribute` return the presigned upload with its `method` and `headers`. `commit` runs `drive_commit` as the caller first, so the grants decide who may commit; only when the upload is missing from Storage does it confirm the attachment from the blob's `head` through `service` and commit again. `put`, `uploadToRequest`, `previewUrls`, `prune`, `createDrivePreviews` and `createDriveText` take or use the same `files`. The restrictive policies on `storage.objects` only guard Supabase Storage; with Blob, the signed URLs the drive and attachments functions hand out are the gate. The full setup, and what stays Supabase-only, is on the attachments page under [Files in Vercel Blob](/docs/blocks/attachments#files-in-vercel-blob).
+
 ### Text extraction
 
 Files become searchable by their content once their text is extracted. `createDriveText` reads each clean upload through a `TextExtractor` and stores its text in `drive_node_texts`, one row per file, kept at `maxTextBytes`. It runs as the service role: give it a service-role transport and `supabase.storage`, and run its `sink()` on the outbox relay. The sink reacts to `attachment.uploaded` (and to `attachment.scanned`, when uploads are scanned first), so a file is read only once it is clean and again for each new revision.

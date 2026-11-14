@@ -482,6 +482,41 @@ describe("xhrSend", () => {
     expect(progress).toHaveBeenCalledExactlyOnceWith(0.5);
   });
 
+  it("sends a store's own method and headers instead of x-upsert", async () => {
+    const sent = fakeXhr("load");
+
+    await xhrSend(
+      {
+        ...ticket,
+        method: "POST",
+        headers: { "x-vercel-blob-access": "private" },
+      },
+      file(),
+      () => {},
+      new AbortController().signal,
+    );
+
+    expect(sent).toEqual({
+      method: "POST",
+      url: "https://s/upload/a1",
+      headers: [
+        ["x-vercel-blob-access", "private"],
+        ["content-type", "image/png"],
+      ],
+    });
+
+    const typed = fakeXhr("load");
+
+    await xhrSend(
+      { ...ticket, headers: { "Content-Type": "application/pdf" } },
+      file(),
+      () => {},
+      new AbortController().signal,
+    );
+
+    expect(typed.headers).toEqual([["Content-Type", "application/pdf"]]);
+  });
+
   it("maps a refused, failed or stopped upload", async () => {
     fakeXhr("load", 403);
     expect(

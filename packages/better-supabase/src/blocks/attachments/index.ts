@@ -58,6 +58,21 @@ export {
 
 export type { BlockTransport } from "../../core/block-transport.ts";
 
+export {
+  type FileBody,
+  type FileHead,
+  type FileStore,
+  fileStoreOf,
+  type SignedUpload,
+  type SupabaseFileStore,
+  supabaseFileStore,
+  type VercelBlobModule,
+  vercelBlobStore,
+  type VercelBlobStoreOptions,
+} from "../../storage/file-store.ts";
+
+export type { UploadTicket } from "./files.ts";
+
 export type { Author } from "../../core/block-authors.ts";
 
 export { attachmentsBlock } from "./manifest.ts";
