@@ -117,6 +117,18 @@ function fakeTransport(results: Record<string, unknown>) {
 }
 
 describe("createAssets", () => {
+  it("restores an archived location", async () => {
+    const fake = fakeTransport({ restore_asset_location: BARE_LOCATION });
+    const assets = createAssets({ transport: fake.transport, tenant: "org-1" });
+
+    expect(await assets.restoreLocation("l0").orThrow()).toMatchObject({
+      id: BARE_LOCATION.id,
+    });
+    expect(fake.calls).toEqual([
+      ["restore_asset_location", { location_id: "l0" }],
+    ]);
+  });
+
   it("creates, reads and lists locations in the block's tenant", async () => {
     const fake = fakeTransport({
       create_asset_location: LOCATION,

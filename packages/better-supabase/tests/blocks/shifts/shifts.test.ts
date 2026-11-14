@@ -112,6 +112,18 @@ const day = (value: string): Temporal.PlainDate =>
   Temporal.PlainDate.from(value);
 
 describe("createShifts", () => {
+  it("restores an archived template", async () => {
+    const t = fieldsTransport({ restore_shift_template: () => TEMPLATE });
+    const shifts = createShifts({ transport: t });
+
+    expect(await shifts.restoreTemplate("t1").orThrow()).toMatchObject({
+      id: TEMPLATE.id,
+    });
+    expect(t.calls).toEqual([
+      ["restore_shift_template", { template_id: "t1" }],
+    ]);
+  });
+
   it("saves, lists and archives templates and generates shifts", async () => {
     const t = fieldsTransport({
       save_shift_template: () => TEMPLATE,

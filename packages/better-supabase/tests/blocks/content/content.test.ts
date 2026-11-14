@@ -47,6 +47,18 @@ const PUBLIC = {
 };
 
 describe("createContent", () => {
+  it("restores an archived entry", async () => {
+    const { transport, call } = fakeTransport({ restore_content_entry: ENTRY });
+    const content = createContent({ transport });
+
+    expect((await content.restore("e1").orThrow()).id).toBe(ENTRY.id);
+    expect(call).toHaveBeenLastCalledWith(
+      "better_supabase",
+      "restore_content_entry",
+      { entry_id: "e1" },
+    );
+  });
+
   it("writes and reads entries", async () => {
     const { transport, call } = fakeTransport({
       create_content_entry: ENTRY,

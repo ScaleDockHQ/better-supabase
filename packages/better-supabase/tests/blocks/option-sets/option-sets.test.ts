@@ -75,6 +75,14 @@ describe("option-sets block", () => {
     ]);
   });
 
+  it("restores an archived item", async () => {
+    const t = transport({ restore_option_set_item: () => true });
+    const sets = createOptionSets({ transport: t });
+
+    expect(await sets.restoreItem("i1").orThrow()).toBe(true);
+    expect(t.calls).toEqual([["restore_option_set_item", { item: "i1" }]]);
+  });
+
   it("sends nulls for what an item input leaves out and replaces on archive", async () => {
     const t = transport({
       save_option_set_item: () => ITEM,
