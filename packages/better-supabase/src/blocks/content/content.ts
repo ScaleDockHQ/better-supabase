@@ -164,6 +164,8 @@ export interface Content {
   }): AsyncResult<ContentEntry>;
   /** Takes an entry down; a live or scheduled one needs `content.publish`. */
   archive(entryId: string): AsyncResult<ContentEntry>;
+  /** Brings an archived entry back as a draft; needs `content.write`. */
+  restore(entryId: string): AsyncResult<ContentEntry>;
   /** The entry with its translations, or null when the caller can't read it. */
   get(entryId: string): AsyncResult<ContentEntry | null>;
   list(filter?: ContentFilter): AsyncResult<readonly ContentEntry[]>;
@@ -347,6 +349,12 @@ export function createContent(options: ContentOptions): Content {
         "archive_content_entry",
         { entry_id: entryId },
         entry("archive_content_entry"),
+      ),
+    restore: (entryId) =>
+      call(
+        "restore_content_entry",
+        { entry_id: entryId },
+        entry("restore_content_entry"),
       ),
     get: (entryId) =>
       call("get_content_entry", { entry_id: entryId }, (value) =>

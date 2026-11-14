@@ -434,6 +434,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "archive_compliance_policy", args: ["uuid"], returns: "jsonb" },
+    { name: "restore_compliance_policy", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_compliance_policies",
       args: ["{id}", "boolean"],

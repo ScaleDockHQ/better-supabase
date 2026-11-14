@@ -320,6 +320,8 @@ export interface Medications<F extends object = Record<never, never>> {
   }): AsyncResult<Medication>;
   /** Takes a medication off the list; its orders keep it. */
   archiveMedication(medicationId: string): AsyncResult<Medication>;
+  /** Lets new orders use an archived medication again. */
+  restoreMedication(medicationId: string): AsyncResult<Medication>;
   /** Adds a catalog item, or updates the one with its code system and code. */
   importMedication(input: {
     organizationId: string;
@@ -738,6 +740,12 @@ export function createMedications<
         "archive_medication",
         { medication_id: medicationId },
         one("archive_medication", medicationOf),
+      ),
+    restoreMedication: (medicationId) =>
+      call(
+        "restore_medication",
+        { medication_id: medicationId },
+        one("restore_medication", medicationOf),
       ),
     importMedication,
     medications: ({ organizationId, ...list }) =>

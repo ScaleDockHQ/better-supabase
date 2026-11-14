@@ -232,6 +232,22 @@ describe("pipelines block", () => {
     });
   });
 
+  it("restores an archived pipeline and stage", async () => {
+    const t = transport({
+      restore_pipeline: () => true,
+      restore_pipeline_stage: () => true,
+    });
+
+    const pipelines = createPipelines({ transport: t });
+
+    expect(await pipelines.restore("p1").orThrow()).toBe(true);
+    expect(await pipelines.restoreStage("s1").orThrow()).toBe(true);
+    expect(t.calls).toEqual([
+      ["restore_pipeline", { pipeline: "p1" }],
+      ["restore_pipeline_stage", { stage: "s1" }],
+    ]);
+  });
+
   it("checks rank neighbours before it reorders a stage", async () => {
     const t = transport({
       rank_pipeline_stage: () => true,

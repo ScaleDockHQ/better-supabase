@@ -40,6 +40,10 @@ const EVENTS: BlockSqlEvents<OptionSetsEvents> = {
     subject: "option-sets",
     payload: ["organizationId", "optionSetId", "itemId"],
   },
+  "option_set_item.restored": {
+    subject: "option-sets",
+    payload: ["organizationId", "optionSetId", "itemId"],
+  },
 };
 
 const tenantExport = { tenant: "tenant", export: true } as const;
@@ -225,6 +229,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["uuid", "uuid"],
       returns: "boolean",
     },
+    { name: "restore_option_set_item", args: ["uuid"], returns: "boolean" },
   ];
 }
 

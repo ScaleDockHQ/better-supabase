@@ -107,6 +107,8 @@ export interface OptionSets {
     itemId: string;
     replacementId?: string | undefined;
   }): AsyncResult<boolean>;
+  /** Brings an archived item back; records that moved away stay where they are. */
+  restoreItem(itemId: string): AsyncResult<boolean>;
 }
 
 export interface OptionSetsOptions extends BlockTemporalOptions {
@@ -245,6 +247,12 @@ export function createOptionSets(options: OptionSetsOptions): OptionSets {
       call(
         "archive_option_set_item",
         { item: itemId, replacement: replacementId ?? null },
+        (value) => value === true,
+      ),
+    restoreItem: (itemId) =>
+      call(
+        "restore_option_set_item",
+        { item: itemId },
         (value) => value === true,
       ),
   };

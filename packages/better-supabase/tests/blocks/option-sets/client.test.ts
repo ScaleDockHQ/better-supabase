@@ -36,6 +36,7 @@ function fakeClient() {
     saveItem: vi.fn(() => resolved(SET.items[0]!)),
     reorderItem: vi.fn(() => resolved("k")),
     archiveItem: vi.fn(() => resolved(true)),
+    restoreItem: vi.fn(() => resolved(true)),
   } satisfies OptionSets;
 }
 

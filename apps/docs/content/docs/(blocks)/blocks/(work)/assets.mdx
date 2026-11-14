@@ -78,7 +78,8 @@ inside one of its own sublocations fails with `ASSETS_LOCATION_CYCLE`.
 many open sublocations and assets in service it holds. `locations()` lists the
 top locations, and `locations({ parentId })` the children of one.
 `archiveLocation(id)` archives a location once it has no open sublocations
-and no assets in service.
+and no assets in service. `restoreLocation(id)` brings it back, once its
+parent is active, and records `asset_location.restored`.
 
 ## Assets
 

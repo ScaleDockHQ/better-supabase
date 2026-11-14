@@ -368,6 +368,8 @@ export interface Compliance<F extends object = Record<never, never>> {
     label?: string | undefined;
   }): AsyncResult<Policy>;
   archivePolicy(policyId: string): AsyncResult<Policy>;
+  /** Brings an archived policy back and assigns it to every member again. */
+  restorePolicy(policyId: string): AsyncResult<Policy>;
   policies(
     input: { organizationId: string } & PolicyListOptions,
   ): AsyncResult<readonly Policy[]>;
@@ -732,6 +734,12 @@ export function createCompliance<
         "archive_compliance_policy",
         { policy_id: policyId },
         policy("archive_compliance_policy"),
+      ),
+    restorePolicy: (policyId) =>
+      call(
+        "restore_compliance_policy",
+        { policy_id: policyId },
+        policy("restore_compliance_policy"),
       ),
     policies: ({ organizationId, ...list }) =>
       listPolicies(organizationId, list.includeArchived ?? false),
