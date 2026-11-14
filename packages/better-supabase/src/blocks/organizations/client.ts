@@ -1,3 +1,4 @@
+import type { BulkReport } from "../../core/bulk.ts";
 import type { DbError } from "../../core/errors.ts";
 import type { Result } from "../../core/result.ts";
 import type { AuthPort, Controller } from "../controller.ts";
@@ -198,7 +199,10 @@ export interface MembersControllerOptions<
   T extends { readonly userId: string; readonly role: string } =
     OrganizationMember,
 > {
-  readonly client: Pick<Organizations, "updateMemberRole" | "removeMember">;
+  readonly client: Pick<
+    Organizations,
+    "updateMemberRole" | "updateMemberRoles" | "removeMember"
+  >;
   readonly auth: AuthPort;
   /** The organization; the table waits without one. */
   readonly organizationId: string | null;
@@ -230,6 +234,15 @@ export interface MembersActions<Role extends string = string> {
     userId: string;
     role: Role;
   }) => Promise<Result<true>>;
+  /**
+   * Gives many members one role in one round trip (ADR 0853), shown at once.
+   * The members the database refused get their old role back and are in
+   * `failed`; the rest stay changed.
+   */
+  readonly setRoles: (input: {
+    userIds: readonly string[];
+    role: Role;
+  }) => Promise<Result<BulkReport>>;
   /** Removes a member from the organization, then loads the table again. */
   readonly remove: (userId: string) => Promise<Result<true>>;
   readonly refresh: () => Promise<void>;
@@ -335,6 +348,56 @@ export function createMembersController<
 
             if (result.ok) {
               await changed({ kind: "role", organizationId, userId, role });
+            }
+
+            return result;
+          },
+          setRoles: async ({ userIds, role }) => {
+            if (organizationId === null) {
+              return noOrganization();
+            }
+
+            const ids = new Set(userIds);
+
+            const before = new Map(
+              (state.get().members ?? [])
+                .filter((member) => ids.has(member.userId))
+                .map((member) => [member.userId, member.role] as const),
+            );
+
+            ticket += 1;
+            state.set((current) => ({
+              members: current.members?.map((member) =>
+                ids.has(member.userId) ? { ...member, role } : member,
+              ),
+              pending: [...current.pending, ...ids],
+              error: undefined,
+            }));
+
+            const result = await client.updateMemberRoles({
+              organizationId,
+              userIds: [...ids],
+              role,
+            });
+
+            const failed = new Set(
+              result.ok ? result.data.failed.map((entry) => entry.id) : ids,
+            );
+
+            state.set((current) => ({
+              members: current.members?.map((member) =>
+                failed.has(member.userId) && before.has(member.userId)
+                  ? { ...member, role: before.get(member.userId) ?? role }
+                  : member,
+              ),
+              pending: current.pending.filter((each) => !ids.has(each)),
+              ...(result.ok ? {} : { error: result.error }),
+            }));
+
+            if (result.ok) {
+              for (const userId of result.data.succeeded) {
+                await changed({ kind: "role", organizationId, userId, role });
+              }
             }
 
             return result;
