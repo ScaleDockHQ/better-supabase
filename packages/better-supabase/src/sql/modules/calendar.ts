@@ -27,6 +27,10 @@ import {
   workingHoursTable,
 } from "./calendar-availability.ts";
 import {
+  calendarBootstrapContract,
+  calendarBootstrapFunction,
+} from "./calendar-bootstrap.ts";
+import {
   defaultAlarmFunctions,
   defaultAlarmsContract,
   defaultAlarmsTable,
@@ -888,7 +892,7 @@ as $$
   where k.${k("tenant")} = list_calendars.tenant
 $$;
 ${userGrant(`${fn("list_calendars")}(${ctx.idType})`)}
-${updateCalendar}${grantFunctions(ctx)}${defaultAlarmFunctions(ctx)}${attendeeFunctions}${availabilitySql(ctx)}${feed(ctx, events, calendars, attendees)}`;
+${calendarBootstrapFunction(ctx)}${updateCalendar}${grantFunctions(ctx)}${defaultAlarmFunctions(ctx)}${attendeeFunctions}${availabilitySql(ctx)}${feed(ctx, events, calendars, attendees)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -961,6 +965,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "list_calendars", args: ["{id}"], returns: "jsonb" },
+    ...calendarBootstrapContract(),
     ...(ctx.hasTable("attendees")
       ? [
           {

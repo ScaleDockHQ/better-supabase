@@ -552,9 +552,12 @@ begin
         row_number() over (order by h.score desc) as rank
       from (
         select d.${c("subjectType")} as subject_type, d.${c("subjectId")} as subject_id,
-          2 * coalesce(ts_rank_cd(d.${c("tsv")}, v_web), 0)
-            + coalesce(ts_rank_cd(d.${c("tsv")}, v_prefix), 0)
-            + extensions.similarity(d.${c("titleSearch")}, v_norm) as score
+          -- A row only the trigram index matched has no rank to compute.
+          case when d.${c("tsv")} @@ v_web or (v_prefix is not null and d.${c("tsv")} @@ v_prefix)
+            then 2 * coalesce(ts_rank_cd(d.${c("tsv")}, v_web), 0)
+              + coalesce(ts_rank_cd(d.${c("tsv")}, v_prefix), 0)
+            else 0
+          end + extensions.similarity(d.${c("titleSearch")}, v_norm) as score
         from ${docs} d
         where (search.types is null or d.${c("subjectType")} = any (search.types))
           and (search.tenant is null or d.${c("tenant")} = search.tenant)

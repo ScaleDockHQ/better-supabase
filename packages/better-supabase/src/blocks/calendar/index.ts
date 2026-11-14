@@ -1,3 +1,5 @@
+export type { CalendarBootstrap } from "./bootstrap.ts";
+
 export {
   calendarEventOf,
   createCalendar,

@@ -19549,10 +19549,7 @@ export async function CalendarView({
 }) {
   // The current month is read from the clock, which a prerender may not do.
   await io();
-  const first = firstOfMonth(query["month"], "UTC");
-  const weeks = weeksOf(first);
-  const from = weeks[0]?.[0] ?? first;
-  const until = (weeks.at(-1)?.[6] ?? first).add({ days: 1 });
+  const { first, weeks, from, until } = monthWindow(query);
 
   // `settle` never rejects, so the month loads next to the permission check
   // and a refused caller leaves no unhandled promise behind.
@@ -19954,14 +19951,21 @@ npx shadcn add card empty skeleton
  * The next events with the caller's reminders on each. A reminder fires its
  * offset before every occurrence of the event, once per occurrence.
  */
-export async function RemindersList() {
-  // The read starts with the permission check; RLS guards it either way.
+export async function RemindersList({
+  query,
+}: {
+  query: Record<string, string | string[] | undefined>;
+}) {
+  await io();
+  const { from, until } = monthWindow(query);
+
+  // The read starts with the permission check; RLS guards it either way. It
+  // is the entry the month card reads, so the database is called once.
   const [permissions, t, format, upcoming] = await Promise.all([
     getPermissions(),
     getExtracted("calendar"),
     getFormatter(),
-    settle(loadUpcomingReminders),
-    io(),
+    settle(() => loadUpcomingReminders(from.toString(), until.toString())),
   ]);
 
   if (!can(permissions, "reminders.manage")) {

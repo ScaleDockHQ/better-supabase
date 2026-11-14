@@ -111,6 +111,34 @@ count and a new uid. EXDATEs and overrides after the split move to the new
 series. `splitRule(rrule, dtstart, at)` computes both rules if you need them
 yourself.
 
+## Read a page in one call
+
+A calendar page needs the calendars, the events of the visible month, the next
+events and the reminders on them. `bootstrap` reads all of it in one database
+call, where `listCalendars`, `occurrences` and one reminders read per event make
+several:
+
+```ts
+const now = Temporal.Now.instant();
+
+const page = await db.calendar
+  .bootstrap({
+    organizationId,
+    range: { from: monthStart, until: monthEnd },
+    upcoming: { from: now, until: now.add({ hours: 14 * 24 }) },
+  })
+  .orThrow();
+// page.calendars, page.occurrences, page.upcoming and page.reminders
+```
+
+`occurrences` and `upcoming` are expanded the way `occurrences()` expands them.
+`reminders` holds the caller's reminders on events (`{ id, eventId,
+offsetMinutes }`), and is empty without the reminders block or without the
+right to manage reminders. `upcoming` is optional. The SQL function
+`calendar_bootstrap(tenant, range_start, range_end, upcoming_start,
+upcoming_end)` runs as the caller, so the policies decide what each part holds.
+Run `better-supabase upgrade` to write it into an installed block.
+
 ## No overlapping events
 
 `noOverlap: true` adds the `calendar_events_no_overlap_excl` exclusion constraint

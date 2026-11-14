@@ -14506,6 +14506,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarAttributes"
         },
         {
+          "name": "CalendarBootstrap"
+        },
+        {
           "name": "CalendarController"
         },
         {

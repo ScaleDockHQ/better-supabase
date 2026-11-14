@@ -461,7 +461,7 @@ export interface BlockNameRegistry {
       readonly "rules": "id" | "tenant" | "event" | "rrule" | "freq" | "interval" | "count" | "until" | "byDay" | "byMonthDay" | "byMonth" | "bySetPos";
       readonly "recurrenceDates": "id" | "tenant" | "event" | "kind" | "at";
     };
-    readonly functions: "calendar_attendee_auto_decline" | "calendar_block_auto_decline" | "calendar_busy_blocks" | "calendar_free_busy" | "calendar_rule_starts" | "cancel_calendar_occurrence" | "create_calendar" | "delete_calendar" | "delete_calendar_event" | "import_calendar_events" | "list_calendar_events" | "list_calendar_working_hours" | "list_calendars" | "remove_calendar_attendee" | "respond_calendar_event" | "save_calendar_event" | "set_calendar_attendee" | "set_calendar_working_hours" | "split_calendar_event";
+    readonly functions: "calendar_attendee_auto_decline" | "calendar_block_auto_decline" | "calendar_bootstrap" | "calendar_busy_blocks" | "calendar_free_busy" | "calendar_rule_starts" | "cancel_calendar_occurrence" | "create_calendar" | "delete_calendar" | "delete_calendar_event" | "import_calendar_events" | "list_calendar_events" | "list_calendar_working_hours" | "list_calendars" | "remove_calendar_attendee" | "respond_calendar_event" | "save_calendar_event" | "set_calendar_attendee" | "set_calendar_working_hours" | "split_calendar_event";
     readonly actions: "manage" | "write" | "read" | "create" | "update" | "delete";
     readonly hooks: "before_calendar_event_save" | "after_calendar_event_save";
     readonly entities: {

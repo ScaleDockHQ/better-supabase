@@ -1472,7 +1472,7 @@
   "/api/customers/[id]/fhir/route": {
     "raw": 2557499,
     "gzip": 774127,
-    "brotli": 657211
+    "brotli": 657244
   },
   "/api/customers/[id]/reads/route": {
     "raw": 2550086,

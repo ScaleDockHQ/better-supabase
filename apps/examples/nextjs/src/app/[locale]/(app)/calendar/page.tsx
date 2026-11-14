@@ -30,7 +30,9 @@ export default function CalendarPage({
         ))}
       </Suspense>
       <Suspense fallback={<RemindersListSkeleton />}>
-        <RemindersList />
+        {searchParams.then((query) => (
+          <RemindersList query={query} />
+        ))}
       </Suspense>
     </>
   );

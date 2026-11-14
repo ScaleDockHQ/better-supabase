@@ -8,7 +8,6 @@ import { BOOKINGS_TAG } from "@/features/bookings/bookings-cache";
 import { bsb } from "@/lib/supabase/server";
 
 import { CALENDAR_TAG } from "./calendar-cache";
-import { EVENT_SUBJECT } from "./calendar-subjects";
 
 /** What a loader gives a component: the data, a failed read, or no organization. */
 export type Loaded<T> =
@@ -77,78 +76,22 @@ export interface UpcomingReminders {
   readonly events: readonly UpcomingEvent[];
 }
 
-/**
- * The next events in the coming two weeks, one entry per event (a series shows
- * once, at its next occurrence), with the caller's reminders on each.
- */
-export async function loadUpcomingReminders(): Promise<UpcomingReminders | null> {
-  "use cache: private";
-  const { session, db } = await bsb.cached();
-  cacheTag(CALENDAR_TAG, BOOKINGS_TAG);
-  const tenant = tenantOf(session);
-
-  if (!tenant) {
-    return null;
-  }
-
-  const { calendar, reminders } = db;
-  const calendars = await calendar.listCalendars(tenant).orThrow();
-
-  if (calendars.length === 0) {
-    return { calendars: [], events: [] };
-  }
-
-  const from = Temporal.Now.instant();
-
-  const occurrences = await calendar
-    .occurrences({
-      calendarIds: calendars.map((item) => item.id),
-      range: { from, until: from.add({ hours: UPCOMING_DAYS * 24 }) },
-    })
-    .orThrow();
-
-  const next = new Map<string, (typeof occurrences)[number]>();
-
-  for (const occurrence of occurrences.toSorted((a, b) =>
-    Temporal.Instant.compare(a.start, b.start),
-  )) {
-    const id = occurrence.series?.id ?? occurrence.event.id;
-
-    if (!next.has(id) && next.size < UPCOMING_EVENTS) {
-      next.set(id, occurrence);
-    }
-  }
-
-  const events = await Promise.all(
-    [...next].map(async ([id, occurrence]) => ({
-      id,
-      title: occurrence.event.title,
-      startsAt: occurrence.start.toString(),
-      allDay: occurrence.allDay,
-      reminders: await reminders
-        .list({ type: EVENT_SUBJECT, id }, { limit: 20 })
-        .orThrow(),
-    })),
-  );
-
-  return {
-    calendars: calendars.map((item) => ({
-      id: item.id,
-      name: item.name,
-      tz: item.tz,
-    })),
-    events,
-  };
+export interface CalendarPage {
+  readonly month: CalendarMonth;
+  readonly upcoming: UpcomingReminders;
 }
 
 /**
- * The organization's calendars and the occurrences (series expanded) from
- * `from` up to `until`, both `YYYY-MM-DD`, ordered by start.
+ * Everything /calendar shows, from one `calendar.bootstrap` call: the
+ * organization's calendars, the occurrences (series expanded) from `from` up to
+ * `until` (both `YYYY-MM-DD`), the next events of the coming two weeks and the
+ * caller's reminders on them. Both cards read this entry, so the page makes one
+ * database call for the calendar data instead of one per read.
  */
-export async function loadCalendarMonth(
+async function loadCalendarPage(
   from: string,
   until: string,
-): Promise<CalendarMonth | null> {
+): Promise<CalendarPage | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(CALENDAR_TAG, BOOKINGS_TAG);
@@ -159,44 +102,115 @@ export async function loadCalendarMonth(
   }
 
   const { calendar } = db;
-  const calendars = await calendar.listCalendars(tenant).orThrow();
-  const tz = calendars[0]?.tz ?? "UTC";
 
-  if (calendars.length === 0) {
-    return { calendars: [], tz, events: [] };
-  }
+  // The zone days are drawn in is the first calendar's, which the same call
+  // returns, so the month's bounds are read in UTC first and widened by a day
+  // on each side; the filter below keeps the days of the zone.
+  const bound = (day: string) =>
+    Temporal.PlainDate.from(day).toZonedDateTime("UTC").toInstant();
+
+  const now = Temporal.Now.instant();
+
+  const boot = await calendar
+    .bootstrap({
+      organizationId: tenant,
+      range: {
+        from: bound(from).subtract({ hours: 24 }),
+        until: bound(until).add({ hours: 24 }),
+      },
+      upcoming: { from: now, until: now.add({ hours: UPCOMING_DAYS * 24 }) },
+    })
+    .orThrow();
+
+  const calendars = boot.calendars.map((item) => ({
+    id: item.id,
+    name: item.name,
+    tz: item.tz,
+  }));
+
+  const tz = calendars[0]?.tz ?? "UTC";
 
   const at = (day: string) =>
     Temporal.PlainDate.from(day).toZonedDateTime(tz).toInstant();
 
-  const occurrences = await calendar
-    .occurrences({
-      calendarIds: calendars.map((item) => item.id),
-      range: { from: at(from), until: at(until) },
-    })
-    .orThrow();
+  const first = at(from);
+  const last = at(until);
+
+  const next = new Map<string, (typeof boot.upcoming)[number]>();
+
+  for (const occurrence of boot.upcoming.toSorted((a, b) =>
+    Temporal.Instant.compare(a.start, b.start),
+  )) {
+    const id = occurrence.series?.id ?? occurrence.event.id;
+
+    if (!next.has(id) && next.size < UPCOMING_EVENTS) {
+      next.set(id, occurrence);
+    }
+  }
 
   return {
-    calendars: calendars.map((item) => ({
-      id: item.id,
-      name: item.name,
-      tz: item.tz,
-    })),
-    tz,
-    events: occurrences
-      .toSorted((a, b) => Temporal.Instant.compare(a.start, b.start))
-      .map((occurrence) => {
-        const start = occurrence.start.toZonedDateTimeISO(tz);
+    month: {
+      calendars,
+      tz,
+      events: boot.occurrences
+        .filter(
+          (occurrence) =>
+            Temporal.Instant.compare(occurrence.start, first) >= 0 &&
+            Temporal.Instant.compare(occurrence.start, last) < 0,
+        )
+        .toSorted((a, b) => Temporal.Instant.compare(a.start, b.start))
+        .map((occurrence) => {
+          const start = occurrence.start.toZonedDateTimeISO(tz);
 
-        return {
-          key: occurrence.key,
-          calendarId: occurrence.event.calendarId,
-          title: occurrence.event.title,
-          day: start.toPlainDate().toString(),
-          time: occurrence.allDay
-            ? null
-            : start.toPlainTime().toString({ smallestUnit: "minute" }),
-        };
-      }),
+          return {
+            key: occurrence.key,
+            calendarId: occurrence.event.calendarId,
+            title: occurrence.event.title,
+            day: start.toPlainDate().toString(),
+            time: occurrence.allDay
+              ? null
+              : start.toPlainTime().toString({ smallestUnit: "minute" }),
+          };
+        }),
+    },
+    upcoming: {
+      calendars,
+      events: [...next].map(([id, occurrence]) => ({
+        id,
+        title: occurrence.event.title,
+        startsAt: occurrence.start.toString(),
+        allDay: occurrence.allDay,
+        reminders: boot.reminders
+          .filter((reminder) => reminder.eventId === id)
+          .slice(0, 20)
+          .map(({ id: reminderId, offsetMinutes }) => ({
+            id: reminderId,
+            offsetMinutes,
+          })),
+      })),
+    },
   };
+}
+
+/** The month part of `loadCalendarPage`. */
+export async function loadCalendarMonth(
+  from: string,
+  until: string,
+): Promise<CalendarMonth | null> {
+  const page = await loadCalendarPage(from, until);
+
+  return page?.month ?? null;
+}
+
+/**
+ * The next events in the coming two weeks, one entry per event (a series shows
+ * once, at its next occurrence), with the caller's reminders on each.
+ */
+export async function loadUpcomingReminders(
+  from: string,
+  until: string,
+): Promise<UpcomingReminders | null> {
+  const page = await loadCalendarPage(from, until);
+
+  return page?.upcoming ?? null;
 }

@@ -21,10 +21,7 @@ export async function CalendarView({
 }) {
   // The current month is read from the clock, which a prerender may not do.
   await io();
-  const first = firstOfMonth(query["month"], "UTC");
-  const weeks = weeksOf(first);
-  const from = weeks[0]?.[0] ?? first;
-  const until = (weeks.at(-1)?.[6] ?? first).add({ days: 1 });
+  const { first, weeks, from, until } = monthWindow(query);
 
   // `settle` never rejects, so the month loads next to the permission check
   // and a refused caller leaves no unhandled promise behind.
