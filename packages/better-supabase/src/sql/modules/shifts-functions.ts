@@ -288,6 +288,32 @@ end;
 $$;
 ${userGrant(`${fn("archive_shift_template")}(uuid)`)}
 
+-- Restores an archived template: shifts can be planned from it again.
+create or replace function ${fn("restore_shift_template")}(template_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${templates}%rowtype;
+begin
+  select * into v_row from ${templates} x where x.${t("id")} = restore_shift_template.template_id;
+  if not found then
+    ${templateNotFound}
+  end if;
+  if not ${allowed(`v_row.${t("tenant")}`, write)} then
+    ${forbidden("not allowed to plan shifts")}
+  end if;
+  update ${templates} x set ${t("archivedAt")} = null${touch("templates")}
+  where x.${t("id")} = v_row.${t("id")}
+  returning x.* into v_row;
+  return ${templateJson(ctx, "v_row")};
+end;
+$$;
+${userGrant(`${fn("restore_shift_template")}(uuid)`)}
+
 create or replace function ${fn("list_shift_templates")}(tenant ${idType}, include_archived boolean default false)
 returns jsonb
 language sql

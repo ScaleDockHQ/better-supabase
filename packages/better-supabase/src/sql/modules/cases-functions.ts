@@ -168,6 +168,35 @@ end;
 $$;
 ${userGrant(`${fn("archive_case_kind")}(uuid)`)}
 
+-- Restores an archived kind: new cases can use it again.
+create or replace function ${fn("restore_case_kind")}(kind_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${kinds};
+begin
+  select * into v_row from ${kinds} x where x.${k("id")} = restore_case_kind.kind_id for update;
+  if not found then
+    ${q.kindMissing}
+  end if;
+  if not ${q.allowed(`v_row.${k("tenant")}`, q.manage)} then
+    ${q.forbidden("not allowed to manage case kinds")}
+  end if;
+  if v_row.${k("archivedAt")} is not null then
+    update ${kinds} x set ${k("archivedAt")} = null, ${k("updatedAt")} = now()
+    where x.${k("id")} = v_row.${k("id")}
+    returning * into v_row;
+    ${q.recordKind("case_kind.restored", "v_row", "case kind restored")}
+  end if;
+  return ${kindJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("restore_case_kind")}(uuid)`)}
+
 -- The organization's kinds by name, seeding options.kinds the first time.
 create or replace function ${fn("list_case_kinds")}(tenant ${idType}, include_archived boolean default false)
 returns jsonb

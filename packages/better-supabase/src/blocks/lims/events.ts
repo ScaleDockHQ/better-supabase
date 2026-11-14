@@ -36,6 +36,7 @@ export type LimsEvents = {
   readonly "lims_method.created": LimsMethodEventData;
   readonly "lims_method.updated": LimsMethodEventData;
   readonly "lims_method.archived": LimsMethodEventData;
+  readonly "lims_method.restored": LimsMethodEventData;
   readonly "lims_sample.registered": LimsSampleEventData;
   readonly "lims_sample.completed": LimsSampleEventData;
   readonly "lims_sample.released": LimsSampleEventData;
@@ -49,6 +50,7 @@ export const limsEvents: Events<LimsEvents> = defineEvents({
   "lims_method.created": event<LimsMethodEventData>(),
   "lims_method.updated": event<LimsMethodEventData>(),
   "lims_method.archived": event<LimsMethodEventData>(),
+  "lims_method.restored": event<LimsMethodEventData>(),
   "lims_sample.registered": event<LimsSampleEventData>(),
   "lims_sample.completed": event<LimsSampleEventData>(),
   "lims_sample.released": event<LimsSampleEventData>(),

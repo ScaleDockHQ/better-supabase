@@ -40,6 +40,7 @@ const EVENTS: BlockSqlEvents<CasesEvents> = {
   "case_kind.created": kind,
   "case_kind.updated": kind,
   "case_kind.archived": kind,
+  "case_kind.restored": kind,
   "case.created": kase,
   "case.updated": { subject: "cases", payload: [...CASE, "changed"] },
   "case.root_cause_recorded": {
@@ -346,6 +347,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "archive_case_kind", args: ["uuid"], returns: "jsonb" },
+    { name: "restore_case_kind", args: ["uuid"], returns: "jsonb" },
     { name: "list_case_kinds", args: ["{id}", "boolean"], returns: "jsonb" },
     {
       name: "open_case",

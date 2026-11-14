@@ -1,6 +1,6 @@
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:a08a4d027512e34c06f8f50fe8445a7fd1fc3c03d41e9c5afa14901ff4143462
+-- @bsb-hash sha256:60199312cebcd92c9c2199cc35067a2fb2964ed9f33245617a76b59913f06d03
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -190,6 +190,38 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_lims_method"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_lims_method"(uuid) to authenticated, service_role;
+
+-- Restores an archived method: results can name it again.
+create or replace function "better_supabase"."restore_lims_method"(method_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."lims_methods";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."lims_methods" x where x."id" = restore_lims_method.method_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.read'), false))) then
+    raise exception 'no such test method' using errcode = 'P0002', hint = 'LIMS_METHOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'lims.manage'), false))) then
+    raise exception 'not allowed to restore test methods' using errcode = '42501', hint = 'LIMS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    update "better_supabase"."lims_methods" x set "archived_at" = null, "updated_at" = now()
+    where x."id" = v_row."id" returning * into v_row;
+    perform "better_supabase".emit_event('lims_method.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key"), 'lims-methods/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/lims');
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'unit', v_row."unit", 'lowerLimit', v_row."lower_limit", 'upperLimit', v_row."upper_limit", 'formId', v_row."form_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_lims_method"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_lims_method"(uuid) to authenticated, service_role;
 
 -- The organization's test methods by key; archived ones only with
 -- include_archived.
@@ -967,6 +999,15 @@ set search_path = ''
 as $$ select "better_supabase"."archive_lims_method"($1) $$;
 revoke execute on function "api"."archive_lims_method"(uuid) from public, anon;
 grant execute on function "api"."archive_lims_method"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_lims_method"(method_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_lims_method"($1) $$;
+revoke execute on function "api"."restore_lims_method"(uuid) from public, anon;
+grant execute on function "api"."restore_lims_method"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_lims_methods"(tenant uuid, include_archived boolean default false)
 returns jsonb
