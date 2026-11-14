@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { mainWorktree, stripStackKeys } from "./worktree-setup.ts";
+import {
+  mainWorktree,
+  stripStackKeys,
+  withWorkflowWorld,
+} from "./worktree-setup.ts";
 
 describe("stripStackKeys", () => {
   it("drops the keys that point at another checkout's stack or hosts", () => {
@@ -31,5 +35,24 @@ describe("mainWorktree", () => {
         "worktree /code/repo\nHEAD abc\nbranch refs/heads/main\n\nworktree /code/repo-x\n",
       ),
     ).toBe("/code/repo");
+  });
+});
+
+describe("withWorkflowWorld", () => {
+  it("adds the world once and keeps a value the file has", () => {
+    expect(withWorkflowWorld("A=1")).toBe(
+      "A=1\nWORKFLOW_TARGET_WORLD=better-supabase/workflow-sdk/world\n",
+    );
+    expect(withWorkflowWorld("WORKFLOW_TARGET_WORLD=other\n")).toBe(
+      "WORKFLOW_TARGET_WORLD=other\n",
+    );
+  });
+});
+
+describe("stripStackKeys and the signing keys", () => {
+  it("keeps SUPABASE_JWKS but drops SUPABASE_JWKS_URL", () => {
+    expect(
+      stripStackKeys("SUPABASE_JWKS={}\nSUPABASE_JWKS_URL=http://x\n"),
+    ).toBe("SUPABASE_JWKS={}\n");
   });
 });
