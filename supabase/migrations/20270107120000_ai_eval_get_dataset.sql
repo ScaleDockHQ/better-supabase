@@ -15,7 +15,6 @@ CREATE OR REPLACE FUNCTION better_supabase.get_eval_dataset (
   RETURNS jsonb
   LANGUAGE plpgsql
   STABLE
-  SECURITY DEFINER
   SET search_path TO ''
   AS $function$
 #variable_conflict use_column

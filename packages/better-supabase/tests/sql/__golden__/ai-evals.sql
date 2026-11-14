@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:c2ce2d2e2d0f5343b8d16aba42fe82366058fac77a7d76a6fb6e4dc6ab905d72
+-- @bsb-hash sha256:da1557e8352724aeeaca03dd040160f1dc38efc80508ff8fb2314617bd8b4de1
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -96,12 +96,13 @@ revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, t
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
 
 -- The dataset with that id, or null. The service role's caller compares its
--- tenant with the dataset's before it touches the items.
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
 create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -475,7 +476,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:8f7e7113a0c5cb25d24370d612f5d5622f3087c0d6e8c6d178e0b9475ea62ca4
+-- @bsb-hash sha256:4428f22634ba0c69aaad16c5e7250650e753afd0d9d5dc6c23475a4040688e28
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -570,12 +571,13 @@ revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, t
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
 
 -- The dataset with that id, or null. The service role's caller compares its
--- tenant with the dataset's before it touches the items.
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
 create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -990,7 +992,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:47eb863a25d0c73a77bc2c9cb8ee0147926f538169deb73930811e5c6ef871ab
+-- @bsb-hash sha256:b203f8bad5239169818b71bc8c08a85332056e683c02a9e15bc74bfb3c258376
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1090,12 +1092,13 @@ revoke execute on function "app_private"."create_eval_dataset"(text, uuid, text)
 grant execute on function "app_private"."create_eval_dataset"(text, uuid, text) to service_role;
 
 -- The dataset with that id, or null. The service role's caller compares its
--- tenant with the dataset's before it touches the items.
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
 create or replace function "app_private"."get_eval_dataset"(dataset uuid)
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -1469,7 +1472,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:9ff975a99dd0ad6d845e75d4e664c90219ec1f3c6419ba12ed294457ac091060
+-- @bsb-hash sha256:21b4ff433103b1193f63d6baed82c8c182ff7ab77af8b9fd37898ce87e2f2565
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1564,12 +1567,13 @@ revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, t
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
 
 -- The dataset with that id, or null. The service role's caller compares its
--- tenant with the dataset's before it touches the items.
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
 create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -2071,7 +2075,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:2907b79680c99766a660178c86557da836e1ded52d02521414073f700f563e17
+-- @bsb-hash sha256:1f37fc7ac0d19bb022d400d639ab2ae10fa5ae9c2e394ec7609db2aab0d58714
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2157,12 +2161,13 @@ revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, t
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
 
 -- The dataset with that id, or null. The service role's caller compares its
--- tenant with the dataset's before it touches the items.
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
 create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
@@ -2536,7 +2541,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:b0366fd8e088288fda711aec87c786b3e0a24c4d26732625181c0a0ffd3d6989
+-- @bsb-hash sha256:b651628d4408a7d2bfcc2cf5524ba5e886559924db6e8955dfeb5aec50807d30
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2631,12 +2636,13 @@ revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, t
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
 
 -- The dataset with that id, or null. The service role's caller compares its
--- tenant with the dataset's before it touches the items.
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
 create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column

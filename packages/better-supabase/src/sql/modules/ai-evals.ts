@@ -312,12 +312,13 @@ $$;
 ${serviceGrant(`${fn("create_eval_dataset")}(text, ${id}, text)`)}
 
 -- The dataset with that id, or null. The service role's caller compares its
--- tenant with the dataset's before it touches the items.
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
 create or replace function ${fn("get_eval_dataset")}(dataset uuid)
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column

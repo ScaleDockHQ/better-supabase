@@ -1,6 +1,6 @@
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:cf2225e24a027398674505172433b5efeb70b4481190f9e8c0f5217671e07d75
+-- @bsb-hash sha256:56d4c5c7035aa1cacefbf1ad551bfe09f5c7005fbf75d063210d8a88b634e81d
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -95,12 +95,13 @@ revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, t
 grant execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) to service_role;
 
 -- The dataset with that id, or null. The service role's caller compares its
--- tenant with the dataset's before it touches the items.
+-- tenant with the dataset's before it touches the items. It runs as invoker:
+-- only the service role may call it, and the service role reads the table.
 create or replace function "better_supabase"."get_eval_dataset"(dataset uuid)
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_column
