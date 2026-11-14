@@ -58,6 +58,14 @@ const RECEIPT_PAYLOAD = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<DonationsEvents> = {
+  "donation_fund.archived": {
+    subject: "donation-funds",
+    payload: ["organizationId", "id", "key"],
+  },
+  "donation_fund.restored": {
+    subject: "donation-funds",
+    payload: ["organizationId", "id", "key"],
+  },
   "donation.received": { subject: "donations", payload: GIFT_PAYLOAD },
   "donation.failed": { subject: "donations", payload: GIFT_PAYLOAD },
   "donation.refunded": { subject: "donations", payload: GIFT_PAYLOAD },

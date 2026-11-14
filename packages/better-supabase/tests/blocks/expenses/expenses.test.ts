@@ -113,6 +113,7 @@ describe("createExpenses", () => {
     const fake = fakeTransport({
       save_expense_category: CATEGORY,
       archive_expense_category: plain,
+      restore_expense_category: plain,
       list_expense_categories: [CATEGORY, plain],
     });
 
@@ -140,6 +141,7 @@ describe("createExpenses", () => {
     await expenses.saveCategory({ key: "misc", name: "Misc" }).orThrow();
 
     const archived = await expenses.archiveCategory(CATEGORY_ID).orThrow();
+    await expenses.restoreCategory(CATEGORY_ID).orThrow();
 
     const listed = await expenses
       .categories({ includeArchived: true })
@@ -191,6 +193,7 @@ describe("createExpenses", () => {
         },
       ],
       ["archive_expense_category", { category_id: CATEGORY_ID }],
+      ["restore_expense_category", { category_id: CATEGORY_ID }],
       ["list_expense_categories", { tenant: "org-1", include_archived: true }],
       ["list_expense_categories", { tenant: "org-1", include_archived: false }],
     ]);

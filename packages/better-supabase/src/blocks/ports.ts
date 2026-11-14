@@ -4,6 +4,7 @@ import type { AiFiles } from "./ai-files/types.ts";
 import type { Attachments } from "./attachments/attachments.ts";
 import type { CustomFields } from "./custom-fields/custom-fields.ts";
 import type { MailSync } from "./mail-sync/mail-sync.ts";
+import type { MeterPort } from "./metering.ts";
 import type { Workflows } from "./workflows/workflows.ts";
 
 /** What a `notifier` port sends: one notification to its recipients. */
@@ -42,6 +43,8 @@ export interface BlockPorts {
   readonly recordAccess: Pick<AccessRequests, "requestRecord" | "records">;
   /** The `custom-fields` block, for values set when a record is created. */
   readonly customFields: Pick<CustomFields, "setValue">;
+  /** The `usage` block, for the plan limits and meters manifests declare. */
+  readonly meter: MeterPort;
   /** An outbox sink, for `outbox.relayRoute({ consumers: blocks.sinks })`. */
   readonly sink: EventSink;
 }
@@ -60,6 +63,7 @@ const PORT_KEYS: { readonly [K in PortName]: true } = {
   mailer: true,
   recordAccess: true,
   customFields: true,
+  meter: true,
   sink: true,
 };
 

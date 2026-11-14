@@ -220,6 +220,8 @@ export interface Qualifications<F extends object = Record<never, never>> {
   }): AsyncResult<QualificationType>;
   /** Needs `qualifications.manage`. Holdings stay. */
   archiveType(typeId: string): AsyncResult<QualificationType>;
+  /** Needs `qualifications.manage`. The type takes new holdings again. */
+  restoreType(typeId: string): AsyncResult<QualificationType>;
   /** By name. */
   types(
     input: { organizationId: string } & { readonly includeArchived?: boolean },
@@ -470,6 +472,10 @@ export function createQualifications<
     archiveType: (typeId) =>
       call("archive_qualification_type", { type_id: typeId }, (value) =>
         typeOf(value, "archive_qualification_type"),
+      ),
+    restoreType: (typeId) =>
+      call("restore_qualification_type", { type_id: typeId }, (value) =>
+        typeOf(value, "restore_qualification_type"),
       ),
     types: ({ organizationId, ...list }) =>
       call(

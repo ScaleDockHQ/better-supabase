@@ -968,11 +968,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane I
 
 - Scope: Archive, restore and purge everywhere
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-i`
 - PR: none yet
 - Findings: EX-1206, EX-1207, EX-1230 (verb adoption)
 - Log: 2026-11-12, planned.
+- Log: 2026-11-14, started from main in `../bsb-audit-i`. Scale measured: 251 block folders, 94 files mention archive. Category PRs are not yet split; none opened.
 
 ### Lane L
 
@@ -1032,11 +1033,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane O2
 
 - Scope: Plan limits, quota, method meters
-- Status: planned
+- Status: in progress
 - Branch: `feat/audit-o2`
-- PR: none yet
+- PR: #947 (single PR, not stacked)
 - Findings: EX-1312, EX-1313, EX-1314
-- Log: 2026-11-12, planned.
+- Log: 2026-11-12, planned. 2026-11-14, in progress: manifest `limits` and `meters`, `meter` port, `BlockQuota` and quota-name test, ADR 0909 (PR #947). EX-1313 found one `quota` option, so no rename.
 
 ### Lane O3
 

@@ -46,6 +46,16 @@ export interface ExpenseEventData {
   readonly currency: string;
 }
 
+/**
+ * `expense_category.archived` and `expense_category.restored`: a category left
+ * or came back to new expenses.
+ */
+export interface ExpenseCategoryEventData {
+  readonly organizationId: string;
+  readonly id: string;
+  readonly key: string;
+}
+
 /** The events of the `expenses` block: type to data. */
 export type ExpensesEvents = {
   readonly "expense_report.created": ExpenseReportEventData;
@@ -63,6 +73,8 @@ export type ExpensesEvents = {
   readonly "expense.withdrawn": ExpenseEventData;
   /** A draft expense was deleted. */
   readonly "expense.deleted": ExpenseEventData;
+  readonly "expense_category.archived": ExpenseCategoryEventData;
+  readonly "expense_category.restored": ExpenseCategoryEventData;
 };
 
 /** The `expenses` block's event types, for its manifest and `onBlockEvent`. */
@@ -80,4 +92,6 @@ export const expensesEvents: Events<ExpensesEvents> = defineEvents({
   "expense.reimbursed": event<ExpenseEventData>(),
   "expense.withdrawn": event<ExpenseEventData>(),
   "expense.deleted": event<ExpenseEventData>(),
+  "expense_category.archived": event<ExpenseCategoryEventData>(),
+  "expense_category.restored": event<ExpenseCategoryEventData>(),
 });

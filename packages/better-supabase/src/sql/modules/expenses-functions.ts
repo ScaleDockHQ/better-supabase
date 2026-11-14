@@ -236,6 +236,20 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
   const total = (row: string): string =>
     `coalesce((select sum(y.${x("amount")}) from ${lines} y where y.${x("report")} = ${row}.${r("id")}), 0)`;
 
+  const categoryRecord = (type: string, summary: string): string =>
+    ctx.record({
+      type,
+      payload: `jsonb_build_object('organizationId', v_row.${k("tenant")}, 'id', v_row.${k("id")}, 'key', ${categoryKey("v_row")})`,
+      subject: `'expense-categories/' || v_row.${k("id")}::text`,
+      tenant: `v_row.${k("tenant")}`,
+      audit: {
+        category: "data",
+        targetType: "expense_category",
+        recordId: `v_row.${k("id")}::text`,
+        summary: `'${summary}'`,
+      },
+    });
+
   const categoryJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}, 'key', ${categoryKey(row)}, 'name', ${row}.${k("name")}, 'currency', ${or("categories", row, "currency")}, 'limitAmount', ${or("categories", row, "limitAmount")}::text, 'receiptOver', ${or("categories", row, "receiptOver")}::text, 'archivedAt', ${row}.${k("archivedAt")}, 'createdAt', ${row}.${k("createdAt")}, 'updatedAt', ${row}.${k("updatedAt")}${extraFieldsJson(row, categoryExtras)})`;
 
@@ -480,10 +494,33 @@ begin
   update ${categories} c set ${k("archivedAt")} = coalesce(c.${k("archivedAt")}, now()), ${k("updatedAt")} = now()
     where c.${k("id")} = v_row.${k("id")}
     returning * into v_row;
+  ${categoryRecord("expense_category.archived", "archived an expense category")}
   return ${categoryJson("v_row")};
 end;
 $$;
 ${userGrant(`${fn("archive_expense_category")}(uuid)`)}
+
+create or replace function ${fn("restore_expense_category")}(category_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${categories}%rowtype;
+begin
+  select * into v_row from ${categories} c where c.${k("id")} = restore_expense_category.category_id for update;
+  if not found or not ${can(`v_row.${k("tenant")}`, expenseKey(ctx, "categories"))} then
+    ${fail("EXPENSE_CATEGORY_NOT_FOUND", "no such expense category you can manage", "P0002")}
+  end if;
+  update ${categories} c set ${k("archivedAt")} = null, ${k("updatedAt")} = now()
+    where c.${k("id")} = v_row.${k("id")}
+    returning * into v_row;
+  ${categoryRecord("expense_category.restored", "restored an expense category")}
+  return ${categoryJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("restore_expense_category")}(uuid)`)}
 
 create or replace function ${fn("list_expense_categories")}(tenant ${idType}, include_archived boolean default false)
 returns jsonb
