@@ -1055,7 +1055,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Branch: `feat/audit-o3`
 - PR: none yet
 - Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329, EX-510
-- Log: 2026-11-12, planned. 2026-11-14, in progress: stacked PRs 1318+1320 (offline declaration, public events), 1321+510 (acting member, impersonation in the example), 1328+1329 (entity flags, invitations).
+- Log: 2026-11-12, planned. 2026-11-14, in progress: stacked PRs 1318+1320 (offline declaration, public events; PR #952), 1321+510 (acting member, impersonation in the example), 1328+1329 (entity flags, invitations).
 
 ### Lane P
 
