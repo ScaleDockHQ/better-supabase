@@ -42,10 +42,10 @@ const isNode = (kind: string): kind is keyof typeof graphNodeSteps =>
   Object.hasOwn(graphNodeSteps, kind);
 
 /** The key prefix of a run a `sub-workflow` node starts. */
-export const SUB_WORKFLOW_KEY_PREFIX = "sub:";
+const SUB_WORKFLOW_KEY_PREFIX = "sub:";
 
 /** The payload a finished child run resumes its parent's node with. */
-export const ChildRunOutcome = v.object({
+const ChildRunOutcome = v.object({
   status: v.string(),
   error: v.nullish(v.string()),
 });

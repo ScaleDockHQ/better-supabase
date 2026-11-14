@@ -310,7 +310,7 @@ async function parallelNode(call: GraphNodeCall) {
 }
 
 /** The payload a completed human task resumes its run with. */
-export const HumanTaskDone = v.object({ completedBy: v.string() });
+const HumanTaskDone = v.object({ completedBy: v.string() });
 
 /**
  * The `human-task` node: tells a member what to do and by when, then the run
