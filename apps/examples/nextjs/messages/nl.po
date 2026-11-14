@@ -5288,6 +5288,16 @@ msgid "Change password"
 msgstr "Wachtwoord wijzigen"
 
 #: src/features/auth/components/signup-form.tsx
+msgctxt "signup.nrRDf_"
+msgid "Use a longer password with upper and lower case letters and digits."
+msgstr "Gebruik een langer wachtwoord met hoofdletters, kleine letters en cijfers."
+
+#: src/features/auth/components/signup-form.tsx
+msgctxt "signup.7O-xhj"
+msgid "This request looks automated. Try again from a browser."
+msgstr "Dit verzoek lijkt geautomatiseerd. Probeer het opnieuw vanuit een browser."
+
+#: src/features/auth/components/signup-form.tsx
 msgctxt "auth.zx7CKB"
 msgid "Check your email"
 msgstr "Controleer je e-mail"

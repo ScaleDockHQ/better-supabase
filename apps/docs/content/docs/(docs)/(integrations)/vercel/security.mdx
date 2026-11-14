@@ -35,6 +35,10 @@ const nextConfig = {
 export default withBotId(nextConfig);
 ```
 
+`withBotId` takes a config object or a config function of one argument, so
+put it inside a wrapper that returns a function, such as Workflow's
+`withWorkflow(withBotId(config))`.
+
 Then list the protected routes in `instrumentation-client.ts` (Next.js 15.3
 and later). A request to a path that is not listed carries no BotID token,
 and `checkBotId` reports it as a bot:
@@ -174,6 +178,12 @@ export async function signUp(formData: FormData) {
 
 The `DbError` is plain data, so the form can show `error.hint` or map it to
 its own message.
+
+The Next.js example signs up this way: `signUp` in
+`src/features/auth/auth-actions.ts` runs `botIdCheck`, then calls `signUp`
+from `createNext`, whose confirmation link lands on `/api/auth/callback`.
+The sign-up form calls `initBotId` in an effect instead of
+`instrumentation-client.ts`, so only the sign-up route loads BotID's script.
 
 ## Responses
 

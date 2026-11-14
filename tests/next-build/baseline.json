@@ -1270,9 +1270,9 @@
     "brotli": 181493
   },
   "/[locale]/(auth)/signup/page": {
-    "raw": 672639,
-    "gzip": 216596,
-    "brotli": 188787
+    "raw": 678685,
+    "gzip": 218698,
+    "brotli": 190648
   },
   "/[locale]/(auth)/waitlist/page": {
     "raw": 862281,
