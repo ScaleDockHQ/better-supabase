@@ -18,7 +18,7 @@ export type TeamsEvents = {
   readonly "team.updated": SaasEventData;
   readonly "team.archived": SaasEventData;
   readonly "team.restored": SaasEventData;
-  readonly "team.deleted": SaasEventData;
+  readonly "team.purged": SaasEventData;
   readonly "team_member.added": TeamMemberEventData;
   readonly "team_member.deleted": TeamMemberEventData;
 };
@@ -29,7 +29,7 @@ export const teamsEvents: Events<TeamsEvents> = defineEvents({
   "team.updated": event<SaasEventData>(),
   "team.archived": event<SaasEventData>(),
   "team.restored": event<SaasEventData>(),
-  "team.deleted": event<SaasEventData>(),
+  "team.purged": event<SaasEventData>(),
   "team_member.added": event<TeamMemberEventData>(),
   "team_member.deleted": event<TeamMemberEventData>(),
 });

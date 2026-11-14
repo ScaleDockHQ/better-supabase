@@ -11,7 +11,7 @@ export interface ImportTargetEntry {
 }
 
 /**
- * Every import entity the blocks declare through `importTarget` (ADR 0851),
+ * Every import entity the blocks declare through `importTarget` (ADR 0856),
  * sorted by entity, so the imports block can list what a run can write. Two
  * blocks that declare the same entity fail: the import SQL would dispatch to
  * one of them silently.

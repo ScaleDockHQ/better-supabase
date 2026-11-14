@@ -34,7 +34,7 @@ const EVENTS: BlockSqlEvents<TeamsEvents> = {
   },
   "team.archived": { subject: "teams", payload: ["organizationId", "id"] },
   "team.restored": { subject: "teams", payload: ["organizationId", "id"] },
-  "team.deleted": { subject: "teams", payload: ["organizationId", "id"] },
+  "team.purged": { subject: "teams", payload: ["organizationId", "id"] },
   "team_member.added": {
     subject: "teams",
     payload: ["organizationId", "id", "userId"],
@@ -134,7 +134,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const create = key("create");
   const update = key("update");
-  const remove = key("delete");
+  const remove = key("purge");
   const membersKey = key("members");
   const read = ctx.permission("read", OPERATIONS["teams.read"]);
   const extras = ctx.extraColumns("teams", RESERVED);
@@ -372,7 +372,8 @@ ${userGrant(`${fn("restore_team")}(${idType})`)}
 `
     : ""
 }
-create or replace function ${fn("delete_team")}(team ${idType})
+drop function if exists ${fn("delete_team")}(${idType});
+create or replace function ${fn("purge_team")}(team ${idType})
 returns boolean
 language plpgsql
 security definer
@@ -381,19 +382,19 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
-  select ${tenant} into v_tenant from ${teams} where ${id} = delete_team.team;
+  select ${tenant} into v_tenant from ${teams} where ${id} = purge_team.team;
   if not found then
     ${fail("TEAM_NOT_FOUND", "team not found", "P0002")}
   end if;
   if not (${service(ctx)} or ${ctx.scope.can("v_tenant", remove)}) then
     ${fail("TEAM_FORBIDDEN", "not allowed to manage teams")}
   end if;
-  delete from ${teams} where ${id} = delete_team.team;
-  ${record(ctx, "team.deleted", "delete_team.team", "v_tenant")}
+  delete from ${teams} where ${id} = purge_team.team;
+  ${record(ctx, "team.purged", "purge_team.team", "v_tenant")}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_team")}(${idType})`)}
+${userGrant(`${fn("purge_team")}(${idType})`)}
 
 ${
   employees
@@ -908,7 +909,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     ...(ctx.flag("restore", false)
       ? [{ name: "restore_team", args: [id], returns: "boolean" }]
       : []),
-    { name: "delete_team", args: [id], returns: "boolean" },
+    { name: "purge_team", args: [id], returns: "boolean" },
     ...(["add_team_member", "remove_team_member"] as const).map((name) => ({
       name,
       args: employeeMembers(ctx) ? [id, "uuid", "uuid"] : [id, "uuid"],

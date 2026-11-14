@@ -1,4 +1,4 @@
-# 0851: Declare an import target in the manifest
+# 0856: Declare an import target in the manifest
 
 - Status: accepted
 - Date: 2026-11-14

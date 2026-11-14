@@ -177,7 +177,7 @@ export interface BlockDefinition<
   readonly concerns?: readonly BlockConcern[];
   /**
    * The import entities this block takes rows for through the `imports` block
-   * (ADR 0851): the names its SQL module contributes to `import_upsert_batch`.
+   * (ADR 0856): the names its SQL module contributes to `import_upsert_batch`.
    * `importTargetsOf` lists them across blocks.
    */
   readonly importTarget?: readonly string[];

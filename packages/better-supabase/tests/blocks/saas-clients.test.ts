@@ -46,7 +46,7 @@ describe("saas block clients", () => {
           status: "active",
         },
         archive_team: true,
-        delete_team: false,
+        purge_team: false,
         add_team_member: true,
         remove_team_member: false,
         list_teams: [
@@ -73,7 +73,7 @@ describe("saas block clients", () => {
       "Ops",
     );
     expect(await teams.archive("t1").orThrow()).toBe(true);
-    expect(await teams.delete("t1").orThrow()).toBe(false);
+    expect(await teams.purge("t1").orThrow()).toBe(false);
     expect(
       await teams.addMember({ teamId: "t1", userId: "u1" }).orThrow(),
     ).toBe(true);

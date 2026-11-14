@@ -2421,7 +2421,7 @@ export interface BlockNameRegistry {
       readonly "teams": "id" | "tenant" | "name" | "slug" | "description" | "status" | "createdBy" | "createdAt" | "updatedAt";
       readonly "members": "team" | "user" | "employee" | "tenant" | "createdAt";
     };
-    readonly functions: "add_team_member" | "archive_team" | "create_team" | "delete_team" | "list_teams" | "remove_team_member" | "team_ids_of" | "update_team";
+    readonly functions: "add_team_member" | "archive_team" | "create_team" | "delete_team" | "list_teams" | "purge_team" | "remove_team_member" | "team_ids_of" | "update_team";
     readonly actions: "manage" | "read" | "create" | "update" | "delete" | "members";
     readonly hooks: "before_team_create" | "after_team_create";
     readonly entities: {

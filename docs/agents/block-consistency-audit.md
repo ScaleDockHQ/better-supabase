@@ -550,7 +550,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | saas                      | tenancy       | saa                        | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | settings                  | tenancy       | organization_setting       | editable      | update                 | create                 | -                                        | -                      | -           | -        | -       | -         |
 | settings                  | tenancy       | platform_setting           | editable      | update                 | create                 | -                                        | -                      | -           | -        | -       | -         |
-| teams                     | tenancy       | team                       | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
+| teams                     | tenancy       | team                       | editable      | create, update, purge  | -                      | -                                        | -                      | -           | -        | -       | -         |
 | advisories                | work          | advisory                   | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | advisories                | work          | advisory_product           | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | advisories                | work          | advisory_product_version   | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -985,7 +985,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Findings: EX-1209, EX-1210, EX-1211, EX-1324, EX-515, EX-515 (check #917's set checks first)
 - Log: 2026-11-12, planned.
   2026-11-14, lane L started from main (aa43c1d009) in `../bsb-audit-l`.
-  2026-11-14, ADRs 0851 to 0855: `bulk` and the limit (`src/core/bulk.ts`), `exportCsv` and `entityList().export`, manifest `importTarget` on 14 blocks, `createJobs` with `bulk` and `import` sources, and `update_member_roles` (migration `20270117120012`, pgTAP `organizations_member_roles`). EX-1211 fixed; EX-1209, EX-1210, EX-1324 and EX-515 partly fixed, the rest moves with the category lanes and the example.
+  2026-11-14, ADRs 0852 to 0856: `bulk` and the limit (`src/core/bulk.ts`), `exportCsv` and `entityList().export`, manifest `importTarget` on 14 blocks, `createJobs` with `bulk` and `import` sources, and `update_member_roles` (migration `20270117120012`, pgTAP `organizations_member_roles`). EX-1211 fixed; EX-1209, EX-1210, EX-1324 and EX-515 partly fixed, the rest moves with the category lanes and the example.
 
 ### Lane M1
 
