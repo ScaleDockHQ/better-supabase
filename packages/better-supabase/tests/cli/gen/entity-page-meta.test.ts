@@ -301,8 +301,9 @@ describe("app entity pages", () => {
     );
     expect(route).toContain("(request, { db, tenant })");
     expect(route).toContain("const customersReads = customersReadsOf(db);");
-    expect(route).toContain("customersReads.page(options)");
-    expect(route).toContain("{ organizationId: tenant },");
+    expect(route).toContain(
+      "customersReads.page({ ...options, organizationId: tenant })",
+    );
 
     const csv = files.get("app/api/customers/export/route.ts") ?? "";
 
@@ -351,7 +352,9 @@ describe("app entity pages", () => {
 
     const route = emit([incidents]).get("app/api/r/list/route.ts") ?? "";
 
-    expect(route).toContain("db.risks.page(options)");
-    expect(route).toContain("{ organizationId: tenant },");
+    expect(route).toContain(
+      "db.risks.page({ ...options, organizationId: tenant })",
+    );
+    expect(route).toContain("if (tenant === undefined) {");
   });
 });

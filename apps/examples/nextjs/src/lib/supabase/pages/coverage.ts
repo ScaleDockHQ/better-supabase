@@ -3,6 +3,7 @@
 export const pageCoverage = {
   "commissions": ["/crm/commissions"],
   "dispatch": ["/field/dispatch"],
+  "incidents": ["/incidents"],
   "organizations": ["/members/invitations"],
   "periods": ["/finance/periods"],
   "referrals": ["/crm/referrals"],

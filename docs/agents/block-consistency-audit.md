@@ -1048,7 +1048,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: merged
 - Branch: `feat/audit-lane-m4`
 - PR: [#963](https://github.com/ScaleDockHQ/better-supabase/pull/963)
-- Findings: EX-1268, EX-034, EX-1001, EX-1327
+- Findings: EX-1268, EX-034, EX-1001
 - Log: 2026-11-12, planned.
 - Log: 2026-11-14, lane M4 started from main (614cf1ff16) in `../bsb-audit-M4`. One PR, ADR 0889, migration `20270117120013` (a slot of 20261221 sorts before main's newest, so the generated index migration takes the next number). The example declares `risks`, `commissions`, `referrals` and `work-orders` beside `periods`; five nav items read `<name>Nav`; the risk register reads its state through the generated `risksList` and offers its three sorts (EX-1001); `pnpm db:seed:pages` seeds the work orders; `check:example-coverage` checks the map against `entityRoutes`; `check:empty-translations` fails on an empty `msgstr` (EX-1268); `tests/risks-register.spec.ts` covers the sort and an unfinished filter rule (EX-034 closed). `customers` (an app table), the inbox (no list surface) and `incidents` (`organizationId` per call) cannot be declared with the current generator. EX-1327 waits for an axe dependency. The other rows move to lane M5.
 
@@ -1056,11 +1056,12 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 
 - Scope: Remaining example list helpers, app-table and inbox pages, free sort
 - Status: in progress
-- Branch: `feat/audit-lane-m5`
-- PR: none yet
-- Findings: EX-001, EX-014, EX-024, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
-- Log: 2026-11-14, planned from lane M4's leftovers. ADR numbers continue M4's range from 0890. Needs: a page descriptor for an app table (customers) and for a block entity with a per-call tenant, a list surface for the inbox conversations, a free multi-column sort in the blocks' `page`, and the pages that still read arrays (EX-600).
-- Log: 2026-11-14, lane M5 started from main (014bf64cc8) in `../bsb-audit-M5`. PR 1 (library, ADR 0890): `tenantOption`, `app` entities and the `coverage` output of `defineEntityPage`. PR 2 declares the example's pages and moves its coverage map, seeds and instant routes onto them.
+- Branch: `feat/audit-lane-m5`, `feat/audit-lane-m5b`
+- PR: [#974](https://github.com/ScaleDockHQ/better-supabase/pull/974), PR_2_LINK
+- Findings: EX-001, EX-014, EX-024, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294, EX-1327
+- Log: 2026-11-14, planned from lane M4's leftovers. ADR numbers continue M4's range from 0890.
+- Log: 2026-11-14, PR 1 (library, ADR 0890): `tenantOption`, `app` entities and the `coverage` output of `defineEntityPage`.
+- Log: 2026-11-14, PR 2 (example, ADR 0891): incidents declared, the invitations page, coverage entries read `pageCoverage` (EX-1267 partly fixed), 75 pages export `instant` (EX-024 partly fixed), `@axe-core/playwright` pinned (EX-1327 partly fixed). Needs: a customers reads module and an inbox reads module for `app: { reads }`, an array reads module for the EX-607 pages, a maintainer decision on a list-valued `PageOptions.sort` (EX-033), and the five instant pages in ADR 0891.
 
 ### Lane O1
 

@@ -378,6 +378,15 @@ export const ROUTES: readonly RouteEntry[] = [
     scale: false,
   },
   {
+    route: "/members/invitations",
+    archetype: "overview",
+    url: "/members/invitations",
+    maxCalls: 6,
+    maxWaves: 2,
+    instant: true,
+    scale: false,
+  },
+  {
     route: "/appraisals",
     archetype: "overview",
     url: "/appraisals",

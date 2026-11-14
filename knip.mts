@@ -116,7 +116,6 @@ const config: KnipConfig = {
         // `gen.entityPages` also writes each page's form parts, the route manifest and the columns and nav item of the invitations page, which no page imports yet (lane M5, ADRs 0869 and 0879).
         "src/lib/supabase/pages/*.columns.ts",
         "src/lib/supabase/pages/*.navigation.ts",
-        "src/lib/supabase/pages/coverage.ts",
         "src/lib/supabase/pages/*.form.ts",
         "src/lib/supabase/pages/routes.manifest.ts",
         // Copied from the registry, which knip checks as entries.
