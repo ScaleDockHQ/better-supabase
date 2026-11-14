@@ -1098,7 +1098,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 - Scope: Example-only fixes, and the forms and names on lane C and N
 - Status: in progress
 - Branch: `feat/findings-x3`
-- PR: pending
+- PR: [#926](https://github.com/ScaleDockHQ/better-supabase/pull/926)
 - Findings: EX-1505, EX-925, EX-042, EX-804, EX-411, EX-703, EX-104, EX-803, EX-809, EX-610, EX-810, EX-101, EX-402
 - Log: 2026-11-14, planned.
 - Log: 2026-11-14, started in `../bsb-findings-x3`.
