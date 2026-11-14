@@ -25539,8 +25539,8 @@ msgstr "No conversation yet"
 
 #: src/features/sales/components/deal-conversation.tsx
 msgctxt "sales.EnlMvw"
-msgid "A thread shows here once a contact on this deal writes to the inbox."
-msgstr "A thread shows here once a contact on this deal writes to the inbox."
+msgid "A thread shows here once a person linked to this deal writes to the inbox."
+msgstr "A thread shows here once a person linked to this deal writes to the inbox."
 
 #: src/features/sales/components/deal-conversation.tsx
 msgctxt "sales.1udzha"

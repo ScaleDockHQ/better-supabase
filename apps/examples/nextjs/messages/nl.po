@@ -25539,8 +25539,8 @@ msgstr "Nog geen gesprek"
 
 #: src/features/sales/components/deal-conversation.tsx
 msgctxt "sales.EnlMvw"
-msgid "A thread shows here once a contact on this deal writes to the inbox."
-msgstr "Een gesprek verschijnt hier zodra een contact van deze deal de inbox schrijft."
+msgid "A thread shows here once a person linked to this deal writes to the inbox."
+msgstr "Een gesprek verschijnt hier zodra een aan deze deal gekoppelde persoon de inbox schrijft."
 
 #: src/features/sales/components/deal-conversation.tsx
 msgctxt "sales.1udzha"
