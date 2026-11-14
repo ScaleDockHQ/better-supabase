@@ -1267,7 +1267,7 @@
   "/[locale]/(auth)/invite/[token]/page": {
     "raw": 1524756,
     "gzip": 482072,
-    "brotli": 407608
+    "brotli": 408644
   },
   "/[locale]/(auth)/login/page": {
     "raw": 1338657,
@@ -1287,7 +1287,7 @@
   "/[locale]/(auth)/pricing/[code]/page": {
     "raw": 1504870,
     "gzip": 475718,
-    "brotli": 402266
+    "brotli": 403506
   },
   "/[locale]/(auth)/reset-password/page": {
     "raw": 1442633,

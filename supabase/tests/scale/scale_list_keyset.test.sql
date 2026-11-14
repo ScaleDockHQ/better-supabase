@@ -75,3 +75,7 @@ select * from finish();
 rollback;
 
 select pg_stat_statements_reset() is not null as reset \gset
+
+-- The rolled-back insert leaves dead rows that make the planner of the generated
+-- scale_list_risks test choose a sort; vacuuming outside the transaction clears them.
+vacuum better_supabase.risks;
