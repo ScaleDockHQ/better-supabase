@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   BULK_LIMIT,
   bulk,
+  bulkOfSet,
   bulkReportOf,
   checkBulkLimit,
 } from "../../src/core/bulk.ts";
@@ -103,5 +104,15 @@ describe("bulk", () => {
       message: "The action failed",
     });
     expect(report.failed[0]?.error.hint).toBeUndefined();
+  });
+});
+
+describe("bulkOfSet", () => {
+  it("passes a failed set call through", async () => {
+    const result = await bulkOfSet(["a"], () =>
+      Promise.resolve(err(dbError("timeout", "Too slow"))),
+    );
+
+    expect(!result.ok && result.error.kind).toBe("timeout");
   });
 });

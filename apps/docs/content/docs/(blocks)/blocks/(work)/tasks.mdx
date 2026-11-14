@@ -135,6 +135,12 @@ await tasks
 const { ids, skipped } = await tasks.archive({ taskIds }).orThrow();
 ```
 
+`bulk(ids, action, options)` is the same set calls in the shape every block with a bulk call shares (ADR 0854). `action` is `archive`, `restore` or `remove`, and the result is `{ succeeded, failed: [{ id, error }] }`: the ids the set call skipped are `failed` with `not_found`. More ids than `options.limit` (500 by default) fail with `BULK_TOO_MANY` before anything runs.
+
+```ts
+const { succeeded, failed } = await tasks.bulk(taskIds, "archive").orThrow();
+```
+
 ## Lists, trees, projects and iterations
 
 `list(organizationId, { teamId, projectId, iterationId, parentId, assigneeId, states, open, search })` returns active items, newest first, 50 per page; pass the last item's id as `after` for the next page. `tree(rootId)` returns an item and everything under it with its depth; an item without its own `progress` rolls up the share of its open and completed children that are completed, for a Gantt group.

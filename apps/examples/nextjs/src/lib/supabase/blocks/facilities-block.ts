@@ -4,6 +4,7 @@ import { type EventRenamesOf, renameBlock, type RenamedEvents, type RenamedType 
 import { blockConfig } from "../blocks.config.ts";
 import {
   type Task as DefaultTask,
+  type TaskBulkAction as DefaultTaskBulkAction,
   type TaskChange as DefaultTaskChange,
   type TaskChangeResult as DefaultTaskChangeResult,
   type TaskChecklistOptimisticAction as DefaultTaskChecklistOptimisticAction,
@@ -37,6 +38,9 @@ export const facilitiesBlock = renameBlock(defaultTasksBlock, blockConfig["facil
 
 /** @public */
 export type MaintenanceRequest<F extends object = Record<never, never>> = RenamedType<DefaultTask<F>, FacilitiesRenames>;
+
+/** @public */
+export type MaintenanceRequestBulkAction = RenamedType<DefaultTaskBulkAction, FacilitiesRenames>;
 
 /** @public */
 export type MaintenanceRequestChange<F extends object = Record<never, never>> = RenamedType<DefaultTaskChange<F>, FacilitiesRenames>;
