@@ -8076,6 +8076,7 @@
       "CalendarAttendee",
       "CalendarAttendeeInput",
       "CalendarAttributes",
+      "CalendarBootstrap",
       "CalendarController",
       "CalendarControllerOptions",
       "CalendarDefaultAlarm",

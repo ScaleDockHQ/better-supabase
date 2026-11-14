@@ -3,6 +3,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { CalendarAlarm, CalendarDefaultAlarm } from "./alarms.ts";
 import type {
@@ -33,7 +34,7 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
   isRecord,
@@ -72,6 +73,19 @@ export interface CalendarOptions<
   readonly transport: BlockTransport;
   readonly schema?: string;
   readonly mappers?: readonly ErrorMapper[];
+}
+
+/** What `Calendar.bootstrap` returns. */
+export interface CalendarBootstrap {
+  readonly calendars: CalendarInfo[];
+  readonly occurrences: CalendarOccurrence[];
+  readonly upcoming: CalendarOccurrence[];
+  /** The caller's reminders; `eventId` is the series or event they sit on. */
+  readonly reminders: {
+    readonly id: string;
+    readonly eventId: string;
+    readonly offsetMinutes: number;
+  }[];
 }
 
 export interface CalendarInfo {
@@ -228,6 +242,19 @@ export interface Calendar<F extends object = Record<never, never>> {
   }): AsyncResult<boolean>;
   deleteCalendar(id: string): AsyncResult<boolean>;
   listCalendars(organizationId: string): AsyncResult<CalendarInfo[]>;
+  /**
+   * What a calendar page reads, in one call: the organization's calendars, the
+   * occurrences in `range` (series expanded), those in `upcoming` when given
+   * and the caller's reminders on events. `reminders` is empty without the
+   * reminders block or the right to manage reminders.
+   */
+  bootstrap(
+    input: {
+      organizationId: string;
+      range: OccurrenceRange;
+      upcoming?: OccurrenceRange | undefined;
+    } & OccurrenceOptions,
+  ): AsyncResult<CalendarBootstrap>;
   /**
    * Inserts an event, or updates the one with `id`. Keys besides the input's
    * own are the event's extra columns.
@@ -419,6 +446,39 @@ function feedOrganizationOf(
   return { id: textOf(value["id"]), ...(name === undefined ? {} : { name }) };
 }
 
+/** A `list_calendars` row as a calendar. */
+function calendarInfoOf(row: Record<string, unknown>): CalendarInfo {
+  const extra: Record<string, string> = {};
+
+  for (const key of ["color", "ownerType", "ownerId", "description", "rank"]) {
+    const found = optionalText(row[key]);
+
+    if (found !== undefined) {
+      extra[key] = found;
+    }
+  }
+
+  return {
+    id: textOf(row["id"]),
+    name: textOf(row["name"]),
+    tz: optionalText(row["tz"]) ?? "UTC",
+    ...extra,
+    ...(row["visibility"] === undefined
+      ? {}
+      : {
+          visibility: oneOf(
+            row["visibility"],
+            ["shared", "private"] as const,
+            "shared",
+          ),
+        }),
+    ...(typeof row["isDefault"] === "boolean"
+      ? { isDefault: row["isDefault"] }
+      : {}),
+    ...(isRecord(row["fields"]) ? { fields: { ...row["fields"] } } : {}),
+  };
+}
+
 /** A `list_calendar_events` or `calendar_feed` row as an event. */
 export function calendarEventOf(value: unknown): CalendarEvent {
   const row = recordOf(value, "calendar event");
@@ -469,7 +529,7 @@ export function calendarEventOf(value: unknown): CalendarEvent {
       ? { autoDecline: row["autoDecline"] }
       : {}),
     attendees: recordsOf(row["attendees"], "attendees").map(attendeeOf),
-    reminders: recordsOf(row["reminders"], "reminders").map(reminderOf),
+    reminders: recordsOf(row["myReminders"], "reminders").map(reminderOf),
     ...(row["alarms"] === undefined
       ? {}
       : { alarms: recordsOf(row["alarms"], "alarms").map(alarmOf) }),
@@ -742,44 +802,70 @@ export function createCalendar<
       call("delete_calendar", { calendar_id: id }, (value) => value === true),
     listCalendars: (organizationId) =>
       call("list_calendars", { tenant: organizationId }, (value) =>
-        recordsOf(value, "list_calendars").map((row) => {
-          const extra: Record<string, string> = {};
+        recordsOf(value, "list_calendars").map(calendarInfoOf),
+      ),
+    bootstrap: ({ organizationId, range, upcoming, ...occurrenceOptions }) =>
+      call(
+        "calendar_bootstrap",
+        {
+          tenant: organizationId,
+          range_start: range.from.toString(),
+          range_end: range.until.toString(),
+          ...(upcoming === undefined
+            ? {}
+            : {
+                upcoming_start: upcoming.from.toString(),
+                upcoming_end: upcoming.until.toString(),
+              }),
+        },
+        (value) => recordOf(value, "calendar_bootstrap"),
+      ).andThen((row) =>
+        AsyncResult.from(async () => {
+          const rows = async (
+            key: string,
+            window: OccurrenceRange,
+          ): Promise<Result<CalendarOccurrence[]>> => {
+            const events = await allWithFields(
+              fields,
+              recordsOf(row[key], key).map(
+                (raw) => [raw, calendarEventOf(raw)] as const,
+              ),
+            );
 
-          for (const key of [
-            "color",
-            "ownerType",
-            "ownerId",
-            "description",
-            "rank",
-          ]) {
-            const found = optionalText(row[key]);
+            return events.ok
+              ? ok(expandOccurrences(events.data, window, occurrenceOptions))
+              : events;
+          };
 
-            if (found !== undefined) {
-              extra[key] = found;
-            }
+          const month = await rows("monthEvents", range);
+
+          if (!month.ok) {
+            return month;
           }
 
-          return {
-            id: textOf(row["id"]),
-            name: textOf(row["name"]),
-            tz: optionalText(row["tz"]) ?? "UTC",
-            ...extra,
-            ...(row["visibility"] === undefined
-              ? {}
-              : {
-                  visibility: oneOf(
-                    row["visibility"],
-                    ["shared", "private"] as const,
-                    "shared",
-                  ),
-                }),
-            ...(typeof row["isDefault"] === "boolean"
-              ? { isDefault: row["isDefault"] }
-              : {}),
-            ...(isRecord(row["fields"])
-              ? { fields: { ...row["fields"] } }
-              : {}),
-          };
+          const next =
+            upcoming === undefined
+              ? ok([])
+              : await rows("upcomingEvents", upcoming);
+
+          if (!next.ok) {
+            return next;
+          }
+
+          return ok({
+            calendars: recordsOf(row["calendarList"], "calendars").map(
+              calendarInfoOf,
+            ),
+            occurrences: month.data,
+            upcoming: next.data,
+            reminders: recordsOf(row["myReminders"], "reminders").map(
+              (item) => ({
+                id: textOf(item["id"]),
+                eventId: textOf(item["subjectId"]),
+                offsetMinutes: Number(item["offsetMinutes"]),
+              }),
+            ),
+          });
         }),
       ),
     upsert: save,

@@ -1087,11 +1087,13 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X2b
 
 - Scope: Search and calendar (after audit lane G4 for the calendar; ADRs from the range of X2)
-- Status: planned
+- Status: in progress
 - Branch: `feat/findings-x2b`
 - PR: none yet
 - Findings: EX-1504, EX-1508
 - Log: 2026-11-14, planned.
+- Log: 2026-11-14, started in `../bsb-findings-x2b`.
+- Log: 2026-11-14, EX-1504 measured (the per-type limit moves nothing; scoring only full-text matches takes `search_global` from 0.9 to 1.0 s down to 0.51 s) and EX-1508 fixed (`calendar.bootstrap`). ADR 0950, migration `20270102130000`.
 
 ### Lane X3
 
