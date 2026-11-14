@@ -26,7 +26,14 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMessages } from "@/hooks/use-messaging";
@@ -96,42 +103,48 @@ export function ThreadPanel({
             <Skeleton className="h-12" />
           </div>
         ) : (
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="flex flex-col gap-4 pr-3">
-              <ol>
-                <MessageItem message={root} />
-              </ol>
-              <Separator />
-              {thread.messages.length === 0 ? (
-                <Empty>
-                  <EmptyHeader>
-                    <EmptyMedia variant="icon">
-                      <MessageSquareIcon />
-                    </EmptyMedia>
-                    <EmptyTitle>{t("No replies yet")}</EmptyTitle>
-                    <EmptyDescription>
-                      {t("Replies stay here, out of the channel.")}
-                    </EmptyDescription>
-                  </EmptyHeader>
-                  <EmptyContent>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => input.current?.focus()}
-                    >
-                      {t("Reply")}
-                    </Button>
-                  </EmptyContent>
-                </Empty>
-              ) : (
-                <ol className="flex flex-col gap-4">
-                  {thread.messages.map((message) => (
-                    <MessageItem key={message.id} message={message} />
-                  ))}
-                </ol>
-              )}
-            </div>
-          </ScrollArea>
+          <MessageScrollerProvider autoScroll>
+            <MessageScroller>
+              <MessageScrollerViewport>
+                <MessageScrollerContent className="gap-4">
+                  <MessageItem message={root} />
+                  <Separator />
+                  {thread.messages.length === 0 ? (
+                    <Empty>
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon">
+                          <MessageSquareIcon />
+                        </EmptyMedia>
+                        <EmptyTitle>{t("No replies yet")}</EmptyTitle>
+                        <EmptyDescription>
+                          {t("Replies stay here, out of the channel.")}
+                        </EmptyDescription>
+                      </EmptyHeader>
+                      <EmptyContent>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => input.current?.focus()}
+                        >
+                          {t("Reply")}
+                        </Button>
+                      </EmptyContent>
+                    </Empty>
+                  ) : (
+                    thread.messages.map((message) => (
+                      <MessageScrollerItem
+                        key={message.id}
+                        messageId={message.id}
+                      >
+                        <MessageItem message={message} />
+                      </MessageScrollerItem>
+                    ))
+                  )}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton />
+            </MessageScroller>
+          </MessageScrollerProvider>
         )}
       </CardContent>
       <CardFooter className="flex-col items-stretch">

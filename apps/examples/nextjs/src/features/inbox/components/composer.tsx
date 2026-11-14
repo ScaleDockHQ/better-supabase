@@ -3,6 +3,7 @@
 import { useAction, useErrorMessage } from "better-supabase/react";
 import {
   BookmarkIcon,
+  AtSignIcon,
   ClockIcon,
   SendIcon,
   SparklesIcon,
@@ -32,6 +33,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { loadMembers } from "@/features/organization/organization-actions";
 import { toast } from "@/lib/toast";
 
 import type { ConversationRow, Later } from "../inbox-types";
@@ -76,6 +78,8 @@ export function Composer({
   const noteId = useId();
   const [body, setBody] = useState("");
   const [note, setNote] = useState(false);
+  // Read only when the note is sent, so a pick doesn't redraw the form.
+  const mentioned = useRef(new Map<string, string>());
   const lastPing = useRef(0);
 
   const onError = (error: Parameters<typeof errorMessage>[0]) => {
@@ -84,6 +88,7 @@ export function Composer({
 
   const drafts = useAction(loadDrafts);
   const macros = useAction(loadMacros);
+  const members = useAction(loadMembers);
 
   const loadAll = useEffectEvent((id: string) => {
     void drafts.run({ conversationId: id }).then((result) => {
@@ -97,6 +102,7 @@ export function Composer({
       }
     });
     void macros.run(undefined);
+    void members.run(undefined);
   });
 
   useEffect(() => {
@@ -110,6 +116,7 @@ export function Composer({
   const send = useAction(reply, {
     onSuccess: () => {
       setBody("");
+      mentioned.current.clear();
       onTyping(false);
       void onSent();
     },
@@ -160,7 +167,14 @@ export function Composer({
           return;
         }
 
-        void send.run({ conversationId, body, note });
+        void send.run({
+          conversationId,
+          body,
+          note,
+          mentions: [...mentioned.current]
+            .filter(([, name]) => body.includes(`@${name}`))
+            .map(([id]) => id),
+        });
       }}
     >
       {suggestions.map((suggestion) => (
@@ -296,6 +310,37 @@ export function Composer({
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+        {note ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={busy || (members.data ?? []).length === 0}
+              render={<Button type="button" size="sm" variant="outline" />}
+            >
+              <AtSignIcon />
+              {t("Mention")}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>{t("Notify a teammate")}</DropdownMenuLabel>
+                {(members.data ?? []).map((member) => {
+                  const name = member.name ?? member.email ?? t("Teammate");
+
+                  return (
+                    <DropdownMenuItem
+                      key={member.userId}
+                      onClick={() => {
+                        setBody((current) => `${current}@${name} `);
+                        mentioned.current.set(member.userId, name);
+                      }}
+                    >
+                      {name}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
         {note || locked ? null : (
           <DropdownMenu>
             <DropdownMenuTrigger

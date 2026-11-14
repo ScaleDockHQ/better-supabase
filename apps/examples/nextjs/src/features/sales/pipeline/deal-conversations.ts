@@ -7,6 +7,7 @@ import type { ConversationRow } from "@/features/inbox/inbox-types";
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { INBOX_TAG } from "@/features/inbox/inbox-cache";
 import { toConversationRow } from "@/features/inbox/inbox-types";
+import { recordPages } from "@/features/records/record-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { SALES_TAG } from "../sales-cache";
@@ -15,10 +16,10 @@ import { SALES_TAG } from "../sales-cache";
 const CONVERSATION_WINDOW = 50;
 
 /**
- * The conversations of the people the deal names as contacts, newest first. The
- * deals block lists deals by a person, not a person by a deal, so the lookup
- * walks the contacts of the newest conversations and keeps the ones whose deals
- * include this one.
+ * The conversations of the people linked to the deal, newest first. The deals
+ * block lists deals by a person and has no read for a deal's contacts, so the
+ * buyers are the people on the deal's relations binding (the Related tab links
+ * them), read once, and the newest conversations are filtered to those people.
  */
 export async function loadDealConversations(
   dealId: string,
@@ -32,25 +33,22 @@ export async function loadDealConversations(
     return [];
   }
 
-  const conversations = await db.inbox.conversations
-    .list({ tenant, filter: { status: "all", limit: CONVERSATION_WINDOW } })
-    .orThrow();
+  const [conversations, { bindings }] = await Promise.all([
+    db.inbox.conversations
+      .list({ tenant, filter: { status: "all", limit: CONVERSATION_WINDOW } })
+      .orThrow(),
+    recordPages.deal.load(dealId, { bindings: ["relations"] }),
+  ]);
 
-  const contactIds = [
-    ...new Set(conversations.map((conversation) => conversation.contactId)),
-  ];
+  if (bindings.relations.kind !== "ok") {
+    return [];
+  }
 
-  const named = await Promise.all(
-    contactIds.map(async (contactId) => {
-      const deals = await db.deals
-        .list({ subject: { type: "person", id: contactId } })
-        .orThrow();
-
-      return deals.some((deal) => deal.id === dealId) ? [contactId] : [];
-    }),
+  const buyers = new Set(
+    bindings.relations.data
+      .filter((link) => link.subject.type === "person")
+      .map((link) => link.subject.id),
   );
-
-  const buyers = new Set(named.flat());
 
   return conversations
     .filter((conversation) => buyers.has(conversation.contactId))

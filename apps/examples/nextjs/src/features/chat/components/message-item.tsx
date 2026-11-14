@@ -1,6 +1,6 @@
 "use client";
 
-import type { Message } from "better-supabase/blocks/messaging";
+import type { Message as ChatMessage } from "better-supabase/blocks/messaging";
 
 import { mentionSegments } from "better-supabase/blocks/messaging";
 import { LinkIcon, MessageSquareIcon, PaperclipIcon } from "lucide-react";
@@ -9,7 +9,15 @@ import { Fragment } from "react";
 
 import { Badge } from "@/components/reui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Bubble, BubbleContent, BubbleGroup } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
+import {
+  Message,
+  MessageAvatar,
+  MessageContent,
+  MessageFooter,
+  MessageHeader,
+} from "@/components/ui/message";
 
 const initials = (name: string): string =>
   name
@@ -86,9 +94,9 @@ export function MessageItem({
   message,
   onOpenThread,
 }: {
-  message: Message;
+  message: ChatMessage;
   /** Shown on top-level messages; omit it inside a thread. */
-  onOpenThread?: (root: Message) => void;
+  onOpenThread?: (root: ChatMessage) => void;
 }) {
   const t = useExtracted("chat");
   const format = useFormatter();
@@ -96,32 +104,33 @@ export function MessageItem({
   const at = message.sentAt ?? message.createdAt;
 
   return (
-    <li className="flex gap-3">
-      <Avatar size="sm">
-        <AvatarFallback>{initials(name)}</AvatarFallback>
-      </Avatar>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="flex flex-wrap items-baseline gap-2 text-sm">
-          <span className="font-medium">{name}</span>
-          <time
-            dateTime={at.toString()}
-            className="text-xs text-muted-foreground tabular-nums"
-          >
+    <Message>
+      <MessageAvatar>
+        <Avatar size="sm">
+          <AvatarFallback>{initials(name)}</AvatarFallback>
+        </Avatar>
+      </MessageAvatar>
+      <MessageContent>
+        <MessageHeader className="gap-2 px-0">
+          <span className="text-sm font-medium text-foreground">{name}</span>
+          <time dateTime={at.toString()} className="tabular-nums">
             {format.dateTime(at.epochMilliseconds, { timeStyle: "short" })}
           </time>
-          {message.editedAt ? (
-            <span className="text-xs text-muted-foreground">{t("edited")}</span>
-          ) : null}
-        </p>
-        {message.deletedAt ? (
-          <p className="text-sm text-muted-foreground italic">
-            {t("This message was deleted.")}
-          </p>
-        ) : (
-          <p className="text-sm break-words whitespace-pre-wrap">
-            <MessageBody body={message.body} />
-          </p>
-        )}
+          {message.editedAt ? <span>{t("edited")}</span> : null}
+        </MessageHeader>
+        <BubbleGroup>
+          <Bubble variant="muted">
+            <BubbleContent className="break-words whitespace-pre-wrap">
+              {message.deletedAt ? (
+                <span className="italic opacity-70">
+                  {t("This message was deleted.")}
+                </span>
+              ) : (
+                <MessageBody body={message.body} />
+              )}
+            </BubbleContent>
+          </Bubble>
+        </BubbleGroup>
         {message.attachments.length > 0 ? (
           <ul className="flex flex-wrap gap-2">
             {message.attachments.map((file) => (
@@ -135,7 +144,7 @@ export function MessageItem({
           </ul>
         ) : null}
         {onOpenThread && message.threadId === undefined ? (
-          <div>
+          <MessageFooter className="px-0">
             <Button
               type="button"
               size="xs"
@@ -151,9 +160,9 @@ export function MessageItem({
                   })
                 : t("Reply in thread")}
             </Button>
-          </div>
+          </MessageFooter>
         ) : null}
-      </div>
-    </li>
+      </MessageContent>
+    </Message>
   );
 }

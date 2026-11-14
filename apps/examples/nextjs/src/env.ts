@@ -34,6 +34,9 @@ const {
   STRIPE_PRICE_PRO,
   STRIPE_PRICE_ENTERPRISE,
   DATABASE_URL,
+  WHATSAPP_APP_SECRET,
+  WHATSAPP_VERIFY_TOKEN,
+  SLACK_SIGNING_SECRET,
 } = process.env;
 
 export const env = createEnv({
@@ -87,6 +90,12 @@ export const env = createEnv({
     STRIPE_PRICE_ENTERPRISE: v.optional(v.string()),
     // The Postgres connection the queue drain and Stripe processing routes use.
     DATABASE_URL: v.optional(v.string()),
+    // The channel webhooks (`/api/webhooks/channels/<adapter>`) answer 503
+    // without the platform's secret: Meta's app secret and the verify token
+    // for the GET handshake, and Slack's signing secret.
+    WHATSAPP_APP_SECRET: v.optional(v.string()),
+    WHATSAPP_VERIFY_TOKEN: v.optional(v.string()),
+    SLACK_SIGNING_SECRET: v.optional(v.string()),
   },
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
@@ -111,6 +120,9 @@ export const env = createEnv({
     STRIPE_PRICE_PRO,
     STRIPE_PRICE_ENTERPRISE,
     DATABASE_URL,
+    WHATSAPP_APP_SECRET,
+    WHATSAPP_VERIFY_TOKEN,
+    SLACK_SIGNING_SECRET,
   },
   emptyStringAsUndefined: true,
 });

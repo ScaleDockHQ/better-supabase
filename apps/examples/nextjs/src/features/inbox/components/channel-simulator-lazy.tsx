@@ -18,20 +18,22 @@ export function ChannelSimulatorLazy() {
   const t = useExtracted("inbox");
 
   return (
-    <LazyOnIntent
-      renderTrigger={(handlers) => (
-        <Button
-          variant="outline"
-          size="sm"
-          aria-haspopup="dialog"
-          {...handlers}
-        >
-          <RadioIcon />
-          {t("Simulate a message")}
-        </Button>
-      )}
-    >
-      <ChannelSimulator />
-    </LazyOnIntent>
+    <span className="contents">
+      <LazyOnIntent
+        renderTrigger={(handlers) => (
+          <Button
+            variant="outline"
+            size="sm"
+            aria-haspopup="dialog"
+            {...handlers}
+          >
+            <RadioIcon />
+            {t("Simulate a message")}
+          </Button>
+        )}
+      >
+        <ChannelSimulator />
+      </LazyOnIntent>
+    </span>
   );
 }

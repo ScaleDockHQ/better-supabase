@@ -14769,6 +14769,46 @@ msgctxt "imports.6FpVY9"
 msgid "Import another file"
 msgstr "Import another file"
 
+#: src/features/inbox/components/broadcast-dialog.tsx
+msgctxt "inbox.1GgVnd"
+msgid "Sent to {sent} conversations, skipped {skipped}"
+msgstr "Sent to {sent} conversations, skipped {skipped}"
+
+#: src/features/inbox/components/broadcast-dialog.tsx
+#: src/features/inbox/components/inbox-admin-lazy.tsx
+msgctxt "inbox.beLe_F"
+msgid "Broadcast"
+msgstr "Broadcast"
+
+#: src/features/inbox/components/broadcast-dialog.tsx
+msgctxt "inbox.566LI0"
+msgid "Broadcast to open conversations"
+msgstr "Broadcast to open conversations"
+
+#: src/features/inbox/components/broadcast-dialog.tsx
+msgctxt "inbox.rO2TRP"
+msgid "Each open conversation of the channel gets this message as a reply, up to 50."
+msgstr "Each open conversation of the channel gets this message as a reply, up to 50."
+
+#: src/features/inbox/components/broadcast-dialog.tsx
+#: src/features/inbox/components/channel-simulator.tsx
+#: src/features/inbox/components/conversation-queue.tsx
+msgctxt "inbox.KeO51o"
+msgid "Channel"
+msgstr "Channel"
+
+#: src/features/inbox/components/broadcast-dialog.tsx
+#: src/features/inbox/components/channel-simulator.tsx
+#: src/features/inbox/components/help-sheet.tsx
+msgctxt "inbox.T7Ry38"
+msgid "Message"
+msgstr "Message"
+
+#: src/features/inbox/components/broadcast-dialog.tsx
+msgctxt "inbox.CVsZ0C"
+msgid "Send broadcast"
+msgstr "Send broadcast"
+
 #: src/features/inbox/components/channel-simulator-lazy.tsx
 #: src/features/inbox/components/channel-simulator.tsx
 msgctxt "inbox.xUO0eO"
@@ -14786,12 +14826,6 @@ msgid "The message arrives as if the channel delivered it. The same address cont
 msgstr "The message arrives as if the channel delivered it. The same address continues one conversation."
 
 #: src/features/inbox/components/channel-simulator.tsx
-#: src/features/inbox/components/conversation-queue.tsx
-msgctxt "inbox.KeO51o"
-msgid "Channel"
-msgstr "Channel"
-
-#: src/features/inbox/components/channel-simulator.tsx
 msgctxt "inbox.HAlOn1"
 msgid "Name"
 msgstr "Name"
@@ -14805,12 +14839,6 @@ msgstr "Email or phone number"
 msgctxt "inbox.LLtKhp"
 msgid "Subject"
 msgstr "Subject"
-
-#: src/features/inbox/components/channel-simulator.tsx
-#: src/features/inbox/components/help-sheet.tsx
-msgctxt "inbox.T7Ry38"
-msgid "Message"
-msgstr "Message"
 
 #: src/features/inbox/components/channel-simulator.tsx
 msgctxt "inbox.l8WU4w"
@@ -14900,6 +14928,21 @@ msgid "Send a template"
 msgstr "Send a template"
 
 #: src/features/inbox/components/composer.tsx
+msgctxt "inbox.fxmNTh"
+msgid "Mention"
+msgstr "Mention"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.FRm21J"
+msgid "Notify a teammate"
+msgstr "Notify a teammate"
+
+#: src/features/inbox/components/composer.tsx
+msgctxt "inbox.aX1b8r"
+msgid "Teammate"
+msgstr "Teammate"
+
+#: src/features/inbox/components/composer.tsx
 msgctxt "inbox.7tFha1"
 msgid "Send later"
 msgstr "Send later"
@@ -14921,6 +14964,7 @@ msgstr "The deals didn't load."
 
 #: src/features/inbox/components/contact-deals.tsx
 #: src/features/inbox/components/conversation-queue.tsx
+#: src/features/inbox/components/inbound-events-sheet.tsx
 #: src/features/inbox/components/scheduled-replies.tsx
 msgctxt "inbox.62nsdy"
 msgid "Retry"
@@ -15098,6 +15142,21 @@ msgid "Assign to me"
 msgstr "Assign to me"
 
 #: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.NCCorx"
+msgid "Team queue"
+msgstr "Team queue"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.iNzC-1"
+msgid "Send to a team queue"
+msgstr "Send to a team queue"
+
+#: src/features/inbox/components/conversation-panel.tsx
+msgctxt "inbox.QTvltG"
+msgid "Remove from the queue"
+msgstr "Remove from the queue"
+
+#: src/features/inbox/components/conversation-panel.tsx
 msgctxt "inbox.vpzvF9"
 msgid "Take over from the bot"
 msgstr "Take over from the bot"
@@ -15273,6 +15332,52 @@ msgstr "How can we help?"
 msgctxt "inbox.PQ8A3I"
 msgid "New conversation"
 msgstr "New conversation"
+
+#: src/features/inbox/components/inbound-events-sheet.tsx
+msgctxt "inbox.ovxBZz"
+msgid "Queued for replay"
+msgstr "Queued for replay"
+
+#: src/features/inbox/components/inbound-events-sheet.tsx
+#: src/features/inbox/components/inbox-admin-lazy.tsx
+msgctxt "inbox.JvmkBj"
+msgid "Webhook events"
+msgstr "Webhook events"
+
+#: src/features/inbox/components/inbound-events-sheet.tsx
+msgctxt "inbox.tcZ0s0"
+msgid "What the channels sent, newest first. Replay offers an event to the handler again."
+msgstr "What the channels sent, newest first. Replay offers an event to the handler again."
+
+#: src/features/inbox/components/inbound-events-sheet.tsx
+msgctxt "inbox.sDvy8M"
+msgid "The events didn't load."
+msgstr "The events didn't load."
+
+#: src/features/inbox/components/inbound-events-sheet.tsx
+msgctxt "inbox.Qtbrny"
+msgid "No webhook events yet"
+msgstr "No webhook events yet"
+
+#: src/features/inbox/components/inbound-events-sheet.tsx
+msgctxt "inbox.hwtZNi"
+msgid "Events appear here once a channel posts to /api/webhooks/channels."
+msgstr "Events appear here once a channel posts to /api/webhooks/channels."
+
+#: src/features/inbox/components/inbound-events-sheet.tsx
+msgctxt "inbox.rELDbB"
+msgid "Refresh"
+msgstr "Refresh"
+
+#: src/features/inbox/components/inbound-events-sheet.tsx
+msgctxt "inbox.fy6wR-"
+msgid "{count, plural, one {# attempt} other {# attempts}}"
+msgstr "{count, plural, one {# attempt} other {# attempts}}"
+
+#: src/features/inbox/components/inbound-events-sheet.tsx
+msgctxt "inbox.5yUsUe"
+msgid "Replay"
+msgstr "Replay"
 
 #: src/features/inbox/components/later-items.tsx
 msgctxt "inbox._qJpQY"
@@ -25539,8 +25644,8 @@ msgstr "No conversation yet"
 
 #: src/features/sales/components/deal-conversation.tsx
 msgctxt "sales.EnlMvw"
-msgid "A thread shows here once a contact on this deal writes to the inbox."
-msgstr "A thread shows here once a contact on this deal writes to the inbox."
+msgid "A thread shows here once a person linked to this deal writes to the inbox."
+msgstr "A thread shows here once a person linked to this deal writes to the inbox."
 
 #: src/features/sales/components/deal-conversation.tsx
 msgctxt "sales.1udzha"

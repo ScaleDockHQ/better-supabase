@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { ChannelSimulatorLazy } from "@/features/inbox/components/channel-simulator-lazy";
+import { InboxAdminLazy } from "@/features/inbox/components/inbox-admin-lazy";
 import {
   InboxQueue,
   InboxQueueSkeleton,
@@ -25,6 +26,7 @@ export default function InboxLayout({ children }: { children: ReactNode }) {
         actions={
           <Suspense fallback={null}>
             <PermissionGate permission="inbox.manage">
+              <InboxAdminLazy />
               <ChannelSimulatorLazy />
             </PermissionGate>
           </Suspense>
