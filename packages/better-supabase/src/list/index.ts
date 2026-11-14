@@ -70,6 +70,10 @@ export type {
   EntityForm,
   EntityFormField,
   EntityFormParse,
+  EntityNavItem,
+  EntityRouteEntry,
+  EntitySeed,
+  EntitySeedValue,
 } from "./entity-ui.ts";
 
 export type {
