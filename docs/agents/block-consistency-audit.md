@@ -423,7 +423,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | documents                 | content       | document_suggestion        | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | drive                     | content       | drive_node                 | state-machine | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
 | filespace                 | content       | filespace                  | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
-| forms                     | content       | form                       | editable      | create                 | update                 | -                                        | -                      | -           | -        | -       | -         |
+| forms                     | content       | form                       | editable      | create                 | update                 | createdAt, title, key                    | status                 | -           | -        | -       | -         |
 | signatures                | content       | signature_request          | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | templates                 | content       | template                   | editable      | -                      | update, delete         | -                                        | -                      | -           | -        | -       | -         |
 | activities                | crm           | activity                   | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -446,7 +446,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | sequences                 | crm           | sequence                   | editable      | create, update, delete | -                      | name, updatedAt                          | status                 | -           | -        | -       | -         |
 | field-encryption          | database      | field_key                  | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | field-history             | database      | field_history              | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
-| imports                   | database      | import                     | state-machine | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
+| imports                   | database      | import                     | state-machine | -                      | create                 | createdAt                                | source, status         | -           | -        | -       | -         |
 | jsonb-schemas             | database      | jsonb_schema               | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | numbering                 | database      | number                     | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | pgtap                     | database      | pgtap                      | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -473,7 +473,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | onboarding                | growth        | onboarding                 | append-only   | -                      | create                 | -                                        | -                      | -           | -        | -       | -         |
 | scores                    | growth        | score_model                | editable      | create, update, delete | -                      | -                                        | -                      | -           | -        | -       | -         |
 | waitlist                  | growth        | waitlist_entry             | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
-| access-requests           | identity      | access_request             | state-machine | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
+| access-requests           | identity      | access_request             | state-machine | -                      | -                      | createdAt                                | status, role           | -           | -        | -       | -         |
 | created-by                | identity      | created_by                 | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | grants                    | identity      | grant                      | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
 | identities                | identity      | identity                   | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -538,7 +538,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | document-templates        | tenancy       | document_template          | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | document-templates        | tenancy       | document_text_block        | editable      | create, update         | -                      | -                                        | -                      | -           | -        | -       | -         |
 | document-templates        | tenancy       | document_snapshot          | append-only   | create                 | -                      | -                                        | -                      | -           | -        | -       | -         |
-| domains                   | tenancy       | hostname                   | state-machine | create, delete         | -                      | -                                        | -                      | -           | -        | -       | -         |
+| domains                   | tenancy       | hostname                   | state-machine | create, delete         | -                      | hostname, createdAt                      | kind, verified         | -           | -        | -       | -         |
 | legal-entities            | tenancy       | legal_entity               | editable      | create, update         | -                      | code, name                               | isDefault              | -           | -        | -       | -         |
 | legal-entities            | tenancy       | legal_entity_setting       | editable      | -                      | update                 | -                                        | -                      | -           | -        | -       | -         |
 | memberships               | tenancy       | membership                 | read-only     | -                      | -                      | -                                        | -                      | -           | -        | -       | -         |
@@ -907,6 +907,16 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Log: 2026-11-12, planned.
   2026-11-13, lane G5 started from main (7f4bcbfdf7) in `../bsb-audit-g5`.
   2026-11-13, PR #920 opened: `legal_entity`, `course` and `content_entry` page, facet and count (migration 20261216050005). `sso` keeps SCIM paging and its bounded lists. The other lists wait for a per-call tenant, a caller scope or a parent scope (ADR 0789).
+
+### Lane G6
+
+- Scope: Per-call tenant for the shared list surface, and the lists it unlocks
+- Status: PR open
+- Branch: `feat/audit-g6`
+- PR: none yet
+- Findings: EX-1200 to EX-1205, EX-1215
+- Log: 2026-11-14, lane G6 started from main (125e0e82d8) in `../bsb-audit-g6`.
+  2026-11-14, ADR 0939: `entityList` takes `organizationId` per call (`tenantOrOption`, `RequiredTenantOption`). `hostname` (`domains`), `form` (`forms`), `import` runs (`imports`) and `access_request` (`access-requests`) page, facet and count (migration 20261217060006). Deferred with reasons in ADR 0939: `teams` (PowerSync local list), `api-keys` (caller scope in the same function), the caller-scoped, child and no-identity lists of ADR 0789.
 
 ### Lane H
 

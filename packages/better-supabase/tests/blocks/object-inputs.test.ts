@@ -14,6 +14,7 @@ const BLOCKS = join(import.meta.dirname, "../../src/blocks");
  * positional. A new block client method otherwise takes one object.
  */
 const POSITIONAL = new Set<string>([
+  "access-requests/access-requests.ts:rowOf",
   "advisories/feed.ts:epss",
   "advisories/feed.ts:osv",
   "agent-checkout/x402.ts:onVerified",

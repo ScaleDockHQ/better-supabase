@@ -4,6 +4,7 @@ import type { AccessRequestsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createAccessRequests } from "./access-requests.ts";
 import { accessRequestsEvents } from "./events.ts";
+import { accessRequestListSurface } from "./lists.ts";
 import { accessRequestsSqlOptions } from "./options.ts";
 
 /** The `access-requests` block's manifest (ADR 0029). */
@@ -21,7 +22,12 @@ export const accessRequestsBlock: BlockOf<
   provides: { recordAccess: (client) => client },
   create: createAccessRequests,
   category: "identity",
-  entities: { access_request: { mutability: "state-machine" } },
+  entities: {
+    access_request: {
+      ...accessRequestListSurface,
+      mutability: "state-machine",
+    },
+  },
   concerns: ["lifecycle"],
   description:
     "Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.",

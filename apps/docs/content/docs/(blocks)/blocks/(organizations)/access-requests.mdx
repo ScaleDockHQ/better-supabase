@@ -68,6 +68,19 @@ blocks: {
 
 A member can have one pending request per organization (`ACCESS_REQUEST_PENDING`), can't ask for the role they hold (`ACCESS_ROLE_HELD`), and an owner can't ask for another role.
 
+## Paging a list
+
+`list` is the capped convenience list. `page` is the full contract for requests (ADR 0749, 0939): it takes `organizationId`, which names the organization per call, and `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. The sort is `createdAt`; the default order is newest first. The filters are `status`, `role` and `mine` (`"true"` keeps the caller's own requests, even for readers of the organization). The facets are `status` and `role`. Readers of the organization see every request, others see their own. `list` is the same read with `status`, `mine`, `pageSize` and `before`. A cursor belongs to the sort it came from, so start again from the first page when `sort` or `direction` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error.
+
+```ts
+const pending = await access
+  .page({ organizationId, filters: { status: ["pending"] }, limit: 20 })
+  .orThrow();
+
+const facets = await access.facets({ organizationId }).orThrow();
+const total = await access.count({ organizationId }).orThrow();
+```
+
 ## Record access
 
 With the [subjects](/docs/blocks/subjects) block installed and a subject type that has a `team`, a member can ask for access to one record instead of a role. `requestRecord` names the subject type, the record id and the action (`read` by default), with a duration of 7 days unless the request names one; `maxDuration` caps it here too.
