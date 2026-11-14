@@ -11,7 +11,7 @@ import { risksList } from "@/lib/supabase/pages/risks.list";
 const RISK_FACETS = ["status", "category", "band"] as const;
 
 /** The sort the block applies without one: the highest residual score first. */
-export const RISK_DEFAULT_SORT = "residualScore";
+const RISK_DEFAULT_SORT = "residualScore";
 
 type DraftQuery = {
   -readonly [K in keyof RecordListUrlQuery]: RecordListUrlQuery[K];
