@@ -1,0 +1,236 @@
+---
+title: BotID and Firewall
+description: Refuse bots with Vercel BotID and rate limit with the Vercel Firewall on the sign-up, OTP and magic-link routes, answering with Problem Details.
+---
+
+`better-supabase/vercel-security` puts [Vercel BotID](https://vercel.com/docs/botid)
+and [Vercel Firewall rate limits](https://vercel.com/docs/vercel-waf/rate-limiting-sdk)
+in front of the routes bots go after first: sign-up, one-time codes and magic
+links. Each check is a guard that runs before your handler and answers a
+refusal with a `problem+json` response, so the handler only runs for a request
+that passed.
+
+```bash
+pnpm add botid @vercel/firewall
+```
+
+`botid` (`>=1.5.13 <2`) and `@vercel/firewall` (`>=1.2.6 <2`) are optional
+peers, and you need only the one you use. The entry never imports them: you
+pass `checkBotId` and `checkRateLimit` in, so the entry has no Vercel code of
+its own and the guards run on every runtime.
+
+## Setup
+
+BotID needs a client script on the pages that send the protected requests,
+and a rewrite for its challenge. In a Next.js app, wrap the config with
+`withBotId`:
+
+```ts title="next.config.ts"
+import { withBotId } from "botid/next/config";
+
+const nextConfig = {
+  // your existing config
+};
+
+export default withBotId(nextConfig);
+```
+
+Then list the protected routes in `instrumentation-client.ts` (Next.js 15.3
+and later). A request to a path that is not listed carries no BotID token,
+and `checkBotId` reports it as a bot:
+
+```ts title="instrumentation-client.ts"
+import { initBotId } from "botid/client/core";
+
+initBotId({
+  protect: [
+    { path: "/auth/sign-up", method: "POST" },
+    { path: "/auth/otp", method: "POST" },
+    { path: "/auth/magic-link", method: "POST" },
+  ],
+});
+```
+
+A Server Action posts to the page it runs on, so list that page's path with
+`method: "POST"`. Locally, `checkBotId` answers as a human unless you pass
+`config: { developmentOptions: { bypass: "BAD-BOT" } }` to test a refusal.
+
+A Firewall rate limit needs a rule in the Vercel dashboard: under Firewall,
+add a rule whose condition is `@vercel/firewall` with the rate limit id you
+pass as `id` (here `sign-up`), and give it a Rate Limit action with the window
+and the number of requests. Deploy the rule before the code that checks it.
+
+## Guard a route handler
+
+`botIdGuard` refuses bots, `firewallRateLimit` checks a rule, and `withGuards`
+runs them in order before the handler. The first refusal is the response and
+the remaining guards don't run:
+
+```ts title="app/auth/sign-up/route.ts"
+import { checkBotId } from "botid/server";
+import { checkRateLimit } from "@vercel/firewall";
+import {
+  botIdGuard,
+  firewallRateLimit,
+  withGuards,
+} from "better-supabase/vercel-security";
+
+import { bsb } from "@/lib/supabase/server";
+
+export const POST = withGuards(
+  async (request: Request) => {
+    const form = await request.formData();
+    const ctx = await bsb.context(request);
+
+    const { error } = await ctx.supabase.auth.signUp({
+      email: String(form.get("email")),
+      password: String(form.get("password")),
+    });
+
+    return error
+      ? Response.json({ error: error.message }, { status: 400 })
+      : new Response(null, { status: 204 });
+  },
+  botIdGuard({ checkBotId }),
+  firewallRateLimit({ checkRateLimit, id: "sign-up" }),
+);
+```
+
+Put BotID first: it answers without a network call to the Firewall, so a bot
+never uses up the rate limit of the people behind the same IP address. Extra
+handler arguments, such as the Next.js route context, pass through
+`withGuards` to your handler.
+
+## OTP and magic-link routes
+
+`combineGuards(...guards)` combines guards into one, so the auth routes can share a
+set. Give each route its own Firewall rule id when they need different limits:
+
+```ts title="lib/auth-guards.ts"
+import { checkBotId } from "botid/server";
+import { checkRateLimit } from "@vercel/firewall";
+import {
+  botIdGuard,
+  firewallRateLimit,
+  combineGuards,
+} from "better-supabase/vercel-security";
+
+export const otpGuards = combineGuards(
+  botIdGuard({ checkBotId }),
+  firewallRateLimit({ checkRateLimit, id: "otp", timeout: 1000 }),
+);
+```
+
+```ts title="app/auth/otp/route.ts"
+import { withGuards } from "better-supabase/vercel-security";
+
+import { otpGuards } from "@/lib/auth-guards";
+import { bsb } from "@/lib/supabase/server";
+
+export const POST = withGuards(async (request: Request) => {
+  const form = await request.formData();
+  const ctx = await bsb.context(request);
+
+  const { error } = await ctx.supabase.auth.signInWithOtp({
+    email: String(form.get("email")),
+  });
+
+  return error
+    ? Response.json({ error: error.message }, { status: 400 })
+    : new Response(null, { status: 204 });
+}, otpGuards);
+```
+
+A guard is any `(request: Request) => Promise<Response | undefined>`, so your
+own checks go in the same list: return `undefined` to let the request through
+and a `Response` to refuse it.
+
+## Server Actions
+
+A Server Action gets no `Request`, so it can't run a guard. `botIdCheck`
+returns a function that runs the same BotID check and resolves to the
+`DbError` to return, or to `undefined` for a human. BotID reads the request
+from the Vercel request context:
+
+```ts title="app/sign-up/actions.ts"
+"use server";
+
+import { checkBotId } from "botid/server";
+import { botIdCheck } from "better-supabase/vercel-security";
+
+const humanCheck = botIdCheck({ checkBotId });
+
+export async function signUp(formData: FormData) {
+  const refused = await humanCheck();
+
+  if (refused) {
+    return { ok: false, error: refused } as const;
+  }
+
+  // create the account
+  return { ok: true } as const;
+}
+```
+
+The `DbError` is plain data, so the form can show `error.hint` or map it to
+its own message.
+
+## Responses
+
+Every refusal is a `problem+json` body built from a `DbError` (see
+[Problem Details](/docs/auth/problems)), with the request path as `instance`:
+
+| Case                                 | Status | `kind`         | `hint`                    |
+| ------------------------------------ | ------ | -------------- | ------------------------- |
+| BotID reports a bot                  | 403    | `forbidden`    | `BOT_DETECTED`            |
+| `checkBotId` throws, `onError: deny` | 503    | `network`      | `BOT_CHECK_FAILED`        |
+| The rate limit is reached            | 429    | `rate_limited` | none                      |
+| The Firewall blocked the request     | 403    | `forbidden`    | `FIREWALL_BLOCKED`        |
+| The rule id is unknown, `deny`       | 503    | `network`      | `FIREWALL_RULE_NOT_FOUND` |
+| `checkRateLimit` throws, `deny`      | 503    | `network`      | `FIREWALL_UNAVAILABLE`    |
+
+A 429 carries `Retry-After` (60 seconds unless you set `retryAfter`) and the
+same number as `retryAfter` in the body. Pass `problem` to either guard to
+answer with your own error body instead; the status and `Retry-After` stay.
+
+## Error policies
+
+Each guard takes `onError` for when the Vercel service can't answer:
+
+- `botIdGuard` and `botIdCheck` default to `deny`: when `checkBotId` throws,
+  the request gets a 503, so an outage can't open a sign-up form to bots.
+  Set `onError: "allow"` to let requests through instead.
+- `firewallRateLimit` defaults to `allow`: when `checkRateLimit` throws or
+  times out, the request goes through. The same applies when the Firewall
+  answers that it has no rule with that id, so a rule you have not created
+  yet, or a typo in `id`, lets every request through without a rate limit.
+  Set `onError: "deny"` to refuse with a 503 instead, after the rule is live.
+
+## Options
+
+| `botIdGuard` option | Sets                                                                |
+| ------------------- | ------------------------------------------------------------------- |
+| `checkBotId`        | `checkBotId` from `botid/server`                                    |
+| `allowVerifiedBots` | let verified bots (search engines, monitors) through; default false |
+| `config`            | the `checkBotId` options, passed through                            |
+| `onError`           | `deny` (default) or `allow` when `checkBotId` throws                |
+| `problem`           | your error body                                                     |
+
+The guard passes the request's headers to BotID as
+`advancedOptions.headers` unless `config` sets them. BotID reads them only
+where it has no Vercel request context, which is local development.
+`botIdCheck` takes the same options without `problem`.
+
+| `firewallRateLimit` option | Sets                                                                       |
+| -------------------------- | -------------------------------------------------------------------------- |
+| `checkRateLimit`           | `checkRateLimit` from `@vercel/firewall`                                   |
+| `id`                       | the rule's rate limit id                                                   |
+| `key`                      | what the limit counts, from the request; defaults to the client IP         |
+| `retryAfter`               | the `Retry-After` seconds of a 429; default 60                             |
+| `timeout`                  | milliseconds before the check counts as failed; unset, it waits            |
+| `onError`                  | `allow` (default) or `deny` when the check fails or the rule id is unknown |
+| `problem`                  | your error body                                                            |
+
+`key` runs before the handler, so it reads headers or the URL, not the body:
+reading the body there would leave the handler without it. A `key` that
+throws counts as a failed check.

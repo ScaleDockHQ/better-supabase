@@ -201,6 +201,8 @@ const PURE_BARRELS = [
   "credentials",
   "vercel-connect",
   "vercel-sandbox",
+  "vercel-security",
+  "vercel-passport",
   "stripe",
   "yjs",
   "better-result",

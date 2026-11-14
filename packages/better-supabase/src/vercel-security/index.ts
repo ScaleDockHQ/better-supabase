@@ -1,0 +1,18 @@
+export {
+  botIdCheck,
+  botIdGuard,
+  firewallRateLimit,
+  combineGuards,
+  withGuards,
+  type BotIdCheckOptions,
+  type BotIdConfig,
+  type BotIdGuardOptions,
+  type BotIdVerdict,
+  type CheckBotId,
+  type CheckRateLimit,
+  type FirewallRateLimitCheckOptions,
+  type FirewallRateLimitOptions,
+  type FirewallRateLimitResult,
+  type VercelGuard,
+  type VercelGuardErrorPolicy,
+} from "./vercel-security.ts";

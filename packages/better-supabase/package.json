@@ -600,6 +600,16 @@
       "types": "./dist/vercel-sandbox/index.d.ts",
       "default": "./dist/vercel-sandbox/index.js"
     },
+    "./vercel-security": {
+      "@better-supabase/source": "./src/vercel-security/index.ts",
+      "types": "./dist/vercel-security/index.d.ts",
+      "default": "./dist/vercel-security/index.js"
+    },
+    "./vercel-passport": {
+      "@better-supabase/source": "./src/vercel-passport/index.ts",
+      "types": "./dist/vercel-passport/index.d.ts",
+      "default": "./dist/vercel-passport/index.js"
+    },
     "./stripe": {
       "@better-supabase/source": "./src/stripe/index.ts",
       "types": "./dist/stripe/index.d.ts",
@@ -1988,6 +1998,14 @@
       "./vercel-sandbox": {
         "types": "./dist/vercel-sandbox/index.d.ts",
         "default": "./dist/vercel-sandbox/index.js"
+      },
+      "./vercel-security": {
+        "types": "./dist/vercel-security/index.d.ts",
+        "default": "./dist/vercel-security/index.js"
+      },
+      "./vercel-passport": {
+        "types": "./dist/vercel-passport/index.d.ts",
+        "default": "./dist/vercel-passport/index.js"
       },
       "./stripe": {
         "types": "./dist/stripe/index.d.ts",
