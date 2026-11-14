@@ -378,6 +378,10 @@
     "message": "only the service role decides for another user"
   },
   {
+    "code": "APPROVAL_INVALID",
+    "message": "filters must be an object"
+  },
+  {
     "code": "APPROVAL_ITEM_BLOCKED",
     "message": "an item this one depends on is not approved"
   },
@@ -1488,11 +1492,11 @@
   },
   {
     "code": "DEADLINE_FORBIDDEN",
-    "message": "not allowed to compute deadlines"
+    "message": "not allowed to read deadlines"
   },
   {
     "code": "DEADLINE_INVALID",
-    "message": "a deadline needs a subject type, a subject id, facts as an object and a date"
+    "message": "filters must be an object"
   },
   {
     "code": "DEADLINE_NOT_FOUND",
