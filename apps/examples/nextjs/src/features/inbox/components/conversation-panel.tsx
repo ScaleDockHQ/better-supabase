@@ -11,9 +11,10 @@ import {
   UserCheckIcon,
   UserMinusIcon,
   UserRoundIcon,
+  UsersIcon,
 } from "lucide-react";
 import { useExtracted, useFormatter, useNow } from "next-intl";
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import { Badge } from "@/components/reui/badge";
 import { Bubble, BubbleContent, BubbleGroup } from "@/components/ui/bubble";
@@ -21,6 +22,10 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuGroup,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
@@ -47,7 +52,9 @@ import type { ConversationRow, MessageRow } from "../inbox-types";
 
 import {
   assign,
+  assignTeam,
   loadMessage,
+  loadTeams,
   loadThread,
   setBotMode,
   setStatus,
@@ -101,6 +108,16 @@ export function ConversationPanel({
   const mode = useAction(setBotMode, { onError, onSuccess });
   const status = useAction(setStatus, { onError, onSuccess });
   const snoozeAction = useAction(snooze, { onError, onSuccess });
+  const teamAction = useAction(assignTeam, { onError, onSuccess });
+  const teams = useAction(loadTeams);
+
+  const loadTeamList = useEffectEvent(() => {
+    void teams.run(undefined);
+  });
+
+  useEffect(() => {
+    loadTeamList();
+  }, []);
 
   if (thread.items === undefined || conversation === undefined) {
     return (
@@ -141,7 +158,8 @@ export function ConversationPanel({
     assignAction.pending ||
     mode.pending ||
     status.pending ||
-    snoozeAction.pending;
+    snoozeAction.pending ||
+    teamAction.pending;
 
   const windowOpen = whatsappWindowOpen(conversation, now);
 
@@ -194,6 +212,46 @@ export function ConversationPanel({
             {mine ? <UserMinusIcon /> : <UserCheckIcon />}
             {mine ? t("Unassign") : t("Assign to me")}
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={busy || (teams.data ?? []).length === 0}
+              render={<Button size="sm" variant="outline" />}
+            >
+              <UsersIcon />
+              {(teams.data ?? []).find(
+                (team) => team.id === conversation.teamId,
+              )?.name ?? t("Team queue")}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>
+                  {t("Send to a team queue")}
+                </DropdownMenuLabel>
+                {(teams.data ?? []).map((team) => (
+                  <DropdownMenuItem
+                    key={team.id}
+                    onClick={() => {
+                      void teamAction.run({ conversationId, teamId: team.id });
+                    }}
+                  >
+                    {team.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+              {conversation.teamId === null ? null : (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      void teamAction.run({ conversationId, teamId: null });
+                    }}
+                  >
+                    {t("Remove from the queue")}
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
           {conversation.botMode === "bot" ? (
             <Button
               size="sm"

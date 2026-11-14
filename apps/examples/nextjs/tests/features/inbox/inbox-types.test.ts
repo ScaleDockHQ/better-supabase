@@ -20,6 +20,7 @@ const row = (overrides: Partial<ConversationRow>): ConversationRow => ({
   snoozedUntil: null,
   botMode: "human",
   assigneeId: null,
+  teamId: null,
   preview: null,
   lastMessageAt: null,
   unread: false,

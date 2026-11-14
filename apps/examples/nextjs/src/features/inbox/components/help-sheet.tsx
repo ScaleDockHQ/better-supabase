@@ -4,8 +4,23 @@ import { LifeBuoyIcon, SendIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useRef, useState } from "react";
 
+import { Bubble, BubbleContent, BubbleGroup } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Marker, MarkerContent } from "@/components/ui/marker";
+import {
+  Message,
+  MessageContent,
+  MessageFooter,
+} from "@/components/ui/message";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
 import {
   Sheet,
   SheetContent,
@@ -18,7 +33,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useInboxWidget } from "@/hooks/use-inbox";
 import { useAuth } from "@/lib/hooks";
 import { toast } from "@/lib/toast";
-import { cn } from "@/lib/utils";
 
 import {
   askForHelp,
@@ -87,40 +101,55 @@ function HelpChat() {
 
   return (
     <>
-      <ol className="flex-1 space-y-3 overflow-y-auto p-4">
-        {messages.length === 0 ? (
-          <li className="text-sm text-muted-foreground">
-            {t("No messages yet. Write below to start.")}
-          </li>
-        ) : null}
-        {messages.map((message) => {
-          const mine = message.authorType === "contact";
+      <MessageScrollerProvider autoScroll>
+        <MessageScroller className="min-h-0 flex-1">
+          <MessageScrollerViewport>
+            <MessageScrollerContent className="gap-3 p-4">
+              {messages.length === 0 ? (
+                <Marker variant="separator">
+                  <MarkerContent>
+                    {t("No messages yet. Write below to start.")}
+                  </MarkerContent>
+                </Marker>
+              ) : null}
+              {messages.map((message) => {
+                const mine = message.authorType === "contact";
 
-          return (
-            <li
-              key={message.id}
-              className={cn(
-                "flex flex-col gap-1",
-                mine ? "items-end" : "items-start",
-              )}
-            >
-              <div
-                className={cn(
-                  "max-w-4/5 rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
-                  mine ? "bg-primary text-primary-foreground" : "bg-muted",
-                )}
-              >
-                {message.body}
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {format.dateTime(new Date(message.createdAt), {
-                  timeStyle: "short",
-                })}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
+                return (
+                  <MessageScrollerItem
+                    key={message.id}
+                    messageId={message.id}
+                    scrollAnchor={mine}
+                  >
+                    <Message align={mine ? "end" : "start"}>
+                      <MessageContent>
+                        <BubbleGroup>
+                          <Bubble
+                            align={mine ? "end" : "start"}
+                            variant={mine ? "default" : "muted"}
+                          >
+                            <BubbleContent className="whitespace-pre-wrap">
+                              {message.body}
+                            </BubbleContent>
+                          </Bubble>
+                        </BubbleGroup>
+                        <MessageFooter>
+                          <span className="text-xs text-muted-foreground">
+                            {format.dateTime(new Date(message.createdAt), {
+                              timeStyle: "short",
+                            })}
+                          </span>
+                        </MessageFooter>
+                      </MessageContent>
+                    </Message>
+                  </MessageScrollerItem>
+                );
+              })}
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+          <MessageScrollerButton />
+        </MessageScroller>
+      </MessageScrollerProvider>
       {widget.typing.length > 0 ? (
         <output className="block px-4 pb-2 text-xs text-muted-foreground">
           {t("Support is typing…")}

@@ -48,7 +48,14 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMessages } from "@/hooks/use-messaging";
 
@@ -147,30 +154,40 @@ export function MessageList({
             </EmptyContent>
           </Empty>
         ) : (
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="flex flex-col gap-4 pr-3">
-              {hasOlder ? (
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="ghost"
-                  className="self-center"
-                  onClick={() => void loadOlder()}
+          <MessageScrollerProvider autoScroll>
+            <MessageScroller>
+              <MessageScrollerViewport>
+                <MessageScrollerContent
+                  className="gap-4"
+                  data-testid="messages"
                 >
-                  {t("Load older messages")}
-                </Button>
-              ) : null}
-              <ol className="flex flex-col gap-4" data-testid="messages">
-                {messages.map((message) => (
-                  <MessageItem
-                    key={message.id}
-                    message={message}
-                    onOpenThread={onOpenThread}
-                  />
-                ))}
-              </ol>
-            </div>
-          </ScrollArea>
+                  {hasOlder ? (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="ghost"
+                      className="self-center"
+                      onClick={() => void loadOlder()}
+                    >
+                      {t("Load older messages")}
+                    </Button>
+                  ) : null}
+                  {messages.map((message) => (
+                    <MessageScrollerItem
+                      key={message.id}
+                      messageId={message.id}
+                    >
+                      <MessageItem
+                        message={message}
+                        onOpenThread={onOpenThread}
+                      />
+                    </MessageScrollerItem>
+                  ))}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton />
+            </MessageScroller>
+          </MessageScrollerProvider>
         )}
       </CardContent>
       <CardFooter className="flex-col items-stretch gap-1">

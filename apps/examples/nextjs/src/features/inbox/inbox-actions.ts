@@ -8,11 +8,20 @@ import { after } from "next/server";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
-import { requireCaller, sqlResult } from "@/features/developer/postgres";
+import {
+  requireCaller,
+  requirePostgres,
+  sqlResult,
+} from "@/features/developer/postgres";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import type { answerHelp } from "./help-bot";
-import type { InboxSummary, MacroRow } from "./inbox-types";
+import type {
+  InboundEventRow,
+  InboxSummary,
+  MacroRow,
+  TeamSummary,
+} from "./inbox-types";
 
 import {
   AssigneeFilter,
@@ -24,6 +33,7 @@ import {
   toDraftRow,
   toMessageRow,
   toScheduledRow,
+  whatsappWindowOpen,
 } from "./inbox-types";
 
 type HelpArgs = Parameters<typeof answerHelp>;
@@ -275,14 +285,20 @@ export const saveDraft = bsb.action(
 /** A reply to the contact, or with `note` an internal note only staff see. */
 export const reply = bsb.action(
   {
-    input: v.object({ conversationId: Id, body: Body, note: v.boolean() }),
+    input: v.object({
+      conversationId: Id,
+      body: Body,
+      note: v.boolean(),
+      // Teammates named in an internal note; they are notified.
+      mentions: v.optional(v.pipe(v.array(Id), v.maxLength(20)), []),
+    }),
     permission: "inbox.reply",
   },
-  async ({ conversationId, body, note }, { db }) => {
+  async ({ conversationId, body, note, mentions }, { db }) => {
     const { messages } = db.inbox;
 
     const sent = note
-      ? await messages.note({ conversationId, body })
+      ? await messages.note({ conversationId, body, input: { mentions } })
       : await messages.send({ conversationId, input: { body } });
 
     if (!sent.ok) {
@@ -326,6 +342,33 @@ export const assign = bsb.action(
     });
 
     return assigned.ok ? ok(assigned.data.assigneeId) : assigned;
+  },
+);
+
+/** The active teams of the organization, for the team queue. */
+export const loadTeams = bsb.action(
+  { requireTenant: true, permission: "inbox.read" },
+  async (_input, { session }) =>
+    queryAsCaller<TeamSummary>(
+      session,
+      `select id, name from better_supabase.teams
+       where status = 'active' order by name`,
+    ),
+);
+
+/** Puts the conversation in a team's queue, or takes it out of one. */
+export const assignTeam = bsb.action(
+  {
+    input: v.object({ conversationId: Id, teamId: v.nullable(Id) }),
+    permission: "inbox.assign",
+  },
+  async ({ conversationId, teamId }, { db }) => {
+    const assigned = await db.inbox.conversations.assign({
+      conversationId,
+      to: { assigneeId: null, teamId },
+    });
+
+    return assigned.ok ? ok(assigned.data.teamId) : assigned;
   },
 );
 
@@ -488,5 +531,132 @@ export const simulateInbound = bsb.action(
       );
 
     return recorded.ok ? ok(recorded.data.conversationId) : recorded;
+  },
+);
+
+const BROADCAST_LIMIT = 50;
+
+/**
+ * One reply to every open conversation of a channel account, as the caller. The
+ * block has no bulk send, so each conversation gets its own message and
+ * delivery; `BROADCAST_LIMIT` keeps one click bounded.
+ */
+export const broadcast = bsb.action(
+  {
+    input: v.object({ inboxId: Id, body: Body }),
+    requireTenant: true,
+    permission: "inbox.manage",
+  },
+  async ({ inboxId, body }, { tenant, db }) => {
+    const listed = await db.inbox.conversations.list({
+      tenant,
+      filter: { inboxId, status: "open", limit: BROADCAST_LIMIT },
+    });
+
+    if (!listed.ok) {
+      return listed;
+    }
+
+    let sent = 0;
+
+    for (const conversation of listed.data) {
+      if (
+        conversation.inbox?.channel === "whatsapp" &&
+        !whatsappWindowOpen(toConversationRow(conversation), Date.now())
+      ) {
+        continue;
+      }
+
+      const message = await db.inbox.messages.send({
+        conversationId: conversation.id,
+        input: { body },
+      });
+
+      if (!message.ok) {
+        return message;
+      }
+
+      await simulateDelivery(db, conversation.id, message.data.id);
+      sent += 1;
+    }
+
+    return ok({ sent, skipped: listed.data.length - sent });
+  },
+);
+
+/**
+ * The organization's latest inbound webhook events. The table is service only,
+ * so the read runs as the admin connection and keeps to the caller's own tenant
+ * and its inboxes.
+ */
+export const loadInboundEvents = bsb.action(
+  { requireTenant: true, permission: "inbox.manage" },
+  async (_input, { tenant }) => {
+    const connection = requirePostgres();
+
+    if (!connection.ok) {
+      return connection;
+    }
+
+    return sqlResult(() =>
+      connection.data.admin.queryRaw<InboundEventRow>(
+        `select e.id, e.adapter, e.status, e.error, e.attempts,
+                e.received_at::text as "receivedAt"
+         from better_supabase.inbox_inbound_events e
+         where e.tenant_id = $1
+            or e.inbox_id in (select id from better_supabase.inboxes where tenant_id = $1)
+         order by e.received_at desc limit 25`,
+        [tenant],
+      ),
+    );
+  },
+);
+
+/**
+ * Offers a stored event again: it becomes `failed` with no wait, so the next
+ * `inbound.pending` sweep (`maintain`, every minute) replays it through the
+ * handler.
+ */
+export const replayInboundEvent = bsb.action(
+  {
+    input: v.object({ eventId: Id }),
+    requireTenant: true,
+    permission: "inbox.manage",
+  },
+  async ({ eventId }, { tenant }) => {
+    const connection = requirePostgres();
+
+    if (!connection.ok) {
+      return connection;
+    }
+
+    const owned = await sqlResult(() =>
+      connection.data.admin.queryRaw<{ id: string }>(
+        `select e.id from better_supabase.inbox_inbound_events e
+         where e.id = $2
+           and (e.tenant_id = $1
+             or e.inbox_id in (select id from better_supabase.inboxes where tenant_id = $1))`,
+        [tenant, eventId],
+      ),
+    );
+
+    if (!owned.ok) {
+      return owned;
+    }
+
+    if (owned.data.length === 0) {
+      return err(
+        dbError("not_found", "That event is not in your organization"),
+      );
+    }
+
+    return bsb
+      .admin()
+      .inbox.inbound.setStatus({
+        id: eventId,
+        status: "failed",
+        error: "Replay requested from the inbox",
+        retryIn: 0,
+      });
   },
 );
