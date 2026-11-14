@@ -37,6 +37,7 @@ export const tasksBlock: BlockOf<
       mutability: "editable",
       expectedVersion: true,
       idempotent: ["create"],
+      bulk: { actions: ["archive", "restore", "remove"] },
       emits: { create: true, update: true, delete: true },
     },
     project: { mutability: "editable", emits: { update: false } },

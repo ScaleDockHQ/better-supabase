@@ -696,3 +696,7 @@ Read through a `Db` with the block installed through `.blocks()`,
 ## Exporting in one call
 
 `exportNow({ organizationId?, timeoutMs?, intervalMs? })` requests an export, polls `exports` every `intervalMs` (default 1000) for at most `timeoutMs` (default 30000), and returns the signed URLs through `download`. A failed export fails with `invalid_request` and the hint `DATA_EXPORT_FAILED`. An export that is not ready in time fails with `DATA_EXPORT_NOT_READY` and keeps running, so fetch it later with `exports` and `download`.
+
+## Reading an export as a job
+
+`startExportJob({ organizationId? })` requests an export and returns `{ jobId: "export:<id>" }`. `jobs` is the `export` source of `createJobs`, so `jobs.get("export:<id>")` returns the common `JobResult`: `pending`, `running`, or `completed` with the export as `result`. Fetch the files with `download`. A failed export reads as `failed` with `DATA_EXPORT_FAILED`. An export the caller cannot see is `not_found`.

@@ -641,6 +641,37 @@ describe("tasks.create with custom values", () => {
     ]);
   });
 
+  it("runs bulk(ids, action) over the set calls", async () => {
+    const t = transport({
+      archive_tasks: () => ({ ids: ["w1"], skipped: ["w2"] }),
+      delete_tasks: () => ({ ids: ["w1", "w1x"], skipped: [] }),
+    });
+
+    const tasks = createTasks({ transport: t });
+    const archived = await tasks.bulk(["w1", "w2", "w1"], "archive").orThrow();
+
+    expect(archived.succeeded).toEqual(["w1"]);
+    expect(archived.failed).toMatchObject([
+      { id: "w2", error: { kind: "not_found" } },
+    ]);
+
+    await tasks.bulk(["w1"], "restore").orThrow();
+    await tasks.bulk(["w1", "w1x"], "remove").orThrow();
+    expect(await tasks.bulk([], "remove").orThrow()).toEqual({
+      succeeded: [],
+      failed: [],
+    });
+    expect(t.calls).toEqual([
+      ["archive_tasks", { ids: ["w1", "w2"], archived: true }],
+      ["archive_tasks", { ids: ["w1"], archived: false }],
+      ["delete_tasks", { ids: ["w1", "w1x"] }],
+    ]);
+
+    const tooMany = await tasks.bulk(["a", "b"], "remove", { limit: 1 });
+
+    expect(!tooMany.ok && tooMany.error.hint).toBe("BULK_TOO_MANY");
+  });
+
   it("removes the task when a value is refused", async () => {
     const t = transport({ create_task: () => ROW, delete_task: () => true });
 

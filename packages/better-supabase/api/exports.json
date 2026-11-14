@@ -9176,6 +9176,7 @@
       "Project",
       "RpcClient",
       "Task",
+      "TaskBulkAction",
       "TaskChange",
       "TaskChangeResult",
       "TaskChecklistOptimisticAction",
