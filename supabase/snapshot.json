@@ -345874,6 +345874,31 @@
             "partial": false,
             "method": "btree",
             "predicate": null
+          },
+          {
+            "name": "inbox_conversations_tenant_id_last_message_at_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "last_message_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "inbox_conversations_tenant_id_status_page_idx",
+            "columns": [
+              "tenant_id",
+              "status"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
           }
         ],
         "policies": [
@@ -408186,6 +408211,19 @@
             "predicate": null
           },
           {
+            "name": "customers_organization_id_created_at_id_page_idx",
+            "columns": [
+              "organization_id",
+              "created_at",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "customers_organization_id_created_by_idx",
             "columns": [
               "organization_id",
@@ -408210,6 +408248,19 @@
             "predicate": null
           },
           {
+            "name": "customers_organization_id_name_id_page_idx",
+            "columns": [
+              "organization_id",
+              "name",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "customers_organization_id_name_idx",
             "columns": [
               "organization_id",
@@ -408227,6 +408278,18 @@
               "organization_id",
               "status",
               "name"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "customers_organization_id_status_page_idx",
+            "columns": [
+              "organization_id",
+              "status"
             ],
             "unique": false,
             "primary": false,

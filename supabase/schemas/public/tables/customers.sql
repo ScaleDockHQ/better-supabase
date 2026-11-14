@@ -65,8 +65,6 @@ create index customers_organization_id_created_at_id_idx on public.customers (or
 create index customers_active_idx on public.customers (organization_id, created_at desc)
   where archived_at is null;
 
-create index customers_name_trgm_idx on public.customers using gin (name extensions.gin_trgm_ops);
-
 create trigger customers_set_updated_at before update on public.customers
   for each row execute function better_supabase.set_updated_at();
 

@@ -110,7 +110,7 @@ export function CustomerRecordList({
   return (
     <RecordListView
       list={list}
-      endpoint="/api/customers/list"
+      endpoint="/api/customers/overview"
       initial={initial}
       columns={columns}
       facets={[{ key: "status", label: t("Status"), valueLabel: statusLabel }]}

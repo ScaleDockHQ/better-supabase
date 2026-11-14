@@ -28,3 +28,9 @@ create index "incidents_tenant_id_started_at_id_page_idx" on "better_supabase"."
 create index "incidents_tenant_id_severity_id_page_idx" on "better_supabase"."incidents" ("tenant_id", "severity", "id");
 create index "incidents_tenant_id_status_page_idx" on "better_supabase"."incidents" ("tenant_id", "status");
 create index "incidents_tenant_id_severity_page_idx" on "better_supabase"."incidents" ("tenant_id", "severity");
+create index "customers_organization_id_name_id_page_idx" on "public"."customers" ("organization_id", "name", "id");
+create index "customers_organization_id_created_at_id_page_idx" on "public"."customers" ("organization_id", "created_at", "id");
+create index "customers_organization_id_status_page_idx" on "public"."customers" ("organization_id", "status");
+create index "customers_name_trgm_idx" on "public"."customers" using gin ("name" extensions.gin_trgm_ops);
+create index "inbox_conversations_tenant_id_last_message_at_id_page_idx" on "better_supabase"."inbox_conversations" ("tenant_id", "last_message_at", "id");
+create index "inbox_conversations_tenant_id_status_page_idx" on "better_supabase"."inbox_conversations" ("tenant_id", "status");

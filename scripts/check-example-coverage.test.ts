@@ -44,4 +44,21 @@ describe("check-example-coverage", () => {
       'Entity page risks.risk has no entry for block "risks" in block-coverage.ts',
     ]);
   });
+
+  it("needs no map entry for an app entity, only its page", () => {
+    const page = {
+      entity: "app.customers",
+      name: "customers",
+      route: "/customers",
+      messageKeys: [],
+    };
+
+    expect(checkEntityRoutes([page], {})).toEqual([]);
+
+    expect(
+      checkEntityRoutes([{ ...page, route: "/does-not-exist" }], {}),
+    ).toEqual([
+      "Entity page app.customers lists /does-not-exist, which has no page.tsx",
+    ]);
+  });
 });

@@ -357,4 +357,22 @@ describe("app entity pages", () => {
     );
     expect(route).toContain("if (tenant === undefined) {");
   });
+
+  it("passes a tenant option named tenant as a shorthand property", () => {
+    const inbox = defineEntityPage({
+      entity: "app.inbox",
+      route: "/inbox",
+      name: "inbox",
+      tenantOption: "tenant",
+      app: {
+        surface: { sorts: ["lastMessageAt"], facets: ["status"] },
+        reads: { module: "@/inbox-reads", export: "inboxReads" },
+      },
+    });
+
+    const route = emit([inbox]).get("app/api/inbox/list/route.ts") ?? "";
+
+    expect(route).toContain("inboxReads.page({ ...options, tenant })");
+    expect(route).not.toContain("tenant: tenant");
+  });
 });

@@ -404,6 +404,13 @@ export interface EntityPageOutput {
   render(context: EntityPageContext): readonly GeneratedFile[];
 }
 
+/**
+ * The property that passes the route's `tenant`: shorthand when the option is
+ * named `tenant`.
+ */
+const tenantProperty = (option: string): string =>
+  option === "tenant" ? "tenant" : `${option}: tenant`;
+
 /** The statements that read a page: the route's tenant option and the reads. */
 function readsOf(entry: ResolvedEntityPage): {
   readonly imports: readonly string[];
@@ -416,7 +423,8 @@ function readsOf(entry: ResolvedEntityPage): {
 } {
   const { app, methods, tenantOption } = entry.page;
 
-  const extra = tenantOption === undefined ? "" : `{ ${tenantOption}: tenant }`;
+  const extra =
+    tenantOption === undefined ? "" : `{ ${tenantProperty(tenantOption)} }`;
 
   // A caller without an active organization has no tenant to pass.
   const guard =
@@ -537,7 +545,7 @@ const LIST_ROUTE: EntityPageOutput = {
       const withTenant =
         reads.extra === ""
           ? "options"
-          : `{ ...options, ${entry.page.tenantOption ?? ""}: tenant }`;
+          : `{ ...options, ${tenantProperty(entry.page.tenantOption ?? "")} }`;
 
       return {
         path,
@@ -627,7 +635,7 @@ const EXPORT_ROUTE: EntityPageOutput = {
       const pageOptions =
         reads.extra === ""
           ? "options"
-          : `{ ...options, ${entry.page.tenantOption ?? ""}: tenant }`;
+          : `{ ...options, ${tenantProperty(entry.page.tenantOption ?? "")} }`;
 
       return [
         {
@@ -671,7 +679,7 @@ const lit = (value: string): string => `'${value.replaceAll("'", "''")}'`;
  * `scale_list_<name>.test.sql`: asks the planner, with sequential scans
  * disabled, how it reads the page in each declared sort and how it counts each
  * facet. A sort must come out of an index with no sort step, and a facet count
- * must be an index-only scan. The rows come from the running stack's seed
+ * must be read from an index. The rows come from the running stack's seed
  * (`pnpm db:seed:scale`).
  */
 const SCALE_TEST: EntityPageOutput = {
@@ -721,8 +729,8 @@ const SCALE_TEST: EntityPageOutput = {
           contents: [
             GENERATED_HEADER.replace("// ", "-- "),
             `-- Scale plan check of the list of ${entry.page.entity} (${entry.page.route}).`,
-            "-- With sequential scans off, a sort must come out of an index with no sort",
-            "-- step and a facet count must be an index-only scan. The rows are the",
+            "-- With sequential, bitmap and sort plans off, a sort must come out of an index with no sort",
+            "-- step and a facet count must be read from an index. The rows are the",
             "-- running stack's seed; run `pnpm db:seed:scale --tier l` first to measure.",
             "begin;",
             `select plan(${String(queries.length)});`,
@@ -736,13 +744,16 @@ const SCALE_TEST: EntityPageOutput = {
             "",
             `analyze ${target};`,
             "set local enable_seqscan = off;",
+            "set local enable_sort = off;",
+            "set local enable_incremental_sort = off;",
+            "set local enable_bitmapscan = off;",
             "",
             ...queries.flatMap((query) => [
               `select ok(`,
               query.kind === "sort"
                 ? `  pg_temp.plan_of(${lit(query.sql)})::text !~ '"Node Type": "(Incremental )?Sort"',`
-                : `  pg_temp.plan_of(${lit(query.sql)})::text ~ '"Node Type": "Index Only Scan"',`,
-              `  ${lit(`${entry.page.entity} ${query.label} ${query.kind === "sort" ? "needs no sort step" : "is an index-only scan"}`)}`,
+                : `  pg_temp.plan_of(${lit(query.sql)})::text ~ '"Node Type": "Index (Only )?Scan"',`,
+              `  ${lit(`${entry.page.entity} ${query.label} ${query.kind === "sort" ? "needs no sort step" : "reads an index"}`)}`,
               ");",
               "",
             ]),

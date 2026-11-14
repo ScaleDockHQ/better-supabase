@@ -62,4 +62,20 @@ export const entityRoutes = [
     detail: undefined,
     messageKeys: ["incidents.title", "incidents.columns.title", "incidents.columns.severity", "incidents.columns.status", "incidents.columns.startedAt", "incidents.facets.status", "incidents.facets.severity", "incidents.fields.title", "incidents.fields.description", "incidents.fields.severity", "incidents.fields.public", "incidents.fields.commanderId", "incidents.fields.message"],
   },
+  {
+    entity: "app.customers",
+    name: "customers",
+    route: "/customers",
+    api: "/api/customers/list",
+    detail: undefined,
+    messageKeys: ["customers.title", "customers.columns.name", "customers.columns.status", "customers.columns.createdAt", "customers.facets.status"],
+  },
+  {
+    entity: "app.inbox",
+    name: "inbox",
+    route: "/inbox",
+    api: "/api/inbox/list",
+    detail: undefined,
+    messageKeys: ["inbox.title", "inbox.columns.subject", "inbox.columns.status", "inbox.columns.lastMessageAt", "inbox.facets.status"],
+  },
 ] as const satisfies readonly EntityRouteEntry[];

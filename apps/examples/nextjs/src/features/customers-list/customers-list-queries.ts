@@ -2,45 +2,23 @@ import "server-only";
 import { cacheTag } from "next/cache";
 
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
-import { customerList } from "@/lib/lists";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
+
+import { readCustomerRows } from "./customers-reads";
 
 /**
  * The first page of the caller's customers plus the count per status.
  * `bsb.cached()` queries with the user's token, so RLS decides the rows; the
  * private cache keeps them in this browser only, for as long as the session
  * view may be reused. The page doesn't read `searchParams`, so it stays in the
- * instant App Shell; filtered pages go through `/api/customers/list`.
+ * instant App Shell; filtered pages go through `/api/customers/overview`.
  */
 export async function getCustomers() {
   "use cache: private";
   const { db } = await bsb.cached({ tables: ["customers", "notes"] });
   cacheTag(CUSTOMERS_TAG);
 
-  const page = await customerList
-    .run(db, customerList.defaults, {
-      select: ["id", "name", "status", "logoPath"],
-      // Counted and maxed in the database, in the same request.
-      include: {
-        _count: { notes: true },
-        _max: { notes: { createdAt: true } },
-      },
-    })
-    .orThrow();
-
-  // Public bucket: the URL is built locally, and `next/image` resizes it
-  // through Storage (see `src/image-loader.ts`).
-  const storage = db.$buckets.logos;
-
-  return {
-    ...page,
-    items: page.items.map((customer) => ({
-      ...customer,
-      logoUrl: customer.logoPath
-        ? storage.publicUrl(customer.logoPath, { transform: "square" }).data
-        : null,
-    })),
-  };
+  return readCustomerRows(db, {});
 }
 
 /** One customer with its notes; `null` when RLS hides it or it is gone. */

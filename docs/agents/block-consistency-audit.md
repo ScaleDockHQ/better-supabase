@@ -1072,6 +1072,15 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Findings: EX-001, EX-014, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
 - Log: 2026-11-14, lane M6 started from main in `../bsb-audit-M6`. ADR numbers continue M5's range from 0892. PR 1 (ADR 0892): the five instant pages, the shell accessibility fixes, the whole-page axe scan and the invitations page on the data grid (EX-024 and EX-1327 fixed).
 
+### Lane M7
+
+- Scope: M6's leftovers: reads modules for the customers app table and the inbox, an array reads module, generated seeds and coverage
+- Status: in progress
+- Branch: `feat/audit-m7a`
+- PR: none yet
+- Findings: EX-001, EX-014, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
+- Log: 2026-11-14, lane M7 started from main in `../bsb-audit-m7a`. ADR numbers continue from 0893. PR 1 (ADR 0893): `app.customers` and `app.inbox` are declared with reads modules, and the generated scale test turns sort and bitmap plans off (EX-014 and EX-410 fixed).
+
 ### Lane O1
 
 - Scope: Personal data, retention, history tabs, partition
