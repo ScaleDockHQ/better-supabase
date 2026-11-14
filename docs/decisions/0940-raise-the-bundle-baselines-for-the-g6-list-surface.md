@@ -22,9 +22,11 @@ Raise the four entries to the sizes the CI bundle job measured:
 | `./blocks/forms`           | 39651           | 42843          |
 
 The next-build baselines grow too: the raw First Load JS of 246 routes by about
-100 B each, and the raw server chunks of 269 routes by about 1.4 KB each, from
+100 B each, and the raw server chunks of 273 routes by about 0.8 to 1.4 KB each, from
 the four new manifest declarations. Each value is the one the CI next-build job
-measured, and no route is lowered.
+measured, and no route is lowered. The default type profile's `ts71Mapper`
+program grows from 16767 to 18876 types (the mapped list types of the four
+blocks), and its baseline takes the CI-measured value.
 
 ## Alternatives considered
 
