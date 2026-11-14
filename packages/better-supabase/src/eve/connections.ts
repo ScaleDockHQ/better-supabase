@@ -83,7 +83,7 @@ export interface EveAuthorizationChallenge {
 
 /** A `getToken`-only connection `auth`: eve never runs a consent flow. */
 export interface EveTokenAuthorization {
-  readonly credentialOwner: "app" | "user";
+  readonly principalType: "app" | "user";
   readonly displayName?: string;
   getToken(request: EveConnectionRequest): Promise<EveTokenResult>;
   readonly startAuthorization?: undefined;
@@ -218,7 +218,7 @@ export function credentialAuth(
     !provider.startAuthorization
   ) {
     return {
-      credentialOwner: options.owner,
+      principalType: options.owner,
       ...displayName,
       getToken: (request) => getToken(request),
     };

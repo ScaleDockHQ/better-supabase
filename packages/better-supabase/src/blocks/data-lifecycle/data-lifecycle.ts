@@ -125,6 +125,19 @@ export type DataSubjectRequestKind =
   | "rectification"
   | "portability";
 
+/**
+ * What an erasure did, by `schema.table`, as the number of rows (ADR 0903):
+ * `removed` were deleted, `blanked` kept their row and lost their personal
+ * columns, `kept` were left because a legal duty requires the record, and
+ * `held` were left because a legal hold covers them.
+ */
+export interface ErasureResult {
+  readonly removed: Readonly<Record<string, number>>;
+  readonly blanked: Readonly<Record<string, number>>;
+  readonly kept: Readonly<Record<string, number>>;
+  readonly held: Readonly<Record<string, number>>;
+}
+
 /** Where a data subject request stands. */
 export type DataSubjectRequestStatus =
   | "received"
@@ -259,6 +272,13 @@ export interface DataLifecycle {
     requestId: string;
     resolution?: string | undefined;
   }): AsyncResult<DataSubjectRequest>;
+  /**
+   * Runs a verified, open erasure request over every installed module's tables
+   * that declare an erase mode, and returns what was removed, blanked, kept and
+   * held. A table under a legal hold is left untouched and listed in `held`.
+   * The request stays open: close it with `fulfilDataSubjectRequest`.
+   */
+  executeErasure(input: { requestId: string }): AsyncResult<ErasureResult>;
   /** Refuses a request with the reason the requester receives. */
   refuseDataSubjectRequest(input: {
     requestId: string;
@@ -270,6 +290,27 @@ export interface DataLifecycle {
     readonly status?: DataSubjectRequestStatus | undefined;
     readonly openOnly?: boolean | undefined;
   }): AsyncResult<readonly DataSubjectRequest[]>;
+}
+
+function counts(value: unknown): Readonly<Record<string, number>> {
+  const out: Record<string, number> = {};
+
+  if (isRecord(value)) {
+    for (const [table, count] of Object.entries(value)) {
+      out[table] = Number(count);
+    }
+  }
+
+  return out;
+}
+
+function erasureOf(row: Record<string, unknown>): ErasureResult {
+  return {
+    removed: counts(row["removed"]),
+    blanked: counts(row["blanked"]),
+    kept: counts(row["kept"]),
+    held: counts(row["held"]),
+  };
 }
 
 const EXPORT_SUBJECTS: readonly DataExport["subject"][] = [
@@ -573,6 +614,10 @@ export function createDataLifecycle(
         "fulfil_data_subject_request",
         { id: requestId, resolution: resolution ?? null },
         requestOf,
+      ),
+    executeErasure: ({ requestId }) =>
+      call("erase_data_subject", { request_id: requestId }, (value) =>
+        erasureOf(recordOf(value, "erase_data_subject")),
       ),
     refuseDataSubjectRequest: ({ requestId, reason }) =>
       call("refuse_data_subject_request", { id: requestId, reason }, requestOf),

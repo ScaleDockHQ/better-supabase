@@ -68,12 +68,12 @@ peer as BS601.
 | `@workflow/world-postgres`              | `>=5.1.1 <5.2`            | `better-supabase/workflow-sdk/world`                                                                                             |
 | `zod`                                   | `>=4.6.7 <5`              | `better-supabase/generators/zod`, the `zod()` generator                                                                          |
 | `valibot`                               | `>=1.5.0 <2`              | `better-supabase/generators/valibot`, the `valibot()` generator                                                                  |
-| `eve`                                   | `>=0.83.3 <1`             | `better-supabase/eve`                                                                                                            |
+| `eve`                                   | `>=1.0.0-rc.0 <2`         | `better-supabase/eve`                                                                                                            |
 | `@ai-sdk/anthropic`                     | `>=4.0.103 <5`            | `anthropicMemory` in `better-supabase/ai-sdk/memory`                                                                             |
 | `@openfeature/server-sdk`               | `>=1.23.0 <2`             | `createFlagsProvider` in `better-supabase/blocks/flags`, as an OpenFeature server provider                                       |
 | `@supabase-labs/middleware-openfeature` | `>=0.2.0 <0.3`            | `createFlagClient` in `better-supabase/blocks/flags`                                                                             |
 | `@powersync/common`                     | `>=2.5.0 <3`              | `better-supabase/powersync`                                                                                                      |
-| `@vercel/connect`                       | `>=2.5.0 <3`              | `better-supabase/vercel-connect`                                                                                                 |
+| `@vercel/connect`                       | `>=2.5.2 <3`              | `better-supabase/vercel-connect`                                                                                                 |
 | `@vercel/queue`                         | `>=0.11.0 <0.12`          | `vercelQueueProvider` and `vercelQueueRoute` in `better-supabase/blocks/queue`                                                   |
 | `@vercel/sandbox`                       | `>=4.0.0 <5`              | `better-supabase/vercel-sandbox`                                                                                                 |
 | `@ai-sdk/sandbox-vercel`                | `>=1.0.182 <2`            | `better-supabase/vercel-sandbox`                                                                                                 |
@@ -90,8 +90,9 @@ peer as BS601.
 Each range starts at the release the conformance tests run on. Most cover one
 major release, or one minor release for a 0.x package. `h3` covers H3 1, the
 `h3/v1` entry that Nitro 2 and Nuxt 4 run, and H3 2, and both are tested.
-`eve`, `@json-render/core` and `oxfmt` accept any later 0.x release; `oxfmt`
+`@json-render/core` and `oxfmt` accept any later 0.x release; `oxfmt`
 starts at 0.66.0, the version `@supabase/postgrest-typegen` 0.8.1 requires.
+`eve` starts at the 1.0.0-rc.0 release candidate and covers 1.0.
 `temporal-polyfill`, `@supabase/postgrest-typegen` and
 `@supabase/mcp-server-supabase` have a floor and no upper bound. The CLI is
 tested against postgrest-typegen 0.8.1: `gen` prints a notice for any other
