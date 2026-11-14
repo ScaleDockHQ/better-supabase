@@ -978,7 +978,7 @@ export interface BlockNameRegistry {
       readonly "enrollments": "id" | "tenant" | "program" | "programVersion" | "subjectType" | "subjectId" | "user" | "steps" | "completedSteps" | "status" | "enrolledBy" | "enrolledAt" | "startsAt" | "endsAt" | "completedAt" | "cancelledAt" | "pausedAt" | "cancelReason" | "updatedAt";
       readonly "steps": "enrollment" | "tenant" | "step" | "assigneeRole" | "assigneeUser" | "dueAt" | "completedBy" | "completedAt";
     };
-    readonly functions: "cancel_enrollment" | "complete_enrollment_step" | "delete_enrollment_program" | "enroll" | "enrollment" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_json" | "enrollment_mark" | "enrollment_pause" | "enrollment_programs" | "enrollment_restart" | "enrollment_schedule" | "enrollment_step" | "list_enrollments" | "open_enrollment_steps" | "pause_enrollment" | "reset_enrollment_step" | "resume_enrollment" | "save_enrollment_program" | "set_enrollment_dates";
+    readonly functions: "cancel_enrollment" | "complete_enrollment_step" | "delete_enrollment_program" | "enroll" | "enrollment" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_json" | "enrollment_mark" | "enrollment_pause" | "enrollment_programs" | "enrollment_restart" | "enrollment_schedule" | "enrollment_step" | "get_enrollment" | "list_enrollments" | "open_enrollment_steps" | "page_enrollments" | "pause_enrollment" | "reset_enrollment_step" | "resume_enrollment" | "save_enrollment_program" | "set_enrollment_dates";
     readonly actions: "read" | "enroll" | "manage";
     readonly hooks: "before_enrollment_create" | "after_enrollment_create" | "before_enrollment_cancel" | "after_enrollment_cancel";
     readonly entities: {
@@ -1663,7 +1663,7 @@ export interface BlockNameRegistry {
       readonly "sequences": "tenant" | "entity" | "scope" | "period" | "lastNumber" | "createdAt" | "updatedAt";
     };
     readonly functions: "next_number" | "number_format" | "number_period" | "number_scope" | "preview_number" | "register_fixed_number" | "set_fixed_number" | "sync_number_sequences";
-    readonly actions: "assign";
+    readonly actions: "read" | "assign";
     readonly hooks: "before_number_assign" | "after_number_assign";
     readonly entities: {};
     readonly primary: never;
@@ -1772,7 +1772,7 @@ export interface BlockNameRegistry {
       readonly "passes": "id" | "tenant" | "kind" | "holderUser" | "holderName" | "holderEmail" | "subjectType" | "subjectId" | "booking" | "resource" | "usesAllowed" | "uses" | "validFrom" | "validUntil" | "status" | "nonce" | "issuedBy" | "createdAt" | "updatedAt" | "revokedAt";
       readonly "checkIns": "id" | "tenant" | "pass" | "resource" | "booking" | "gate" | "method" | "admitted" | "reason" | "checkedInBy" | "createdAt";
     };
-    readonly functions: "check_in_pass" | "get_pass" | "issue_pass" | "list_pass_check_ins" | "list_passes" | "my_passes" | "revoke_pass";
+    readonly functions: "check_in_pass" | "get_pass" | "issue_pass" | "list_pass_check_ins" | "list_passes" | "my_passes" | "page_passes" | "revoke_pass";
     readonly actions: "read" | "manage" | "checkIn";
     readonly hooks: never;
     readonly entities: {
@@ -1786,7 +1786,7 @@ export interface BlockNameRegistry {
       readonly "runs": "id" | "tenant" | "periodFrom" | "periodTo" | "label" | "status" | "format" | "checksum" | "exportedAt" | "exportedBy" | "createdBy" | "createdAt" | "updatedAt";
       readonly "lines": "id" | "tenant" | "run" | "user" | "employee" | "employeeName" | "kind" | "code" | "paid" | "unit" | "quantity" | "sourceCount" | "createdAt";
     };
-    readonly functions: "collect_payroll_lines" | "create_payroll_run" | "delete_payroll_run" | "get_payroll_run" | "list_payroll_runs" | "mark_payroll_run_exported" | "refresh_payroll_run";
+    readonly functions: "collect_payroll_lines" | "create_payroll_run" | "delete_payroll_run" | "get_payroll_run" | "list_payroll_runs" | "mark_payroll_run_exported" | "page_payroll_runs" | "refresh_payroll_run";
     readonly actions: "read" | "export";
     readonly hooks: never;
     readonly entities: {
@@ -2187,7 +2187,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "sequences": "id" | "tenant" | "key" | "name" | "description" | "status" | "exitOnReply" | "account" | "steps" | "version" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "change_sequence_enrollment" | "delete_sequence" | "enroll_in_sequence" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_mark" | "enrollment_pause" | "enrollment_restart" | "get_sequence" | "list_sequence_enrollments" | "list_sequences" | "run_due_sequences" | "save_sequence" | "sequence_exit" | "sequence_member_json" | "sequence_place" | "sequence_resync" | "sequence_step_done" | "sequence_step_failed" | "sequence_step_sent" | "sequence_steps_check";
+    readonly functions: "change_sequence_enrollment" | "delete_sequence" | "enroll_in_sequence" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_mark" | "enrollment_pause" | "enrollment_restart" | "get_sequence" | "list_sequence_enrollments" | "list_sequences" | "page_sequences" | "run_due_sequences" | "save_sequence" | "sequence_exit" | "sequence_member_json" | "sequence_place" | "sequence_resync" | "sequence_step_done" | "sequence_step_failed" | "sequence_step_sent" | "sequence_steps_check";
     readonly actions: "read" | "enroll" | "manage";
     readonly hooks: "before_sequence_save" | "after_sequence_save" | "before_sequence_enroll" | "after_sequence_enroll";
     readonly entities: {

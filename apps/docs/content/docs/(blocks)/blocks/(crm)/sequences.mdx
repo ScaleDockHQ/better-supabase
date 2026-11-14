@@ -205,6 +205,38 @@ Until 0.48, outbox consumers and automations that match the old
 | `SEQUENCE_NO_MAILER`            | `runDue` found due emails but the set has no `mailer` |
 | `SEQUENCE_NO_MAILBOX`           | a run has no mailbox to send from                     |
 
+## Paging a list
+
+`list` is the capped convenience list. `sequencePage` is the full contract for sequences (ADR 0749, 0779): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `name` and `updatedAt`, and the default order is name; filters are `status`; facets are `status`. Archived sequences stay out unless `status` lists `archived`.
+
+```ts
+const first = await sequences
+  .sequencePage({ filters: { status: ["active", "paused"] }, limit: 50 })
+  .orThrow();
+
+if (first.hasMore) {
+  const next = await sequences
+    .sequencePage({
+      filters: { status: ["active", "paused"] },
+      after: first.nextCursor,
+      limit: 50,
+    })
+    .orThrow();
+}
+
+// How many rows each facet value holds under the same filters.
+const facets = await sequences
+  .sequenceFacets({ filters: { status: ["active", "paused"] } })
+  .orThrow();
+
+// How many rows match; `exact` is false when the count stopped at its cap.
+const total = await sequences
+  .sequenceCount({ filters: { status: ["active", "paused"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the sequence does not declare returns an `invalid_input` error.
+
 ## Without the client
 
 `db.sequences` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:

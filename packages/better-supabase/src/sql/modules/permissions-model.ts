@@ -144,6 +144,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "funding.*",
     "payroll_export.*",
     "warranty.*",
+    "numbering.*",
   ],
   member: [
     "organization.read",
@@ -387,6 +388,7 @@ export const OPERATIONS = {
   "ai-schedules.manage": "ai_schedules.manage",
   "ai-keys.use": "ai_keys.use",
   "ai-keys.manage": "ai_keys.manage",
+  "numbering.read": "numbering.read",
   "numbering.assign": "numbering.assign",
   "teams.manage": "teams.manage",
   "teams.read": "teams.read",

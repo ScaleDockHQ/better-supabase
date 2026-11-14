@@ -958,7 +958,7 @@ begin
     keys := better_supabase.permission_claims((event ->> 'user_id')::uuid, tenant::uuid);
   end if;
 
-  if octet_length(keys::text) > 2048 then
+  if octet_length(replace(replace(keys::text, '", "', '","'), '": [', '":[')) > 2048 then
     claims := jsonb_set(claims, '{permissions}', '{}'::jsonb);
     claims := jsonb_set(claims, '{permissions_truncated}', 'true'::jsonb);
   else
@@ -976,8 +976,14 @@ keys don't fit, the hook writes an empty claim and
 `permissions_truncated: true`. A catalog with many keys per
 resource can fold a resource whose every action is granted into
 `resource.*` before measuring; `permissionMatches` reads the wildcard. The
-example's `rbac.compact_permission_keys` does this and takes an owner from
-4.7 KB to 1.3 KB.
+example's `rbac.compact_permission_keys` does this: with 413 keys in the
+catalog it takes an owner from 7.5 KB to 2.0 KB, and an admin to about the
+same. Measure the claim as the token carries it: `jsonb` prints a space after
+each comma and colon that the token's JSON does not have, so the example hook
+measures
+`octet_length(replace(replace(keys::text, '", "', '","'), '": [', '":['))`.
+A member holds about 170 keys that fold to 2.8 KB, so a member's token carries
+`permissions_truncated` and the app reads `my_permissions()`.
 
 Read the claim with `permissionsOf`:
 

@@ -3,6 +3,7 @@ import type { PassesEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { passesEvents } from "./events.ts";
+import { passListSurface } from "./lists.ts";
 import { passesSqlOptions } from "./options.ts";
 import { createPasses } from "./passes.ts";
 import { passesBinding } from "./record-binding.ts";
@@ -26,7 +27,11 @@ export const passesBlock: BlockOf<
   record: passesBinding,
   category: "scheduling",
   entities: {
-    pass: { mutability: "state-machine", emits: { create: false } },
+    pass: {
+      ...passListSurface,
+      mutability: "state-machine",
+      emits: { create: false },
+    },
     pass_check_in: { mutability: "read-only" },
   },
   concerns: ["lifecycle"],

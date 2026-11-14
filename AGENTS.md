@@ -89,19 +89,22 @@ agent needs it twice.
 
 ## When you change X, also update Y
 
-| Change                  | Also update                                                                                                   |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
-| A subpath               | exports map, `tsdown.config.ts`, size baseline, export snapshot, README table                                 |
-| A public export         | `api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff                                   |
-| An env key              | the app's `env.ts`, all three Vercel environments, `turbo.json`, `.env.example`                               |
-| A CLI command or flag   | its docs page under `cli/`, the help snapshot, the changeset                                                  |
-| A dependency bump       | the catalog pin, "Pre-release pins", the changeset or commit note, an ADR                                     |
-| A `typescript` bump     | `oxlint-tsgolint` in the same commit                                                                          |
-| A Next.js bump          | run `next dev` once in each Next.js app                                                                       |
-| A file move             | Knip entries, the `tests/` mirror path, the folder's `meta.json` for a docs page                              |
-| A rename                | the docs Naming page (`docs:drift` checks `lib/supabase/*` names), the changeset's old-to-new table           |
-| A perf-sensitive change | the bundle (with the CLI startup entry), type and benchmark baselines, before and after numbers in the commit |
-| A user-visible change   | a changeset (`pnpm changeset`)                                                                                |
+| Change                                 | Also update                                                                                                                                                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A subpath                              | exports map, `tsdown.config.ts`, size baseline, export snapshot, README table                                                                                                                                       |
+| A public export                        | `api/exports.json` (`vitest run tests/exports.test.ts -u`), review the diff                                                                                                                                         |
+| An env key                             | the app's `env.ts`, all three Vercel environments, `turbo.json`, `.env.example`                                                                                                                                     |
+| A CLI command or flag                  | its docs page under `cli/`, the help snapshot, the changeset                                                                                                                                                        |
+| A dependency bump                      | the catalog pin, "Pre-release pins", the changeset or commit note, an ADR                                                                                                                                           |
+| A `typescript` bump                    | `oxlint-tsgolint` in the same commit                                                                                                                                                                                |
+| A Next.js bump                         | run `next dev` once in each Next.js app                                                                                                                                                                             |
+| A file move                            | Knip entries, the `tests/` mirror path, the folder's `meta.json` for a docs page                                                                                                                                    |
+| A rename                               | the docs Naming page (`docs:drift` checks `lib/supabase/*` names), the changeset's old-to-new table                                                                                                                 |
+| A block's permission key               | `OPERATIONS`, `MODULE_PERMISSION_SCOPES` and `DEFAULT_ROLES` in `src/sql/modules`, the manifest's `entities.<key>.permissions`, `pnpm catalog`, `pnpm db:gen` (writes the catalog migration), the block's docs page |
+| The access token hook's claims         | `supabase/tests/database/permission_claim_budget.test.sql` (owner and admin fit 2048 bytes), the permissions docs page, the 2048 byte note in `docs/agents/nextjs.md`                                               |
+| A list option that has a per-call form | the `ListExtra` type, `list.mdx` and the config's own doc comment                                                                                                                                                   |
+| A perf-sensitive change                | the bundle (with the CLI startup entry), type and benchmark baselines, before and after numbers in the commit                                                                                                       |
+| A user-visible change                  | a changeset (`pnpm changeset`)                                                                                                                                                                                      |
 
 The rows for each area are in `.agents/rules/also-update-library.mdc`,
 `also-update-blocks.mdc` and `also-update-repo.mdc`.

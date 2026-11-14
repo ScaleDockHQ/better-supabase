@@ -6,8 +6,10 @@ import type {
   PageOptions,
 } from "./block-helpers.ts";
 import type { Result } from "./result.ts";
+import type { BlockTenant } from "./tenant-source.ts";
 
 import { pageRowsOf, recordOf, recordsOf, textOf } from "./block-helpers.ts";
+import { requireTenant } from "./block-tenant.ts";
 import { dbError } from "./errors.ts";
 import { AsyncResult, err, ok } from "./result.ts";
 
@@ -24,6 +26,36 @@ export interface EntityListSurface {
   readonly search?: boolean | readonly string[];
 }
 
+/**
+ * What a list adds when its organization comes with the call instead of the
+ * block's `tenant` option (ADR 0939). Without it the list reads the block's
+ * `tenant`, and fails with `TENANT_REQUIRED` when neither is set.
+ */
+export interface TenantOption {
+  /** The organization to read. Default: the block's `tenant` option. */
+  readonly organizationId?: string;
+}
+
+/**
+ * What a list adds when its block has no `tenant` option, so every call names
+ * the organization (ADR 0939).
+ */
+export interface RequiredTenantOption {
+  /** The organization to read. */
+  readonly organizationId: string;
+}
+
+/**
+ * The arguments of a read: the options are required when `Extra` has a required
+ * key.
+ */
+export type ListArgs<
+  Options extends object,
+  Extra extends object,
+> = object extends Extra
+  ? [options?: Options & Extra]
+  : [options: Options & Extra];
+
 /** What `facets` reads: the filters of `page`, and the facets to count. */
 export interface FacetOptions extends Pick<PageOptions, "q" | "filters"> {
   /** The facets to count. Default every facet the entity declares. */
@@ -33,16 +65,24 @@ export interface FacetOptions extends Pick<PageOptions, "q" | "filters"> {
 /** What `count` reads: the filters of `page`. */
 export type CountOptions = Pick<PageOptions, "q" | "filters">;
 
-/** The three reads every list entity has (ADR 0749). */
-export interface EntityList<Item> {
+/**
+ * The three reads every list entity has (ADR 0749). `Extra` is what a block
+ * adds to all three options, such as `TenantOption` for a list that takes the
+ * organization per call (ADR 0939).
+ */
+export interface EntityList<Item, Extra extends object = object> {
   /** One keyset page, in the order of `sort` (the entity's default without it). */
-  readonly page: (options?: PageOptions) => AsyncResult<ListPage<Item>>;
+  readonly page: (
+    ...args: ListArgs<PageOptions, Extra>
+  ) => AsyncResult<ListPage<Item>>;
   /** The values of each facet and how many rows hold each, under the filters. */
   readonly facets: (
-    options?: FacetOptions,
+    ...args: ListArgs<FacetOptions, Extra>
   ) => AsyncResult<readonly FacetResult[]>;
   /** How many rows match; `exact` is `false` when the count stopped at a cap. */
-  readonly count: (options?: CountOptions) => AsyncResult<Count>;
+  readonly count: (
+    ...args: ListArgs<CountOptions, Extra>
+  ) => AsyncResult<Count>;
 }
 
 /** What `entityList` needs from a block. */
@@ -51,12 +91,31 @@ export interface EntityListSpec<Item> {
   readonly entity: string;
   readonly surface: EntityListSurface;
   readonly call: BlockCall;
-  readonly tenant: () => AsyncResult<string>;
+  /**
+   * The organization to read, given the call's `organizationId` when it has
+   * one. A block with a `tenant` option passes `() => requireTenant(...)`; a
+   * block that takes the organization per call passes `tenantOrOption`.
+   */
+  readonly tenant: (organizationId?: string) => AsyncResult<string>;
   /** The block's SQL list function. */
   readonly fn: string;
   readonly rowOf: (row: Record<string, unknown>, fn: string) => Item;
   /** Filters the list always sends, such as `{ mine: true }` for a member. */
   readonly base?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The `tenant` of a list that takes the organization per call (ADR 0939): the
+ * call's `organizationId` when set, else the block's `tenant` option through
+ * `requireTenant`.
+ */
+export function tenantOrOption(
+  tenant: BlockTenant | undefined,
+): (organizationId?: string) => AsyncResult<string> {
+  return (organizationId) =>
+    organizationId === undefined
+      ? requireTenant(tenant)
+      : AsyncResult.ok(organizationId);
 }
 
 const invalid = <T>(message: string): Result<T> =>
@@ -150,16 +209,22 @@ function facetOf(value: unknown, fn: string): FacetResult {
  * A block builds one per list entity from the entity's declared surface; it
  * keeps its own `list` for the capped convenience.
  */
-export function entityList<Item>(spec: EntityListSpec<Item>): EntityList<Item> {
+export function entityList<Item, Extra extends object = object>(
+  spec: EntityListSpec<Item>,
+): EntityList<Item, Extra>;
+export function entityList<Item>(
+  spec: EntityListSpec<Item>,
+): EntityList<Item, TenantOption> {
   const { call, fn, tenant } = spec;
 
   const read = <T>(
+    organization: string | undefined,
     filters: Result<Record<string, unknown>>,
     extra: Readonly<Record<string, unknown>>,
     then: (value: unknown) => T,
   ): AsyncResult<T> =>
     filters.ok
-      ? tenant().andThen((organizationId) =>
+      ? tenant(organization).andThen((organizationId) =>
           call(
             fn,
             { tenant: organizationId, filters: { ...filters.data, ...extra } },
@@ -169,13 +234,21 @@ export function entityList<Item>(spec: EntityListSpec<Item>): EntityList<Item> {
       : AsyncResult.err(filters.error);
 
   return {
-    page: (options = {}) =>
-      read(listFilters(spec, options), { paged: true }, (value) => {
-        const page = pageRowsOf(value, fn);
+    page: (options: PageOptions & TenantOption = {}) =>
+      read(
+        options.organizationId,
+        listFilters(spec, options),
+        { paged: true },
+        (value) => {
+          const page = pageRowsOf(value, fn);
 
-        return { ...page, items: page.items.map((row) => spec.rowOf(row, fn)) };
-      }),
-    facets: (options = {}) => {
+          return {
+            ...page,
+            items: page.items.map((row) => spec.rowOf(row, fn)),
+          };
+        },
+      ),
+    facets: (options: FacetOptions & TenantOption = {}) => {
       const names = options.facets ?? spec.surface.facets ?? [];
 
       const unknown = names.find(
@@ -198,7 +271,9 @@ export function entityList<Item>(spec: EntityListSpec<Item>): EntityList<Item> {
 
         const reads = await Promise.all(
           names.map((facet) =>
-            read(filters, { facet }, (value) => facetOf(value, fn)),
+            read(options.organizationId, filters, { facet }, (value) =>
+              facetOf(value, fn),
+            ),
           ),
         );
 
@@ -213,9 +288,12 @@ export function entityList<Item>(spec: EntityListSpec<Item>): EntityList<Item> {
         return ok<readonly FacetResult[]>(results);
       });
     },
-    count: (options = {}) =>
-      read(listFilters(spec, options), { count: true }, (value) =>
-        countOf(value, fn),
+    count: (options: CountOptions & TenantOption = {}) =>
+      read(
+        options.organizationId,
+        listFilters(spec, options),
+        { count: true },
+        (value) => countOf(value, fn),
       ),
   };
 }

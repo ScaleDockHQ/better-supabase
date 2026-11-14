@@ -31515,6 +31515,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "number.assigned"
         ]
+      },
+      "entityPermissions": {
+        "number": {
+          "read": "numbering.read",
+          "assign": "numbering.assign"
+        }
       }
     },
     {

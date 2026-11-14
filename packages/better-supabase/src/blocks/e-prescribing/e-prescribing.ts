@@ -1,4 +1,11 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType, Err } from "../../core/result.ts";
 import type { FhirMedicationRequestOptions } from "../../fhir/medications.ts";
@@ -12,6 +19,7 @@ import type { BlockOptions, RecordRef } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { toFhirPrescription } from "../../fhir/prescriptions.ts";
@@ -27,6 +35,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { prescriptionListSurface } from "./lists.ts";
 
 /** Where a prescription stands. */
 export type PrescriptionStatus = (typeof PRESCRIPTION_STATUSES)[number];
@@ -197,6 +206,23 @@ export interface EPrescribingClient {
   list(
     options?: PrescriptionListOptions,
   ): AsyncResultType<readonly Prescription[]>;
+  /**
+   * One keyset page of the organization's prescriptions, newest first (or in
+   * the order of `sort`), with `hasMore` and a `nextCursor` to pass as
+   * `after`.
+   */
+  prescriptionPage(
+    options?: PageOptions,
+  ): AsyncResultType<ListPage<Prescription>>;
+  /**
+   * The values of each facet of prescriptions and their counts, under the
+   * page's filters.
+   */
+  prescriptionFacets(
+    options?: FacetOptions,
+  ): AsyncResultType<readonly FacetResult[]>;
+  /** How many prescriptions match the page's filters. */
+  prescriptionCount(options?: CountOptions): AsyncResultType<Count>;
   /** The signed prescription as the `MedicationRequest` a gateway receives. */
   medicationRequest(
     prescriptionId: string,
@@ -451,7 +477,19 @@ export function createEPrescribing(
       }
     });
 
+  const prescriptions = entityList({
+    entity: "prescription",
+    surface: prescriptionListSurface,
+    call,
+    tenant,
+    fn: "list_prescriptions",
+    rowOf: prescriptionOf,
+  });
+
   const client: EPrescribingClient = {
+    prescriptionPage: prescriptions.page,
+    prescriptionFacets: prescriptions.facets,
+    prescriptionCount: prescriptions.count,
     create: ({ orderId, ...input }) =>
       tenant().andThen((organizationId) =>
         one("create_prescription", {

@@ -1,6 +1,17 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -13,7 +24,8 @@ import {
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -24,6 +36,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { accessRequestListSurface } from "./lists.ts";
 
 export interface AccessRequestsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -216,6 +229,23 @@ export interface AccessRequests<F extends object = Record<never, never>> {
   list(
     input: { organizationId: string } & AccessRequestListOptions,
   ): AsyncResult<readonly (AccessRequest & F)[]>;
+  /**
+   * One keyset page of the organization's requests, newest first. Filter by
+   * `status`, `role` and `mine` (`["true"]`); readers of the organization see
+   * every request, others their own.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<AccessRequest & F>>;
+  /**
+   * The values of each facet (`status`, `role`) and how many requests hold
+   * each.
+   */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many requests match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
 }
 
 const STATUSES: readonly AccessRequestStatus[] = [
@@ -367,6 +397,18 @@ export function createAccessRequests<
       (value) => [value, recordRequestOf(value, fn)] as const,
     ).andThen(([raw, row]) => withFields(fields, raw, row));
 
+  const entries = entityList<
+    readonly [unknown, AccessRequest],
+    RequiredTenantOption
+  >({
+    entity: "access_request",
+    surface: accessRequestListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "list_access_requests",
+    rowOf: (raw, fn) => [raw, requestOf(raw, fn)] as const,
+  });
+
   const client: AccessRequests<FieldsOf<S>> = {
     request: ({ organizationId, role, reason, duration, ...extra }) =>
       AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
@@ -442,16 +484,28 @@ export function createAccessRequests<
         "list_access_requests",
         {
           tenant: organizationId,
-          status: list.status ?? null,
-          mine: list.mine ?? false,
-          page_size: list.pageSize ?? null,
-          before: list.before?.toString() ?? null,
+          filters: {
+            ...(list.status === undefined ? {} : { status: list.status }),
+            ...(list.mine === true ? { mine: true } : {}),
+            ...(list.pageSize === undefined ? {} : { limit: list.pageSize }),
+            ...(list.before === undefined
+              ? {}
+              : { before: list.before.toString() }),
+          },
         },
         (value) =>
           recordsOf(value, "list_access_requests").map(
             (raw) => [raw, requestOf(raw, "list_access_requests")] as const,
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
+    page: (pageOptions) =>
+      entries.page(pageOptions).andThen(async (page) => {
+        const items = await allWithFields(fields, page.items);
+
+        return items.ok ? ok({ ...page, items: items.data }) : items;
+      }),
+    facets: entries.facets,
+    count: entries.count,
   };
 
   return withBlockHooks(client, options.hooks, {

@@ -9,13 +9,20 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  filterFirst,
+  filterFlag,
+  filterSet,
+  listBody,
+  listDeclare,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   extraFieldsArg,
   extraFieldsJson,
   fail,
   lockTable,
-  pageSize,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
@@ -254,6 +261,37 @@ function build(ctx: BlockSqlContext): string {
 
   const json = (row: string, state: string): string =>
     `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'userId', ${row}.${c("user")}, 'role', ${row}.${c("role")}${recordJson(row)}, 'previousRole', ${row}.${c("previousRole")}, 'reason', ${reasonOf(row)}, 'duration', ${row}.${c("duration")}::text, 'status', ${state}, 'approvalId', ${row}.${c("approval")}, 'grantedAt', ${row}.${c("grantedAt")}, 'expiresAt', ${row}.${c("expiresAt")}, 'endedAt', ${row}.${c("endedAt")}, 'createdAt', ${row}.${c("createdAt")}${extraFieldsJson(row, extras)})`;
+
+  // The requests with their derived status, so a filter and a facet read it
+  // as a column.
+  const list = {
+    name: "list_access_requests",
+    from: `(select q.*, ${status("q", "x")} as bs_status from ${requests} q left join ${ar} x on x.${a("id")} = q.${c("approval")})`,
+    alias: "r",
+    where: [
+      `r.${c("tenant")} = list_access_requests.tenant`,
+      `(r.${c("user")} = auth.uid() or (not ${filterFlag("mine")} and (${SERVICE_CALLER} or ${ctx.can("tenant", "list_access_requests.tenant", read)})))`,
+      filterAny("status", "r.bs_status"),
+      filterAny("role", `r.${c("role")}::text`),
+      `(not ${filterSet("before")} or r.${c("createdAt")} < (${filterFirst("before")})::timestamptz)`,
+    ],
+    keys: [
+      { expr: `r.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `r.${c("id")}`, dir: "desc", type: "uuid" },
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `r.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `r.${c("id")}`, dir: "desc", type: "uuid" },
+      ],
+    },
+    facets: { status: "r.bs_status", role: `r.${c("role")}` },
+    rowJson: json("r", "r.bs_status"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string): string =>
+      fail("ACCESS_REQUEST_INVALID", message, "22023"),
+  } as const;
 
   const recordPayload = (row: string): string =>
     records
@@ -597,29 +635,27 @@ $$;
 ${userGrant(`${fn("get_access_request")}(uuid)`)}
 
 -- Newest first. Readers of the organization see every request; others see
--- their own.
-create or replace function ${fn("list_access_requests")}(tenant ${ctx.idType}, status text default null, mine boolean default false, page_size integer default null, before timestamptz default null)
+-- their own. filters is { status, mine, role, before, sort, direction, facet,
+-- count, limit, after, offset, paged, total, totalCap } (ADR 0749); status and
+-- role take a value or a list, mine takes true, and before is a timestamp that
+-- keeps older requests.
+create or replace function ${fn("list_access_requests")}(tenant ${ctx.idType}, filters jsonb default '{}')
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 set intervalstyle = 'iso_8601'
 as $$
-  select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
-  from (
-    select ${json("r", status("r", "x"))} as item, r.${c("createdAt")} as created
-    from ${requests} r
-    left join ${ar} x on x.${a("id")} = r.${c("approval")}
-    where r.${c("tenant")} = list_access_requests.tenant
-      and (r.${c("user")} = auth.uid() or (not list_access_requests.mine and (${SERVICE_CALLER} or ${ctx.can("tenant", "list_access_requests.tenant", read)})))
-      and (list_access_requests.status is null or ${status("r", "x")} = list_access_requests.status)
-      and (list_access_requests.before is null or r.${c("createdAt")} < list_access_requests.before)
-    order by r.${c("createdAt")} desc
-    limit ${pageSize("list_access_requests.page_size", 50, 200)}
-  ) items
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_access_requests.filters, '{}'::jsonb);
+  ${listDeclare(list)}
+begin
+  ${listBody(list)}
+end;
 $$;
-${userGrant(`${fn("list_access_requests")}(${ctx.idType}, text, boolean, integer, timestamptz)`)}
+${userGrant(`${fn("list_access_requests")}(${ctx.idType}, jsonb)`)}
 ${records ? recordAccessSql(ctx, kit) : ""}`;
 }
 

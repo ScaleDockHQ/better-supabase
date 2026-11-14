@@ -164,7 +164,8 @@ cache fails with `Could not resolve "better-supabase/blocks/..."`.
   content, not the working tree.
 - The token hook writes the active tenant's permission keys into the
   `permissions` claim, so the proxy answers a gated page with the 403 page
-  before rendering, with no database read. A token over the 2048-byte budget
+  before rendering, with no database read. A token over the 2048-byte budget (measured as the token carries it,
+  without the spaces `jsonb` prints; an owner is 2,040 bytes, a member stays over)
   carries `permissions_truncated` and no keys; the proxy lets it through and
   `getPermissions()` falls back to `my_permissions`. Don't gate pages from a
   client component after render; that was `PermissionRedirect`, and it showed

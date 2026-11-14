@@ -1,5 +1,16 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
@@ -12,6 +23,7 @@ import type {
 } from "./provider.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import {
@@ -28,6 +40,7 @@ import {
 } from "../shared.ts";
 import { dohResolver } from "../sso/sso.ts";
 import { domainProviderOf } from "./provider.ts";
+import { hostnameListSurface } from "./lists.ts";
 
 /** The DNS record that proves a custom domain belongs to the organization. */
 export interface HostnameRecord {
@@ -93,6 +106,23 @@ export interface Domains {
   }): AsyncResult<Hostname>;
   /** The organization's hostnames, primary first (needs `domains.read`). */
   list(organizationId: string): AsyncResult<readonly Hostname[]>;
+  /**
+   * One keyset page of the organization's hostnames, the primary first. Sort by
+   * `hostname` or `createdAt`, filter by `kind` and `verified` (`true` or
+   * `false`). Needs `domains.read`.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Hostname>>;
+  /**
+   * The values of each facet (`kind`, `verified`) and how many hostnames hold
+   * each.
+   */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many hostnames match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
   /** Makes a verified hostname the primary one. */
   setPrimary(hostnameId: string): AsyncResult<Hostname>;
   /** `false` when the caller manages no hostname with this id. */
@@ -170,6 +200,15 @@ export function createDomains(options: DomainsOptions): Domains {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const entries = entityList<Hostname, RequiredTenantOption>({
+    entity: "hostname",
+    surface: hostnameListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "list_hostnames",
+    rowOf: hostnameOf,
+  });
+
   const client: Domains = {
     add: ({ organizationId, hostname }) =>
       call("add_hostname", { tenant: organizationId, hostname }, hostnameOf),
@@ -177,6 +216,9 @@ export function createDomains(options: DomainsOptions): Domains {
       call("list_hostnames", { tenant: organizationId }, (value) =>
         recordsOf(value, "list_hostnames").map(hostnameOf),
       ),
+    page: entries.page,
+    facets: entries.facets,
+    count: entries.count,
     setPrimary: (hostnameId) =>
       call("set_primary_hostname", { id: hostnameId }, hostnameOf),
     remove: (hostnameId) =>
