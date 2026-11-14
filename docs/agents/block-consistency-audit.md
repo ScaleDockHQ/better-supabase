@@ -1157,12 +1157,13 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X9
 
 - Scope: CRM and records (after G4)
-- Status: in progress
+- Status: in review
 - Branch: `feat/findings-x9`
-- PR: none yet
+- PR: #936
 - Findings: EX-601, EX-602, EX-032, EX-035, EX-103
 - Log: 2026-11-14, planned.
 - Log: 2026-11-14, started on `feat/findings-x9`.
+- Log: 2026-11-14, opened #936: record sections by subject, quotes and sequences as overview and detail, companies route, `?new=1` create dialogs, deal calendar, timeline, owner assignment and buyer thread (ADRs 1019 to 1021).
 
 ## Lane ownership
 
