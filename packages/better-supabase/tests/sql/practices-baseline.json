@@ -572,7 +572,7 @@
     "security-definer-functions": 180
   },
   "warranty": {
-    "security-definer-functions": 24,
+    "security-definer-functions": 30,
     "row-triggers": 6
   },
   "incoming-webhooks": {

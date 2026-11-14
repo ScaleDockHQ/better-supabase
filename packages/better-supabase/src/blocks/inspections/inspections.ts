@@ -3,7 +3,14 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -12,6 +19,7 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   INSPECTION_MEMBER_ROLES,
@@ -30,6 +38,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { inspectionListSurface } from "./lists.ts";
 
 /** Where an audit programme stands. */
 export type InspectionProgramStatus =
@@ -252,6 +261,17 @@ export interface Inspections<F extends object = Record<never, never>> {
   notifyOverdue(): AsyncResult<number>;
   get(inspectionId: string): AsyncResult<InspectionDetail<F>>;
   list(options?: InspectionListOptions): AsyncResult<readonly Inspection<F>[]>;
+  /**
+   * One keyset page of inspections, in the order of `sort` (the latest planned
+   * first by default): the rows, `hasMore` and a `nextCursor` to pass as
+   * `after`. Without `inspections.read` it holds the inspections the caller is
+   * a member of.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<Inspection<F>>>;
+  /** The inspections per status and kind, under the page's filters. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many inspections match the page's filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
   addFinding(input: {
     inspectionId: string;
     input: InspectionFindingInput;
@@ -475,6 +495,16 @@ export function createInspections<
   );
 
   const one = (fn: string) => (value: unknown) => inspectionOf(value, fn);
+
+  const inspections = entityList({
+    entity: "inspection",
+    surface: inspectionListSurface,
+    call,
+    tenant,
+    fn: "list_inspections",
+    rowOf: inspectionOf,
+  });
+
   const finding = (fn: string) => (value: unknown) => findingOf(value, fn);
   const program = (fn: string) => (value: unknown) => programOf(value, fn);
 
@@ -612,6 +642,14 @@ export function createInspections<
             ),
         ).andThen(fields.rows),
       ),
+    page: (page = {}) =>
+      inspections
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    facets: inspections.facets,
+    count: inspections.count,
     addFinding: ({ inspectionId, input }) =>
       call(
         "add_inspection_finding",

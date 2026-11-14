@@ -9,7 +9,7 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { listBody, listDeclare } from "../list-template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -203,13 +203,24 @@ function functions(ctx: BlockSqlContext): string {
     alias: "x",
     where: [
       `x.${c("tenant")} = list_warranty_claims.tenant`,
-      `(v_status is null or x.${c("status")} = v_status)`,
-      `(v_asset is null or x.${c("asset")} = v_asset::uuid)`,
+      filterAny("status", `x.${c("status")}`),
+      filterAny("assetId", `x.${c("asset")}`, "uuid"),
     ],
     keys: [
       { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
       { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
     ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+      amount: [
+        { expr: `x.${c("amount")}`, dir: "desc", type: "bigint" },
+        { expr: `x.${c("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${c("status")}` },
     rowJson: q.claim("x"),
     invalid: q.invalid,
   } as const;
@@ -378,8 +389,30 @@ end;
 $$;
 ${userGrant(`${fn("decide_warranty_claim")}(uuid, text, text)`)}
 
--- Claims of an organization, newest first. filters is { status, assetId, limit, after, offset,
--- paged, total, totalCap }.
+-- A claim by id. Needs warranty.read.
+create or replace function ${fn("get_warranty_claim")}(claim_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${claims};
+begin
+  select * into v_row from ${claims} x where x.${c("id")} = get_warranty_claim.claim_id;
+  if not found or not ${q.allowed(`v_row.${c("tenant")}`, q.read)} then
+    ${q.missing}
+  end if;
+  return ${q.claim("v_row")};
+end;
+$$;
+${userGrant(`${fn("get_warranty_claim")}(uuid)`)}
+
+-- Claims of an organization, newest first. filters is { status, assetId (each a
+-- value or a list of them), sort, direction, facet, count, limit, after,
+-- offset, paged, total, totalCap } (ADR 0749).
 -- Needs warranty.read.
 create or replace function ${fn("list_warranty_claims")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
@@ -392,16 +425,20 @@ as $$
 declare
   v_filters jsonb := coalesce(list_warranty_claims.filters, '{}'::jsonb);
   ${listDeclare(list)}
-  v_status text := nullif(v_filters ->> 'status', '');
-  v_asset text := nullif(v_filters ->> 'assetId', '');
 begin
   if not ${q.allowed("list_warranty_claims.tenant", q.read)} then
     ${q.forbidden("not allowed to read warranty claims")}
   end if;
-  if v_status is not null and v_status not in (${STATUSES}) then
+  if exists (
+    select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'status') = 'array' then v_filters -> 'status' else jsonb_build_array(v_filters -> 'status') end) s
+    where s not in (${STATUSES})
+  ) then
     ${q.invalid("status is not a warranty status")}
   end if;
-  if v_asset is not null and v_asset !~ '${UUID}' then
+  if exists (
+    select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'assetId') = 'array' then v_filters -> 'assetId' else jsonb_build_array(v_filters -> 'assetId') end) s
+    where s !~ '${UUID}'
+  ) then
     ${q.invalid("assetId must be a uuid")}
   end if;
   ${listBody(list)}
@@ -455,6 +492,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "submit_warranty_claim", args: ["uuid"], returns: "jsonb" },
+    { name: "get_warranty_claim", args: ["uuid"], returns: "jsonb" },
     {
       name: "decide_warranty_claim",
       args: ["uuid", "text", "text"],
