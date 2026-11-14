@@ -42,6 +42,13 @@ set last_inbound_at = now() - interval '2 days',
     created_at = now() - interval '2 days'
 where c.thread_id = 'sim:whatsapp:31612345678';
 
+update better_supabase.messages m
+set sent_at = now() - interval '2 days',
+    created_at = now() - interval '2 days'
+from better_supabase.inbox_conversations c
+where m.conversation_id = c.id
+  and c.thread_id = 'sim:whatsapp:31612345678';
+
 insert into better_supabase.inbox_message_templates (tenant_id, inbox_id, name, channel, language, body) values
   ('00000000-0000-4000-8000-000000000001', null, 'Thanks and next steps', 'in_app', 'en', 'Thanks for getting in touch. We are looking into it and will reply here today.'),
   ('00000000-0000-4000-8000-000000000001', null, 'Thanks and next steps', 'email', 'en', 'Hello,\n\nThanks for getting in touch. We are looking into it and will reply today.\n\nAcme support'),
@@ -135,6 +142,13 @@ from (values
 ) as d(id, number, name, company_id, owner_id, amount, stage_key, category, close_on, age)
 join better_supabase.pipelines p on p.key = 'sales' and p.tenant_id = '00000000-0000-4000-8000-000000000001'
 join better_supabase.pipeline_stages st on st.pipeline_id = p.id and st.key = d.stage_key;
+
+-- Wile, the contact of the invoice conversation in the inbox, is a person on the
+-- Initech rollout, so the inbox's context pane lists that deal.
+insert into better_supabase.deal_contacts (tenant_id, deal_id, contact_type, contact_id, role, is_primary)
+select '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000d0002', 'person', p.id::text, 'Billing', true
+from better_supabase.people p
+where p.tenant_id = '00000000-0000-4000-8000-000000000001' and p.email = 'wile@acme-roadrunner.test';
 
 -- The company field the segments and the score model test; the app writes the
 -- same catalog at start-up (features/rules/sync-rule-fields.ts).

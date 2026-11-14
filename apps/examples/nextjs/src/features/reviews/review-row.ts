@@ -7,6 +7,12 @@ export interface ReviewRow {
   readonly rating: number;
   readonly status: "pending" | "published" | "rejected";
   readonly verified: boolean;
+  /**
+   * The subject's name through `subjects.label`; its type when none is
+   * readable.
+   */
   readonly subject: string;
+  readonly subjectType: string;
+  readonly subjectId: string;
   readonly createdAt: string;
 }

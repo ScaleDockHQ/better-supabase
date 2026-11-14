@@ -13,12 +13,13 @@ import { Link, toAppHref } from "@/i18n/navigation";
 import type { ConversationContext } from "../inbox-queries";
 
 import { FIRST_RESPONSE_TARGET_MINUTES } from "../inbox-types";
+import { ContactDeals } from "./contact-deals";
 
 /**
  * The right pane of a conversation: the contact, the conversation's own facts
- * (channel account, priority, first response against the SLA target) and the
- * contact's earlier conversations. Deals and orders of the contact's company
- * wait for a link between inbox contacts and CRM people (EX-403).
+ * (channel account, priority, first response against the SLA target), the open
+ * deals that name the contact (an inbox contact is a CRM person) and the
+ * contact's earlier conversations. Orders have no link to a person yet.
  */
 export function ConversationContextPanel({
   context,
@@ -72,6 +73,7 @@ export function ConversationContextPanel({
           ))}
         </dl>
       </section>
+      <ContactDeals conversationId={conversation.id} />
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium">{t("Earlier conversations")}</h2>
         {history.length === 0 ? (

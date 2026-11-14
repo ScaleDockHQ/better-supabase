@@ -1096,11 +1096,13 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X3
 
 - Scope: Example-only fixes, and the forms and names on lane C and N
-- Status: planned
+- Status: in progress
 - Branch: `feat/findings-x3`
-- PR: none yet
+- PR: [#926](https://github.com/ScaleDockHQ/better-supabase/pull/926)
 - Findings: EX-1505, EX-925, EX-042, EX-804, EX-411, EX-703, EX-104, EX-803, EX-809, EX-610, EX-810, EX-101, EX-402
 - Log: 2026-11-14, planned.
+- Log: 2026-11-14, started in `../bsb-findings-x3`.
+- Log: 2026-11-14, all 13 rows worked: 11 fixed or closed or measured away, EX-104 waits for `AI_GATEWAY_API_KEY`. ADR 0959, migration `20270103120000`.
 
 ### Lane X4
 

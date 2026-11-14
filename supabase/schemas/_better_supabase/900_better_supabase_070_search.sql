@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@5 managed
--- @bsb-hash sha256:9dcdfdff2cdbe3ec738c286b587b04a936efb337420e7174508c2a3716ff9ee1
+-- @bsb-hash sha256:b16648c537cac6dc2478801afd6e1c9f7af80c2fd3454a9496a9fd1747936074
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,13 +112,13 @@ begin
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'company' then
-      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."domain"::text), ''), '/crm/contacts/' || s."id"::text, '{}'::jsonb
+      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."domain"::text, s."website"::text), ''), '/crm/contacts/' || s."id"::text, '{}'::jsonb
         into v_tenant, v_title, v_body, v_url, v_facets
         from "better_supabase"."companies" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'person' then
-      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."email"::text, s."title"::text), ''), '/crm/contacts/' || s."id"::text, '{}'::jsonb
+      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."email"::text, s."phone"::text, s."title"::text), ''), '/crm/contacts/' || s."id"::text, '{}'::jsonb
         into v_tenant, v_title, v_body, v_url, v_facets
         from "better_supabase"."people" s
         where s."id" = (search_refresh.subject_id)::uuid;

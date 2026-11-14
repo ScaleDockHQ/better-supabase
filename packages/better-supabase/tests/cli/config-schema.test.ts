@@ -181,6 +181,21 @@ describe("configIssues", () => {
     ]);
   });
 
+  it("accepts search columns on a block entity's names", () => {
+    expect(
+      configIssues({
+        blocks: {
+          contacts: {
+            names: {
+              company: { search: { title: "name", body: ["domain"] } },
+              person: { search: false },
+            },
+          },
+        },
+      }),
+    ).toEqual([]);
+  });
+
   it("names the key path of every problem", () => {
     expect(
       configIssues({
