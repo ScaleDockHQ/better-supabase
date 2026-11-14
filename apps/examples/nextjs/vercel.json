@@ -24,6 +24,73 @@
           "topic": "audit_export"
         }
       ]
+    },
+    "src/app/api/queues/schedules/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "bsb_schedules"
+        }
+      ]
+    }
+  },
+  "schedules": {
+    "jobs-drain": {
+      "schedule": "* * * * *",
+      "path": "/api/jobs/drain",
+      "requestMethod": "GET"
+    },
+    "block_3aai-schedules.tick": {
+      "schedule": "* * * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3asequences.run-due": {
+      "schedule": "* * * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3asla.check": {
+      "schedule": "* * * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3aworkflows.tick": {
+      "schedule": "* * * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3acontent.publish": {
+      "schedule": "*/5 * * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3areminders.schedule": {
+      "schedule": "*/5 * * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3atemplates.recurring": {
+      "schedule": "*/5 * * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3aconsents.expire": {
+      "schedule": "0 3 * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3acare-plans.reviews": {
+      "schedule": "0 6 * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3acases.effectiveness-due": {
+      "schedule": "0 6 * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3ainspections.overdue": {
+      "schedule": "0 6 * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3ainvoices.dunning": {
+      "schedule": "0 6 * * *",
+      "topic": "bsb_schedules"
+    },
+    "block_3arisks.review-due": {
+      "schedule": "0 6 * * *",
+      "topic": "bsb_schedules"
     }
   }
 }

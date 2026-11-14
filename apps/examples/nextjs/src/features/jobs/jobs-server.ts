@@ -36,12 +36,20 @@ const queues = {
   [BLOCK_TICKS_QUEUE]: blockTickSchema,
 };
 
+/** The Vercel Queues topic Vercel Schedules publishes block timers to. */
+export const SCHEDULES_BRIDGE = "bsb_schedules";
+
 /**
- * Jobs over a direct connection: the block is installed with `{ api: false }`,
- * so its functions are service-role only and not on the Data API. With
- * `JOBS_BACKEND=vercel` they go to Vercel Queues instead, and the route under
- * `app/api/queues` runs them; the runs table then stays empty, since it reads
- * pgmq.
+ * Jobs over a direct connection, as the queue and scheduler pair that
+ * `JOBS_BACKEND` and `JOBS_SCHEDULER` pick. The block is installed with `{ api:
+ * false }`, so its functions are service-role only and not on the Data API.
+ *
+ * - `sql` with `supabase`: Supabase Queues with Supabase Cron, the defaults.
+ * - `sql` with `vercel`: the static schedules in `vercel.json` publish each block
+ *   timer to `SCHEDULES_BRIDGE`, and `app/api/queues/schedules` enqueues it
+ *   here for `app/api/jobs/drain`.
+ * - `vercel`: Vercel Queues, and the route under `app/api/queues` runs each job;
+ *   the runs table then stays empty, since it reads pgmq.
  */
 export function jobsOn(connection: BetterPostgres) {
   return env.JOBS_BACKEND === "vercel"
