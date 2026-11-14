@@ -22,11 +22,25 @@ import {
 import { CrmLoadError } from "@/features/crm/components/crm-load-error";
 import { moveDeal } from "@/features/crm/crm-actions";
 import { settle } from "@/features/crm/crm-queries";
+import {
+  RecordDiscussion,
+  RecordDiscussionSkeleton,
+  RecordFiles,
+  RecordFilesSkeleton,
+  RecordHistory,
+  RecordHistorySkeleton,
+  RecordRelations,
+  RecordRelationsSkeleton,
+} from "@/features/records/components/record-sections";
 
 import { loadDeal } from "../pipeline/pipeline-queries";
 import { loseDeal, reopenDeal, winDeal } from "../sales-actions";
 import { ActionButton } from "./action-button";
 import { ActionDialog } from "./action-dialog";
+import {
+  DealConversation,
+  DealConversationSkeleton,
+} from "./deal-conversation";
 import { FieldHistoryTable } from "./field-history-table";
 import {
   dateFormatter,
@@ -40,16 +54,26 @@ export function DealDetailSkeleton() {
 }
 
 /** The deal desk: the stage path, the facts and the deal's activity. */
-export async function DealDetail({ id, tab }: { id: string; tab: string }) {
+export async function DealDetail({
+  id,
+  tab,
+  conversation,
+}: {
+  id: string;
+  tab: string;
+  conversation?: string | undefined;
+}) {
   await requirePermission("deals.read");
 
-  const [t, loaded, fmtMoney, fmtDate, canWrite] = await Promise.all([
-    getExtracted("sales"),
-    settle(() => loadDeal(id)),
-    moneyFormatter(),
-    dateFormatter(),
-    holds("deals.write"),
-  ]);
+  const [t, loaded, fmtMoney, fmtDate, canWrite, canReadInbox] =
+    await Promise.all([
+      getExtracted("sales"),
+      settle(() => loadDeal(id)),
+      moneyFormatter(),
+      dateFormatter(),
+      holds("deals.write"),
+      holds("inbox.read"),
+    ]);
 
   if (loaded.kind === "no-organization") {
     return null;
@@ -66,6 +90,7 @@ export async function DealDetail({ id, tab }: { id: string; tab: string }) {
   }
 
   const { deal, stages, health } = detail;
+  const subject = { type: "deal", id: deal.id } as const;
   const open = deal.category === "open";
   const current = stages.findIndex((stage) => stage.id === deal.stageId);
 
@@ -150,9 +175,32 @@ export async function DealDetail({ id, tab }: { id: string; tab: string }) {
         tabs={[
           { value: "overview", label: t("Overview") },
           { value: "activity", label: t("Activity") },
+          { value: "related", label: t("Related") },
+          ...(canReadInbox
+            ? [{ value: "conversation", label: t("Conversation") }]
+            : []),
         ]}
       />
-      {tab === "activity" ? (
+      {tab === "conversation" && canReadInbox ? (
+        <Suspense fallback={<DealConversationSkeleton />}>
+          <AfterNavigation>
+            <DealConversation dealId={deal.id} selected={conversation} />
+          </AfterNavigation>
+        </Suspense>
+      ) : tab === "related" ? (
+        <>
+          <Suspense fallback={<RecordFilesSkeleton />}>
+            <AfterNavigation>
+              <RecordFiles subject={subject} />
+            </AfterNavigation>
+          </Suspense>
+          <Suspense fallback={<RecordRelationsSkeleton />}>
+            <AfterNavigation>
+              <RecordRelations subject={subject} />
+            </AfterNavigation>
+          </Suspense>
+        </>
+      ) : tab === "activity" ? (
         <>
           <Suspense fallback={<ActivityTimelineSkeleton />}>
             <AfterNavigation>
@@ -162,6 +210,16 @@ export async function DealDetail({ id, tab }: { id: string; tab: string }) {
           <Suspense fallback={<Skeleton className="h-48 rounded-xl" />}>
             <AfterNavigation>
               <FieldHistoryTable type="deal" id={deal.id} />
+            </AfterNavigation>
+          </Suspense>
+          <Suspense fallback={<RecordDiscussionSkeleton />}>
+            <AfterNavigation>
+              <RecordDiscussion subject={subject} />
+            </AfterNavigation>
+          </Suspense>
+          <Suspense fallback={<RecordHistorySkeleton />}>
+            <AfterNavigation>
+              <RecordHistory subject={subject} />
             </AfterNavigation>
           </Suspense>
         </>

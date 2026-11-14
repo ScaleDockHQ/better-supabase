@@ -3,7 +3,7 @@
 import { ok } from "better-supabase";
 import * as v from "valibot";
 
-import { customerAttachments } from "@/features/customers/customer-attachments";
+import { recordAttachments } from "@/features/records/record-attachments";
 import { bsb } from "@/lib/supabase/server";
 
 import { summaryMessaging, threadSummarizer } from "./chat-summaries";
@@ -90,7 +90,7 @@ export const startChatUpload = bsb.action(
     permission: "messages.send",
   },
   async ({ conversationId, name, mimeType, size }, { tenant, supabase }) => {
-    const upload = await customerAttachments(supabase, tenant).upload({
+    const upload = await recordAttachments(supabase, tenant).upload({
       subject: { type: "conversation", id: conversationId },
       attachment: {
         name,
@@ -121,7 +121,7 @@ export const confirmChatUpload = bsb.action(
     permission: "messages.send",
   },
   async ({ id }, { supabase }) => {
-    const confirmed = await customerAttachments(supabase).confirm(id);
+    const confirmed = await recordAttachments(supabase).confirm(id);
 
     return confirmed.ok ? ok(id) : confirmed;
   },

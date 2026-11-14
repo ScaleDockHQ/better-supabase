@@ -4,11 +4,12 @@ import { lazy } from "react";
 
 import { LazyOnIntent } from "@/components/lazy-on-intent";
 
-import type { CommandPage } from "./command-center";
+import type { CommandCreate, CommandPage } from "./command-center";
 
 import { CommandSearchTrigger } from "./command-search-trigger";
 
 const NO_PAGES: readonly CommandPage[] = [];
+const NO_CREATE: CommandCreate = {};
 
 const CommandCenter = lazy(() =>
   import("./command-center").then((mod) => ({ default: mod.CommandCenter })),
@@ -22,17 +23,17 @@ const CommandCenter = lazy(() =>
  */
 export function CommandSearchLazy({
   pages = NO_PAGES,
-  canCreateCustomer = false,
+  canCreate = NO_CREATE,
 }: {
   pages?: readonly CommandPage[];
-  canCreateCustomer?: boolean;
+  canCreate?: CommandCreate;
 }) {
   return (
     <LazyOnIntent
       shortcut
       renderTrigger={(handlers) => <CommandSearchTrigger {...handlers} />}
     >
-      <CommandCenter pages={pages} canCreateCustomer={canCreateCustomer} />
+      <CommandCenter pages={pages} canCreate={canCreate} />
     </LazyOnIntent>
   );
 }

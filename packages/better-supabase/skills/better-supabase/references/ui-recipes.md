@@ -396,6 +396,8 @@ import {
   BotIcon,
   ClockIcon,
   CompassIcon,
+  FileTextIcon,
+  HandshakeIcon,
   LanguagesIcon,
   MonitorIcon,
   MoonIcon,
@@ -461,6 +463,17 @@ function matches(query: string, ...texts: readonly string[]): boolean {
     .every((word) => haystack.includes(word));
 }
 
+/**
+ * The record types the caller may create; each has a page whose dialog opens on
+ * `?new=1`.
+ */
+export interface CommandCreate {
+  readonly customer?: boolean;
+  readonly contact?: boolean;
+  readonly deal?: boolean;
+  readonly quote?: boolean;
+}
+
 interface CommandAction {
   readonly id: string;
   readonly label: string;
@@ -478,10 +491,10 @@ interface CommandAction {
  */
 export function CommandCenter({
   pages,
-  canCreateCustomer,
+  canCreate,
 }: {
   pages: readonly CommandPage[];
-  canCreateCustomer: boolean;
+  canCreate: CommandCreate;
 }) {
   const t = useExtracted("search");
   const typeLabel = useSubjectTypeLabel();
@@ -509,7 +522,7 @@ export function CommandCenter({
   };
 
   const actions: readonly CommandAction[] = [
-    ...(canCreateCustomer
+    ...(canCreate.customer
       ? [
           {
             id: "new-customer",
@@ -518,6 +531,45 @@ export function CommandCenter({
             icon: UserPlusIcon,
             run: () => {
               go("/customers?new=1");
+            },
+          },
+        ]
+      : []),
+    ...(canCreate.contact
+      ? [
+          {
+            id: "new-contact",
+            label: t("New contact"),
+            keywords: t("create add contact company person"),
+            icon: UserPlusIcon,
+            run: () => {
+              go("/crm/contacts?new=1");
+            },
+          },
+        ]
+      : []),
+    ...(canCreate.deal
+      ? [
+          {
+            id: "new-deal",
+            label: t("New deal"),
+            keywords: t("create add deal opportunity"),
+            icon: HandshakeIcon,
+            run: () => {
+              go("/crm/deals?new=1");
+            },
+          },
+        ]
+      : []),
+    ...(canCreate.quote
+      ? [
+          {
+            id: "new-quote",
+            label: t("New quote"),
+            keywords: t("create add quote proposal"),
+            icon: FileTextIcon,
+            run: () => {
+              go("/crm/quotes?new=1");
             },
           },
         ]
@@ -12163,7 +12215,7 @@ Web, with shadcn components:
 npx shadcn add alert-dialog badge button card empty
 ```
 
-```tsx title="apps/examples/nextjs/src/features/customers/components/attachments-uploader.tsx"
+```tsx title="apps/examples/nextjs/src/features/records/components/attachments-uploader.tsx"
 type FileState = "unfinished" | "scanning" | "ready" | "blocked" | "failed";
 
 function stateOf(file: AttachmentRow): FileState {
@@ -12201,24 +12253,24 @@ const VARIANT = {
 } as const satisfies Record<FileState, string>;
 
 /**
- * Files on the customer, in the private `attachments` bucket. Pick, drop or
- * paste files: the server records each one and signs its upload,
+ * Files on a record, in the private `attachments` bucket. Pick, drop or paste
+ * files: the server records each one and signs its upload,
  * `useAttachmentUpload` sends the bytes with progress, and the server confirms
  * it. A file downloads once the scanner marked it clean.
  */
 export function AttachmentsUploader({
-  customerId,
+  subject,
   files,
   canUpload,
   canRemove,
 }: {
-  customerId: string;
+  subject: RecordSubject;
   files: Loaded<readonly AttachmentRow[]>;
   canUpload: boolean;
   canRemove: boolean;
 }) {
-  const t = useExtracted("customers");
-  const upload = useCustomerUpload(customerId);
+  const t = useExtracted("records");
+  const upload = useRecordUpload(subject);
 
   return (
     <Card size="sm" data-recipe="attachments-uploader">
@@ -12252,7 +12304,7 @@ export function AttachmentsUploader({
                   <EmptyTitle>{t("No files yet")}</EmptyTitle>
                   <EmptyDescription>
                     {t(
-                      "Attach contracts, quotes or anything else about this customer.",
+                      "Attach contracts, quotes or anything else about this record.",
                     )}
                   </EmptyDescription>
                 </EmptyHeader>
@@ -12265,7 +12317,7 @@ export function AttachmentsUploader({
             )
           ) : (
             <FileList
-              customerId={customerId}
+              subject={subject}
               files={files.data}
               canRemove={canRemove}
             />
@@ -12277,19 +12329,19 @@ export function AttachmentsUploader({
 }
 
 /**
- * Uploads to the customer through the server actions, which check
+ * Uploads to the record through the server actions, which check
  * `attachments.upload` and read the page again once a file is confirmed.
  */
-function useCustomerUpload(customerId: string): AttachmentUploadState {
-  const t = useExtracted("customers");
+function useRecordUpload(subject: RecordSubject): AttachmentUploadState {
+  const t = useExtracted("records");
   const start = useAction(startAttachmentUpload);
   const confirm = useAction(confirmAttachment);
 
   return useAttachmentUpload({
-    subject: { type: "customer", id: customerId },
+    subject,
     start: (file) =>
       start.run({
-        customerId,
+        subject,
         name: file.name,
         mimeType: file.mimeType,
         size: file.size,
@@ -12426,7 +12478,7 @@ function UploadRow({
   onRetry: (key: string) => void;
   onDismiss: (key: string) => void;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const errorMessage = useErrorMessage();
 
   const label: Record<AttachmentUploadItem["status"], string> = {
@@ -12488,15 +12540,15 @@ function UploadRow({
 }
 
 function FileList({
-  customerId,
+  subject,
   files,
   canRemove,
 }: {
-  customerId: string;
+  subject: RecordSubject;
   files: readonly AttachmentRow[];
   canRemove: boolean;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const format = useFormatter();
   const errorMessage = useErrorMessage();
 
@@ -12553,11 +12605,7 @@ function FileList({
                 <DownloadIcon />
               </Button>
               {canRemove ? (
-                <RemoveFile
-                  id={file.id}
-                  customerId={customerId}
-                  name={file.name}
-                />
+                <RemoveFile id={file.id} subject={subject} name={file.name} />
               ) : null}
             </div>
           </li>
@@ -12574,7 +12622,7 @@ function UploadButton({
   busy: boolean;
   onPick: (files: readonly AttachmentFileInput[]) => void;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const input = useRef<HTMLInputElement>(null);
 
   const pick = (event: ChangeEvent<HTMLInputElement>) => {
@@ -12607,17 +12655,17 @@ function UploadButton({
 
 function RemoveFile({
   id,
-  customerId,
+  subject,
   name,
 }: {
   id: string;
-  customerId: string;
+  subject: RecordSubject;
   name: string;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const errorMessage = useErrorMessage();
 
-  const remove = useAction(removeCustomerAttachments, {
+  const remove = useAction(recordActions[subject.type].removeAttachment, {
     onSuccess: () => {
       toast.success(t("File removed"));
     },
@@ -12645,7 +12693,7 @@ function RemoveFile({
           <AlertDialogAction
             variant="destructive"
             onClick={() => {
-              void remove.run({ id: customerId, input: { id } });
+              void remove.run({ id: subject.id, input: { id } });
             }}
           >
             {t("Remove")}
@@ -12798,7 +12846,16 @@ npx shadcn add badge card empty skeleton
  * Render inside `<Suspense>`: a company or a person with its details, its
  * people (for a company) and the activity timeline.
  */
-export async function ContactDetail({ id }: { id: string }) {
+export async function ContactDetail({
+  id,
+  tab,
+  kind,
+}: {
+  id: string;
+  tab: string;
+  /** `company` is the companies route: a person's id there is a 404. */
+  kind?: "company";
+}) {
   const [t, permissions] = await Promise.all([
     getExtracted("crm"),
     getPermissions(),
@@ -12820,8 +12877,17 @@ export async function ContactDetail({ id }: { id: string }) {
 
   const contact = loaded.data;
 
-  if (!contact) {
+  if (!contact || (kind !== undefined && contact.kind !== kind)) {
     notFound();
+  }
+
+  // A company has its own route; the contact route is for people.
+  if (kind === undefined && contact.kind === "company") {
+    redirect(
+      tab === "overview"
+        ? `/crm/companies/${contact.id}`
+        : `/crm/companies/${contact.id}?tab=${tab}`,
+    );
   }
 
   const lifecycles = new Map([
@@ -12833,6 +12899,8 @@ export async function ContactDetail({ id }: { id: string }) {
     ["sql", t("Sales qualified")],
     ["opportunity", t("Opportunity")],
   ]);
+
+  const subject = { type: contact.kind, id: contact.id } as const;
 
   const details = [
     { label: t("Email"), value: contact.email },
@@ -12876,18 +12944,57 @@ export async function ContactDetail({ id }: { id: string }) {
             )}
           </CardContent>
         </Card>
-        <Suspense fallback={<ActivityTimelineSkeleton />}>
-          <AfterNavigation>
-            <ActivityTimeline
-              subject={{ type: contact.kind, id: contact.id }}
-            />
-          </AfterNavigation>
-        </Suspense>
-        <Suspense fallback={<ContactSalesPanelSkeleton />}>
-          <AfterNavigation>
-            <ContactSalesPanel type={contact.kind} id={contact.id} />
-          </AfterNavigation>
-        </Suspense>
+        <RecordDetailTabs
+          base={
+            contact.kind === "company"
+              ? `/crm/companies/${contact.id}`
+              : `/crm/contacts/${contact.id}`
+          }
+          active={tab}
+          tabs={[
+            { value: "overview", label: t("Overview") },
+            { value: "activity", label: t("Activity") },
+            { value: "related", label: t("Related") },
+          ]}
+        />
+        {tab === "related" ? (
+          <>
+            <Suspense fallback={<RecordFilesSkeleton />}>
+              <AfterNavigation>
+                <RecordFiles subject={subject} />
+              </AfterNavigation>
+            </Suspense>
+            <Suspense fallback={<RecordRelationsSkeleton />}>
+              <AfterNavigation>
+                <RecordRelations subject={subject} />
+              </AfterNavigation>
+            </Suspense>
+          </>
+        ) : tab === "activity" ? (
+          <>
+            <Suspense fallback={<ActivityTimelineSkeleton />}>
+              <AfterNavigation>
+                <ActivityTimeline subject={subject} />
+              </AfterNavigation>
+            </Suspense>
+            <Suspense fallback={<RecordDiscussionSkeleton />}>
+              <AfterNavigation>
+                <RecordDiscussion subject={subject} />
+              </AfterNavigation>
+            </Suspense>
+            <Suspense fallback={<RecordHistorySkeleton />}>
+              <AfterNavigation>
+                <RecordHistory subject={subject} />
+              </AfterNavigation>
+            </Suspense>
+          </>
+        ) : (
+          <Suspense fallback={<ContactSalesPanelSkeleton />}>
+            <AfterNavigation>
+              <ContactSalesPanel type={contact.kind} id={contact.id} />
+            </AfterNavigation>
+          </Suspense>
+        )}
       </div>
       {contact.kind === "company" ? (
         <Card>
@@ -13028,7 +13135,11 @@ export async function DealBoard() {
         </CardDescription>
         {pipeline && can(permissions, "deals.write") ? (
           <CardAction>
-            <CreateDealDialog pipelineId={pipeline.id} stages={openStages} />
+            <CreateDealDialog
+              pipelineId={pipeline.id}
+              stages={openStages}
+              openFromUrl
+            />
           </CardAction>
         ) : null}
       </CardHeader>
@@ -13096,10 +13207,13 @@ const stepIcons = {
   task: ListChecksIcon,
 } as const satisfies Record<SequenceStep["kind"], LucideIcon>;
 
-/** Render inside `<Suspense>`: the organization's sequences and their steps. */
-export async function SequenceBuilder() {
+/**
+ * Render inside `<Suspense>`: one sequence with its steps, the contacts at each
+ * stage and the buttons that add a step or start and pause it.
+ */
+export async function SequenceBuilder({ id }: { id: string }) {
   const [view, t, permissions] = await Promise.all([
-    getSequences(),
+    getSequence(id),
     getExtracted("sequences"),
     getPermissions(),
   ]);
@@ -13112,7 +13226,7 @@ export async function SequenceBuilder() {
     return (
       <Alert variant="destructive">
         <TriangleAlertIcon />
-        <AlertTitle>{t("The sequences didn't load")}</AlertTitle>
+        <AlertTitle>{t("The sequence didn't load")}</AlertTitle>
         <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
         <AlertAction>
           <form action={retry}>
@@ -13125,34 +13239,13 @@ export async function SequenceBuilder() {
     );
   }
 
-  const manage = can(permissions, "sequences.manage");
+  const sequence = view.data;
 
-  if (view.data.length === 0) {
-    return (
-      <Empty className="border">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <SendIcon />
-          </EmptyMedia>
-          <EmptyTitle>{t("No sequences yet")}</EmptyTitle>
-          <EmptyDescription>
-            {manage
-              ? t(
-                  "Create a sample sequence, then activate it to enroll contacts.",
-                )
-              : t(
-                  "An admin sets up the sequences your team enrolls contacts in.",
-                )}
-          </EmptyDescription>
-        </EmptyHeader>
-        {manage ? (
-          <EmptyContent>
-            <SampleSequenceButton />
-          </EmptyContent>
-        ) : null}
-      </Empty>
-    );
+  if (!sequence) {
+    notFound();
   }
+
+  const manage = can(permissions, "sequences.manage");
 
   const statusLabels: Record<SequenceStatus, string> = {
     draft: t("Draft"),
@@ -13183,72 +13276,88 @@ export async function SequenceBuilder() {
     }
   };
 
+  const counts = [
+    { label: t("Active"), value: sequence.counts.active },
+    { label: t("Completed"), value: sequence.counts.completed },
+    { label: t("Replied"), value: sequence.counts.replied },
+  ];
+
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {view.data.map((sequence) => (
-        <Card key={sequence.id}>
+    <RecordDetailFrame
+      title={sequence.name}
+      description={t("{count, plural, one {# step} other {# steps}}", {
+        count: sequence.steps.length,
+      })}
+      status={
+        <Badge variant={statusVariants[sequence.status]}>
+          {statusLabels[sequence.status]}
+        </Badge>
+      }
+      actions={
+        manage && sequence.status !== "archived" ? (
+          <>
+            <AddStepDialog sequenceId={sequence.id} />
+            <SequenceStatusButton
+              sequenceId={sequence.id}
+              active={sequence.status === "active"}
+            />
+          </>
+        ) : undefined
+      }
+      aside={
+        <Card size="sm">
           <CardHeader>
-            <div className="flex items-center gap-2">
-              <CardTitle>{sequence.name}</CardTitle>
-              <Badge variant={statusVariants[sequence.status]}>
-                {statusLabels[sequence.status]}
-              </Badge>
-            </div>
-            {manage && sequence.status !== "archived" ? (
-              <CardAction className="flex gap-2">
-                <AddStepDialog sequenceId={sequence.id} />
-                <SequenceStatusButton
-                  sequenceId={sequence.id}
-                  active={sequence.status === "active"}
-                />
-              </CardAction>
-            ) : null}
+            <CardTitle>{t("Enrollments")}</CardTitle>
           </CardHeader>
           <CardContent>
-            {sequence.steps.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t("No steps yet.")}
-              </p>
-            ) : (
-              <ol className="flex flex-col gap-2">
-                {sequence.steps.map((step, index) => {
-                  const Icon = stepIcons[step.kind];
-
-                  return (
-                    <li
-                      key={step.id}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      <span className="w-5 text-xs text-muted-foreground tabular-nums">
-                        {index + 1}
-                      </span>
-                      <Icon
-                        aria-hidden
-                        className="size-4 text-muted-foreground"
-                      />
-                      <span className="truncate">{stepLabel(step)}</span>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
+            <dl className="grid gap-3">
+              {counts.map((count) => (
+                <div key={count.label} className="flex justify-between gap-2">
+                  <dt className="text-sm text-muted-foreground">
+                    {count.label}
+                  </dt>
+                  <dd className="text-sm font-medium tabular-nums">
+                    {count.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           </CardContent>
-          <CardFooter className="gap-4 text-xs text-muted-foreground tabular-nums">
-            <span>
-              {t("{count} active", { count: String(sequence.counts.active) })}
-            </span>
-            <span>
-              {t("{count} completed", {
-                count: String(sequence.counts.completed),
-              })}
-            </span>
-            <span>
-              {t("{count} replied", { count: String(sequence.counts.replied) })}
-            </span>
-          </CardFooter>
         </Card>
-      ))}
-    </div>
+      }
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("Steps")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {sequence.steps.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t("No steps yet.")}
+            </p>
+          ) : (
+            <ol className="flex flex-col gap-2">
+              {sequence.steps.map((step, index) => {
+                const Icon = stepIcons[step.kind];
+
+                return (
+                  <li key={step.id} className="flex items-center gap-2 text-sm">
+                    <span className="w-5 text-xs text-muted-foreground tabular-nums">
+                      {index + 1}
+                    </span>
+                    <Icon
+                      aria-hidden
+                      className="size-4 text-muted-foreground"
+                    />
+                    <span className="truncate">{stepLabel(step)}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </CardContent>
+      </Card>
+    </RecordDetailFrame>
   );
 }
 ```
@@ -13403,9 +13512,9 @@ npx shadcn add card skeleton table
 
 ```tsx title="apps/examples/nextjs/src/features/crm/components/quote-builder.tsx"
 /**
- * Render inside `<Suspense>`: a quote's line items and totals. A draft (or a
- * quote with changes requested) is editable; the status decides what comes
- * next: send, record the customer's answer, or revise.
+ * Render inside `<Suspense>`: a quote's detail page, with its line items and
+ * totals. A draft (or a quote with changes requested) is editable; the status
+ * decides what comes next: send, record the customer's answer, or revise.
  */
 export async function QuoteBuilder({ id }: { id: string }) {
   const [t, locale, permissions] = await Promise.all([
@@ -13446,109 +13555,122 @@ export async function QuoteBuilder({ id }: { id: string }) {
     { label: t("Tax"), value: quote.taxTotal },
   ];
 
+  const lines = editable ? (
+    <QuoteLinesEditor
+      key={quote.lines
+        .map((line) => `${line.description}:${line.unitAmount.amount}`)
+        .join(",")}
+      quoteId={quote.id}
+      currency={quote.currency}
+      initialLines={quote.lines}
+    />
+  ) : (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{t("Description")}</TableHead>
+          <TableHead className="text-right">{t("Qty")}</TableHead>
+          <TableHead className="text-right">{t("Unit price")}</TableHead>
+          <TableHead className="text-right">{t("Discount %")}</TableHead>
+          <TableHead className="text-right">{t("Tax %")}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {quote.lines.length === 0 ? (
+          <TableRow>
+            <TableCell
+              colSpan={5}
+              className="text-center text-sm text-muted-foreground"
+            >
+              {t("This quote has no lines.")}
+            </TableCell>
+          </TableRow>
+        ) : null}
+        {quote.lines.map((line) => (
+          <TableRow key={line.position}>
+            <TableCell>{line.description}</TableCell>
+            <TableCell className="text-right tabular-nums">
+              {line.quantity}
+            </TableCell>
+            <TableCell className="text-right tabular-nums">
+              {formatMoney(line.unitAmount, locale)}
+            </TableCell>
+            <TableCell className="text-right tabular-nums">
+              {line.discountBps / 100}
+            </TableCell>
+            <TableCell className="text-right tabular-nums">
+              {line.taxRateBps / 100}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+
   return (
-    <Card data-recipe="quote-builder">
-      <CardHeader>
-        <CardTitle>{quote.title}</CardTitle>
-        <CardDescription className="flex flex-wrap items-center gap-2">
-          <span className="tabular-nums">
-            {t("{identifier} rev. {revision, number}", {
-              identifier: quote.identifier,
-              revision: quote.revision,
-            })}
-          </span>
-          <QuoteStatusBadge status={quote.status} />
-          {quote.validUntil ? (
-            <span>
-              {t("Valid until {date}", {
-                date: Temporal.PlainDate.from(quote.validUntil).toLocaleString(
-                  locale,
-                  { dateStyle: "medium" },
-                ),
-              })}
-            </span>
-          ) : null}
-        </CardDescription>
-        {canWrite ? (
-          <CardAction>
+    <div data-recipe="quote-builder">
+      <RecordDetailFrame
+        title={quote.title}
+        description={t("{identifier} rev. {revision, number}", {
+          identifier: quote.identifier,
+          revision: quote.revision,
+        })}
+        status={<QuoteStatusBadge status={quote.status} />}
+        actions={
+          canWrite ? (
             <QuoteStatusActions
               quoteId={quote.id}
               status={quote.status}
               hasLines={quote.lines.length > 0}
             />
-          </CardAction>
-        ) : null}
-      </CardHeader>
-      <CardContent>
-        {editable ? (
-          <QuoteLinesEditor
-            key={quote.lines
-              .map((line) => `${line.description}:${line.unitAmount.amount}`)
-              .join(",")}
-            quoteId={quote.id}
-            currency={quote.currency}
-            initialLines={quote.lines}
-          />
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t("Description")}</TableHead>
-                <TableHead className="text-right">{t("Qty")}</TableHead>
-                <TableHead className="text-right">{t("Unit price")}</TableHead>
-                <TableHead className="text-right">{t("Discount %")}</TableHead>
-                <TableHead className="text-right">{t("Tax %")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {quote.lines.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="text-center text-sm text-muted-foreground"
-                  >
-                    {t("This quote has no lines.")}
-                  </TableCell>
-                </TableRow>
+          ) : undefined
+        }
+        aside={
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>{t("Totals")}</CardTitle>
+              {quote.validUntil ? (
+                <CardDescription>
+                  {t("Valid until {date}", {
+                    date: Temporal.PlainDate.from(
+                      quote.validUntil,
+                    ).toLocaleString(locale, { dateStyle: "medium" }),
+                  })}
+                </CardDescription>
               ) : null}
-              {quote.lines.map((line) => (
-                <TableRow key={line.position}>
-                  <TableCell>{line.description}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {line.quantity}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatMoney(line.unitAmount, locale)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {line.discountBps / 100}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {line.taxRateBps / 100}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </CardContent>
-      <CardFooter className="justify-end">
-        <dl className="grid w-full max-w-xs grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm">
-          {totals.map((total) => (
-            <div key={total.label} className="contents">
-              <dt className="text-muted-foreground">{total.label}</dt>
-              <dd className="text-right tabular-nums">
-                {formatMoney(total.value, locale)}
-              </dd>
-            </div>
-          ))}
-          <dt className="font-semibold">{t("Total")}</dt>
-          <dd className="text-right font-semibold tabular-nums">
-            {formatMoney(quote.total, locale)}
-          </dd>
-        </dl>
-      </CardFooter>
-    </Card>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-1 text-sm">
+                {totals.map((total) => (
+                  <div key={total.label} className="contents">
+                    <dt className="text-muted-foreground">{total.label}</dt>
+                    <dd className="text-right tabular-nums">
+                      {formatMoney(total.value, locale)}
+                    </dd>
+                  </div>
+                ))}
+                <dt className="font-semibold">{t("Total")}</dt>
+                <dd className="text-right font-semibold tabular-nums">
+                  {formatMoney(quote.total, locale)}
+                </dd>
+              </dl>
+            </CardContent>
+          </Card>
+        }
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("Line items")}</CardTitle>
+            <CardDescription>
+              {editable
+                ? t("Edit the lines, then send the quote for acceptance.")
+                : t("This quote is no longer editable.")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>{lines}</CardContent>
+        </Card>
+      </RecordDetailFrame>
+    </div>
   );
 }
 ```
@@ -14850,12 +14972,12 @@ Web, with shadcn components:
 npx shadcn add badge button card empty
 ```
 
-```tsx title="apps/examples/nextjs/src/features/customers/components/customer-timeline.tsx"
+```tsx title="apps/examples/nextjs/src/features/records/components/record-timeline.tsx"
 /**
- * The customer's history from `customerRecord.timeline`: comments, files and
- * versions in one list, newest first.
+ * A record's history from its page's `timeline`: comments, files and versions
+ * in one list, newest first.
  */
-export async function CustomerTimeline({
+export async function RecordTimeline({
   timeline,
   authors,
 }: {
@@ -14863,7 +14985,7 @@ export async function CustomerTimeline({
   authors: Readonly<Record<string, string>>;
 }) {
   const [t, format] = await Promise.all([
-    getExtracted("customers"),
+    getExtracted("records"),
     getFormatter(),
   ]);
 
@@ -15565,30 +15687,33 @@ Web, with shadcn components:
 npx shadcn add badge button card empty field select
 ```
 
-```tsx title="apps/examples/nextjs/src/features/customers/components/related-items-panel.tsx"
-/** Customers linked to this one (the `relates` kind), and a picker to link more. */
+```tsx title="apps/examples/nextjs/src/features/records/components/related-items-panel.tsx"
+/**
+ * Records linked to this one (the `relates` kind), and a picker to link more of
+ * its type.
+ */
 export function RelatedItemsPanel({
-  customerId,
+  subject,
   relations,
   canManage,
 }: {
-  customerId: string;
+  subject: RecordSubject;
   relations: Loaded<Relations>;
   canManage: boolean;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
 
   return (
     <Card size="sm" data-recipe="related-items-panel">
       <CardHeader>
-        <CardTitle>{t("Related customers")}</CardTitle>
+        <CardTitle>{t("Related records")}</CardTitle>
         <CardDescription>
-          {t("Link customers that belong together, such as a parent company.")}
+          {t("Link records that belong together, such as a parent company.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {relations.kind === "error" ? (
-          <RecordLoadError title={t("The related customers didn't load")} />
+          <RecordLoadError title={t("The related records didn't load")} />
         ) : (
           <>
             {relations.data.links.length === 0 ? (
@@ -15597,29 +15722,29 @@ export function RelatedItemsPanel({
                   <EmptyMedia variant="icon">
                     <LinkIcon />
                   </EmptyMedia>
-                  <EmptyTitle>{t("No related customers")}</EmptyTitle>
+                  <EmptyTitle>{t("No related records")}</EmptyTitle>
                   <EmptyDescription>
                     {canManage
-                      ? t("Pick a customer below to link it.")
-                      : t("Nobody linked a customer yet.")}
+                      ? t("Pick a record below to link it.")
+                      : t("Nobody linked a record yet.")}
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
             ) : (
               <RelatedList
-                customerId={customerId}
+                subject={subject}
                 links={relations.data.links}
                 canManage={canManage}
               />
             )}
             {canManage ? (
               <LinkForm
-                customerId={customerId}
+                subject={subject}
                 options={relations.data.options.filter(
                   (option) =>
                     !relations.data.links.some(
                       (link) =>
-                        link.subjectType === "customer" &&
+                        link.subjectType === subject.type &&
                         link.subjectId === option.id,
                     ),
                 )}
@@ -15633,18 +15758,18 @@ export function RelatedItemsPanel({
 }
 
 function RelatedList({
-  customerId,
+  subject,
   links,
   canManage,
 }: {
-  customerId: string;
-  links: readonly RelatedCustomer[];
+  subject: RecordSubject;
+  links: readonly RelatedRecord[];
   canManage: boolean;
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const errorMessage = useErrorMessage();
 
-  const unlink = useAction(unlinkCustomerRelations, {
+  const unlink = useAction(recordActions[subject.type].unlink, {
     onSuccess: () => {
       toast.success(t("Link removed"));
     },
@@ -15654,7 +15779,7 @@ function RelatedList({
   });
 
   return (
-    <ul className="flex flex-col divide-y" data-testid="related-customers">
+    <ul className="flex flex-col divide-y" data-testid="related-records">
       {links.map((link) => (
         <li
           key={link.id}
@@ -15680,7 +15805,7 @@ function RelatedList({
               )}
               onClick={() => {
                 void unlink.run({
-                  id: customerId,
+                  id: subject.id,
                   input: {
                     kind: link.kind,
                     target: { type: link.subjectType, id: link.subjectId },
@@ -15698,21 +15823,21 @@ function RelatedList({
 }
 
 function LinkForm({
-  customerId,
+  subject,
   options,
 }: {
-  customerId: string;
+  subject: RecordSubject;
   options: readonly { readonly id: string; readonly name: string }[];
 }) {
-  const t = useExtracted("customers");
+  const t = useExtracted("records");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
   const [targetId, setTargetId] = useState<string | null>(null);
 
-  const link = useAction(linkCustomerRelations, {
+  const link = useAction(recordActions[subject.type].link, {
     onSuccess: () => {
       setTargetId(null);
-      toast.success(t("Customer linked"));
+      toast.success(t("Record linked"));
     },
   });
 
@@ -15733,10 +15858,10 @@ function LinkForm({
 
         if (targetId) {
           void link.run({
-            id: customerId,
+            id: subject.id,
             input: {
               kind: "relates",
-              target: { type: "customer", id: targetId },
+              target: { type: subject.type, id: targetId },
             },
           });
         }
@@ -15744,7 +15869,7 @@ function LinkForm({
     >
       <Field data-invalid={link.error ? true : undefined}>
         <FieldLabel htmlFor={`${fieldId}-related`}>
-          {t("Link a customer")}
+          {t("Link a record")}
         </FieldLabel>
         <Select
           value={targetId}
@@ -15754,7 +15879,7 @@ function LinkForm({
           }}
         >
           <SelectTrigger id={`${fieldId}-related`} className="w-full">
-            <SelectValue placeholder={t("Pick a customer")} />
+            <SelectValue placeholder={t("Pick a record")} />
           </SelectTrigger>
           <SelectContent>
             {items.map((item) => (

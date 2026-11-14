@@ -25,6 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useRouter } from "@/i18n/navigation";
 import { toast } from "@/lib/toast";
+import { useNewParam } from "@/lib/use-new-param";
 
 import { createContact } from "../crm-actions";
 import { FormSelect } from "./form-select";
@@ -34,14 +35,18 @@ type Kind = "company" | "person";
 /** Adds a company or a person, then opens it. */
 export function CreateContactDialog({
   variant = "default",
+  openFromUrl = false,
 }: {
   variant?: "default" | "outline";
+  /** Opens on mount when the URL carries `?new=1`, the command center link. */
+  openFromUrl?: boolean;
 }) {
   const t = useExtracted("crm");
   const fieldId = useId();
   const router = useRouter();
   const errorMessage = useErrorMessage();
-  const [open, setOpen] = useState(false);
+  const fromUrl = useNewParam();
+  const [open, setOpen] = useState(openFromUrl && fromUrl);
   const [kind, setKind] = useState<Kind>("company");
 
   const form = useActionForm(createContact, {

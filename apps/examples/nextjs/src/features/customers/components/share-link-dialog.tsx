@@ -5,6 +5,8 @@ import { CopyIcon, Link2Icon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useState } from "react";
 
+import type { Loaded } from "@/features/records/records-queries";
+
 import { Badge } from "@/components/reui/badge";
 import {
   AlertDialog,
@@ -53,12 +55,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { revokeCustomerShareLinks } from "@/features/customers/customers-actions";
+import {
+  RecordCardSkeleton,
+  RecordLoadError,
+} from "@/features/records/components/record-card-states";
 import { toast } from "@/lib/toast";
 
-import type { Loaded, ShareLinkRow } from "../customers-queries";
+import type { ShareLinkRow } from "../customers-queries";
 
 import { createShareLink } from "../customers-actions";
-import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:share-link-dialog
 

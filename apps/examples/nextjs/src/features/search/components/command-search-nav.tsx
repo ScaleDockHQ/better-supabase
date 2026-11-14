@@ -21,7 +21,12 @@ export async function CommandSearchNav() {
 
   return (
     <CommandSearchLazy
-      canCreateCustomer={can(permissions, "customers.write")}
+      canCreate={{
+        customer: can(permissions, "customers.write"),
+        contact: can(permissions, "contacts.write"),
+        deal: can(permissions, "deals.write"),
+        quote: can(permissions, "quotes.write"),
+      }}
       pages={navItems
         .filter((item) => visible.includes(item.id))
         .map((item) => ({

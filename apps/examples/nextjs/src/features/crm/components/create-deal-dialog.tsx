@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
+import { useNewParam } from "@/lib/use-new-param";
 
 import type { SelectOption } from "./form-select";
 
@@ -34,14 +35,18 @@ import { FormSelect } from "./form-select";
 export function CreateDealDialog({
   pipelineId,
   stages,
+  openFromUrl = false,
 }: {
   pipelineId: string;
   stages: readonly SelectOption[];
+  /** Opens on mount when the URL carries `?new=1`, the command center link. */
+  openFromUrl?: boolean;
 }) {
   const t = useExtracted("crm");
   const fieldId = useId();
   const errorMessage = useErrorMessage();
-  const [open, setOpen] = useState(false);
+  const fromUrl = useNewParam();
+  const [open, setOpen] = useState(openFromUrl && fromUrl);
 
   const form = useActionForm(createDeal, {
     onSuccess: (deal) => {

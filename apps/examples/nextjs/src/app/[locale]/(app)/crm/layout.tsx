@@ -12,10 +12,13 @@ export default function CrmLayout({ children }: { children: ReactNode }) {
       messages={pick(messages, [
         ...APP_NAMESPACES,
         "crm",
+        "customers",
         "recordDetail",
         "recordList",
+        "records",
         "sales",
         "sequences",
+        "subjects",
       ])}
     >
       {children}

@@ -1,9 +1,10 @@
 import { BuildingIcon, UserPlusIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
-import { forbidden, notFound } from "next/navigation";
+import { forbidden, notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { AfterNavigation } from "@/components/record-detail/after-navigation";
+import { RecordDetailTabs } from "@/components/record-detail/record-detail-tabs";
 import { Badge } from "@/components/reui/badge";
 import {
   Card,
@@ -21,6 +22,16 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  RecordDiscussion,
+  RecordDiscussionSkeleton,
+  RecordFiles,
+  RecordFilesSkeleton,
+  RecordHistory,
+  RecordHistorySkeleton,
+  RecordRelations,
+  RecordRelationsSkeleton,
+} from "@/features/records/components/record-sections";
 import {
   ContactSalesPanel,
   ContactSalesPanelSkeleton,
@@ -43,7 +54,16 @@ import { LinkPersonForm } from "./link-person-form";
  * Render inside `<Suspense>`: a company or a person with its details, its
  * people (for a company) and the activity timeline.
  */
-export async function ContactDetail({ id }: { id: string }) {
+export async function ContactDetail({
+  id,
+  tab,
+  kind,
+}: {
+  id: string;
+  tab: string;
+  /** `company` is the companies route: a person's id there is a 404. */
+  kind?: "company";
+}) {
   const [t, permissions] = await Promise.all([
     getExtracted("crm"),
     getPermissions(),
@@ -65,8 +85,17 @@ export async function ContactDetail({ id }: { id: string }) {
 
   const contact = loaded.data;
 
-  if (!contact) {
+  if (!contact || (kind !== undefined && contact.kind !== kind)) {
     notFound();
+  }
+
+  // A company has its own route; the contact route is for people.
+  if (kind === undefined && contact.kind === "company") {
+    redirect(
+      tab === "overview"
+        ? `/crm/companies/${contact.id}`
+        : `/crm/companies/${contact.id}?tab=${tab}`,
+    );
   }
 
   const lifecycles = new Map([
@@ -78,6 +107,8 @@ export async function ContactDetail({ id }: { id: string }) {
     ["sql", t("Sales qualified")],
     ["opportunity", t("Opportunity")],
   ]);
+
+  const subject = { type: contact.kind, id: contact.id } as const;
 
   const details = [
     { label: t("Email"), value: contact.email },
@@ -121,18 +152,57 @@ export async function ContactDetail({ id }: { id: string }) {
             )}
           </CardContent>
         </Card>
-        <Suspense fallback={<ActivityTimelineSkeleton />}>
-          <AfterNavigation>
-            <ActivityTimeline
-              subject={{ type: contact.kind, id: contact.id }}
-            />
-          </AfterNavigation>
-        </Suspense>
-        <Suspense fallback={<ContactSalesPanelSkeleton />}>
-          <AfterNavigation>
-            <ContactSalesPanel type={contact.kind} id={contact.id} />
-          </AfterNavigation>
-        </Suspense>
+        <RecordDetailTabs
+          base={
+            contact.kind === "company"
+              ? `/crm/companies/${contact.id}`
+              : `/crm/contacts/${contact.id}`
+          }
+          active={tab}
+          tabs={[
+            { value: "overview", label: t("Overview") },
+            { value: "activity", label: t("Activity") },
+            { value: "related", label: t("Related") },
+          ]}
+        />
+        {tab === "related" ? (
+          <>
+            <Suspense fallback={<RecordFilesSkeleton />}>
+              <AfterNavigation>
+                <RecordFiles subject={subject} />
+              </AfterNavigation>
+            </Suspense>
+            <Suspense fallback={<RecordRelationsSkeleton />}>
+              <AfterNavigation>
+                <RecordRelations subject={subject} />
+              </AfterNavigation>
+            </Suspense>
+          </>
+        ) : tab === "activity" ? (
+          <>
+            <Suspense fallback={<ActivityTimelineSkeleton />}>
+              <AfterNavigation>
+                <ActivityTimeline subject={subject} />
+              </AfterNavigation>
+            </Suspense>
+            <Suspense fallback={<RecordDiscussionSkeleton />}>
+              <AfterNavigation>
+                <RecordDiscussion subject={subject} />
+              </AfterNavigation>
+            </Suspense>
+            <Suspense fallback={<RecordHistorySkeleton />}>
+              <AfterNavigation>
+                <RecordHistory subject={subject} />
+              </AfterNavigation>
+            </Suspense>
+          </>
+        ) : (
+          <Suspense fallback={<ContactSalesPanelSkeleton />}>
+            <AfterNavigation>
+              <ContactSalesPanel type={contact.kind} id={contact.id} />
+            </AfterNavigation>
+          </Suspense>
+        )}
       </div>
       {contact.kind === "company" ? (
         <Card>

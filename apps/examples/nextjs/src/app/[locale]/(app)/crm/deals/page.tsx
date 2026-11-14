@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { PageHeader } from "@/components/page-header";
 import {
   activeTab,
+  searchValue,
   RecordDetailTabs,
 } from "@/components/record-detail/record-detail-tabs";
 import {
@@ -14,6 +15,13 @@ import {
   TargetsProgress,
   TargetsProgressSkeleton,
 } from "@/features/crm/components/targets-progress";
+import { AssignOwnersDialog } from "@/features/sales/components/assign-owners-dialog";
+import {
+  DealCalendar,
+  DealCalendarSkeleton,
+  DealTimeline,
+  DealTimelineSkeleton,
+} from "@/features/sales/components/deal-schedule";
 import {
   DealOverview,
   DealOverviewSkeleton,
@@ -42,7 +50,12 @@ export default function DealsPage({
       </Suspense>
       <Suspense fallback={<DealOverviewSkeleton />}>
         {searchParams.then((raw) => {
-          const view = activeTab(raw, ["table", "board"]);
+          const view = activeTab(raw, [
+            "table",
+            "board",
+            "calendar",
+            "timeline",
+          ]);
 
           return (
             <>
@@ -52,14 +65,29 @@ export default function DealsPage({
                 tabs={[
                   { value: "table", label: t("Table") },
                   { value: "board", label: t("Board") },
+                  { value: "calendar", label: t("Calendar") },
+                  { value: "timeline", label: t("Timeline") },
                 ]}
               />
               {view === "board" ? (
                 <Suspense fallback={<DealBoardSkeleton />}>
                   <DealBoard />
                 </Suspense>
+              ) : view === "calendar" ? (
+                <Suspense fallback={<DealCalendarSkeleton />}>
+                  <DealCalendar month={searchValue(raw, "month")} />
+                </Suspense>
+              ) : view === "timeline" ? (
+                <Suspense fallback={<DealTimelineSkeleton />}>
+                  <DealTimeline />
+                </Suspense>
               ) : (
-                <DealOverview query={parseBlockList(raw)} />
+                <>
+                  <Suspense fallback={null}>
+                    <AssignOwnersDialog />
+                  </Suspense>
+                  <DealOverview query={parseBlockList(raw)} />
+                </>
               )}
             </>
           );

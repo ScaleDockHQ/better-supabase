@@ -14,6 +14,7 @@ export default function CustomersLayout({ children }: { children: ReactNode }) {
         "customers",
         "recordDetail",
         "recordList",
+        "records",
         "subjects",
       ])}
     >
