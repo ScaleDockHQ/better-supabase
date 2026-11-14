@@ -77,6 +77,7 @@ export async function MembersSection() {
             assignable={assignable}
             canUpdateRole={can(permissions, "members.update_role")}
             canRemove={can(permissions, "members.remove")}
+            canViewAs={can(permissions, "impersonation.start")}
           />
         </FramePanel>
       </Frame>

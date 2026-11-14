@@ -130,3 +130,37 @@ describe("block CloudEvents", () => {
     });
   });
 });
+
+describe("the acting member of an impersonated call (ADR 0921)", () => {
+  it("fills impersonatedBy from the request context and sends it as data", () => {
+    const hub = new EventHub();
+    const seen: CloudEvent[] = [];
+
+    forwardBlockEvents(
+      { events: hub },
+      { send: (events) => void seen.push(...events) },
+      fixed,
+    );
+
+    emitBlockEvent(
+      hub,
+      "task.created",
+      { id: "t1" },
+      {
+        actorId: "target",
+        context: {
+          actor: { id: "target", kind: "user", impersonator: "admin" },
+        },
+      },
+    );
+
+    emitBlockEvent(hub, "task.created", { id: "t2" }, { actorId: "target" });
+
+    expect(seen[0]?.data).toEqual({
+      id: "t1",
+      actorId: "target",
+      impersonatedBy: "admin",
+    });
+    expect(seen[1]?.data).toEqual({ id: "t2", actorId: "target" });
+  });
+});

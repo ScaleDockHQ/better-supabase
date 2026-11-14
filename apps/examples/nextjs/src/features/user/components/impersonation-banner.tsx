@@ -2,7 +2,13 @@
 import { LifeBuoyIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
+import { ExitSupportButton } from "@/features/support/components/exit-support-button";
 
 import { getSession } from "../user-queries";
 
@@ -29,6 +35,9 @@ export async function ImpersonationBanner() {
           ? t("Signed in by support ({id}): {reason}", { id, reason })
           : t("Signed in by support ({id}).", { id })}
       </AlertDescription>
+      <AlertAction>
+        <ExitSupportButton />
+      </AlertAction>
     </Alert>
   );
 }
