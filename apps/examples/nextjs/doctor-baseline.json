@@ -1,0 +1,7 @@
+[
+  {
+    "code": "BS634",
+    "target": "src/features/sales/pipeline/deal-conversations.ts#loadDealConversations:db.deals.list",
+    "reason": "The deals block lists deals by person only, and the walk is bounded by the 50 newest conversations"
+  }
+]

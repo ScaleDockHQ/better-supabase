@@ -46,11 +46,9 @@ export async function register(): Promise<void> {
     seedNewTenants();
   }
 
-  if (
-    process.env.NODE_ENV !== "development" ||
-    // oxlint-disable-next-line typescript/dot-notation -- tsconfig's noPropertyAccessFromIndexSignature requires brackets (1 finding).
-    process.env["WORKFLOW_TARGET_WORLD"] === undefined
-  ) {
+  const { WORKFLOW_TARGET_WORLD: targetWorld } = process.env;
+
+  if (process.env.NODE_ENV !== "development" || targetWorld === undefined) {
     return;
   }
 
