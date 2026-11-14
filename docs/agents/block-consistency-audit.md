@@ -1023,12 +1023,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane O1
 
 - Scope: Personal data, retention, history tabs, partition
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-o1`
-- PR: [#943](https://github.com/ScaleDockHQ/better-supabase/pull/943)
+- PR: [#943](https://github.com/ScaleDockHQ/better-supabase/pull/943), [#948](https://github.com/ScaleDockHQ/better-supabase/pull/948)
 - Findings: EX-1310, EX-1311, EX-1323, EX-1325
 - Log: 2026-11-12, planned.
 - Log: 2026-11-14, lane O1 started from main (aa43c1d009) in `../bsb-audit-o1`. One PR: `subjectColumn`, `erase`, `legalHold`, `history` and `partition` on the entity surface, `subjectAccessPlan`, `subjectAccessRequest` and `historyTabs`, declarations on `consent`, `data_subject_request` and `field_history`, ADRs 0899 to 0902. No SQL change, so no migration and no pgTAP test; the SQL erase executor per entity stays open (EX-1310).
+- Log: 2026-11-14, lane O1b started from main (9b29fb14e1) in `../bsb-audit-o1b`: `erase_data_subject` and `executeErasure` (EX-1310), migration `20261222120000`, pgTAP `data_lifecycle_erasure.test.sql`, ADR 0903. [#948](https://github.com/ScaleDockHQ/better-supabase/pull/948).
 
 ### Lane O2
 
