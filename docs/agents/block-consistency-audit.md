@@ -1071,11 +1071,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane O3
 
 - Scope: Offline, public events, impersonation actor, flags, invitations
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-o3`
-- PR: #952, #956, #958
+- PR: #952, #956, #958, #965, #971
 - Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329, EX-510
-- Log: 2026-11-12, planned. 2026-11-14, all three PRs merged, the lane stays in progress until the partial rows close: PR #952 (1318+1320, offline declaration and public events), PR #956 (1321+510, acting member and impersonation in the example), PR #958 (1328+1329, entity flags and the invitation list). EX-1318 stays partial (stream queries are hand-written) and EX-1329 stays partial (no SQL list function).
+- Log: 2026-11-12, planned. 2026-11-14, merged: PR #952 (1318+1320, offline declaration and public events), PR #956 (1321+510, acting member and impersonation in the example), PR #958 (1328+1329, entity flags and the in-memory invitation list), PR #965 (1329, `page_organization_invitations` and the generated invitation page), PR #971 (1318, the offline rules in the manifest, ADR 0926). EX-1318 stays deferred (needs: a join declaration on `offline`) for the notification, membership and attachment streams. The example's `support` store keeps `pg` in the server bundles (`createPostgres` is imported statically, and `supportSessions` takes its store synchronously), so the next-build server baselines stay at the measured values (needs: a lazy store option on `supportSessions`).
 
 ### Lane P
 
