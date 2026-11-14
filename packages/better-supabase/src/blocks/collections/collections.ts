@@ -189,6 +189,8 @@ export interface Collections<F extends object = Record<never, never>> {
     id: string;
     archived?: boolean | undefined;
   }): AsyncResult<boolean>;
+  /** Brings an archived collection back and records `collection.restored`. */
+  restore(id: string): AsyncResult<boolean>;
   /** The collections the caller sees, by name. */
   list(
     input: { organizationId: string } & CollectionListOptions,
@@ -522,6 +524,12 @@ export function createCollections<
       call(
         "archive_collection",
         { collection: id, archived },
+        (value) => value === true,
+      ),
+    restore: (id) =>
+      call(
+        "archive_collection",
+        { collection: id, archived: false },
         (value) => value === true,
       ),
     list: ({ organizationId, ...listOptions }) =>

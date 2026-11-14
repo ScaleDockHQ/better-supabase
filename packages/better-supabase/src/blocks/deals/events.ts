@@ -10,6 +10,7 @@ export type DealsEvents = {
   readonly "deal.closed": DealEventData;
   readonly "deal.reopened": DealEventData;
   readonly "deal.archived": DealEventData;
+  readonly "deal.restored": DealEventData;
   readonly "deal.deleted": DealEventData;
 };
 
@@ -20,5 +21,6 @@ export const dealsEvents: Events<DealsEvents> = defineEvents({
   "deal.closed": event<DealEventData>(),
   "deal.reopened": event<DealEventData>(),
   "deal.archived": event<DealEventData>(),
+  "deal.restored": event<DealEventData>(),
   "deal.deleted": event<DealEventData>(),
 });

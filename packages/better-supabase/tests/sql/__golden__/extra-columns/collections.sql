@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:41db3d8cff3ac2745cca0274a2ea37390e3f186110e62904f9d7b5ac75ab4b72
+-- @bsb-hash sha256:deb2d6dadd57d8438df3bd90c7d3344e757d87e3ac2d19829240260cf55c1b70
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -291,6 +291,8 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id";
   if coalesce(archive_collection.archived, true) and v_row."archived_at" is null then
+    null;
+  elsif not coalesce(archive_collection.archived, true) and v_row."archived_at" is not null then
     null;
   end if;
   return true;

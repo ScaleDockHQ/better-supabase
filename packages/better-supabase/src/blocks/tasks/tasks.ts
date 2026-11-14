@@ -338,6 +338,10 @@ export interface Tasks<F extends object = Record<never, never>> {
     taskIds: readonly string[];
     archived?: boolean | undefined;
   }): AsyncResult<TaskSetResult>;
+  /** Brings an archived item back and records `task.restored`. */
+  restore(taskId: string): AsyncResult<boolean>;
+  /** Restores many items in one statement; `skipped` lists the refused ids. */
+  restore(taskIds: readonly string[]): AsyncResult<TaskSetResult>;
   remove(taskId: string): AsyncResult<boolean>;
   /** Removes many items in one statement; `skipped` lists the refused ids. */
   remove(taskIds: readonly string[]): AsyncResult<TaskSetResult>;
@@ -909,6 +913,19 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
             (value) => value === true,
           );
     }) as Tasks<F>["archive"],
+    // SAFETY: the implementation handles both overloads of `restore`.
+    restore: ((target: string | readonly string[]) =>
+      typeof target === "string"
+        ? call(
+            "archive_task",
+            { task: target, archived: false },
+            (value) => value === true,
+          )
+        : call(
+            "archive_tasks",
+            { ids: [...target], archived: false },
+            setResultOf,
+          )) as Tasks<F>["restore"],
     // SAFETY: the implementation handles both overloads of `remove`.
     remove: ((target: string | readonly string[]) =>
       typeof target === "string"

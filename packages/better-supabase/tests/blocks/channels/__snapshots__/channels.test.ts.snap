@@ -52,6 +52,13 @@ exports[`createChannels > calls every function with snake_case arguments 1`] = `
     },
   ],
   [
+    "archive_channel",
+    {
+      "archived": false,
+      "channel": "c1",
+    },
+  ],
+  [
     "join_channel",
     {
       "channel": "c1",

@@ -277,6 +277,8 @@ export interface Messaging<F extends object = Record<never, never>> {
     conversationId: string;
     archived?: boolean | undefined;
   }): AsyncResult<boolean>;
+  /** Brings an archived conversation back and records `conversation.restored`. */
+  restore(conversationId: string): AsyncResult<boolean>;
   /** The caller's conversations, latest message first. */
   conversations(options?: {
     readonly kinds?: readonly ConversationKind[];
@@ -613,6 +615,13 @@ export function createMessaging<
         "archive_conversation",
         { conversation: conversationId, archived },
         (value) => value === true,
+      ),
+    restore: (conversationId) =>
+      call(
+        "archive_conversation",
+        { conversation: conversationId, archived: false },
+        // archive_conversation returns the new archived flag, which is false here.
+        () => true,
       ),
     conversations: (list = {}) =>
       tenant().andThen((organizationId) =>

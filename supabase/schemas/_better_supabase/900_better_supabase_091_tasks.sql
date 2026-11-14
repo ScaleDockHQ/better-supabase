@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:5d53536f295353b8add9c56813eb6be8ea94c49277e15f46d831157475156c6b
+-- @bsb-hash sha256:6c92ef12099e406040fb3e89f41d1ce543f13c3b0f536ddfd6f75194e6e7c7b8
 -- @bsb-names tasks task=work_item/work_items
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -677,10 +677,12 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."work_items";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select x."archived_at" into v_was from "better_supabase"."work_items" x where x."id" = archive_work_item.task;
   update "better_supabase"."work_items" x set "archived_at" = case when archive_work_item.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_work_item.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
@@ -689,6 +691,8 @@ begin
   end if;
   if archive_work_item.archived then
     perform "better_supabase".emit_event('work_item.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work_items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  elsif v_was is not null then
+    perform "better_supabase".emit_event('work_item.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work_items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   end if;
   return true;
 end;
@@ -708,10 +712,13 @@ as $$
 declare
   v_row "better_supabase"."work_items";
   v_ids uuid[] := '{}';
+  v_was uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
+  select coalesce(array_agg(x."id"), '{}') into v_was from "better_supabase"."work_items" x
+  where x."id" = any (coalesce(archive_work_items.ids, '{}')) and x."archived_at" is not null;
   for v_row in
     with changed as (
       update "better_supabase"."work_items" x set "archived_at" = case when archive_work_items.archived then coalesce(x."archived_at", now()) end
@@ -723,6 +730,8 @@ begin
     v_ids := array_append(v_ids, v_row."id");
     if archive_work_items.archived then
       perform "better_supabase".emit_event('work_item.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work_items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+    elsif v_row."id" = any (v_was) then
+      perform "better_supabase".emit_event('work_item.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'work_item', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work_items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
     end if;
   end loop;
   return jsonb_build_object(

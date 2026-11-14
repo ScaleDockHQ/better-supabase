@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:a7fc2ac54243e771c59f808026886ff4f1be6d25687a24573ce6e79fccd7ba45
+-- @bsb-hash sha256:135dd9bc74cbde4fb984db6570faca9f6da4ec6e24a2ede60b3da99277f3ef6d
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -622,11 +622,13 @@ set search_path = ''
 as $$
 declare
   v_conv "better_supabase"."conversations";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_conv from "better_supabase"."conversations" c where c."id" = archive_conversation.conversation;
+  v_was := v_conv."archived_at";
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -641,6 +643,8 @@ begin
   where c."id" = v_conv."id"
   returning * into v_conv;
   if archive_conversation.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return archive_conversation.archived;
@@ -1677,7 +1681,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:1331262de59577f2d480936fd9b196b09275a86d82fb3d0616b466dce79dc4de
+-- @bsb-hash sha256:511215a5b03a45622c9bc9d74d8bf870867ee98fa2037fa5a7967b53c128b833
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2483,11 +2487,13 @@ set search_path = ''
 as $$
 declare
   v_conv "better_supabase"."conversations";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_conv from "better_supabase"."conversations" c where c."id" = archive_conversation.conversation;
+  v_was := v_conv."archived_at";
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -2503,6 +2509,8 @@ begin
   returning * into v_conv;
   if archive_conversation.archived then
     perform "better_supabase".emit_event('conversation.archived', jsonb_build_object('organizationId', v_conv."tenant_id"::text, 'conversationId', v_conv."id", 'kind', v_conv."kind", 'subjectType', 'conversation', 'subjectId', v_conv."id"::text), 'conversations/' || v_conv."id"::text, (v_conv."tenant_id"::text)::text, null, 'better-supabase/messaging');
+  elsif v_was is not null then
+    perform "better_supabase".emit_event('conversation.restored', jsonb_build_object('organizationId', v_conv."tenant_id"::text, 'conversationId', v_conv."id", 'kind', v_conv."kind", 'subjectType', 'conversation', 'subjectId', v_conv."id"::text), 'conversations/' || v_conv."id"::text, (v_conv."tenant_id"::text)::text, null, 'better-supabase/messaging');
   end if;
   return archive_conversation.archived;
 end;
@@ -3652,7 +3660,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:a5f21bf85545317c1613b5abd14baf0c3efad88c07f71437c66b085359104fe9
+-- @bsb-hash sha256:d3e4ab651ec04a1bed06e4e58d7b15b2a6d5f3a6ce3b0ca974d559e2f3c64dce
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4278,11 +4286,13 @@ set search_path = ''
 as $$
 declare
   v_conv "app_private"."conversations";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_conv from "app_private"."conversations" c where c."id" = archive_conversation.conversation;
+  v_was := v_conv."archived_at";
   if not found or not "app_private"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -4297,6 +4307,8 @@ begin
   where c."id" = v_conv."id"
   returning * into v_conv;
   if archive_conversation.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return archive_conversation.archived;
@@ -5333,7 +5345,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:4bdd711c6270e62ca5d6e9b42cd5b12c9e7b436012e2ad3109f90379bed39fd5
+-- @bsb-hash sha256:3d7b8f267f4b3c34bee8b5d1a91bf22e04f23a5f6f4fc32f7de4f7ae3c621260
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5954,11 +5966,13 @@ set search_path = ''
 as $$
 declare
   v_conv "better_supabase"."conversations";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_conv from "better_supabase"."conversations" c where c."id" = archive_conversation.conversation;
+  v_was := v_conv."archived_at";
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -5973,6 +5987,8 @@ begin
   where c."id" = v_conv."id"
   returning * into v_conv;
   if archive_conversation.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return archive_conversation.archived;
@@ -7272,7 +7288,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:ba66df8b770aa331944cd89707b6735c4171d04639952f7b647932dd36461f9b
+-- @bsb-hash sha256:df922a1e5859546f7ed3d6697088a5c0680ebe852fc9994cb46407f647e50186
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7876,11 +7892,13 @@ set search_path = ''
 as $$
 declare
   v_conv "better_supabase"."conversations";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_conv from "better_supabase"."conversations" c where c."id" = archive_conversation.conversation;
+  v_was := v_conv."archived_at";
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -7895,6 +7913,8 @@ begin
   where c."id" = v_conv."id"
   returning * into v_conv;
   if archive_conversation.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return archive_conversation.archived;
@@ -8931,7 +8951,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:c57e5118759be17aae2b2109865a0b71e501760c3cb2f291db6e5fe17bf21736
+-- @bsb-hash sha256:a464068b5ab1ffd780f9cbb66f1ee2acc3efab0deb3eb71b9629ca8db51b6275
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9552,11 +9572,13 @@ set search_path = ''
 as $$
 declare
   v_conv "better_supabase"."conversations";
+  v_was timestamptz;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_conv from "better_supabase"."conversations" c where c."id" = archive_conversation.conversation;
+  v_was := v_conv."archived_at";
   if not found or not "better_supabase"."can_conversation"(v_conv."id", 'read') then
     raise exception 'no such conversation you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -9571,6 +9593,8 @@ begin
   where c."id" = v_conv."id"
   returning * into v_conv;
   if archive_conversation.archived then
+    null;
+  elsif v_was is not null then
     null;
   end if;
   return archive_conversation.archived;

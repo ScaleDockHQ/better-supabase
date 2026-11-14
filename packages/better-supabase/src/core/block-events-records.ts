@@ -145,7 +145,10 @@ export interface ForecastSnapshotEventData {
   readonly dealCount: number;
 }
 
-/** `collection.created` and `collection.archived`: a list of one subject type. */
+/**
+ * `collection.created`, `collection.archived` and `collection.restored`: a list
+ * of one subject type.
+ */
 export interface CollectionEventData {
   readonly organizationId: string;
   readonly collectionId: string;

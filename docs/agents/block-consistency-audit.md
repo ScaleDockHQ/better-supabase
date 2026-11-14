@@ -989,11 +989,13 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 
 - Scope: Archive, restore and purge everywhere
 - Status: in progress
-- Branch: `feat/audit-i`
-- PR: none yet
+- Branch: `feat/audit-i-3` (slice 3)
+- PR: [#944](https://github.com/ScaleDockHQ/better-supabase/pull/944) (slice 1, merged), [#949](https://github.com/ScaleDockHQ/better-supabase/pull/949) (slice 2, merged), [#955](https://github.com/ScaleDockHQ/better-supabase/pull/955) (slice 3)
 - Findings: EX-1206, EX-1207, EX-1230 (verb adoption)
 - Log: 2026-11-12, planned.
-- Log: 2026-11-14, started from main in `../bsb-audit-i`. Scale measured: 251 block folders, 94 files mention archive. Category PRs are not yet split; none opened.
+- Log: 2026-11-14, started from main in `../bsb-audit-i`. Scale measured: 251 block folders, 94 files mention archive.
+- Log: 2026-11-14, slice 1 merged (#944, ADR 0839): restore for leave, qualifications, donations and expenses. Slice 2 merged (#949, ADR 0851): teams `delete` became `purge`.
+- Log: 2026-11-14, slice 3 (ADR 1023): `restore` and `restored` events for the blocks whose archive takes an `archived` flag (deals, tasks, messaging, channels, collections, accounting). Teams and legal entities already paired. Slices 4 (restore for blocks with none) and 5 (verb adoption) are next.
 
 ### Lane L
 
