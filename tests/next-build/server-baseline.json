@@ -820,12 +820,12 @@
     "brotli": 788777
   },
   "/[locale]/(app)/risks/[id]/page": {
-    "raw": 3106165,
+    "raw": 3107009,
     "gzip": 945950,
     "brotli": 786668
   },
   "/[locale]/(app)/risks/page": {
-    "raw": 3111359,
+    "raw": 3112203,
     "gzip": 947164,
     "brotli": 787677
   },
@@ -1465,7 +1465,7 @@
     "brotli": 692240
   },
   "/api/commissions/list/route": {
-    "raw": 2586244,
+    "raw": 2587137,
     "gzip": 783062,
     "brotli": 664854
   },
@@ -1715,7 +1715,7 @@
     "brotli": 302497
   },
   "/api/referrals/list/route": {
-    "raw": 2586211,
+    "raw": 2587104,
     "gzip": 783048,
     "brotli": 664848
   },
@@ -1730,7 +1730,7 @@
     "brotli": 693210
   },
   "/api/risks/register/route": {
-    "raw": 2706639,
+    "raw": 2707532,
     "gzip": 818144,
     "brotli": 695671
   },
@@ -1790,7 +1790,7 @@
     "brotli": 751521
   },
   "/api/work-orders/list/route": {
-    "raw": 2586282,
+    "raw": 2587175,
     "gzip": 783097,
     "brotli": 664899
   },
