@@ -28,6 +28,7 @@ import type {
   AnyBlock,
   BlockCategory,
 } from "../packages/better-supabase/src/blocks/define-block.ts";
+import type { EntitySurface } from "../packages/better-supabase/src/blocks/entity-surface.ts";
 import type { PortName } from "../packages/better-supabase/src/blocks/ports.ts";
 import type {
   PresetCatalog,
@@ -682,9 +683,47 @@ function presetManifest(
       .map(([entity, surface]) => [entity, { ...surface.permissions }]),
   );
 
-  return Object.keys(permissions).length === 0
-    ? withAutomations
-    : { ...withAutomations, entityPermissions: permissions };
+  const lists = Object.fromEntries(
+    Object.entries(block.entities ?? {}).flatMap(([entity, surface]) => {
+      const list = listSurfaceOf(surface);
+
+      return list === undefined ? [] : [[entity, list]];
+    }),
+  );
+
+  const withPermissions =
+    Object.keys(permissions).length === 0
+      ? withAutomations
+      : { ...withAutomations, entityPermissions: permissions };
+
+  return Object.keys(lists).length === 0
+    ? withPermissions
+    : { ...withPermissions, entityLists: lists };
+}
+
+type EntityList = NonNullable<PresetCatalogManifest["entityLists"]>[string];
+
+/** The list names an entity declares, or undefined when it declares none. */
+function listSurfaceOf(surface: EntitySurface): EntityList | undefined {
+  const list: { -readonly [K in keyof EntityList]: EntityList[K] } = {};
+
+  if (surface.sorts !== undefined) {
+    list.sorts = surface.sorts;
+  }
+
+  if (surface.facets !== undefined) {
+    list.facets = surface.facets;
+  }
+
+  if (surface.filters !== undefined) {
+    list.filters = surface.filters;
+  }
+
+  if (surface.search !== undefined) {
+    list.search = surface.search;
+  }
+
+  return Object.keys(list).length === 0 ? undefined : list;
 }
 
 const isPortName = (name: string): name is PortName =>
