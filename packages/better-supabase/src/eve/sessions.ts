@@ -37,7 +37,8 @@ export interface EveSessionHooks {
   "content.completed"(
     event: EveEvent<{
       readonly partId: string;
-      readonly runId: string;
+      /** Absent when the turn wrote the part without a model run. */
+      readonly runId?: string;
       readonly kind: string;
       readonly value?: unknown;
       readonly phase: string;
