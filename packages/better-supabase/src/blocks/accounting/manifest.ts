@@ -29,6 +29,12 @@ export const accountingBlock: BlockOf<
   create: createAccounting,
   recipes: ["trial-balance"],
   category: "commerce",
+  importTarget: [
+    "accounting_account",
+    "accounting_journal",
+    "accounting_entry",
+    "accounting_opening_balance",
+  ],
   entities: {
     accounting_account: { mutability: "editable", emits: { update: false } },
     accounting_journal: { mutability: "editable", emits: { update: false } },

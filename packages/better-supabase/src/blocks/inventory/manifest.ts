@@ -18,6 +18,7 @@ export const inventoryBlock: BlockOf<
   events: inventoryEvents,
   create: createInventory,
   category: "commerce",
+  importTarget: ["stock_count", "stock_allocation"],
   entities: {
     inventory_location: { mutability: "read-only" },
     purchase_order: { mutability: "editable", emits: { update: false } },

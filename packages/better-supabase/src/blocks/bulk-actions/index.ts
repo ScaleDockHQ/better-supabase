@@ -3,6 +3,7 @@ export { createBulkActions } from "./bulk-actions.ts";
 export type {
   BulkActions,
   BulkActionOptions,
+  BulkCall,
   BulkDrainOptions,
   BulkInput,
   BulkActionsOptions,

@@ -17,6 +17,7 @@ export const ordersBlock: BlockOf<"orders", typeof createOrders, OrdersEvents> =
     events: ordersEvents,
     create: createOrders,
     category: "commerce",
+    importTarget: ["order"],
     entities: {
       order: { mutability: "state-machine" },
       cart: { mutability: "append-only", emits: { create: false } },

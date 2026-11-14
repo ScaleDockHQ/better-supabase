@@ -15,6 +15,7 @@ export const taxBlock: BlockOf<"tax", typeof createTax, TaxEvents> =
     schemas: { tax_code: { input: taxCodeInputSchema } },
     create: createTax,
     category: "commerce",
+    importTarget: ["tax_code", "tax_rate"],
     entities: {
       tax_code: {
         mutability: "editable",

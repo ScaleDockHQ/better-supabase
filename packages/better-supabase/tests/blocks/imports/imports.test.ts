@@ -499,3 +499,39 @@ describe("imports SQL", () => {
     ).toThrow(/write/);
   });
 });
+
+describe("imports jobs", () => {
+  it("reads a run as the common job result", async () => {
+    const imports = createImports({
+      transport: transport({
+        get_import_run: { ...runRow, status: "completed" },
+      }),
+    });
+
+    const job = await imports.jobs.get("run-1").orThrow();
+
+    expect(job).toMatchObject({
+      jobId: "import:run-1",
+      status: "completed",
+      done: true,
+      progress: { done: 6, total: 6 },
+      error: null,
+    });
+    expect(job?.result).toMatchObject({
+      counts: { customer: { inserted: 2 } },
+    });
+  });
+
+  it("reports a canceled run as failed", async () => {
+    const imports = createImports({
+      transport: transport({
+        get_import_run: { ...runRow, status: "canceled" },
+      }),
+    });
+
+    const job = await imports.jobs.get("run-1").orThrow();
+
+    expect(job).toMatchObject({ status: "failed", done: true });
+    expect(job?.error?.hint).toBe("IMPORT_RUN_FAILED");
+  });
+});

@@ -24,6 +24,7 @@ import { manyRoles, membershipRolesTable } from "./membership-roles.ts";
 import { activeTenantSource, roleNameOf } from "./memberships.ts";
 import { deleteMode, organizationDeletion } from "./organizations-deletion.ts";
 import { ORGANIZATION_EVENTS } from "./organizations-events.ts";
+import { memberRolesSql } from "./organizations-member-roles.ts";
 import {
   ORGANIZATION_READS,
   organizationOverview,
@@ -1007,6 +1008,7 @@ const FUNCTIONS = (id: string): readonly (readonly [string, string])[] => [
   ["update_organization", `${id}, jsonb`],
   ["delete_organization", id],
   ["update_member_role", `${id}, uuid, text`],
+  ["update_member_roles", `${id}, uuid[], text`],
   ["remove_member", `${id}, uuid`],
   ["leave_organization", id],
   ["transfer_ownership", `${id}, uuid, text`],
@@ -1063,14 +1065,18 @@ ${table(ctx, n, layout)}${tenantKeys(ctx, n)}${slugCheck(ctx, n)}${create(ctx, n
     ctx,
     n,
     { platformOverride: platformOverride(ctx, "deletePlatform"), event },
-  )}${guards(ctx, n)}${members(ctx, n)}${memberSuspension(ctx, n, {
-    isOwner: (alias) => isOwner(ctx, n, alias),
-    activeOrganization: (organization) =>
-      activeOrganization(ctx, n, organization),
-    platformOverride: platformOverride(ctx, "removeMemberPlatform"),
-    assignableRole: (stored) => assignableRole(ctx, stored),
-    event,
-  })}${switcher(ctx, n)}${organizationReads(ctx, n)}${organizationOverview(ctx)}
+  )}${guards(ctx, n)}${members(ctx, n)}${memberRolesSql(ctx)}${memberSuspension(
+    ctx,
+    n,
+    {
+      isOwner: (alias) => isOwner(ctx, n, alias),
+      activeOrganization: (organization) =>
+        activeOrganization(ctx, n, organization),
+      platformOverride: platformOverride(ctx, "removeMemberPlatform"),
+      assignableRole: (stored) => assignableRole(ctx, stored),
+      event,
+    },
+  )}${switcher(ctx, n)}${organizationReads(ctx, n)}${organizationOverview(ctx)}
 ${grants}
 ${organizationProfileSql(ctx)}`;
 }
@@ -1102,7 +1108,7 @@ export const ORGANIZATIONS: BlockSqlDefinition = {
       returns:
         name === "create_organization"
           ? "{id}"
-          : name === "switch_organization"
+          : name === "switch_organization" || name === "update_member_roles"
             ? "jsonb"
             : name.startsWith("list_")
               ? "record"

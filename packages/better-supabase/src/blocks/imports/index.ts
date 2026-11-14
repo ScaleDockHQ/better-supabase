@@ -65,6 +65,12 @@ export { integrityReport, type IntegrityCheck } from "./integrity.ts";
 export { importWaves, type ImportWaveTarget } from "./waves.ts";
 
 export {
+  importTargetsOf,
+  type ImportTargetBlock,
+  type ImportTargetEntry,
+} from "./targets.ts";
+
+export {
   defineImportSource,
   runImportSource,
   type ImportDescription,
