@@ -17,7 +17,8 @@ interface CreditEntryRaw extends AdminListRaw {
 
 /**
  * The entries of the organization's credit balance accounts, read as the
- * database owner after the page's `billing.read` check.
+ * caller: the accounts name `billing.read` as their `read_permission`, so RLS
+ * answers and the page's own check only decides what to render.
  */
 export const creditEntrySource: AdminListSource<
   CreditEntryRaw,

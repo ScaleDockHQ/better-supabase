@@ -111,6 +111,7 @@ describe("the permissions the manifests declare", () => {
       "deadlines",
       "field-encryption",
       "leave",
+      "numbering",
       "periods",
       "referrals",
     ]);

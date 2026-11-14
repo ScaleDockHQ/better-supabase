@@ -1130,6 +1130,12 @@ describe("modulePermissionKeys", () => {
     expect(keys.filter((entry) => entry.module === "numbering")).toEqual([
       {
         module: "numbering",
+        action: "read",
+        key: "numbering.read",
+        scope: "tenant",
+      },
+      {
+        module: "numbering",
         action: "assign",
         key: "numbering.assign",
         scope: "tenant",

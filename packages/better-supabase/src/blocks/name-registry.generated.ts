@@ -1663,7 +1663,7 @@ export interface BlockNameRegistry {
       readonly "sequences": "tenant" | "entity" | "scope" | "period" | "lastNumber" | "createdAt" | "updatedAt";
     };
     readonly functions: "next_number" | "number_format" | "number_period" | "number_scope" | "preview_number" | "register_fixed_number" | "set_fixed_number" | "sync_number_sequences";
-    readonly actions: "assign";
+    readonly actions: "read" | "assign";
     readonly hooks: "before_number_assign" | "after_number_assign";
     readonly entities: {};
     readonly primary: never;

@@ -18,7 +18,7 @@ export const GET = bsb.route(
         tenant,
         list: creditList,
         source: creditEntrySource,
-        access: "admin",
+        access: "user",
         query: query.value,
       }),
     );

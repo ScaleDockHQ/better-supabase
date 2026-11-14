@@ -340,7 +340,7 @@ declare
   balance uuid;
 begin
   pool := (better_supabase.open_ledger_account(t, 'credit_pool', 'credits:pool', 'Credit purchases', 'credit', 0::smallint, null, null, null, true, null, null) ->> 'id')::uuid;
-  balance := (better_supabase.open_ledger_account(t, 'credit_balance', 'credits:balance', 'AI credits', 'credit', 0::smallint, null, null, null, false, null, null) ->> 'id')::uuid;
+  balance := (better_supabase.open_ledger_account(t, 'credit_balance', 'credits:balance', 'AI credits', 'credit', 0::smallint, null, null, null, false, 'billing.read', null) ->> 'id')::uuid;
 
   perform better_supabase.ledger_post(t, 'credit.grant', jsonb_build_array(jsonb_build_object('account', pool, 'amount', -5000), jsonb_build_object('account', balance, 'amount', 5000)),
     'plan', 'pro', 'Monthly credits for the Pro plan', 'seed-credits-1', now() - interval '20 days');

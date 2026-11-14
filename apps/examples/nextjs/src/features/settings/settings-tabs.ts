@@ -77,11 +77,7 @@ export const settingsTabs: readonly SettingsTab[] = [
     requires: "option_sets.read",
   },
   { id: "flags", href: "/settings/flags", requires: "flags.manage" },
-  {
-    id: "numbering",
-    href: "/settings/numbering",
-    requires: "numbering.assign",
-  },
+  { id: "numbering", href: "/settings/numbering", requires: "numbering.read" },
   {
     id: "securityEvents",
     href: "/settings/security/events",
