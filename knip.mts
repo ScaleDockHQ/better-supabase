@@ -113,9 +113,11 @@ const config: KnipConfig = {
         "src/lib/supabase/permission-scopes.ts",
         "src/lib/supabase/blocks.core.ts",
         "src/lib/supabase/blocks.api.ts",
-        // `gen.entityPages` writes the columns and the detail frame of a page; M4 moves the pages onto them (ADR 0869).
+        // `gen.entityPages` writes the columns, detail frame, nav item and route manifest of a page; M4 moves the pages onto them (ADRs 0869 and 0879).
         "src/lib/supabase/pages/*.columns.ts",
         "src/lib/supabase/pages/*.detail.ts",
+        "src/lib/supabase/pages/*.navigation.ts",
+        "src/lib/supabase/pages/routes.manifest.ts",
         // Copied from the registry, which knip checks as entries.
         "src/hooks/use-*.ts",
         // The shadcn code block's highlighter; the block is not on a page yet.

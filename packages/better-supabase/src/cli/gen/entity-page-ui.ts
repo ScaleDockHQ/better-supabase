@@ -21,7 +21,7 @@ type InputSchema = NonNullable<
   NonNullable<ResolvedEntityPage["schemas"]>["input"]
 >;
 
-type Field = InputSchema["fields"][string];
+export type Field = InputSchema["fields"][string];
 
 const SECTION = /^[a-z][a-z0-9-]*$/;
 
@@ -38,7 +38,7 @@ export function humanize(name: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-function kindOf(field: Field): EntityFieldKind {
+export function kindOf(field: Field): EntityFieldKind {
   switch (field.kind) {
     case "integer":
     case "number":
@@ -170,7 +170,7 @@ export function entityFormFields(
 }
 
 /** A value as a TypeScript literal on one line. */
-const literal = (value: unknown): string => {
+export const literal = (value: unknown): string => {
   if (Array.isArray(value)) {
     return `[${value.map((item) => literal(item)).join(", ")}]`;
   }
@@ -184,13 +184,13 @@ const literal = (value: unknown): string => {
   return JSON.stringify(value);
 };
 
-const modulePath = (
+export const modulePath = (
   context: EntityPageContext,
   name: string,
   part: string,
 ): string => posix.join(context.pagesDir, `${name}.${part}.ts`);
 
-const withPage = (
+export const withPage = (
   context: EntityPageContext,
   pick: (entry: ResolvedEntityPage) => GeneratedFile | undefined,
 ): readonly GeneratedFile[] =>

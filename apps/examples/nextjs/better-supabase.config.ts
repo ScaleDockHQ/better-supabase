@@ -89,7 +89,7 @@ export default defineConfig({
     permissionCatalog: true,
     // One descriptor per entity page: gen writes the list query, `/api/periods/list`,
     // the indexes of its sorts and facets, `scale_list_periods.test.sql` (ADR 0859), its columns and
-    // its detail frame (ADR 0869).
+    // its detail frame (ADR 0869), its nav item and route manifest (ADR 0879).
     entityPages: {
       pages: [
         defineEntityPage({
@@ -100,6 +100,9 @@ export default defineConfig({
           // Columns and detail sections: gen writes `periods.columns.ts` and `periods.detail.ts`.
           columns: ["kind", "status", "startsOn", "endsOn"],
           sections: ["overview", "entries"],
+          // Nav area: gen writes `periods.navigation.ts` and `routes.manifest.ts`. The periods block
+          // exports no input schema, so the page sets no `seed`.
+          area: "finance",
         }),
       ],
       server: { module: "@/lib/supabase/server", export: "bsb" },
