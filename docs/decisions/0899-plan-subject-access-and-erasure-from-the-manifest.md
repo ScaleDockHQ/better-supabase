@@ -38,3 +38,7 @@ An app drives export and erasure from the plan instead of a hand-kept table
 list. The plan does not run the erasure: the SQL executor per entity is a later
 step, and until then the app's purge job reads `erasure`. Record entities
 declare their columns as lane I touches them.
+
+The declarations add about 150 B raw to each route's server chunk, so
+`tests/next-build/server-baseline.json` is reset to the measured numbers (the
+same step as ADR 0690). The first-load baseline is unchanged.
