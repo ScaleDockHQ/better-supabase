@@ -478,3 +478,63 @@ const page = await pageFromIds({
   idOf: (row) => row.id,
 }).orThrow();
 ```
+
+## Entity pages
+
+A block entity already declares its `sorts`, `facets`, `filters` and `search` in its manifest, and
+its client has a `page` and `facets` read. `defineEntityPage` names the entity once, and
+[`gen`](/docs/cli/gen#entity-pages) writes the list query, its route, the indexes and a scale test
+from it. The descriptor sits in `gen.entityPages.pages` in the config:
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+import { defineEntityPage } from "better-supabase/list";
+
+export default defineConfig({
+  gen: {
+    entityPages: {
+      pages: [defineEntityPage({ entity: "risks.risk", route: "/risks" })],
+    },
+  },
+});
+```
+
+| Field     | Meaning                                                                                       |
+| --------- | --------------------------------------------------------------------------------------------- |
+| `entity`  | The block entity as `<block>.<entity>`. The block manifest supplies the surface.              |
+| `route`   | The page's route in the app. The last segment names the generated files unless `name` is set. |
+| `name`    | The file stem of the generated files. Defaults to the last segment of `route`.                |
+| `reads`   | The expression under `db` that holds the reads. Defaults to the block name.                   |
+| `methods` | The `page` and `facets` method names on `reads`. Default `page` and `facets`.                 |
+| `list`    | `pageSize` and `maxPageSize` of the generated list query.                                     |
+
+`area`, `columns`, `sections` and `seed` are accepted today and read by later generators (columns,
+detail pages, seed rows and navigation), so a page descriptor does not change when those land.
+
+The generated module calls `defineEntityListQuery` with the entity's surface. It has no database
+access of its own: `parse` checks the URL, `schema` checks typed input as a Standard Schema, and `run`
+reads the page and the count of every facet in one wave, under the same filters.
+
+```ts
+import { risksList } from "@/lib/supabase/pages/risks.list";
+
+const query = risksList.parse(searchParams);
+
+if (!query.ok) {
+  return Response.json({ issues: query.issues }, { status: 400 });
+}
+
+const { page, facets } = await risksList
+  .run(
+    {
+      page: (options) => db.risks.page(options),
+      facets: (options) => db.risks.facets(options),
+    },
+    query.value,
+  )
+  .orThrow();
+```
+
+The URL form reads `q`, `sort` (`key` or `key:asc` or `key:desc`), `limit`, repeated `after` values
+and one parameter per declared filter (`status=open,closed`). A sort, filter or `q` the entity does
+not declare comes back as an issue with its path, never as a database error.

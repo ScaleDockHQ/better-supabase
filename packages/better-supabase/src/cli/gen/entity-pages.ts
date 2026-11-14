@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { posix } from "node:path";
 
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
-import type { EntityPage } from "../../list/entity-page.ts";
+import type { EntityPage } from "../../list/index.ts";
 import type { PresetCatalogManifest } from "../../preset/index.ts";
 
 import { blockEntities } from "../../config/index.ts";

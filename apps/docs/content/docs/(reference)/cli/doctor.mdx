@@ -2796,6 +2796,17 @@ uses a column name this release renamed. `codemod naming` rewrites the
 key a block function used to return. `organization_id` in your own JSON is
 left alone, and files `upgrade` rewrites are skipped.
 
+### BS636
+
+**Warning: an entity page's list has no index for a sort, facet or search.** A
+page declared in `gen.entityPages` lists its entity by the sorts, facets and
+searched columns the block manifest declares. Each one that is a column of the
+entity's table needs a btree index that starts with the column (after the
+tenant column), or a GIN trigram index for a searched column. Without it the
+page sorts or groups the tenant's rows on every request. Run `better-supabase
+gen`, which writes the indexes in a migration, or add the index to the schema
+file. See [Entity pages](/docs/cli/gen#entity-pages).
+
 ### BS628
 
 **Warning: a list cursor has no matching index.** A list function orders or
