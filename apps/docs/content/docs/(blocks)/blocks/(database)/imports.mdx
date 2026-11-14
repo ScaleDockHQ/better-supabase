@@ -151,6 +151,31 @@ Pass `target: { entity, item }` to `defineImport` and `hooks.upsertBatch` to
 | `IMPORT_TARGET_UNKNOWN`  | No target is registered for the entity.                         |
 | `IMPORT_ITEM_INVALID`    | An item has no key or no data object, or the target rejects it. |
 
+### Listing the blocks that take rows
+
+A block that contributes import targets declares their entity names in its
+manifest as `importTarget`. `importTargetsOf` lists every entity with its block,
+sorted by entity, for an import page that shows what a file can fill:
+
+```ts
+import { importTargetsOf } from "better-supabase/blocks/imports";
+import { blocks } from "@/lib/supabase/blocks";
+
+importTargetsOf(blocks);
+// [{ entity: "asset", block: "assets" }, { entity: "invoice", block: "invoices" }, ...]
+```
+
+It fails when two blocks declare the same entity. A test keeps each manifest
+equal to the SQL module it describes.
+
+## Reading a run as a job
+
+`imports.jobs.get(runId)` is the `import` source of `createJobs`:
+`jobs.get("import:<run id>")` returns the common `JobResult`, with `progress`
+counted from the run's entity counts and the counts and errors as `result`
+once the run completed. A canceled run reads as `failed` with
+`IMPORT_RUN_FAILED`.
+
 ## Paging a list
 
 `list` is the capped convenience list. `runs.page` is the full contract for import runs (ADR 0749, 0939): it takes `organizationId`, which names the organization per call, and `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. The sort is `createdAt`; the default order is newest first. The filters are `source` and `status`. The facets are `source` and `status`. `runs.facets` and `runs.count` take the same options. Each needs the manage permission on the organization. A cursor belongs to the sort it came from, so start again from the first page when `sort` or `direction` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error.

@@ -523,6 +523,39 @@ tests/sql -u`), the block's docs page, `api/exports.json` and the changeset's
    old-to-new table. A change to a manifest field grows the server chunk, so
    reset the server baseline in the same PR (ADR 0690, 0750).
 
+### Bulk, export, import and jobs
+
+Four more calls share one shape across blocks (ADR 0854, 0855, 0856 and 0852). All of them
+are exported from `better-supabase/blocks`.
+
+| Call                              | What it does                                                                                                                                                                                                                        |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bulk(ids, action, options)`      | Runs an action on distinct ids and returns `{ succeeded, failed: [{ id, error }] }`. More ids than the entity's `bulk.limit` (500 by default) fail with `BULK_TOO_MANY` before anything runs.                                       |
+| `export(options)`                 | Streams the rows of `page` under the same `q`, `filters` and `sort` as CSV, one page at a time, as a `ReadableStream<string>`. A list built with `entityList` has it; a block with its own `page` calls `exportCsv(page, options)`. |
+| `{ jobId }` and `jobs.get(jobId)` | A long call returns `{ jobId: "<kind>:<id>" }`. `createJobs({ bulk, import })` reads the kind off the id and returns one `JobResult`: `status`, `progress`, `result`, `error` and `done`.                                           |
+| `importTarget`                    | A manifest field with the import entities the block takes rows for. `importTargetsOf(blocks)` from `better-supabase/blocks/imports` lists them.                                                                                     |
+
+An entity declares its part in the manifest with `bulk: { limit, actions }` and
+`export: true | { columns, maxRows }`. A download route is
+`exportResponse(entity.page, "invoices.csv", options)`, which answers with
+`text/csv` and a `Content-Disposition` header. An export stops at `maxRows`
+(100,000 by default) with the hint `EXPORT_ROW_CAP`, and the part already
+written stays valid CSV.
+
+```ts title="app/api/invoices.csv/route.ts"
+import { exportResponse } from "better-supabase/blocks";
+
+export function GET(request: Request) {
+  const status = new URL(request.url).searchParams.getAll("status");
+
+  return exportResponse(
+    (page) => invoices.page({ ...page, organizationId }),
+    "invoices.csv",
+    { filters: { status } },
+  );
+}
+```
+
 An index that serves a sort is still the block's own: the list function seeks
 into an index on the sort keys only when the table has one, and the page
 generator (lane M) adds the missing ones.

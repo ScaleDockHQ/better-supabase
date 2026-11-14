@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseCsv, toCsv } from "../../src/core/csv.ts";
+import { csvHeader, csvLines, parseCsv, toCsv } from "../../src/core/csv.ts";
 
 describe("parseCsv", () => {
   it("reads the RFC 4180 quoted example", () => {
@@ -19,5 +19,15 @@ describe("parseCsv", () => {
     const [header, row] = parseCsv(csv);
     expect(header).toEqual(["name", "note"]);
     expect(row).toEqual(["Ada", 'say "hi"']);
+  });
+});
+
+describe("csvHeader and csvLines", () => {
+  it("write the header and the rows apart, escaping formulas by default", () => {
+    const rows = [{ a: "=1", b: "x" }];
+
+    expect(csvHeader(["a", "b"])).toBe("a,b\r\n");
+    expect(csvLines(rows, ["a", "b"])).toBe("'=1,x\r\n");
+    expect(csvLines(rows, ["a", "b"], false)).toBe("=1,x\r\n");
   });
 });

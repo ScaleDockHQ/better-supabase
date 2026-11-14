@@ -26,6 +26,7 @@ export const attachmentsBlock: BlockOf<
   create: createAttachments,
   record: attachmentsBinding,
   category: "collaboration",
+  importTarget: ["attachment"],
   entities: {
     attachment: {
       mutability: "state-machine",

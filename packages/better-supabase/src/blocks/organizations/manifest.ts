@@ -21,6 +21,7 @@ export const organizationsBlock: BlockOf<
   events: organizationsEvents,
   create: createOrganizations,
   category: "tenancy",
+  importTarget: ["organization_profile"],
   entities: {
     organization: {
       mutability: "editable",
