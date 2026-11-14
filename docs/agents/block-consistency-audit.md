@@ -1119,11 +1119,12 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X5
 
 - Scope: Inbox and messaging (after G5; real Slack and WhatsApp adapters need accounts)
-- Status: planned
+- Status: in progress
 - Branch: `feat/findings-x5`
 - PR: none yet
 - Findings: EX-403, EX-404, EX-411, EX-030, EX-422
 - Log: 2026-11-14, planned.
+- Log: 2026-11-14, in progress.
 
 ### Lane X6
 
