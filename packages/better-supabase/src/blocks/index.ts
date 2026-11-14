@@ -25,6 +25,7 @@ export { blockHint, isBlockHint } from "./block-hints.ts";
 export type { BlockHint, BlockHints } from "./block-hints.ts";
 
 export { BLOCK_CATEGORIES, defineBlock } from "./define-block.ts";
+
 export type {
   BlockLimits,
   BlockMeters,
