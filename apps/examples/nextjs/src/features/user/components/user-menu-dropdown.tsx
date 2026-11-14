@@ -70,9 +70,9 @@ export function UserMenuDropdown({
   const [pending, startTransition] = useTransition();
 
   const avatar = (
-    <Avatar className="size-8 rounded-lg">
+    <Avatar aria-hidden="true" className="size-8 rounded-lg">
       {avatarUrl ? <AvatarImage src={avatarUrl} alt="" /> : null}
-      <AvatarFallback className="rounded-lg">
+      <AvatarFallback className="rounded-lg text-foreground">
         {initials(name, email)}
       </AvatarFallback>
     </Avatar>
@@ -97,12 +97,12 @@ export function UserMenuDropdown({
           <SidebarMenuButton
             size="lg"
             className="data-popup-open:bg-sidebar-accent"
-            aria-label={t("Account menu")}
           />
         }
       >
         {avatar}
         {identity}
+        <span className="sr-only">{t("Account menu")}</span>
         <ChevronsUpDownIcon className="ml-auto size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-60" side="right" align="end">

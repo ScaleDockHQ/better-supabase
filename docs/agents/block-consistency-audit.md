@@ -1058,10 +1058,19 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Status: in progress
 - Branch: `feat/audit-lane-m5`, `feat/audit-lane-m5b`
 - PR: [#974](https://github.com/ScaleDockHQ/better-supabase/pull/974), [#975](https://github.com/ScaleDockHQ/better-supabase/pull/975)
-- Findings: EX-001, EX-014, EX-024, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294, EX-1327
+- Findings: EX-001, EX-014, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
 - Log: 2026-11-14, planned from lane M4's leftovers. ADR numbers continue M4's range from 0890.
 - Log: 2026-11-14, PR 1 (library, ADR 0890): `tenantOption`, `app` entities and the `coverage` output of `defineEntityPage`.
 - Log: 2026-11-14, PR 2 (example, ADR 0891): incidents declared, the invitations page, coverage entries read `pageCoverage` (EX-1267 partly fixed), 75 pages export `instant` (EX-024 partly fixed), `@axe-core/playwright` pinned (EX-1327 partly fixed). Needs: a customers reads module and an inbox reads module for `app: { reads }`, an array reads module for the EX-607 pages, a maintainer decision on a list-valued `PageOptions.sort` (EX-033), and the five instant pages in ADR 0891.
+
+### Lane M6
+
+- Scope: M5's leftovers: reads modules for app tables and arrays, free sort, instant pages, shell accessibility
+- Status: in progress
+- Branch: `feat/audit-lane-m6a`
+- PR: none yet
+- Findings: EX-001, EX-014, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
+- Log: 2026-11-14, lane M6 started from main in `../bsb-audit-M6`. ADR numbers continue M5's range from 0892. PR 1 (ADR 0892): the five instant pages, the shell accessibility fixes, the whole-page axe scan and the invitations page on the data grid (EX-024 and EX-1327 fixed).
 
 ### Lane O1
 

@@ -49,6 +49,29 @@ export function recordPerf(
 
 /** Navigates in the browser the way a link click does, without a reload. */
 export async function pushRoute(page: Page, url: string): Promise<void> {
+  // The router exists only after hydration, and the load event fires before it.
+  // A push before then does nothing, so a slow page timed out here (EX-024).
+  await page.waitForFunction(() => {
+    // SAFETY: Next.js exposes its router on `window.next` in the App Router.
+    const next = (
+      window as unknown as { next?: { router?: { push(href: string): void } } }
+    ).next;
+
+    return next?.router !== undefined;
+  });
+  // A push to a route that was never prefetched has no static shell to show
+  // under the instant lock, so the navigation waits on the network instead.
+  await page.evaluate(async (target) => {
+    // SAFETY: Next.js exposes its router on `window.next` in the App Router.
+    const next = (
+      window as unknown as {
+        next?: { router?: { prefetch(href: string): Promise<void> | void } };
+      }
+    ).next;
+
+    await next?.router?.prefetch(target);
+  }, url);
+  await page.waitForTimeout(1000);
   await page.evaluate((target) => {
     // SAFETY: Next.js exposes its router on `window.next` in the App Router.
     const next = (
@@ -57,7 +80,10 @@ export async function pushRoute(page: Page, url: string): Promise<void> {
 
     next?.router?.push(target);
   }, url);
-  await page.waitForURL((current) => current.pathname === url);
+  // A client navigation fires no load event, so waiting for one can hang.
+  await page.waitForURL((current) => current.pathname === url, {
+    waitUntil: "commit",
+  });
 }
 
 /**

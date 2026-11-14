@@ -1050,6 +1050,16 @@ msgctxt "meetings.IWewHP"
 msgid "The organization's meetings, and the agenda, decisions and action items of the one you open."
 msgstr "The organization's meetings, and the agenda, decisions and action items of the one you open."
 
+#: src/app/[locale]/(app)/members/invitations/page.tsx
+msgctxt "organization.HyiDcy"
+msgid "Invitations"
+msgstr "Invitations"
+
+#: src/app/[locale]/(app)/members/invitations/page.tsx
+msgctxt "organization.8RvpQc"
+msgid "The invitations that are still open, and when they expire."
+msgstr "The invitations that are still open, and when they expire."
+
 #: src/app/[locale]/(app)/metrics/[key]/page.tsx
 msgctxt "metrics.0_D7JO"
 msgid "All metrics"
@@ -18906,6 +18916,11 @@ msgid "Invitation revoked"
 msgstr "Invitation revoked"
 
 #: src/features/members/components/invitation-list.tsx
+msgctxt "organization.HsCLGj"
+msgid "Invitation sent again"
+msgstr "Invitation sent again"
+
+#: src/features/members/components/invitation-list.tsx
 msgctxt "organization.HAhXzK"
 msgid "No open invitations."
 msgstr "No open invitations."
@@ -18914,6 +18929,11 @@ msgstr "No open invitations."
 msgctxt "organization._VQpyO"
 msgid "Expires {date}"
 msgstr "Expires {date}"
+
+#: src/features/members/components/invitation-list.tsx
+msgctxt "organization.d6goN8"
+msgid "Resend invitation to {email}"
+msgstr "Resend invitation to {email}"
 
 #: src/features/members/components/invitation-list.tsx
 msgctxt "organization.Hvn8PP"
@@ -18971,11 +18991,13 @@ msgid "They join with the role you pick. You can't give a role above your own."
 msgstr "They join with the role you pick. You can't give a role above your own."
 
 #: src/features/members/components/invite-member-dialog.tsx
+#: src/features/organization/components/invitations-grid.tsx
 msgctxt "organization.sy-pv5"
 msgid "Email"
 msgstr "Email"
 
 #: src/features/members/components/invite-member-dialog.tsx
+#: src/features/organization/components/invitations-grid.tsx
 msgctxt "organization.1ZgrhW"
 msgid "Role"
 msgstr "Role"
@@ -20970,6 +20992,26 @@ msgctxt "invitation.j2QN5I"
 msgid "Accept invitation"
 msgstr "Accept invitation"
 
+#: src/features/organization/components/invitations-grid.tsx
+msgctxt "organization.xhQMeQ"
+msgid "Expires"
+msgstr "Expires"
+
+#: src/features/organization/components/invitations-grid.tsx
+msgctxt "organization.nS4TcP"
+msgid "No open invitations"
+msgstr "No open invitations"
+
+#: src/features/organization/components/invitations-grid.tsx
+msgctxt "organization.vs8BNr"
+msgid "Invite people from the members page."
+msgstr "Invite people from the members page."
+
+#: src/features/organization/components/invitations-grid.tsx
+msgctxt "organization.1U0YVb"
+msgid "Open members"
+msgstr "Open members"
+
 #: src/features/organization/components/leave-organization-button.tsx
 #: src/features/organization/components/organization-general.tsx
 msgctxt "organization.0Xqin6"
@@ -21038,12 +21080,6 @@ msgstr "Owners transfer ownership before they can leave."
 
 #: src/features/organization/components/organization-switcher-lazy.tsx
 #: src/features/organization/components/organization-switcher-menu.tsx
-msgctxt "organization.0lmKIf"
-msgid "Switch organization"
-msgstr "Switch organization"
-
-#: src/features/organization/components/organization-switcher-lazy.tsx
-#: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.5VHXqC"
 msgid "No organization"
 msgstr "No organization"
@@ -21053,6 +21089,12 @@ msgstr "No organization"
 msgctxt "organization.9ocI0I"
 msgid "Create one to start"
 msgstr "Create one to start"
+
+#: src/features/organization/components/organization-switcher-lazy.tsx
+#: src/features/organization/components/organization-switcher-menu.tsx
+msgctxt "organization.0lmKIf"
+msgid "Switch organization"
+msgstr "Switch organization"
 
 #: src/features/organization/components/organization-switcher-menu.tsx
 msgctxt "organization.qQ6ahH"
@@ -23930,10 +23972,20 @@ msgid "Description"
 msgstr "Description"
 
 #: src/features/rfqs/components/rfq-detail.tsx
+msgctxt "rfqs.iGYctG"
+msgid "Product variant (needed to award into a purchase order)"
+msgstr "Product variant (needed to award into a purchase order)"
+
+#: src/features/rfqs/components/rfq-detail.tsx
 #: src/features/rfqs/components/rfqs-overview.tsx
 msgctxt "rfqs.qVGRIE"
 msgid "Quantity"
 msgstr "Quantity"
+
+#: src/features/rfqs/components/rfq-detail.tsx
+msgctxt "rfqs.OK5-Fh"
+msgid "Variant"
+msgstr "Variant"
 
 #: src/features/rfqs/components/rfq-detail.tsx
 msgctxt "rfqs.qdrWPP"
@@ -24045,6 +24097,11 @@ msgctxt "rfqs.-oxq2j"
 msgid "First line"
 msgstr "First line"
 
+#: src/features/rfqs/components/rfqs-overview.tsx
+msgctxt "rfqs.MMyA8e"
+msgid "Product variant of the first line"
+msgstr "Product variant of the first line"
+
 #: src/features/risks/components/risk-band-badge.tsx
 msgctxt "risks.3Q1Pj6"
 msgid "Not assessed"
@@ -24095,11 +24152,6 @@ msgstr "Residual"
 msgctxt "risks.ep8Oy7"
 msgid "Next review"
 msgstr "Next review"
-
-#: src/features/risks/components/risk-record-list.tsx
-msgctxt "risks.b-peaU"
-msgid "Residual score"
-msgstr "Residual score"
 
 #: src/features/risks/components/risk-detail.tsx
 msgctxt "risks.SzG9JL"
@@ -24240,6 +24292,11 @@ msgstr "Category"
 msgctxt "risks.tzMNF3"
 msgid "Status"
 msgstr "Status"
+
+#: src/features/risks/components/risk-record-list.tsx
+msgctxt "risks.b-peaU"
+msgid "Residual score"
+msgstr "Residual score"
 
 #: src/features/risks/components/risk-record-list.tsx
 msgctxt "risks.Bi2plb"
@@ -25648,7 +25705,7 @@ msgid "No conversation yet"
 msgstr "No conversation yet"
 
 #: src/features/sales/components/deal-conversation.tsx
-msgctxt "sales.EnlMvw"
+msgctxt "sales.7i-sSx"
 msgid "A thread shows here once a person linked to this deal writes to the inbox."
 msgstr "A thread shows here once a person linked to this deal writes to the inbox."
 
@@ -29747,7 +29804,13 @@ msgctxt "support.iIenp6"
 msgid "End session"
 msgstr "End session"
 
+#: src/features/support/components/exit-support-button.tsx
+msgctxt "support.m6fRpP"
+msgid "Exit session"
+msgstr "Exit session"
+
 #: src/features/support/components/request-support-dialog.tsx
+#: src/features/support/components/view-as-member-button.tsx
 msgctxt "support.bqgmwq"
 msgid "Request sent for approval"
 msgstr "Request sent for approval"
@@ -29769,11 +29832,13 @@ msgstr "User id"
 
 #: src/features/support/components/request-support-dialog.tsx
 #: src/features/support/components/support-sessions.tsx
+#: src/features/support/components/view-as-member-button.tsx
 msgctxt "support.AkCxS_"
 msgid "Reason"
 msgstr "Reason"
 
 #: src/features/support/components/request-support-dialog.tsx
+#: src/features/support/components/view-as-member-button.tsx
 msgctxt "support.47FYwb"
 msgid "Cancel"
 msgstr "Cancel"
@@ -29837,6 +29902,26 @@ msgstr "Active"
 msgctxt "support.TP_cMX"
 msgid "Ended"
 msgstr "Ended"
+
+#: src/features/support/components/view-as-member-button.tsx
+msgctxt "support.vjYD36"
+msgid "View as {name}"
+msgstr "View as {name}"
+
+#: src/features/support/components/view-as-member-button.tsx
+msgctxt "support.x03dKs"
+msgid "Viewing as {name}"
+msgstr "Viewing as {name}"
+
+#: src/features/support/components/view-as-member-button.tsx
+msgctxt "support.ZJEsOx"
+msgid "The session is read-only, expires on its own and is recorded in the audit log. A second platform admin approves it first."
+msgstr "The session is read-only, expires on its own and is recorded in the audit log. A second platform admin approves it first."
+
+#: src/features/support/components/view-as-member-button.tsx
+msgctxt "support.mrHAYh"
+msgid "View as member"
+msgstr "View as member"
 
 #: src/features/teams/components/team-detail.tsx
 #: src/features/teams/components/teams-grid.tsx
@@ -30379,6 +30464,41 @@ msgid "Cash taken to the bank. A deposit is reconciled when it matches a bank tr
 msgstr "Cash taken to the bank. A deposit is reconciled when it matches a bank transaction."
 
 #: src/features/tills/components/session-detail.tsx
+msgctxt "tills.BdEdkP"
+msgid "Import bank statement"
+msgstr "Import bank statement"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.Y2etA4"
+msgid "Paste an MT940 statement. A transaction that was imported before is skipped."
+msgstr "Paste an MT940 statement. A transaction that was imported before is skipped."
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.C327TL"
+msgid "Import statement"
+msgstr "Import statement"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.9XUYQt"
+msgid "Import"
+msgstr "Import"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.W6kvm_"
+msgid "Statement imported"
+msgstr "Statement imported"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.gzcDlE"
+msgid "Bank account"
+msgstr "Bank account"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.23pVyP"
+msgid "MT940 statement"
+msgstr "MT940 statement"
+
+#: src/features/tills/components/session-detail.tsx
 msgctxt "tills._0TOL5"
 msgid "Amount"
 msgstr "Amount"
@@ -30395,6 +30515,11 @@ msgid "Status"
 msgstr "Status"
 
 #: src/features/tills/components/session-detail.tsx
+msgctxt "tills.sSgGIc"
+msgid "Bank transaction"
+msgstr "Bank transaction"
+
+#: src/features/tills/components/session-detail.tsx
 msgctxt "tills.UM1wq9"
 msgid "Reconciled"
 msgstr "Reconciled"
@@ -30403,6 +30528,31 @@ msgstr "Reconciled"
 msgctxt "tills.eKEL_g"
 msgid "Pending"
 msgstr "Pending"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.RJN7lR"
+msgid "Match to a bank transaction"
+msgstr "Match to a bank transaction"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.aZrNvW"
+msgid "Only unmatched transactions for the same amount are offered. Import a statement first when the list is empty."
+msgstr "Only unmatched transactions for the same amount are offered. Import a statement first when the list is empty."
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.Qr9R5O"
+msgid "Match"
+msgstr "Match"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.g4wM6c"
+msgid "Match deposit"
+msgstr "Match deposit"
+
+#: src/features/tills/components/session-detail.tsx
+msgctxt "tills.qDuSZR"
+msgid "Deposit matched"
+msgstr "Deposit matched"
 
 #: src/features/tills/components/session-detail.tsx
 msgctxt "tills.A0aKBA"
@@ -31180,6 +31330,7 @@ msgid "Document"
 msgstr "Document"
 
 #: src/features/warehouse/components/warehouse-details.tsx
+#: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.87u3u3"
 msgid "Document id"
 msgstr "Document id"
@@ -31596,6 +31747,66 @@ msgid "A rule sends incoming stock of a variant to a bin, the lowest priority nu
 msgstr "A rule sends incoming stock of a variant to a bin, the lowest priority number first."
 
 #: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.tynqPT"
+msgid "Goods receipts"
+msgstr "Goods receipts"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.yP_fmN"
+msgid "Where the stock of the latest receipt, {order}, goes."
+msgstr "Where the stock of the latest receipt, {order}, goes."
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.yGHqc5"
+msgid "Receive a purchase order to get bins suggested."
+msgstr "Receive a purchase order to get bins suggested."
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.qVGRIE"
+msgid "Quantity"
+msgstr "Quantity"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.sWXgz0"
+msgid "Suggested bins"
+msgstr "Suggested bins"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.Gclk-s"
+msgid "No bin has room"
+msgstr "No bin has room"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.luOIxL"
+msgid "{bins}, {left} without a bin"
+msgstr "{bins}, {left} without a bin"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.LcpaXh"
+msgid "No goods receipts yet"
+msgstr "No goods receipts yet"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.epKp5E"
+msgid "Receiving a purchase order writes a goods receipt, and its putaway shows here."
+msgstr "Receiving a purchase order writes a goods receipt, and its putaway shows here."
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.AuLAmB"
+msgid "Recent receipts"
+msgstr "Recent receipts"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.XPruqs"
+msgid "Order"
+msgstr "Order"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.z_wUXE"
+msgid "Received"
+msgstr "Received"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
 msgctxt "warehouse.l_mTcL"
 msgid "Slotting suggestions for {location}"
 msgstr "Slotting suggestions for {location}"
@@ -31724,6 +31935,81 @@ msgstr "Count plan created"
 msgctxt "warehouse.NgYKsv"
 msgid "Variance limit (percent)"
 msgstr "Variance limit (percent)"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.YSeUhP"
+msgid "Allocate stock"
+msgstr "Allocate stock"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.k0ODYP"
+msgid "Holds stock of a variant for a document line. What isn't available waits on backorder."
+msgstr "Holds stock of a variant for a document line. What isn't available waits on backorder."
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.8sQ5PM"
+msgid "Allocate"
+msgstr "Allocate"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.7tz77k"
+msgid "Stock allocated"
+msgstr "Stock allocated"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.so2_17"
+msgid "Document type"
+msgstr "Document type"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.aKfSoz"
+msgid "New pick list"
+msgstr "New pick list"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.28PrXm"
+msgid "A pick list is made from the open allocations of one document at one location."
+msgstr "A pick list is made from the open allocations of one document at one location."
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.tV3Kfj"
+msgid "Create pick list"
+msgstr "Create pick list"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.0tX0AH"
+msgid "Pick list created"
+msgstr "Pick list created"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.-JrMhw"
+msgid "Receive a purchase order"
+msgstr "Receive a purchase order"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.xriBQf"
+msgid "Receives every unit the order still owes into one goods receipt."
+msgstr "Receives every unit the order still owes into one goods receipt."
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.BSkoeq"
+msgid "Receive order"
+msgstr "Receive order"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.ULXFfP"
+msgid "Receive"
+msgstr "Receive"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.aLpNkM"
+msgid "Order received"
+msgstr "Order received"
+
+#: src/features/warehouse/components/warehouse-overviews.tsx
+msgctxt "warehouse.TE-SaB"
+msgid "Purchase order"
+msgstr "Purchase order"
 
 #: src/features/warranty/components/claim-actions-bar.tsx
 #: src/features/warranty/components/decide-claim-dialog.tsx

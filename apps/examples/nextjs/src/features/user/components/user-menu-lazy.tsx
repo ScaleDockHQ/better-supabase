@@ -36,17 +36,12 @@ export function UserMenuLazy(props: UserMenuProps) {
   return (
     <LazyOnIntent
       renderTrigger={(handlers) => (
-        <SidebarMenuButton
-          size="lg"
-          aria-label={t("Account menu")}
-          aria-haspopup="menu"
-          {...handlers}
-        >
-          <Avatar className="size-8 rounded-lg">
+        <SidebarMenuButton size="lg" aria-haspopup="menu" {...handlers}>
+          <Avatar aria-hidden="true" className="size-8 rounded-lg">
             {props.avatarUrl ? (
               <AvatarImage src={props.avatarUrl} alt="" />
             ) : null}
-            <AvatarFallback className="rounded-lg">
+            <AvatarFallback className="rounded-lg text-foreground">
               {initials(props.name, props.email)}
             </AvatarFallback>
           </Avatar>
@@ -61,6 +56,7 @@ export function UserMenuLazy(props: UserMenuProps) {
               {props.role ? roleLabel(props.role) : t("No role")}
             </span>
           </div>
+          <span className="sr-only">{t("Account menu")}</span>
           <ChevronsUpDownIcon className="ml-auto size-4" />
         </SidebarMenuButton>
       )}
