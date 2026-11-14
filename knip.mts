@@ -195,8 +195,6 @@ const config: KnipConfig = {
       ignoreDependencies: ["better-supabase"],
     },
     "tests/types/shared": { entry: ["*.ts"] },
-    // Type-only checks; `tsc` is the runner, so the exports are the checks.
-    "tests/types/frameworks-previous": { entry: ["src/*.ts"] },
     "tests/types/ts-*": {
       ignoreDependencies: ["@better-supabase/types-shared"],
     },
