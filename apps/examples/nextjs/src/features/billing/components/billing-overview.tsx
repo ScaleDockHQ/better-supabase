@@ -20,7 +20,7 @@ import { getSession } from "@/features/user/user-queries";
 import type { PlanOption } from "../billing-queries";
 
 import {
-  getCurrentPlanKey,
+  getStripePlanKey,
   getPlans,
   getSubscription,
 } from "../billing-queries";
@@ -40,17 +40,19 @@ export async function CurrentPlan() {
     return null;
   }
 
-  const [permissions, subscription, planKey, plans, t, format] =
+  const [permissions, subscription, stripePlan, plans, t, format] =
     await Promise.all([
       getPermissions(),
       getSubscription(organizationId),
-      getCurrentPlanKey(organizationId),
+      getStripePlanKey(organizationId),
       getPlans(),
       getExtracted("billing"),
       getFormatter(),
     ]);
 
-  const current = plans.find((plan) => plan.key === planKey);
+  const current = plans.find(
+    (plan) => plan.key === (stripePlan ?? subscription?.planKey),
+  );
 
   return (
     <Card>
@@ -135,10 +137,13 @@ async function ManagedPlanPicker({
   plans: readonly PlanOption[];
   organizationId: string;
 }) {
-  const [current, permissions] = await Promise.all([
-    getCurrentPlanKey(organizationId),
+  const [stripePlan, subscription, permissions] = await Promise.all([
+    getStripePlanKey(organizationId),
+    getSubscription(organizationId),
     getPermissions(),
   ]);
+
+  const current = stripePlan ?? subscription?.planKey;
 
   return (
     <PlanPicker

@@ -909,6 +909,11 @@
     "gzip": 577511,
     "brotli": 492283
   },
+  "/[locale]/(app)/settings/marketplace/[resource]/page": {
+    "raw": 3053099,
+    "gzip": 931136,
+    "brotli": 777126
+  },
   "/[locale]/(app)/settings/marketplace/page": {
     "raw": 3032484,
     "gzip": 922032,
@@ -1683,6 +1688,16 @@
     "raw": 208712,
     "gzip": 67245,
     "brotli": 59969
+  },
+  "/api/stripe/process/route": {
+    "raw": 233589,
+    "gzip": 82991,
+    "brotli": 74329
+  },
+  "/api/stripe/route": {
+    "raw": 233285,
+    "gzip": 82864,
+    "brotli": 74190
   },
   "/api/v1/[...path]/route": {
     "raw": 1078793,

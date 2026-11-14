@@ -131,21 +131,18 @@ export async function currentPlanKeyOf(
 }
 
 /**
- * `currentPlanKeyOf` for server components. The fallback reads
- * `getSubscription`, which the current plan card also shows, so the page reads
- * the row once.
+ * The Stripe plan for server components. A page falls back to `getSubscription`
+ * next to it (`stripePlanKey ?? subscription?.planKey`): a private cache scope
+ * can't nest another, and the page reads the row once for the card.
  */
-export async function getCurrentPlanKey(
+export async function getStripePlanKey(
   organizationId: string,
 ): Promise<string | undefined> {
   "use cache: private";
   const { db } = await bsb.cached();
-  cacheTag(BILLING_TAG, BANKING_TAG, SHOP_TAG);
+  cacheTag(BILLING_TAG);
 
-  return (
-    (await stripePlanKeyOf(db, organizationId)) ??
-    (await getSubscription(organizationId))?.planKey
-  );
+  return stripePlanKeyOf(db, organizationId);
 }
 
 const INVOICE_STATUSES = [

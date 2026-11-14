@@ -889,6 +889,11 @@
     "gzip": 488751,
     "brotli": 427918
   },
+  "/[locale]/(app)/settings/marketplace/[resource]/page": {
+    "raw": 1279706,
+    "gzip": 406744,
+    "brotli": 355150
+  },
   "/[locale]/(app)/settings/marketplace/page": {
     "raw": 1282842,
     "gzip": 406932,
