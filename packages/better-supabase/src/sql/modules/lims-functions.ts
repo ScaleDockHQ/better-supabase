@@ -117,6 +117,34 @@ end;
 $$;
 ${userGrant(`${fn("archive_lims_method")}(uuid)`)}
 
+-- Restores an archived method: results can name it again.
+create or replace function ${fn("restore_lims_method")}(method_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${methods};
+begin
+  select * into v_row from ${methods} x where x.${m("id")} = restore_lims_method.method_id for update;
+  if not found or not ${q.allowed(`v_row.${m("tenant")}`, q.read)} then
+    ${q.methodMissing}
+  end if;
+  if not ${q.allowed(`v_row.${m("tenant")}`, q.manage)} then
+    ${q.forbidden("not allowed to restore test methods")}
+  end if;
+  if v_row.${m("archivedAt")} is not null then
+    update ${methods} x set ${m("archivedAt")} = null, ${m("updatedAt")} = now()
+    where x.${m("id")} = v_row.${m("id")} returning * into v_row;
+    ${methodEvent("lims_method.restored")}
+  end if;
+  return ${q.methodJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("restore_lims_method")}(uuid)`)}
+
 -- The organization's test methods by key; archived ones only with
 -- include_archived.
 create or replace function ${fn("list_lims_methods")}(tenant ${idType}, include_archived boolean default false)

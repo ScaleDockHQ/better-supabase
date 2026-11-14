@@ -68,6 +68,10 @@ A person has a `mode`: `external` (default) is someone outside your organization
 
 A lifecycle stage is one of `options.companyLifecycles` (default `lead`, `prospect`, `customer`, `churned`) or `options.personLifecycles` (default `lead`, `mql`, `sql`, `opportunity`, `customer`); a new record starts at the first (`PARTY_LIFECYCLE_INVALID` for another value). `archiveCompany(id)` and `archivePerson(id)` hide a record from the lists, and `archived: false` restores it.
 
+`restoreCompany(id)` and `restorePerson(id)` bring an archived record back and
+record `company.restored` or `person.restored`; `archiveCompany` and
+`archivePerson` with `archived: false` do the same.
+
 `linkPerson(companyId, personId, { role, primary })` links a person to a company or changes the link; a primary link replaces the company's previous primary contact. `peopleOf(companyId)` returns the company's people, primary contact first, and `unlinkPerson` removes a link.
 
 ## Roles

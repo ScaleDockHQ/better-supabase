@@ -60,7 +60,8 @@ and `validMonths` (1 to 1200) makes a grant end after that many months.
 Saving a new `version` of a key changes what is asked: consents on the old
 version stay in the history, but `isActive` looks at the current version
 only, so every record is asked again. `archivePurpose(id)` stops new
-decisions on a purpose and keeps the ones given. With the service role,
+decisions on a purpose and keeps the ones given; `restorePurpose(id)` takes
+them again and records `consent_purpose.updated`. With the service role,
 `system: true` saves a purpose without an organization that every
 organization uses, such as your own terms of service.
 

@@ -360,8 +360,9 @@ as $$
 declare
   v_tenant ${ctx.idType};
   v_name text;
+  v_was timestamptz;
 begin
-  select x.${col("tenant")}, x.${col("name")} into v_tenant, v_name from ${t(spec.table)} x where x.${col("id")} = ${name}.id;
+  select x.${col("tenant")}, x.${col("name")}, x.${col("archivedAt")} into v_tenant, v_name, v_was from ${t(spec.table)} x where x.${col("id")} = ${name}.id;
   if v_tenant is null then
     return false;
   end if;
@@ -374,6 +375,8 @@ begin
   end;
   if ${name}.archived then
     __RECORD__
+  elsif v_was is not null then
+    __RESTORED__
   end if;
   return true;
 end;
@@ -539,11 +542,14 @@ export function partyFunctions(
   const linkPayload = (name: string): string =>
     `jsonb_build_object('organizationId', v_tenant, 'companyId', ${name}.company, 'personId', ${name}.person, 'role', v_role)`;
 
-  const archived = (kind: Kind): string => {
+  const archived = (
+    kind: Kind,
+    verb: "archived" | "restored" = "archived",
+  ): string => {
     const spec = SPEC[kind];
 
     return ctx.record({
-      type: `${kind}.archived`,
+      type: `${kind}.${verb}`,
       payload: `jsonb_build_object('organizationId', v_tenant, ${sqlString(spec.idKey)}, archive_${kind}.id, 'name', v_name)`,
       subject: `'${spec.subject}/' || archive_${kind}.id::text`,
       tenant: "v_tenant::text",
@@ -552,8 +558,8 @@ export function partyFunctions(
   };
 
   return `${saveFunction(ctx, names, "company")}${saveFunction(ctx, names, "person")}
-${archiveFunction(ctx, names, "company").replace("__RECORD__", archived("company"))}
-${archiveFunction(ctx, names, "person").replace("__RECORD__", archived("person"))}
+${archiveFunction(ctx, names, "company").replace("__RECORD__", archived("company")).replace("__RESTORED__", archived("company", "restored"))}
+${archiveFunction(ctx, names, "person").replace("__RECORD__", archived("person")).replace("__RESTORED__", archived("person", "restored"))}
 -- Links a person to a company with a role, or changes the link. A primary
 -- link replaces the company's previous primary contact.
 create or replace function ${fn("set_company_person")}(company uuid, person uuid, role text, is_primary boolean)

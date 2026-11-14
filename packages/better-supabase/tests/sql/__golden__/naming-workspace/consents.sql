@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:74df9c8acb500f2e9f9cae5d1553e8124d673e1b98de3ec9a1d1ce8cf47a510b
+-- @bsb-hash sha256:0b9892a16e1219f9a52f021d1467c8dea68f4cb163dbf9ec085c8d9f3a4a4071
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -243,6 +243,46 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_consent_purpose"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_consent_purpose"(uuid) to authenticated, service_role;
+
+-- Restores an archived purpose: new consents can be recorded for it again.
+create or replace function "better_supabase"."restore_consent_purpose"(purpose_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."consent_purposes";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."consent_purposes" x where x."id" = restore_consent_purpose.purpose_id for update;
+  if not found then
+    raise exception 'no such consent purpose' using errcode = 'P0002', hint = 'CONSENT_PURPOSE_NOT_FOUND';
+  end if;
+  if v_row."tenant_id" is null then
+    if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+      raise exception 'only the service role restores a system purpose' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+    end if;
+  elsif not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'consents.manage'), false))) then
+    raise exception 'not allowed to manage consent purposes' using errcode = '42501', hint = 'CONSENT_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'legalBasis', v_row."legal_basis", 'version', v_row."version", 'requiresSignature', v_row."requires_signature", 'validMonths', v_row."valid_months", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."consent_purposes" x set
+    "updated_at" = now(),
+    "archived_at" = null
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'description', v_row."description", 'legalBasis', v_row."legal_basis", 'version', v_row."version", 'requiresSignature', v_row."requires_signature", 'validMonths', v_row."valid_months", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_consent_purpose"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_consent_purpose"(uuid) to authenticated, service_role;
 
 -- The purposes an organization asks consent for: its own and the system ones,
 -- by key, the newest version first.

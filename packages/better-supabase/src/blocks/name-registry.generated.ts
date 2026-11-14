@@ -496,7 +496,7 @@ export interface BlockNameRegistry {
       readonly "cases": "id" | "tenant" | "kind" | "number" | "sequence" | "title" | "description" | "severity" | "source" | "reporter" | "reporterContact" | "owner" | "occurredAt" | "detectedAt" | "dueOn" | "pipeline" | "stage" | "stageEnteredAt" | "status" | "rootCause" | "rootCauseSubmission" | "effective" | "effectivenessDueOn" | "effectivenessNotifiedFor" | "effectivenessNote" | "effectivenessSubmission" | "closedAt" | "closedBy" | "closeNote" | "rank" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "actions": "id" | "tenant" | "case" | "task" | "type" | "required" | "createdAt";
     };
-    readonly functions: "archive_case_kind" | "cancel_case" | "case_blockers_of" | "case_close_blockers" | "case_from_submission" | "case_stats" | "close_case" | "create_case_action" | "ensure_case_kinds" | "get_case" | "link_case_action" | "list_case_kinds" | "list_cases" | "notify_due_case_effectiveness" | "open_case" | "open_case_as" | "page_cases" | "record_case_effectiveness" | "record_case_root_cause" | "remove_case_action" | "reopen_case" | "save_case_kind" | "schedule_case_effectiveness" | "update_case";
+    readonly functions: "archive_case_kind" | "cancel_case" | "case_blockers_of" | "case_close_blockers" | "case_from_submission" | "case_stats" | "close_case" | "create_case_action" | "ensure_case_kinds" | "get_case" | "link_case_action" | "list_case_kinds" | "list_cases" | "notify_due_case_effectiveness" | "open_case" | "open_case_as" | "page_cases" | "record_case_effectiveness" | "record_case_root_cause" | "remove_case_action" | "reopen_case" | "restore_case_kind" | "save_case_kind" | "schedule_case_effectiveness" | "update_case";
     readonly actions: "read" | "create" | "write" | "close" | "manage";
     readonly hooks: "before_case_open" | "after_case_open" | "before_case_close" | "after_case_close";
     readonly entities: {
@@ -667,7 +667,7 @@ export interface BlockNameRegistry {
       readonly "signals": "id" | "tenant" | "subjectType" | "subjectId" | "kind" | "raw" | "parsed" | "consents" | "createdBy" | "receivedAt";
       readonly "receipts": "id" | "tenant" | "subjectType" | "subjectId" | "consent" | "status" | "receipt" | "digest" | "issuedAt";
     };
-    readonly functions: "archive_consent_purpose" | "consent_active" | "consent_missing" | "expire_consents" | "issue_consent_receipt" | "list_consent_purposes" | "list_consent_receipts" | "list_consent_signals" | "list_consents" | "parse_gpp_string" | "parse_tc_string" | "record_consent" | "record_consent_signal" | "requires_consent" | "save_consent_purpose" | "withdraw_consent";
+    readonly functions: "archive_consent_purpose" | "consent_active" | "consent_missing" | "expire_consents" | "issue_consent_receipt" | "list_consent_purposes" | "list_consent_receipts" | "list_consent_signals" | "list_consents" | "parse_gpp_string" | "parse_tc_string" | "record_consent" | "record_consent_signal" | "requires_consent" | "restore_consent_purpose" | "save_consent_purpose" | "withdraw_consent";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_consent_record" | "after_consent_record" | "before_consent_withdraw" | "after_consent_withdraw";
     readonly entities: {
@@ -1448,7 +1448,7 @@ export interface BlockNameRegistry {
       readonly "samples": "id" | "tenant" | "number" | "sequence" | "title" | "kind" | "lot" | "receivedOn" | "status" | "notes" | "rejectionReason" | "completedAt" | "releasedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "results": "id" | "tenant" | "sample" | "method" | "value" | "outcome" | "instrument" | "submission" | "case" | "note" | "testedBy" | "testedAt" | "createdAt";
     };
-    readonly functions: "archive_lims_method" | "complete_sample" | "get_sample" | "instrument_status" | "list_lims_methods" | "list_qualified_instruments" | "list_samples" | "record_lims_result" | "register_sample" | "reject_sample" | "release_sample" | "save_lims_method";
+    readonly functions: "archive_lims_method" | "complete_sample" | "get_sample" | "instrument_status" | "list_lims_methods" | "list_qualified_instruments" | "list_samples" | "record_lims_result" | "register_sample" | "reject_sample" | "release_sample" | "restore_lims_method" | "save_lims_method";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_lims_sample_register" | "after_lims_sample_register" | "before_lims_result_record" | "after_lims_result_record";
     readonly entities: {
@@ -1687,7 +1687,7 @@ export interface BlockNameRegistry {
       readonly "definitions": "id" | "tenant" | "key" | "title" | "valueType" | "unit" | "codeSystem" | "code" | "components" | "decimals" | "validLow" | "validHigh" | "referenceLow" | "referenceHigh" | "criticalLow" | "criticalHigh" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "observations": "id" | "tenant" | "definition" | "subjectType" | "subjectId" | "observedAt" | "valueNumber" | "valueText" | "valueCode" | "components" | "flag" | "status" | "replaces" | "reason" | "method" | "device" | "source" | "externalId" | "submission" | "performer" | "note" | "createdAt";
     };
-    readonly functions: "amend_observation" | "archive_observation_definition" | "ingest_observations" | "latest_observations" | "list_observation_definitions" | "list_observations" | "mark_observation_error" | "observation_definition_id" | "observation_flag" | "observation_insert" | "observation_series" | "record_observation" | "record_observations" | "save_observation_definition";
+    readonly functions: "amend_observation" | "archive_observation_definition" | "ingest_observations" | "latest_observations" | "list_observation_definitions" | "list_observations" | "mark_observation_error" | "observation_definition_id" | "observation_flag" | "observation_insert" | "observation_series" | "record_observation" | "record_observations" | "restore_observation_definition" | "save_observation_definition";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_observation_definition_save" | "after_observation_definition_save" | "before_observation_record" | "after_observation_record" | "before_observation_amend" | "after_observation_amend" | "before_observation_mark_error" | "after_observation_mark_error";
     readonly entities: {
@@ -2247,7 +2247,7 @@ export interface BlockNameRegistry {
       readonly "swaps": "id" | "tenant" | "assignment" | "fromUser" | "toUser" | "status" | "approval" | "note" | "decidedBy" | "decidedAt" | "createdAt";
       readonly "availability": "id" | "tenant" | "user" | "onDate" | "fromTime" | "untilTime" | "kind" | "note" | "createdAt";
     };
-    readonly functions: "archive_shift_template" | "assign_shift" | "cancel_shift" | "decide_shift_request" | "decide_shift_swap" | "generate_shifts" | "list_shift_availability" | "list_shift_templates" | "my_shifts" | "publish_shifts" | "request_open_shift" | "request_shift_swap" | "roster" | "save_shift" | "save_shift_template" | "set_shift_availability" | "shift_assignment_check" | "shift_hours" | "unassign_shift";
+    readonly functions: "archive_shift_template" | "assign_shift" | "cancel_shift" | "decide_shift_request" | "decide_shift_swap" | "generate_shifts" | "list_shift_availability" | "list_shift_templates" | "my_shifts" | "publish_shifts" | "request_open_shift" | "request_shift_swap" | "restore_shift_template" | "roster" | "save_shift" | "save_shift_template" | "set_shift_availability" | "shift_assignment_check" | "shift_hours" | "unassign_shift";
     readonly actions: "read" | "write" | "request" | "manage";
     readonly hooks: "before_shift_save" | "after_shift_save" | "before_shift_cancel" | "after_shift_cancel" | "before_shift_assignment_create" | "after_shift_assignment_create";
     readonly entities: {

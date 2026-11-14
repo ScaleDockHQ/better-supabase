@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:56a1b27166fa7f1ac8467b44f7d1aa791c10fe774a753ba23212c1e52573be92
+-- @bsb-hash sha256:0b909f2300643fb7a05fc573902659ee49160e0340ede7c52eb5f7fe9cab2b1c
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -267,6 +267,36 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_shift_template"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_shift_template"(uuid) to authenticated, service_role;
+
+-- Restores an archived template: shifts can be planned from it again.
+create or replace function "better_supabase"."restore_shift_template"(template_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."shift_templates"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."shift_templates" x where x."id" = restore_shift_template.template_id;
+  if not found then
+    raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'shifts.write'), false)) then
+    raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
+  end if;
+  update "better_supabase"."shift_templates" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning x.* into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_shift_template"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_shift_template"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_shift_templates"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -1216,7 +1246,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:a243e62915556ac06e258780782b5424b43eff7529eebe854eba6bd4f301aa46
+-- @bsb-hash sha256:7b30dc6f179bea67e09d2b815b90f087a655da01c0d22abb4d1ff5976fb66435
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1491,6 +1521,36 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_shift_template"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_shift_template"(uuid) to authenticated, service_role;
+
+-- Restores an archived template: shifts can be planned from it again.
+create or replace function "better_supabase"."restore_shift_template"(template_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."shift_templates"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."shift_templates" x where x."id" = restore_shift_template.template_id;
+  if not found then
+    raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'shifts.write'), false)) then
+    raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
+  end if;
+  update "better_supabase"."shift_templates" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning x.* into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_shift_template"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_shift_template"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_shift_templates"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -2781,7 +2841,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:bdd043174276940c5d9d02a29a70a0ad3289e77fa693ef9a36efc85029976fce
+-- @bsb-hash sha256:49bd5f59b3730ca2de65935d83c9596ed38c6922124e70754f19a5a2eea002d0
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3052,6 +3112,36 @@ end;
 $$;
 revoke execute on function "app_private"."archive_shift_template"(uuid) from public, anon;
 grant execute on function "app_private"."archive_shift_template"(uuid) to authenticated, service_role;
+
+-- Restores an archived template: shifts can be planned from it again.
+create or replace function "app_private"."restore_shift_template"(template_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."shift_templates"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."shift_templates" x where x."id" = restore_shift_template.template_id;
+  if not found then
+    raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'shifts.write'), false)) then
+    raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
+  end if;
+  update "app_private"."shift_templates" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning x.* into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."restore_shift_template"(uuid) from public, anon;
+grant execute on function "app_private"."restore_shift_template"(uuid) to authenticated, service_role;
 
 create or replace function "app_private"."list_shift_templates"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -4001,7 +4091,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:fc162b39e12fff660a2cd754b3f0b2524f272de1050f80544b96832f10c6c48a
+-- @bsb-hash sha256:1286e7a33d177bfcfb0d28e8c8e32bea3b31c7e52a3419d6dc35b7c15c5d90f9
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4267,6 +4357,36 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_shift_template"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_shift_template"(uuid) to authenticated, service_role;
+
+-- Restores an archived template: shifts can be planned from it again.
+create or replace function "better_supabase"."restore_shift_template"(template_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."shift_templates"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."shift_templates" x where x."id" = restore_shift_template.template_id;
+  if not found then
+    raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'shifts.write'), false)) then
+    raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
+  end if;
+  update "better_supabase"."shift_templates" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning x.* into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_shift_template"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_shift_template"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_shift_templates"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -5219,6 +5339,15 @@ as $$ select "better_supabase"."archive_shift_template"($1) $$;
 revoke execute on function "api"."archive_shift_template"(uuid) from public, anon;
 grant execute on function "api"."archive_shift_template"(uuid) to authenticated, service_role;
 
+create or replace function "api"."restore_shift_template"(template_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_shift_template"($1) $$;
+revoke execute on function "api"."restore_shift_template"(uuid) from public, anon;
+grant execute on function "api"."restore_shift_template"(uuid) to authenticated, service_role;
+
 create or replace function "api"."list_shift_templates"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
@@ -5387,7 +5516,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:5b30fff867bd05c97a4ac214a3f6b1c15e1a2767329a9688251ee53bd8f4cb3b
+-- @bsb-hash sha256:c87e8d529b08c44859f329bc968757d5eb08f35dcec316d70373c2a33c719d73
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5623,6 +5752,36 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_shift_template"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_shift_template"(uuid) to authenticated, service_role;
+
+-- Restores an archived template: shifts can be planned from it again.
+create or replace function "better_supabase"."restore_shift_template"(template_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."shift_templates"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."shift_templates" x where x."id" = restore_shift_template.template_id;
+  if not found then
+    raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'shifts.write'), false)) then
+    raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
+  end if;
+  update "better_supabase"."shift_templates" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning x.* into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_shift_template"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_shift_template"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_shift_templates"(tenant uuid, include_archived boolean default false)
 returns jsonb
@@ -6572,7 +6731,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:1dba65598fbbde3f31a4adfd5e306fd0e59ef41b0d136cd533df59530c51a069
+-- @bsb-hash sha256:ec233e0d406ebc8487b1d38176181b5f6d8d62bbeefe85f4d7a75a9cc9a8c58c
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6838,6 +6997,36 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_shift_template"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_shift_template"(uuid) to authenticated, service_role;
+
+-- Restores an archived template: shifts can be planned from it again.
+create or replace function "better_supabase"."restore_shift_template"(template_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."shift_templates"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."shift_templates" x where x."id" = restore_shift_template.template_id;
+  if not found then
+    raise exception 'shift template not found' using errcode = 'P0002', hint = 'SHIFT_TEMPLATE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'shifts.write'), false)) then
+    raise exception 'not allowed to plan shifts' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
+  end if;
+  update "better_supabase"."shift_templates" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning x.* into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'name', v_row."name", 'teamId', v_row."team_id", 'locationId', v_row."location_id", 'startsTime', to_char(v_row."starts_time", 'HH24:MI'), 'endsTime', to_char(v_row."ends_time", 'HH24:MI'), 'breakMinutes', v_row."break_minutes", 'headcount', v_row."headcount", 'requiredQualifications', to_jsonb(v_row."required_qualifications"), 'weekdays', to_jsonb(v_row."weekdays"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_shift_template"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_shift_template"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_shift_templates"(tenant uuid, include_archived boolean default false)
 returns jsonb

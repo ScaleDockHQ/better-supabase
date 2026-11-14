@@ -77,6 +77,7 @@ export type CasesEvents = {
   readonly "case_kind.created": CaseKindEventData;
   readonly "case_kind.updated": CaseKindEventData;
   readonly "case_kind.archived": CaseKindEventData;
+  readonly "case_kind.restored": CaseKindEventData;
   readonly "case.created": CaseEventData;
   readonly "case.updated": CaseUpdatedEventData;
   readonly "case.root_cause_recorded": CaseRootCauseRecordedEventData;
@@ -94,6 +95,7 @@ export const casesEvents: Events<CasesEvents> = defineEvents({
   "case_kind.created": event<CaseKindEventData>(),
   "case_kind.updated": event<CaseKindEventData>(),
   "case_kind.archived": event<CaseKindEventData>(),
+  "case_kind.restored": event<CaseKindEventData>(),
   "case.created": event<CaseEventData>(),
   "case.updated": event<CaseUpdatedEventData>(),
   "case.root_cause_recorded": event<CaseRootCauseRecordedEventData>(),
