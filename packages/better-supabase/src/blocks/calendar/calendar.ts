@@ -12,6 +12,7 @@ import type {
   WorkingHours,
   WorkingHoursInput,
 } from "./availability.ts";
+import type { CalendarBootstrap } from "./bootstrap.ts";
 import type {
   AttendeeResponse,
   AttendeeRole,
@@ -33,7 +34,7 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { AsyncResult } from "../../core/result.ts";
+import { AsyncResult, ok } from "../../core/result.ts";
 import {
   blockCall,
   isRecord,
@@ -52,6 +53,7 @@ import {
   freeBusyOf,
   workingHoursOf,
 } from "./availability.ts";
+import { bootstrapOf, calendarInfoOf } from "./bootstrap.ts";
 import { parseIcs, toIcs } from "./ics.ts";
 import { expandOccurrences, splitRule } from "./occurrences.ts";
 
@@ -228,6 +230,19 @@ export interface Calendar<F extends object = Record<never, never>> {
   }): AsyncResult<boolean>;
   deleteCalendar(id: string): AsyncResult<boolean>;
   listCalendars(organizationId: string): AsyncResult<CalendarInfo[]>;
+  /**
+   * What a calendar page reads, in one call: the organization's calendars, the
+   * occurrences in `range` (series expanded), those in `upcoming` when given
+   * and the caller's reminders on events. `reminders` is empty without the
+   * reminders block or the right to manage reminders.
+   */
+  bootstrap(
+    input: {
+      organizationId: string;
+      range: OccurrenceRange;
+      upcoming?: OccurrenceRange | undefined;
+    } & OccurrenceOptions,
+  ): AsyncResult<CalendarBootstrap>;
   /**
    * Inserts an event, or updates the one with `id`. Keys besides the input's
    * own are the event's extra columns.
@@ -742,45 +757,42 @@ export function createCalendar<
       call("delete_calendar", { calendar_id: id }, (value) => value === true),
     listCalendars: (organizationId) =>
       call("list_calendars", { tenant: organizationId }, (value) =>
-        recordsOf(value, "list_calendars").map((row) => {
-          const extra: Record<string, string> = {};
+        recordsOf(value, "list_calendars").map(calendarInfoOf),
+      ),
+    bootstrap: ({ organizationId, range, upcoming, ...occurrenceOptions }) =>
+      call(
+        "calendar_bootstrap",
+        {
+          tenant: organizationId,
+          range_start: range.from.toString(),
+          range_end: range.until.toString(),
+          ...(upcoming === undefined
+            ? {}
+            : {
+                upcoming_start: upcoming.from.toString(),
+                upcoming_end: upcoming.until.toString(),
+              }),
+        },
+        (value) => recordOf(value, "calendar_bootstrap"),
+      ).andThen((row) =>
+        AsyncResult.from(() =>
+          bootstrapOf(
+            row,
+            async ({ key, window }) => {
+              const events = await allWithFields(
+                fields,
+                recordsOf(row[key], key).map(
+                  (raw) => [raw, calendarEventOf(raw)] as const,
+                ),
+              );
 
-          for (const key of [
-            "color",
-            "ownerType",
-            "ownerId",
-            "description",
-            "rank",
-          ]) {
-            const found = optionalText(row[key]);
-
-            if (found !== undefined) {
-              extra[key] = found;
-            }
-          }
-
-          return {
-            id: textOf(row["id"]),
-            name: textOf(row["name"]),
-            tz: optionalText(row["tz"]) ?? "UTC",
-            ...extra,
-            ...(row["visibility"] === undefined
-              ? {}
-              : {
-                  visibility: oneOf(
-                    row["visibility"],
-                    ["shared", "private"] as const,
-                    "shared",
-                  ),
-                }),
-            ...(typeof row["isDefault"] === "boolean"
-              ? { isDefault: row["isDefault"] }
-              : {}),
-            ...(isRecord(row["fields"])
-              ? { fields: { ...row["fields"] } }
-              : {}),
-          };
-        }),
+              return events.ok
+                ? ok(expandOccurrences(events.data, window, occurrenceOptions))
+                : events;
+            },
+            { range, upcoming },
+          ),
+        ),
       ),
     upsert: save,
     defaultAlarms: (calendarId) =>

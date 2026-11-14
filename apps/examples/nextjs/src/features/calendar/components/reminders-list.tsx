@@ -23,6 +23,7 @@ import { can } from "@/features/user/user-permissions";
 
 import { loadUpcomingReminders, settle } from "../calendar-queries";
 import { CalendarLoadError } from "./calendar-load-error";
+import { monthWindow } from "./calendar-view";
 import { CreateEventDialog } from "./create-event-dialog";
 import { EventReminders } from "./event-reminders";
 
@@ -31,14 +32,21 @@ import { EventReminders } from "./event-reminders";
  * The next events with the caller's reminders on each. A reminder fires its
  * offset before every occurrence of the event, once per occurrence.
  */
-export async function RemindersList() {
-  // The read starts with the permission check; RLS guards it either way.
+export async function RemindersList({
+  query,
+}: {
+  query: Record<string, string | string[] | undefined>;
+}) {
+  await io();
+  const { from, until } = monthWindow(query);
+
+  // The read starts with the permission check; RLS guards it either way. It
+  // is the entry the month card reads, so the database is called once.
   const [permissions, t, format, upcoming] = await Promise.all([
     getPermissions(),
     getExtracted("calendar"),
     getFormatter(),
-    settle(loadUpcomingReminders),
-    io(),
+    settle(() => loadUpcomingReminders(from.toString(), until.toString())),
   ]);
 
   if (!can(permissions, "reminders.manage")) {

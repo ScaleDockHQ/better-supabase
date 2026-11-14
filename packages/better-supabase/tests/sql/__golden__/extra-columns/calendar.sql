@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:0e8432a30bf2ee6e2c318ccbcadfd01fe4947c01d9c46bbd3f877a93491ca497
+-- @bsb-hash sha256:994528927e504be34f8341961882c1ac16878875edb744f72db869b9ffeab449
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -553,6 +553,39 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_calendars"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_calendars"(uuid) to authenticated, service_role;
+
+-- The calendars of a tenant, the events that can fall in [range_start,
+-- range_end), those of [upcoming_start, upcoming_end) when both are given, and
+-- the caller's reminders on events: one call instead of one per read. Each part
+-- is what list_calendars, list_calendar_events and list_my_reminders return, and
+-- it runs as the caller, so the policies decide what it holds.
+create or replace function "better_supabase"."calendar_bootstrap"(tenant uuid, range_start timestamptz, range_end timestamptz, upcoming_start timestamptz default null, upcoming_end timestamptz default null)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_calendars jsonb := "better_supabase"."list_calendars"(calendar_bootstrap.tenant);
+  v_ids uuid[];
+  v_events jsonb := '[]'::jsonb;
+  v_upcoming jsonb := '[]'::jsonb;
+  v_reminders jsonb := '[]'::jsonb;
+begin
+  select coalesce(array_agg((c ->> 'id')::uuid), '{}'::uuid[]) into v_ids
+    from jsonb_array_elements(v_calendars) c;
+  if cardinality(v_ids) > 0 then
+    v_events := "better_supabase"."list_calendar_events"(v_ids, calendar_bootstrap.range_start, calendar_bootstrap.range_end);
+    if calendar_bootstrap.upcoming_start is not null and calendar_bootstrap.upcoming_end is not null then
+      v_upcoming := "better_supabase"."list_calendar_events"(v_ids, calendar_bootstrap.upcoming_start, calendar_bootstrap.upcoming_end);
+    end if;
+  end if;
+  return jsonb_build_object('calendarList', v_calendars, 'monthEvents', v_events, 'upcomingEvents', v_upcoming, 'myReminders', v_reminders);
+end;
+$$;
+revoke execute on function "better_supabase"."calendar_bootstrap"(uuid, timestamptz, timestamptz, timestamptz, timestamptz) from public, anon;
+grant execute on function "better_supabase"."calendar_bootstrap"(uuid, timestamptz, timestamptz, timestamptz, timestamptz) to authenticated, service_role;
 
 create or replace function "better_supabase"."set_calendar_attendee"(event_id uuid, email text, name text, user_id uuid, role text)
 returns boolean

@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@5 managed
--- @bsb-hash sha256:b16648c537cac6dc2478801afd6e1c9f7af80c2fd3454a9496a9fd1747936074
+-- @bsb-hash sha256:3dc5ecdaca2ee843f6b84a09ed1ccffc92dd0eeaff2f67575de9b288d106d633
 -- A search_documents index kept up by triggers from each config.recordTypes search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), search_page for browsing and cursor paging with facet filters, and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1237,9 +1237,12 @@ begin
         row_number() over (order by h.score desc) as rank
       from (
         select d."subject_type" as subject_type, d."subject_id" as subject_id,
-          2 * coalesce(ts_rank_cd(d."tsv", v_web), 0)
-            + coalesce(ts_rank_cd(d."tsv", v_prefix), 0)
-            + extensions.similarity(d."title_search", v_norm) as score
+          -- A row only the trigram index matched has no rank to compute.
+          case when d."tsv" @@ v_web or (v_prefix is not null and d."tsv" @@ v_prefix)
+            then 2 * coalesce(ts_rank_cd(d."tsv", v_web), 0)
+              + coalesce(ts_rank_cd(d."tsv", v_prefix), 0)
+            else 0
+          end + extensions.similarity(d."title_search", v_norm) as score
         from "better_supabase"."search_documents" d
         where (search.types is null or d."subject_type" = any (search.types))
           and (search.tenant is null or d."tenant_id" = search.tenant)

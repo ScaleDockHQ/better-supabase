@@ -61,7 +61,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "add_booking_exception available_slots cancel_booking confirm_booking delete_booking_exception expire_booking_holds hold_booking list_booking_resources list_booking_services list_bookings list_bookings_for_customer save_booking_resource save_booking_service set_booking_availability",
   "bulk-actions": "bulk_apply bulk_run bulk_step start_bulk",
   calendar:
-    "calendar_free_busy cancel_calendar_occurrence create_calendar delete_calendar delete_calendar_event import_calendar_events list_calendar_events list_calendar_working_hours list_calendars remove_calendar_attendee respond_calendar_event save_calendar_event set_calendar_attendee set_calendar_working_hours split_calendar_event",
+    "calendar_bootstrap calendar_free_busy cancel_calendar_occurrence create_calendar delete_calendar delete_calendar_event import_calendar_events list_calendar_events list_calendar_working_hours list_calendars remove_calendar_attendee respond_calendar_event save_calendar_event set_calendar_attendee set_calendar_working_hours split_calendar_event",
   cases:
     "archive_case_kind cancel_case case_close_blockers case_stats close_case create_case_action get_case link_case_action list_case_kinds list_cases notify_due_case_effectiveness open_case record_case_effectiveness record_case_root_cause remove_case_action reopen_case save_case_kind update_case",
   "care-plans":

@@ -188,6 +188,12 @@ as a prefix, and trigram similarity on the title for typos. A trashed row
 (its `deletedAt` column set) has no document, and a restored row gets it
 back.
 
+`search` ranks at most five times the requested page of candidates before it
+checks what the caller may read. A document that only the trigram index matched
+has no full-text rank, so it is scored by its title similarity alone. A
+smaller limit per subject type was measured and did not change the time (ADR
+0950).
+
 | Hint                     | When                                          |
 | ------------------------ | --------------------------------------------- |
 | `SEARCH_QUERY_TOO_LONG`  | The query is longer than 256 characters       |

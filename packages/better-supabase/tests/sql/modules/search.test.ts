@@ -241,4 +241,19 @@ describe("search module", () => {
     );
     expect(appIndex).toContain(`from "app"."search_index" d`);
   });
+
+  it("ranks only the rows the full-text index matched (EX-1504)", () => {
+    const sql = sqlOf();
+
+    const start = sql.indexOf(
+      'create or replace function "better_supabase"."search"(',
+    );
+
+    const body = sql.slice(start, sql.indexOf("$$;", start));
+
+    expect(body).toMatch(
+      /case when d\."tsv" @@ v_web or \(v_prefix is not null and d\."tsv" @@ v_prefix\)\s+then 2 \* coalesce\(ts_rank_cd/u,
+    );
+    expect(body).toContain('extensions.similarity(d."title_search", v_norm)');
+  });
 });
