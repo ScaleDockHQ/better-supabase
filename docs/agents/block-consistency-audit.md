@@ -1123,7 +1123,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 - Scope: AI ops, EX-301 first (a maintainer sets `AI_GATEWAY_API_KEY`)
 - Status: in progress
 - Branch: `feat/findings-x7`
-- PR: [#TBD](https://github.com/ScaleDockHQ/better-supabase/pulls)
+- PR: [#927](https://github.com/ScaleDockHQ/better-supabase/pull/927)
 - Findings: EX-301, EX-302, EX-305, EX-306, EX-307, EX-317
 - Log: 2026-11-14, planned.
 - Log: 2026-11-14, in progress.
