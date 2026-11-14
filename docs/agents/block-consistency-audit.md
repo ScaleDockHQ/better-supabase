@@ -1066,9 +1066,9 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Scope: Offline, public events, impersonation actor, flags, invitations
 - Status: merged
 - Branch: `feat/audit-o3`
-- PR: #952, #956, #PRC
+- PR: #952, #956, #958
 - Findings: EX-1318, EX-1320, EX-1321, EX-1328, EX-1329, EX-510
-- Log: 2026-11-12, planned. 2026-11-14, merged: PR #952 (1318+1320, offline declaration and public events), PR #956 (1321+510, acting member and impersonation in the example), PR #PRC (1328+1329, entity flags and the invitation list). EX-1318 stays partial (stream queries are hand-written) and EX-1329 stays partial (no SQL list function).
+- Log: 2026-11-12, planned. 2026-11-14, merged: PR #952 (1318+1320, offline declaration and public events), PR #956 (1321+510, acting member and impersonation in the example), PR #958 (1328+1329, entity flags and the invitation list). EX-1318 stays partial (stream queries are hand-written) and EX-1329 stays partial (no SQL list function).
 
 ### Lane P
 
