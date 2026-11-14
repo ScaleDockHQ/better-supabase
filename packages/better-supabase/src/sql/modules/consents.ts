@@ -113,7 +113,14 @@ const NAMES: BlockSqlNames = {
     },
     consents: {
       name: "consents",
-      lifecycle: { tenant: "tenant", export: true },
+      lifecycle: {
+        tenant: "tenant",
+        export: true,
+        erase: {
+          mode: "anonymize",
+          personal: ["givenByUser", "withdrawnReason", "signature"],
+        },
+      },
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -148,7 +155,12 @@ const NAMES: BlockSqlNames = {
     },
     signals: {
       name: "consent_signals",
-      lifecycle: { tenant: "tenant", user: "createdBy", export: true },
+      lifecycle: {
+        tenant: "tenant",
+        user: "createdBy",
+        export: true,
+        erase: { mode: "delete" },
+      },
       columns: {
         id: "id",
         tenant: "tenant_id",
