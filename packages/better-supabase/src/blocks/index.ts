@@ -165,12 +165,20 @@ export type {
   PageOptions,
 } from "./shared.ts";
 
-export { ENTITY_METHODS, ENTITY_MUTABILITIES } from "./entity-surface.ts";
+export {
+  ENTITY_ERASES,
+  ENTITY_METHODS,
+  ENTITY_MUTABILITIES,
+  ENTITY_PARTITION_EVERY,
+} from "./entity-surface.ts";
 
 export type {
   BlockEntities,
+  EntityErase,
   EntityMethod,
   EntityMutability,
+  EntityPartition,
+  EntityPartitionEvery,
   EntitySurface,
 } from "./entity-surface.ts";
 
