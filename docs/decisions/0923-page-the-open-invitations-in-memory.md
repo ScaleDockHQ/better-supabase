@@ -1,6 +1,6 @@
 # 0923: Page the open invitations in memory
 
-- Status: accepted
+- Status: superseded by [0924](0924-page-the-open-invitations-in-sql.md)
 - Date: 2026-11-14
 
 ## Context

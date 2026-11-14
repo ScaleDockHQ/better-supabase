@@ -104,6 +104,17 @@ export default defineConfig({
           // exports no input schema, so the page sets no `seed`.
           area: "finance",
         }),
+        // The open invitations of an organization (ADR 0923, 0924): the organizations block
+        // names its list reads per entity, and the members page is the nav area.
+        defineEntityPage({
+          entity: "organizations.invitation",
+          route: "/members/invitations",
+          // `db.organizations` is the table, so the block reads sit under `$blocks`.
+          reads: "$blocks.organizations",
+          methods: { page: "invitationsPage", facets: "invitationsFacets" },
+          columns: ["email", "role", "expiresAt"],
+          area: "team",
+        }),
       ],
       server: { module: "@/lib/supabase/server", export: "bsb" },
       scaleDir: "../../../supabase/tests/scale",
