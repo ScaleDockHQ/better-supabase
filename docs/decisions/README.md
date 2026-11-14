@@ -506,11 +506,5 @@ add one, and link it from the code or config it explains.
 | [1020](1020-add-quote-sequence-and-company-pages.md)                                 | Split quotes and sequences into overview and detail, and add a companies route                                                                                                             |
 | [1021](1021-extend-the-deal-desk.md)                                                 | Add schedule views, owner assignment and the buyer thread to the deal desk                                                                                                                 |
 | [1009](1009-close-the-commerce-and-finance-findings-of-lane-x8.md)                   | Close the commerce and finance findings of lane X8                                                                                                                                         |
-<<<<<<< HEAD
 | [0979](0979-add-inbox-admin-tools-and-channel-webhooks-to-the-example.md)            | Add inbox admin tools and channel webhooks to the example                                                                                                                                  |
-||||||| parent of 94f0fcdb5d (feat: findings program, lane X2b)
-||||||| parent of 7a1c32a7b3 (chore: rebase lane X2b onto main and renumber its migration)
-||||||| parent of 94f0fcdb5d (feat: findings program, lane X2b)
-=======
->>>>>>> 7a1c32a7b3 (chore: rebase lane X2b onto main and renumber its migration)
 | [0950](0950-rank-only-full-text-matches-and-bootstrap-the-calendar.md)               | Rank only full-text matches and bootstrap the calendar                                                                                                                                     |

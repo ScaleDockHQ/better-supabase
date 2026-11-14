@@ -8,30 +8,9 @@ you change the example, and add a line when you find something.
 
 <!-- example-findings:counts:start -->
 
-<<<<<<< HEAD
-295 findings: 195 fixed, 10 closed, 4 measured away,
-0 open, 9 partly fixed and 77 deferred
-(86 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
-295 findings: 192 fixed, 10 closed, 4 measured away,
-0 open, 9 partly fixed and 80 deferred
-(89 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
-||||||| parent of 7610c91648 (docs: refresh the findings counts after rebasing)
-295 findings: 185 fixed, 10 closed, 4 measured away,
-0 open, 9 partly fixed and 87 deferred
-(96 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
-||||||| parent of 7a1c32a7b3 (chore: rebase lane X2b onto main and renumber its migration)
-295 findings: 192 fixed, 10 closed, 4 measured away,
-0 open, 9 partly fixed and 80 deferred
-(89 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
-||||||| parent of 7610c91648 (docs: refresh the findings counts after rebasing)
-295 findings: 185 fixed, 10 closed, 4 measured away,
-0 open, 9 partly fixed and 87 deferred
-(96 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
-=======
-295 findings: 193 fixed, 10 closed, 5 measured away,
-0 open, 9 partly fixed and 78 deferred
-(87 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
->>>>>>> 7a1c32a7b3 (chore: rebase lane X2b onto main and renumber its migration)
+295 findings: 196 fixed, 10 closed, 5 measured away,
+0 open, 9 partly fixed and 75 deferred
+(84 unfinished). `pnpm check:example-findings` keeps this line current; `--write` rewrites it.
 <!-- example-findings:counts:end -->
 
 ## Status after the library findings pass
