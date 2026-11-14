@@ -1,7 +1,6 @@
 import { posix } from "node:path";
 
 import type { GeneratedFile } from "../../config/index.ts";
-import type { FieldSpec } from "../../core/table-json-schema.ts";
 import type {
   EntityColumn,
   EntityFieldKind,
@@ -18,12 +17,11 @@ import { GENERATED_HEADER } from "./emit.ts";
 import { camelOf } from "./renamed-blocks.ts";
 import { prop, q, runtimeSubpath } from "./shared.ts";
 
-type Field = FieldSpec;
+type InputSchema = NonNullable<
+  NonNullable<ResolvedEntityPage["schemas"]>["input"]
+>;
 
-interface InputSchema {
-  readonly title: string;
-  readonly fields: Readonly<Record<string, FieldSpec>>;
-}
+type Field = InputSchema["fields"][string];
 
 const SECTION = /^[a-z][a-z0-9-]*$/;
 
@@ -142,7 +140,7 @@ export function entityPageColumns(
 
 /** The fields of a form from one input schema; read-only and `json` stay out. */
 export function entityFormFields(
-  schema: InputSchema,
+  schema: Pick<InputSchema, "title" | "fields">,
 ): readonly EntityFormField[] {
   return Object.entries(schema.fields)
     .filter(([, field]) => field.readOnly !== true && kindOf(field) !== "json")
