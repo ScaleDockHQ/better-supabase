@@ -592,7 +592,7 @@ ${userGrant(`${fn("withdraw_expense")}(uuid)`)}
 -- Removes a draft expense for good (a submitted or approved one with
 -- permissions.deleteSubmitted). Its owner may, or a holder of permissions.purge
 -- (falling back to delete, then manage). A rejected or reimbursed expense is a
--- record of what was claimed, so it stays: its status is the archive (ADR 1080).
+-- record of what was claimed, so it stays: its status is the archive (ADR 1082).
 create or replace function ${fn("purge_expense")}(expense_id uuid)
 returns boolean
 language plpgsql

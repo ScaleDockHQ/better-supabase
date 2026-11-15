@@ -1,4 +1,4 @@
-# 1080: Purge an expense and keep its status as the archive (lane Y2)
+# 1082: Purge an expense and keep its status as the archive (lane Y2)
 
 - Status: accepted
 - Date: 2026-11-15

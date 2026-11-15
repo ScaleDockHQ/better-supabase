@@ -18,7 +18,13 @@ export const agentsBlock: BlockOf<"agents", typeof createAgents, AgentsEvents> =
     entities: {
       agent: {
         mutability: "editable",
-        emits: { create: true, update: true, delete: true },
+        emits: {
+          create: true,
+          update: true,
+          archive: true,
+          restore: true,
+          purge: true,
+        },
       },
     },
     concerns: ["lifecycle"],

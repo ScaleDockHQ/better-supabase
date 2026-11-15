@@ -118,16 +118,16 @@ export interface BlockNameRegistry {
   };
   readonly "agents": {
     readonly tables: {
-      readonly "agents": "id" | "tenant" | "owner" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connectors" | "knowledgeScope" | "starters" | "visibility" | "publishedAt" | "installCount" | "ratingCount" | "ratingSum" | "createdAt" | "updatedAt";
+      readonly "agents": "id" | "tenant" | "owner" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connectors" | "knowledgeScope" | "starters" | "visibility" | "publishedAt" | "installCount" | "ratingCount" | "ratingSum" | "createdAt" | "updatedAt" | "archivedAt";
       readonly "installs": "agent" | "user" | "tenant" | "installedAt";
       readonly "ratings": "agent" | "user" | "rating" | "comment" | "createdAt";
       readonly "skills": "id" | "agent" | "provider" | "reference" | "name" | "files" | "contentHash" | "latestVersion" | "providerRefs" | "createdAt";
     };
-    readonly functions: "delete_agent" | "get_agent" | "install_agent" | "list_agents" | "publish_agent" | "rate_agent" | "record_skill_sync" | "save_agent" | "set_agent_skills";
+    readonly functions: "archive_agent" | "delete_agent" | "get_agent" | "install_agent" | "list_agents" | "publish_agent" | "purge_agent" | "rate_agent" | "record_skill_sync" | "restore_agent" | "save_agent" | "set_agent_skills";
     readonly actions: "read" | "create" | "publish" | "moderate";
     readonly hooks: never;
     readonly entities: {
-      readonly "agent": "id" | "tenant_id" | "owner_id" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connector_ids" | "knowledge_scope" | "starters" | "visibility" | "published_at" | "install_count" | "rating_count" | "rating_sum" | "created_at" | "updated_at";
+      readonly "agent": "id" | "tenant_id" | "owner_id" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connector_ids" | "knowledge_scope" | "starters" | "visibility" | "published_at" | "install_count" | "rating_count" | "rating_sum" | "created_at" | "updated_at" | "archived_at";
     };
     readonly primary: "agent";
   };

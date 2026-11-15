@@ -97,6 +97,8 @@ export interface Agent {
   readonly skills: readonly AgentSkill[];
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** When the agent was archived; archived agents leave the lists and the store. */
+  readonly archivedAt: Temporal.Instant | undefined;
 }
 
 export interface AgentFields {
@@ -168,6 +170,8 @@ export interface Agents<F extends object = Record<never, never>> {
       readonly filter?: AgentFilter;
       readonly search?: string;
       readonly limit?: number;
+      /** Archived agents are left out unless this is `true`. */
+      readonly includeArchived?: boolean;
     },
   ): AsyncResult<readonly (Agent & F)[]>;
   publish(input: {
@@ -199,7 +203,20 @@ export interface Agents<F extends object = Record<never, never>> {
     reference: Readonly<Record<string, unknown>>;
     contentHash: string;
   }): AsyncResult<Readonly<Record<string, AgentSkillProviderRef>>>;
-  remove(agentId: string): AsyncResult<boolean>;
+  /**
+   * Archives an agent the caller owns or moderates: it leaves the store, the
+   * lists and new installs, and `update`, `publish`, `rate` and `install`
+   * refuse it until `restore`. Installs, ratings and skills stay.
+   */
+  archive(agentId: string): AsyncResult<Agent & F>;
+  /** Brings an archived agent back with the visibility it had. */
+  restore(agentId: string): AsyncResult<Agent & F>;
+  /**
+   * Deletes an agent for good with its installs, ratings and skills. Needs the
+   * `purge` permission (it falls back to `moderate`), for the owner too;
+   * `false` when the caller can't see the agent.
+   */
+  purge(agentId: string): AsyncResult<boolean>;
 }
 
 const VISIBILITIES: ReadonlySet<string> = new Set([
@@ -316,6 +333,7 @@ function agentOf(value: unknown): Agent {
     skills: skillsOf(row["skills"]),
     createdAt: instantOf(row["created_at"]),
     updatedAt: instantOf(row["updated_at"]),
+    archivedAt: optionalInstant(row["archived_at"]),
   };
 }
 
@@ -432,6 +450,7 @@ export function createAgents<
           filter: listOptions.filter,
           search: listOptions.search,
           max_rows: listOptions.limit,
+          include_archived: listOptions.includeArchived ?? false,
         },
         (value) =>
           recordsOf(value, "list_agents").map(
@@ -473,8 +492,10 @@ export function createAgents<
         { skill_id: skillId, provider, reference, content_hash: contentHash },
         providerRefsOf,
       ),
-    remove: (agentId) =>
-      call("delete_agent", { id: agentId }, (value) => value === true),
+    archive: (agentId) => one("archive_agent", { id: agentId }),
+    restore: (agentId) => one("restore_agent", { id: agentId }),
+    purge: (agentId) =>
+      call("purge_agent", { id: agentId }, (value) => value === true),
   };
 
   return withBlockHooks(client, options.hooks, {

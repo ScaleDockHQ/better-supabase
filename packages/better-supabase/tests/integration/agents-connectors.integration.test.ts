@@ -116,10 +116,26 @@ describe.skipIf(!live)("agents, connectors and ai-schedules modules", () => {
       ).toBe(4);
       const badRating = await agents.rate({ agentId: created.id, rating: 9 });
       expect(badRating.ok).toBe(false);
-      expect(await agents.remove(created.id).orThrow()).toBe(false);
+      expect((await agents.archive(created.id)).ok).toBe(false);
+      expect(await agents.purge(created.id).orThrow()).toBe(false);
 
       await s.asRole(member);
-      expect(await agents.remove(created.id).orThrow()).toBe(true);
+      expect(
+        (await agents.archive(created.id).orThrow()).archivedAt,
+      ).toBeDefined();
+
+      const listed = await agents
+        .list({ organizationId: tenant, filter: "mine" })
+        .orThrow();
+
+      expect(listed.map((agent) => agent.id)).not.toContain(created.id);
+      expect((await agents.rate({ agentId: created.id, rating: 3 })).ok).toBe(
+        false,
+      );
+      expect(
+        (await agents.restore(created.id).orThrow()).archivedAt,
+      ).toBeUndefined();
+      expect((await agents.purge(created.id)).ok).toBe(false);
     } finally {
       await s.close();
     }

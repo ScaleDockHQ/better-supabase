@@ -3,7 +3,7 @@
 ---
 
 Breaking: an expense's hard delete is `purge`, behind `permissions.purge`, which
-falls back to the former `delete` key and then `expenses.manage` (ADR 1080). A
+falls back to the former `delete` key and then `expenses.manage` (ADR 1082). A
 rejected or reimbursed expense keeps its status as the archive, so expenses get
 no `archive`, `restore` or new column.
 

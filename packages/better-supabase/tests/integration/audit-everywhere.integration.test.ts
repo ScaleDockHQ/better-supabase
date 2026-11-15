@@ -43,7 +43,7 @@ const RECORDED = [
   "connector.deleted",
   "agent.created",
   "agent.published",
-  "agent.deleted",
+  "agent.archived",
   "ai_provider_key.created",
   "ai_provider_key.deleted",
   "ai_tool_policy.updated",
@@ -88,7 +88,7 @@ async function actions(s: BlockSession): Promise<string> {
   await s.value("better_supabase.publish_agent($1, 'organization')", [
     agent.id,
   ]);
-  await s.value("better_supabase.delete_agent($1)", [agent.id]);
+  await s.value("better_supabase.archive_agent($1)", [agent.id]);
   await s.value("better_supabase.create_invitation($1, $2)", [
     organization,
     `invitee-${suffix}@example.test`,
