@@ -4,6 +4,17 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { BulkCallOptions, BulkReport } from "../../core/bulk.ts";
@@ -17,6 +28,11 @@ import type { BlockTemporalOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { bulkOfSet } from "../../core/bulk.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { idempotentCall } from "../../core/idempotent-write.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -35,6 +51,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { strictChanges } from "../strict-changes.ts";
+import { projectListSurface, taskListSurface } from "./lists.ts";
 
 /** The state a stage's category sets; `completed` and `canceled` are closed. */
 export type TaskState =
@@ -391,6 +408,34 @@ export interface Tasks<F extends object = Record<never, never>> {
     level: TaskWatchLevel | null;
   }): AsyncResult<boolean>;
   watchers(taskId: string): AsyncResult<TaskWatcher[]>;
+  /**
+   * One keyset page of a tenant's items, newest number first. `filters` takes
+   * `state`, `priority`, `teamId`, `projectId`, `iterationId`, `parentId`,
+   * `assigneeId` (each a value or a list) and `open`; `q` matches the title
+   * and identifier (ADR 1077).
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Task<F>>>;
+  /** Counts per `state` or `priority` for the page's `q` and filters. */
+  facets(options: FacetOptions & RequiredTenantOption): AsyncResult<readonly FacetResult[]>;
+  /** How many items match the page's `q` and filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One item, or a `not_found` error. `get` returns `undefined` instead. */
+  getTask(taskId: string): AsyncResult<Task<F>>;
+  /** One keyset page of a tenant's projects by name. */
+  pageProjects(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Project>>;
+  /** Counts per `status` for the page's `q` and filters. */
+  projectFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many projects match the page's `q` and filters. */
+  countProjects(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One project, or a `not_found` error. */
+  getProject(projectId: string): AsyncResult<Project>;
+  /** @deprecated Use `page` (ADR 1077). */
   list(
     input: { organizationId: string } & TaskListOptions,
   ): AsyncResult<Task<F>[]>;
@@ -783,6 +828,24 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         ),
       );
 
+  const taskPages = entityList<Task, RequiredTenantOption>({
+    entity: "task",
+    surface: taskListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_tasks",
+    rowOf: (row) => itemOf(row),
+  });
+
+  const projectPages = entityList<Project, RequiredTenantOption>({
+    entity: "project",
+    surface: projectListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_projects",
+    rowOf: (row) => projectOf(row),
+  });
+
   const client: Tasks<F> = {
     create: ({
       organizationId,
@@ -1008,6 +1071,25 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       call("list_task_watchers", { task: taskId }, (value) =>
         recordsOf(value, "list_task_watchers").map(watcherOf),
       ),
+    page: (pageOptions) =>
+      taskPages
+        .page(pageOptions)
+        .andThen((page) =>
+          fields.rows(page.items).map((items) => ({ ...page, items })),
+        ),
+    facets: taskPages.facets,
+    count: taskPages.count,
+    getTask: (taskId) =>
+      hooked
+        .get(taskId)
+        .andThen((item) => foundOrNotFound("task", item, taskId)),
+    pageProjects: projectPages.page,
+    projectFacets: projectPages.facets,
+    countProjects: projectPages.count,
+    getProject: (projectId) =>
+      call("get_project", { project: projectId }, (value) =>
+        value === null || value === undefined ? undefined : projectOf(value),
+      ).andThen((project) => foundOrNotFound("project", project, projectId)),
     list: ({ organizationId, ...list }) => {
       const { search, after, limit, ...filter } = list;
 

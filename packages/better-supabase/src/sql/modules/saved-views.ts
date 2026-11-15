@@ -9,6 +9,12 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { declareRead } from "../reads.ts";
@@ -233,6 +239,66 @@ ${lockTable(views, { read: true })}
     ? preferenceParts(ctx, { views, maySee })
     : undefined;
 
+  const viewSource =
+    preferences === undefined
+      ? views
+      : `(select v.*, ${preferences.value} as bsb_preference from ${views} v${preferences.join})`;
+
+  const viewJson = (row: string): string =>
+    `jsonb_build_object(
+    'id', ${row}.${id},
+    'list', ${row}.${list},
+    'scope', ${row}.${scope},
+    'ownerId', ${row}.${owner},
+    'teamId', ${row}.${team},
+    'name', ${row}.${name},
+    'kind', ${row}.${kind},
+    'state', ${row}.${state},
+    'rank', ${row}.${rank},
+    'isDefault', ${row}.${isDefault},
+    'updatedAt', ${row}.${updatedAt}${extraFieldsJson(row, extras)}${preferences === undefined ? "" : `,\n    'preference', ${row}.bsb_preference`}
+  )`;
+
+  const viewId = { expr: `x.${id}`, dir: "asc", type: "uuid" } as const;
+
+  const rankKeys = [
+    { expr: `x.${rank} collate "C"`, dir: "asc", type: "text" },
+    viewId,
+  ] as const;
+
+  const nameKeys = [
+    { expr: `lower(x.${name})`, dir: "asc", type: "text" },
+    viewId,
+  ] as const;
+
+  const viewPage = {
+    name: "page_saved_views",
+    from: viewSource,
+    alias: "x",
+    where: [
+      `x.${tenant} = page_saved_views.tenant`,
+      filterAny("list", `x.${list}`),
+      filterAny("scope", `x.${scope}`),
+      filterAny("kind", `x.${kind}`),
+      `(v_search is null or x.${name} ilike v_search)`,
+    ],
+    keys: rankKeys,
+    sorts: {
+      rank: rankKeys,
+      name: nameKeys,
+      updatedAt: [
+        { expr: `x.${updatedAt}`, dir: "desc", type: "timestamptz" },
+        viewId,
+      ],
+    },
+    facets: { scope: `x.${scope}`, kind: `x.${kind}` },
+    rowJson: viewJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) =>
+      fail("SAVED_VIEW_INVALID", message, "22023"),
+  } as const;
+
   return `${schemaPreamble(ctx)}
 ${tables}
 ${renderPolicy(makePolicy({ table: views, name: ctx.naming.rename("saved_views_read"), command: "select", roles: ["authenticated"], using: visible }), { target: views })}
@@ -368,6 +434,43 @@ as $$
   where v.${tenant} = list_views.tenant and v.${list} = list_views.list
 $$;
 ${userGrant(`${fn("list_views")}(${ctx.idType}, text)`)}
+
+-- The views the caller sees as a keyset page, in rank order (ADR 1077). It
+-- runs as invoker, so the read policy decides which views are visible.
+-- filters is { list, scope, kind (each a value or a list), search (name),
+-- sort (rank, name, updatedAt), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function ${fn("page_saved_views")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_saved_views.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(viewPage)}
+begin
+  ${listBody(viewPage)}
+end;
+$$;
+${userGrant(`${fn("page_saved_views")}(${ctx.idType}, jsonb)`)}
+
+-- One view the caller sees, or null. It runs as invoker.
+create or replace function ${fn("get_view")}(view_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${viewJson("x")}
+  from ${viewSource} x
+  where x.${id} = get_view.view_id
+$$;
+${userGrant(`${fn("get_view")}(uuid)`)}
 
 create or replace function ${fn("rank_view")}(view_id uuid, rank text)
 returns boolean
@@ -515,6 +618,8 @@ interface PreferenceParts {
   readonly join: string;
   /** The `preference` key of a `list_views` row. */
   readonly json: string;
+  /** The preference object of the joined row `p`, as a jsonb expression. */
+  readonly value: string;
 }
 
 function preferenceParts(
@@ -612,6 +717,7 @@ ${userGrant(`${fn}(uuid, boolean, boolean, boolean)`)}
   left join ${prefs} p on p.${view} = v.${v("id")} and p.${user} = (select auth.uid())`,
     json: `,
     'preference', ${json("p")}`,
+    value: json("p"),
   };
 }
 
@@ -633,6 +739,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "list_views", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "page_saved_views", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_view", args: ["uuid"], returns: "jsonb" },
     { name: "rank_view", args: ["uuid", "text"], returns: "boolean" },
     { name: "set_default_view", args: ["uuid", "boolean"], returns: "boolean" },
     { name: "delete_view", args: ["uuid"], returns: "boolean" },
