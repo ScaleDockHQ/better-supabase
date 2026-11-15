@@ -99,6 +99,13 @@ components and a block's hook, following the
 the same recipes in `references/ui-recipes.md`. See [Registry](/docs/registry)
 for every item.
 
+The skill also carries one block reference per category
+(`references/catalog-<category>.md`), generated from the block manifests. Each
+lists the blocks of the installed version with their client, entities,
+permission keys, events, ports, actions and env keys, so an agent reads them
+instead of a hand-kept list. `pnpm skill-references:check` fails when one is
+stale.
+
 ## Docs as Markdown
 
 - [`/llms.txt`](/llms.txt) is an index of every page with absolute links to
