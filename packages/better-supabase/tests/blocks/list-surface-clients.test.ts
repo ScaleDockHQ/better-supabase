@@ -4,16 +4,24 @@ import type { BlockTransport } from "../../src/core/block-transport.ts";
 import type { EntityList } from "../../src/core/entity-list.ts";
 
 import { createAgentCheckout } from "../../src/blocks/agent-checkout/index.ts";
+import { createAttachments } from "../../src/blocks/attachments/index.ts";
 import { createDocumentTemplates } from "../../src/blocks/document-templates/index.ts";
+import { createDrive } from "../../src/blocks/drive/index.ts";
 import { createEPrescribing } from "../../src/blocks/e-prescribing/index.ts";
 import { createEmployees } from "../../src/blocks/employees/index.ts";
 import { createEnrollments } from "../../src/blocks/enrollments/index.ts";
+import { createForms } from "../../src/blocks/forms/index.ts";
 import { createGuests } from "../../src/blocks/guests/index.ts";
+import { createInventory } from "../../src/blocks/inventory/index.ts";
 import { createLeases } from "../../src/blocks/leases/index.ts";
 import { createLeave } from "../../src/blocks/leave/index.ts";
 import { createPasses } from "../../src/blocks/passes/index.ts";
 import { createPayrollExport } from "../../src/blocks/payroll-export/index.ts";
+import { createQualifications } from "../../src/blocks/qualifications/index.ts";
 import { createSequences } from "../../src/blocks/sequences/index.ts";
+import { createSignatures } from "../../src/blocks/signatures/index.ts";
+import { createTemplates } from "../../src/blocks/templates/index.ts";
+import { createVersions } from "../../src/blocks/versions/index.ts";
 import { fieldsTransport } from "./fields-transport.ts";
 
 interface Case {
@@ -229,6 +237,190 @@ const CASES: readonly Case[] = [
         page: (page) => client.prescriptionPage(page),
         facets: (facets) => client.prescriptionFacets(facets),
         count: (count) => client.prescriptionCount(count),
+      };
+    },
+  },
+  {
+    label: "signatures",
+    searchable: true,
+    fn: "page_signature_requests",
+    sort: "createdAt",
+    filter: "status",
+    facet: "status",
+    list: (transport) => {
+      const client = createSignatures(options(transport));
+
+      return {
+        page: (page) => client.requestPage(page),
+        facets: (facets) => client.requestFacets(facets),
+        count: (count) => client.requestCount(count),
+      };
+    },
+  },
+  {
+    label: "qualifications",
+    searchable: true,
+    fn: "page_qualification_types",
+    sort: "name",
+    filter: "state",
+    facet: "expiry",
+    list: (transport) => {
+      const client = createQualifications(options(transport));
+
+      return {
+        page: (page) => client.typePage({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.typeFacets({ ...facets, organizationId: "org-1" }),
+        count: (count) =>
+          client.typeCount({ ...count, organizationId: "org-1" }),
+      };
+    },
+  },
+  {
+    label: "versions",
+    searchable: true,
+    fn: "page_versions",
+    sort: "createdAt",
+    filter: "source",
+    facet: "subjectType",
+    list: (transport) => {
+      const client = createVersions(options(transport));
+
+      return {
+        page: (page) => client.versionPage(page),
+        facets: (facets) => client.versionFacets(facets),
+        count: (count) => client.versionCount(count),
+      };
+    },
+  },
+  {
+    label: "attachments",
+    searchable: true,
+    fn: "page_attachments",
+    sort: "createdAt",
+    filter: "status",
+    facet: "subjectType",
+    list: (transport) => {
+      const client = createAttachments(options(transport));
+
+      return {
+        page: (page) => client.attachmentPage(page),
+        facets: (facets) => client.attachmentFacets(facets),
+        count: (count) => client.attachmentCount(count),
+      };
+    },
+  },
+  {
+    label: "templates",
+    searchable: true,
+    fn: "page_templates",
+    sort: "name",
+    filter: "type",
+    facet: "language",
+    list: (transport) => {
+      const client = createTemplates(options(transport));
+
+      return {
+        page: (page) =>
+          client.templatePage({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.templateFacets({ ...facets, organizationId: "org-1" }),
+        count: (count) =>
+          client.templateCount({ ...count, organizationId: "org-1" }),
+      };
+    },
+  },
+  {
+    label: "forms submissions",
+    searchable: true,
+    fn: "page_form_submissions",
+    sort: "createdAt",
+    filter: "status",
+    facet: "formId",
+    list: (transport) => {
+      const client = createForms(options(transport));
+
+      return {
+        page: (page) =>
+          client.submissionPage({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.submissionFacets({ ...facets, organizationId: "org-1" }),
+        count: (count) =>
+          client.submissionCount({ ...count, organizationId: "org-1" }),
+      };
+    },
+  },
+  {
+    label: "drive documents",
+    searchable: true,
+    fn: "page_drive_documents",
+    sort: "number",
+    filter: "status",
+    facet: "type",
+    list: (transport) => {
+      const client = createDrive(options(transport));
+      const organizationId = "org-1";
+
+      return {
+        page: (page) => client.documentPage({ ...page, organizationId }),
+        facets: (facets) =>
+          client.documentFacets({ ...facets, organizationId }),
+        count: (count) => client.documentCount({ ...count, organizationId }),
+      };
+    },
+  },
+  {
+    label: "inventory levels",
+    searchable: true,
+    fn: "page_inventory_levels",
+    sort: "available",
+    filter: "status",
+    facet: "locationId",
+    list: (transport) => {
+      const client = createInventory(options(transport));
+      const organizationId = "org-1";
+
+      return {
+        page: (page) => client.levelPage({ ...page, organizationId }),
+        facets: (facets) => client.levelFacets({ ...facets, organizationId }),
+        count: (count) => client.levelCount({ ...count, organizationId }),
+      };
+    },
+  },
+  {
+    label: "inventory movements",
+    searchable: true,
+    fn: "page_inventory_movements",
+    sort: "effectiveAt",
+    filter: "kind",
+    facet: "locationId",
+    list: (transport) => {
+      const client = createInventory(options(transport));
+      const organizationId = "org-1";
+
+      return {
+        page: (page) => client.movementPage({ ...page, organizationId }),
+        facets: (facets) =>
+          client.movementFacets({ ...facets, organizationId }),
+        count: (count) => client.movementCount({ ...count, organizationId }),
+      };
+    },
+  },
+  {
+    label: "inventory lots",
+    searchable: true,
+    fn: "page_inventory_lots",
+    sort: "expiresOn",
+    filter: "expiry",
+    facet: "locationId",
+    list: (transport) => {
+      const client = createInventory(options(transport));
+      const organizationId = "org-1";
+
+      return {
+        page: (page) => client.lotPage({ ...page, organizationId }),
+        facets: (facets) => client.lotFacets({ ...facets, organizationId }),
+        count: (count) => client.lotCount({ ...count, organizationId }),
       };
     },
   },

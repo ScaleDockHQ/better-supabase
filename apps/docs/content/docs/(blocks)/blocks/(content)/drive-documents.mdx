@@ -44,6 +44,18 @@ control: {
 
 The state machine is named after the drive's subject type (`drive_node`), and only files under control are in it: other files have no status.
 
+## Paging the register
+
+`documentPage` pages the register by number (ADR 1077), with `documentFacets`, `documentCount` and `getDocument`. Sorts are `number` (the default), `name` and `nextReviewOn`. Filters are `type`, `status`, `ownerId`, `review` (`due` or `ok`) and `reviewDue` (`["true"]`), each a list. `q` searches the number and the name. `getDocument` returns a `not_found` error for a file that is not under control.
+
+```ts
+const due = await db.drive
+  .documentPage({ organizationId, filters: { reviewDue: ["true"] } })
+  .orThrow();
+```
+
+`documents` keeps working and is deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## The lifecycle
 
 ```ts

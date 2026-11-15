@@ -8018,7 +8018,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               },
               "search": {
                 "title": "name",
-                "body": []
+                "body": [
+                  "name",
+                  "key"
+                ]
               }
             }
           },
@@ -14322,6 +14325,28 @@ export const PRESET_CATALOG: PresetCatalog = {
           "attachment.replaced",
           "attachment.restored"
         ]
+      },
+      "entityLists": {
+        "attachment": {
+          "sorts": [
+            "createdAt",
+            "name",
+            "size"
+          ],
+          "facets": [
+            "status",
+            "subjectType"
+          ],
+          "filters": [
+            "subjectType",
+            "subjectId",
+            "status",
+            "documentTypeId"
+          ],
+          "search": [
+            "name"
+          ]
+        }
       }
     },
     {
@@ -22080,6 +22105,26 @@ export const PRESET_CATALOG: PresetCatalog = {
           "qualification.expiry_warned",
           "qualification.expired"
         ]
+      },
+      "entityLists": {
+        "qualification_type": {
+          "sorts": [
+            "name",
+            "key"
+          ],
+          "facets": [
+            "state",
+            "expiry"
+          ],
+          "filters": [
+            "state",
+            "expiry"
+          ],
+          "search": [
+            "name",
+            "key"
+          ]
+        }
       }
     },
     {
@@ -29676,6 +29721,31 @@ export const PRESET_CATALOG: PresetCatalog = {
           "drive.connection_created",
           "drive.connection_removed"
         ]
+      },
+      "entityLists": {
+        "drive_document": {
+          "sorts": [
+            "number",
+            "name",
+            "nextReviewOn"
+          ],
+          "facets": [
+            "type",
+            "status",
+            "review"
+          ],
+          "filters": [
+            "type",
+            "status",
+            "ownerId",
+            "review",
+            "reviewDue"
+          ],
+          "search": [
+            "number",
+            "name"
+          ]
+        }
       }
     },
     {
@@ -30717,6 +30787,29 @@ export const PRESET_CATALOG: PresetCatalog = {
           ],
           "filters": [
             "status"
+          ],
+          "search": [
+            "title",
+            "key"
+          ]
+        },
+        "form_submission": {
+          "sorts": [
+            "createdAt",
+            "submittedAt"
+          ],
+          "facets": [
+            "status",
+            "formId"
+          ],
+          "filters": [
+            "formId",
+            "status",
+            "respondentId",
+            "includeArchived"
+          ],
+          "search": [
+            "answers"
           ]
         }
       }
@@ -30766,6 +30859,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "signature_request.declined",
           "signature_request.cancelled"
         ]
+      },
+      "entityLists": {
+        "signature_request": {
+          "sorts": [
+            "createdAt",
+            "completedAt"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status",
+            "subjectType",
+            "subjectId",
+            "mine"
+          ],
+          "search": [
+            "subjectId",
+            "message"
+          ]
+        }
       }
     },
     {
@@ -31077,6 +31191,70 @@ export const PRESET_CATALOG: PresetCatalog = {
           "purchase_requisition.approved",
           "inventory_receipt.created"
         ]
+      },
+      "entityLists": {
+        "inventory_level": {
+          "sorts": [
+            "available",
+            "onHand",
+            "variantId"
+          ],
+          "facets": [
+            "status",
+            "locationId"
+          ],
+          "filters": [
+            "status",
+            "variantId",
+            "locationId"
+          ],
+          "search": [
+            "variantId",
+            "locationId"
+          ]
+        },
+        "inventory_movement": {
+          "sorts": [
+            "effectiveAt",
+            "quantity"
+          ],
+          "facets": [
+            "kind",
+            "locationId"
+          ],
+          "filters": [
+            "kind",
+            "variantId",
+            "locationId",
+            "binId",
+            "lotId",
+            "documentType",
+            "documentId"
+          ],
+          "search": [
+            "kind",
+            "documentId"
+          ]
+        },
+        "inventory_lot": {
+          "sorts": [
+            "expiresOn",
+            "onHand",
+            "code"
+          ],
+          "facets": [
+            "expiry",
+            "locationId"
+          ],
+          "filters": [
+            "expiry",
+            "variantId",
+            "locationId"
+          ],
+          "search": [
+            "code"
+          ]
+        }
       }
     },
     {
@@ -34899,7 +35077,31 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "recurring.schedule()",
           "description": "Enqueues a templates.recur job for each recurring template occurrence due in the next day."
         }
-      ]
+      ],
+      "entityLists": {
+        "template": {
+          "sorts": [
+            "name",
+            "createdAt",
+            "updatedAt"
+          ],
+          "facets": [
+            "type",
+            "language",
+            "scope"
+          ],
+          "filters": [
+            "type",
+            "language",
+            "scope",
+            "isDefault"
+          ],
+          "search": [
+            "name",
+            "key"
+          ]
+        }
+      }
     },
     {
       "name": "memberships",
@@ -35124,6 +35326,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "version.restored",
           "version.deleted"
         ]
+      },
+      "entityLists": {
+        "version": {
+          "sorts": [
+            "createdAt",
+            "number"
+          ],
+          "facets": [
+            "source",
+            "subjectType"
+          ],
+          "filters": [
+            "subjectType",
+            "subjectId",
+            "source"
+          ],
+          "search": [
+            "label",
+            "subjectId"
+          ]
+        }
       }
     },
     {

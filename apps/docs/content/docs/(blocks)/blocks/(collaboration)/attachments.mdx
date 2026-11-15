@@ -195,6 +195,23 @@ because Postgres can't move it: to move existing files, copy each object to the
 new path with `supabase.storage.from(bucket).move(from, to)` and update
 `object_path` in the same step.
 
+## Paging files
+
+`attachmentPage` lists files by keyset (ADR 1077) and takes `organizationId` (a subject type without a tenant needs none). Sorts are `createdAt` (the default, newest first), `name` and `size`. Filters are `subjectType`, `subjectId`, `status` and `documentTypeId`, each a list of values. `q` searches the file name. `attachmentFacets` counts `status` and `subjectType`, and `attachmentCount` returns `{ value, exact }`. Reading with both a subject type and a subject id writes the read-log entry, as `list` does.
+
+```ts
+const page = await attachments
+  .attachmentPage({
+    organizationId,
+    filters: { subjectType: ["invoice"], subjectId: [invoiceId] },
+    q: "scan",
+    limit: 25,
+  })
+  .orThrow();
+```
+
+`list` keeps working and is deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Upload and download
 
 Uploading takes three steps: create the record and a signed upload URL on

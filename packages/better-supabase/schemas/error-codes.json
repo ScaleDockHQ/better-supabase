@@ -2786,6 +2786,10 @@
     "message": "the variant has stock history; its unit, scale, tracking and costing are fixed"
   },
   {
+    "code": "INVENTORY_LEVEL_NOT_FOUND",
+    "message": "no such stock level"
+  },
+  {
     "code": "INVENTORY_LINE_NOT_FOUND",
     "message": "a line isn"
   },
@@ -2828,6 +2832,10 @@
   {
     "code": "INVENTORY_LOT_REQUIRED",
     "message": "a lot-tracked variant receives stock into a lot"
+  },
+  {
+    "code": "INVENTORY_MOVEMENT_NOT_FOUND",
+    "message": "no such stock movement"
   },
   {
     "code": "INVENTORY_OVER_CANCEL",

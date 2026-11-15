@@ -339,7 +339,7 @@ export interface BlockNameRegistry {
       readonly "scans": "bucket" | "path" | "status" | "detail" | "createdAt" | "scannedAt";
       readonly "cleanup": "bucket" | "path" | "queuedBy" | "queuedAt" | "attempts";
     };
-    readonly functions: "attachment_document_guard" | "attachment_fields_error" | "attachment_object_allowed" | "attachment_object_path" | "attachment_object_visible" | "attachment_schema_error" | "attachment_subject_readable" | "attachments_changed" | "claim_attachment_upload" | "confirm_attachment" | "create_attachment" | "define_attachment_document_type" | "delete_attachment" | "delete_attachment_document_type" | "get_attachment" | "list_attachment_document_types" | "list_attachment_versions" | "list_attachments" | "mark_attachment_missing" | "object_clean" | "object_scan" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
+    readonly functions: "attachment_document_guard" | "attachment_fields_error" | "attachment_object_allowed" | "attachment_object_path" | "attachment_object_visible" | "attachment_schema_error" | "attachment_subject_readable" | "attachments_changed" | "claim_attachment_upload" | "confirm_attachment" | "create_attachment" | "define_attachment_document_type" | "delete_attachment" | "delete_attachment_document_type" | "get_attachment" | "list_attachment_document_types" | "list_attachment_versions" | "list_attachments" | "mark_attachment_missing" | "object_clean" | "object_scan" | "page_attachments" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
     readonly actions: "read" | "upload" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1065,7 +1065,7 @@ export interface BlockNameRegistry {
       readonly "submissions": "id" | "tenant" | "form" | "version" | "subjectType" | "subjectId" | "respondent" | "answers" | "status" | "source" | "reviewedBy" | "reviewedAt" | "archivedAt" | "createdAt" | "submittedAt" | "updatedAt" | "score" | "maxScore" | "passed";
       readonly "answerKeys": "version" | "tenant" | "answers" | "createdAt";
     };
-    readonly functions: "archive_form_submission" | "create_form" | "delete_form_submission" | "form_answer_matches" | "form_answer_merge" | "form_answer_split" | "form_condition_holds" | "form_condition_schema" | "form_correct_fits" | "form_field_schema" | "form_nps" | "form_resolve" | "form_schema" | "form_score" | "form_submission_save" | "get_form" | "get_form_submission" | "get_form_version" | "list_form_submissions" | "list_forms" | "publish_form_version" | "purge_form_submission" | "restore_form_submission" | "review_form_submission" | "submit_form" | "update_form";
+    readonly functions: "archive_form_submission" | "create_form" | "delete_form_submission" | "form_answer_matches" | "form_answer_merge" | "form_answer_split" | "form_condition_holds" | "form_condition_schema" | "form_correct_fits" | "form_field_schema" | "form_nps" | "form_resolve" | "form_schema" | "form_score" | "form_submission_save" | "get_form" | "get_form_submission" | "get_form_version" | "list_form_submissions" | "list_forms" | "page_form_submissions" | "publish_form_version" | "purge_form_submission" | "restore_form_submission" | "review_form_submission" | "submit_form" | "update_form";
     readonly actions: "read" | "manage" | "submit" | "review";
     readonly hooks: "before_form_publish" | "after_form_publish" | "before_form_submission" | "after_form_submission" | "before_public_form_submission";
     readonly entities: {
@@ -1302,7 +1302,7 @@ export interface BlockNameRegistry {
       readonly "counts": "id" | "tenant" | "location" | "status" | "note" | "openedBy" | "postedBy" | "openedAt" | "postedAt" | "updatedAt";
       readonly "countLines": "id" | "tenant" | "count" | "variant" | "bin" | "lot" | "serial" | "expected" | "counted" | "variance" | "movement" | "updatedAt";
     };
-    readonly functions: "adjust_stock" | "allocate_stock" | "cancel_purchase_order" | "cancel_purchase_order_quantity" | "cancel_stock_count" | "cancel_transfer" | "commit_reservation" | "count_expected" | "count_stock" | "create_transfer" | "decide_purchase_requisition" | "delete_location" | "expire_lots" | "expire_reservations" | "expiring_lots" | "fill_backorders" | "fulfill_allocation" | "get_purchase_requisition" | "import_stock_allocation" | "import_stock_count" | "inventory_levels" | "inventory_overview" | "inventory_status_counts" | "list_allocations" | "list_inventory_movements" | "move_stock" | "open_stock_count" | "pick_serials" | "place_purchase_order" | "post_stock_count" | "purchase_order_from_requisitions" | "purchase_order_tax_lines" | "purchase_requisition_decided" | "receive_purchase_order" | "receive_transfer" | "record_count_line" | "release_allocation" | "release_allocations" | "release_reservation" | "request_purchase" | "reserve_stock" | "restore_allocation" | "save_bin" | "save_location" | "save_lot" | "save_purchase_order" | "set_location_active" | "set_location_address" | "set_reorder_point" | "set_reorder_quantity" | "set_stock_item" | "ship_transfer" | "stock_allocation_updated_at" | "stock_count_updated_at" | "stock_detail" | "stock_lot_for" | "stock_valuation" | "take_allocation" | "transfer_allocation";
+    readonly functions: "adjust_stock" | "allocate_stock" | "cancel_purchase_order" | "cancel_purchase_order_quantity" | "cancel_stock_count" | "cancel_transfer" | "commit_reservation" | "count_expected" | "count_stock" | "create_transfer" | "decide_purchase_requisition" | "delete_location" | "expire_lots" | "expire_reservations" | "expiring_lots" | "fill_backorders" | "fulfill_allocation" | "get_inventory_level" | "get_inventory_lot" | "get_inventory_movement" | "get_purchase_requisition" | "import_stock_allocation" | "import_stock_count" | "inventory_levels" | "inventory_overview" | "inventory_status_counts" | "list_allocations" | "list_inventory_movements" | "move_stock" | "open_stock_count" | "page_inventory_levels" | "page_inventory_lots" | "page_inventory_movements" | "pick_serials" | "place_purchase_order" | "post_stock_count" | "purchase_order_from_requisitions" | "purchase_order_tax_lines" | "purchase_requisition_decided" | "receive_purchase_order" | "receive_transfer" | "record_count_line" | "release_allocation" | "release_allocations" | "release_reservation" | "request_purchase" | "reserve_stock" | "restore_allocation" | "save_bin" | "save_location" | "save_lot" | "save_purchase_order" | "set_location_active" | "set_location_address" | "set_reorder_point" | "set_reorder_quantity" | "set_stock_item" | "ship_transfer" | "stock_allocation_updated_at" | "stock_count_updated_at" | "stock_detail" | "stock_lot_for" | "stock_valuation" | "take_allocation" | "transfer_allocation";
     readonly actions: "manage" | "read" | "reserve" | "purchase";
     readonly hooks: "before_stock_adjust" | "after_stock_adjust" | "before_stock_reserve" | "after_stock_reserve";
     readonly entities: {
@@ -1911,7 +1911,7 @@ export interface BlockNameRegistry {
       readonly "requirements": "id" | "tenant" | "type" | "targetType" | "targetValue" | "createdAt";
       readonly "qualifications": "id" | "tenant" | "type" | "holderType" | "holderId" | "grantedOn" | "expiresOn" | "revokedAt" | "revokeReason" | "evidenceAttachment" | "evidenceNote" | "source" | "sourceId" | "grantedBy" | "notifiedStatus" | "createdAt" | "updatedAt";
     };
-    readonly functions: "add_qualification_requirement" | "archive_qualification_type" | "grant_qualification" | "list_qualification_requirements" | "list_qualification_types" | "notify_expiring_qualifications" | "qualification_gaps" | "qualifications_of" | "qualified_holders" | "remove_qualification_requirement" | "restore_qualification_type" | "revoke_qualification" | "save_qualification_type";
+    readonly functions: "add_qualification_requirement" | "archive_qualification_type" | "get_qualification_type" | "grant_qualification" | "list_qualification_requirements" | "list_qualification_types" | "notify_expiring_qualifications" | "page_qualification_types" | "qualification_gaps" | "qualifications_of" | "qualified_holders" | "remove_qualification_requirement" | "restore_qualification_type" | "revoke_qualification" | "save_qualification_type";
     readonly actions: "read" | "grant" | "manage";
     readonly hooks: "before_qualification_type_save" | "after_qualification_type_save" | "before_qualification_grant" | "after_qualification_grant" | "before_qualification_revoke" | "after_qualification_revoke";
     readonly entities: {
@@ -2283,7 +2283,7 @@ export interface BlockNameRegistry {
       readonly "requests": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "contentHash" | "signers" | "order" | "status" | "approval" | "message" | "meaning" | "requestedBy" | "createdAt" | "completedAt";
       readonly "signatures": "id" | "request" | "tenant" | "signer" | "method" | "typedName" | "image" | "signedHash" | "ip" | "userAgent" | "signedAt";
     };
-    readonly functions: "cancel_signature_request" | "create_signature_request" | "decline_signature_request" | "get_signature_request" | "list_signature_requests" | "sign_signature" | "signature_verification";
+    readonly functions: "cancel_signature_request" | "create_signature_request" | "decline_signature_request" | "get_signature_request" | "list_signature_requests" | "page_signature_requests" | "sign_signature" | "signature_verification";
     readonly actions: "read" | "request" | "manage";
     readonly hooks: "before_signature_request" | "after_signature_request" | "before_signature_sign" | "after_signature_sign";
     readonly entities: {
@@ -2438,7 +2438,7 @@ export interface BlockNameRegistry {
       readonly "schedules": "id" | "template" | "tenant" | "input" | "enabled" | "createdBy" | "createdAt" | "updatedAt";
       readonly "runs": "schedule" | "tenant" | "occurrence" | "application" | "createdAt";
     };
-    readonly functions: "clone_row" | "fork_template" | "publish_template_version" | "record_template_application" | "remove_template" | "save_template" | "save_template_draft" | "set_default_template" | "sync_templates" | "template_applications_list" | "template_apply_target" | "template_get" | "template_row_guard" | "template_table" | "template_versions_list" | "templates_get_many" | "templates_list";
+    readonly functions: "clone_row" | "fork_template" | "page_templates" | "publish_template_version" | "record_template_application" | "remove_template" | "save_template" | "save_template_draft" | "set_default_template" | "sync_templates" | "template_applications_list" | "template_apply_target" | "template_get" | "template_row_guard" | "template_table" | "template_versions_list" | "templates_get_many" | "templates_list";
     readonly actions: "read" | "apply" | "manage";
     readonly hooks: "before_template_save" | "after_template_save" | "before_template_apply" | "after_template_apply";
     readonly entities: {
@@ -2552,7 +2552,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "versions": "id" | "tenant" | "subjectType" | "subjectId" | "number" | "label" | "content" | "storagePath" | "contentHash" | "fileHash" | "hashVersion" | "source" | "frozen" | "createdBy" | "createdAt";
     };
-    readonly functions: "delete_version" | "get_version" | "get_versions" | "label_version" | "list_versions" | "restore_version" | "snapshot_version" | "version_insert" | "versions_capture";
+    readonly functions: "delete_version" | "get_version" | "get_versions" | "label_version" | "list_versions" | "page_versions" | "restore_version" | "snapshot_version" | "version_insert" | "versions_capture";
     readonly actions: "read" | "create" | "restore" | "manage";
     readonly hooks: "before_version_snapshot" | "after_version_snapshot" | "before_version_restore" | "after_version_restore";
     readonly entities: {

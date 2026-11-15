@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:4302e18405003af6e0c78ae06a4b3382a7242dde0a7145c5591a72108e0c8692
+-- @bsb-hash sha256:605a2bfc28ef5cd483594fdebb8e21c3085beb26606f51b3f7270a2e9bd9cd66
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1468,6 +1468,336 @@ $$;
 revoke execute on function "better_supabase"."drive_document_review"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."drive_document_review"(uuid, text, text) to authenticated, service_role;
 
+-- A keyset page of the document register, by number (ADR 1077): the controlled
+-- files of an organization the caller reads. filters is { type, status,
+-- ownerId, review (due, ok) (each a value or a list), reviewDue (true for
+-- effective documents whose review date has come), search (number or name),
+-- sort (number, name, nextReviewOn), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_drive_documents"(tenant uuid, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_drive_documents.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('type', 'status', 'review') then
+      raise exception 'facet is one of type, status, review' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'type' then (x."document_type")::text when 'status' then (x."document_status")::text when 'review' then (case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end)::text end) as v
+      from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = page_drive_documents.tenant
+        and x."document_status" is not null
+        and x."archived_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."document_status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."document_owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'review' is not null and jsonb_typeof(v_filters -> 'review') <> 'null' and not (jsonb_typeof(v_filters -> 'review') = 'array' and jsonb_array_length(v_filters -> 'review') = 0)) or case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end = any((case when jsonb_typeof(v_filters -> 'review') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'review')) else array[v_filters ->> 'review'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{reviewDue,0}', v_filters ->> 'reviewDue'), '') = 'true', false) or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+        and (v_search is null or x."document_number" ilike v_search or x."name" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = page_drive_documents.tenant
+        and x."document_status" is not null
+        and x."archived_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."document_status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."document_owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'review' is not null and jsonb_typeof(v_filters -> 'review') <> 'null' and not (jsonb_typeof(v_filters -> 'review') = 'array' and jsonb_array_length(v_filters -> 'review') = 0)) or case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end = any((case when jsonb_typeof(v_filters -> 'review') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'review')) else array[v_filters ->> 'review'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{reviewDue,0}', v_filters ->> 'reviewDue'), '') = 'true', false) or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+        and (v_search is null or x."document_number" ilike v_search or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('number', 'name', 'nextReviewOn') then
+    raise exception 'sort is one of number, name, nextReviewOn' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((x)."id"), 'downloadable', "better_supabase"."drive_can_download"((x)."id"))) as j, jsonb_build_array((x."document_number")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = page_drive_documents.tenant
+        and x."document_status" is not null
+        and x."archived_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."document_status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."document_owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'review' is not null and jsonb_typeof(v_filters -> 'review') <> 'null' and not (jsonb_typeof(v_filters -> 'review') = 'array' and jsonb_array_length(v_filters -> 'review') = 0)) or case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end = any((case when jsonb_typeof(v_filters -> 'review') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'review')) else array[v_filters ->> 'review'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{reviewDue,0}', v_filters ->> 'reviewDue'), '') = 'true', false) or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+        and (v_search is null or x."document_number" ilike v_search or x."name" ilike v_search)
+        and (v_after is null or (x."document_number", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."document_number" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((x)."id"), 'downloadable', "better_supabase"."drive_can_download"((x)."id"))) as j, jsonb_build_array((x."document_number")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = page_drive_documents.tenant
+        and x."document_status" is not null
+        and x."archived_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."document_status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."document_owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'review' is not null and jsonb_typeof(v_filters -> 'review') <> 'null' and not (jsonb_typeof(v_filters -> 'review') = 'array' and jsonb_array_length(v_filters -> 'review') = 0)) or case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end = any((case when jsonb_typeof(v_filters -> 'review') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'review')) else array[v_filters ->> 'review'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{reviewDue,0}', v_filters ->> 'reviewDue'), '') = 'true', false) or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+        and (v_search is null or x."document_number" ilike v_search or x."name" ilike v_search)
+        and (v_after is null or (x."document_number" <= (v_after ->> 0)::text and ((x."document_number" < (v_after ->> 0)::text) or (x."document_number" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."document_number" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((x)."id"), 'downloadable', "better_supabase"."drive_can_download"((x)."id"))) as j, jsonb_build_array((x."document_number")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = page_drive_documents.tenant
+        and x."document_status" is not null
+        and x."archived_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."document_status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."document_owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'review' is not null and jsonb_typeof(v_filters -> 'review') <> 'null' and not (jsonb_typeof(v_filters -> 'review') = 'array' and jsonb_array_length(v_filters -> 'review') = 0)) or case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end = any((case when jsonb_typeof(v_filters -> 'review') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'review')) else array[v_filters ->> 'review'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{reviewDue,0}', v_filters ->> 'reviewDue'), '') = 'true', false) or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+        and (v_search is null or x."document_number" ilike v_search or x."name" ilike v_search)
+        and (v_after is null or (x."document_number", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."document_number" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'number' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((x)."id"), 'downloadable', "better_supabase"."drive_can_download"((x)."id"))) as j, jsonb_build_array((x."document_number")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = page_drive_documents.tenant
+        and x."document_status" is not null
+        and x."archived_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."document_status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."document_owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'review' is not null and jsonb_typeof(v_filters -> 'review') <> 'null' and not (jsonb_typeof(v_filters -> 'review') = 'array' and jsonb_array_length(v_filters -> 'review') = 0)) or case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end = any((case when jsonb_typeof(v_filters -> 'review') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'review')) else array[v_filters ->> 'review'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{reviewDue,0}', v_filters ->> 'reviewDue'), '') = 'true', false) or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+        and (v_search is null or x."document_number" ilike v_search or x."name" ilike v_search)
+        and (v_after is null or (x."document_number" <= (v_after ->> 0)::text and ((x."document_number" < (v_after ->> 0)::text) or (x."document_number" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."document_number" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((x)."id"), 'downloadable', "better_supabase"."drive_can_download"((x)."id"))) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = page_drive_documents.tenant
+        and x."document_status" is not null
+        and x."archived_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."document_status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."document_owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'review' is not null and jsonb_typeof(v_filters -> 'review') <> 'null' and not (jsonb_typeof(v_filters -> 'review') = 'array' and jsonb_array_length(v_filters -> 'review') = 0)) or case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end = any((case when jsonb_typeof(v_filters -> 'review') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'review')) else array[v_filters ->> 'review'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{reviewDue,0}', v_filters ->> 'reviewDue'), '') = 'true', false) or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+        and (v_search is null or x."document_number" ilike v_search or x."name" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((x)."id"), 'downloadable', "better_supabase"."drive_can_download"((x)."id"))) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = page_drive_documents.tenant
+        and x."document_status" is not null
+        and x."archived_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."document_status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."document_owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'review' is not null and jsonb_typeof(v_filters -> 'review') <> 'null' and not (jsonb_typeof(v_filters -> 'review') = 'array' and jsonb_array_length(v_filters -> 'review') = 0)) or case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end = any((case when jsonb_typeof(v_filters -> 'review') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'review')) else array[v_filters ->> 'review'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{reviewDue,0}', v_filters ->> 'reviewDue'), '') = 'true', false) or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+        and (v_search is null or x."document_number" ilike v_search or x."name" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'nextReviewOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((x)."id"), 'downloadable', "better_supabase"."drive_can_download"((x)."id"))) as j, jsonb_build_array((coalesce(x."next_review_on", date '9999-12-31'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = page_drive_documents.tenant
+        and x."document_status" is not null
+        and x."archived_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."document_status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."document_owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'review' is not null and jsonb_typeof(v_filters -> 'review') <> 'null' and not (jsonb_typeof(v_filters -> 'review') = 'array' and jsonb_array_length(v_filters -> 'review') = 0)) or case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end = any((case when jsonb_typeof(v_filters -> 'review') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'review')) else array[v_filters ->> 'review'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{reviewDue,0}', v_filters ->> 'reviewDue'), '') = 'true', false) or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+        and (v_search is null or x."document_number" ilike v_search or x."name" ilike v_search)
+        and (v_after is null or (coalesce(x."next_review_on", date '9999-12-31'), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."next_review_on", date '9999-12-31') asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'nextReviewOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((x)."id"), 'downloadable', "better_supabase"."drive_can_download"((x)."id"))) as j, jsonb_build_array((coalesce(x."next_review_on", date '9999-12-31'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = page_drive_documents.tenant
+        and x."document_status" is not null
+        and x."archived_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."document_status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."document_owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'review' is not null and jsonb_typeof(v_filters -> 'review') <> 'null' and not (jsonb_typeof(v_filters -> 'review') = 'array' and jsonb_array_length(v_filters -> 'review') = 0)) or case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end = any((case when jsonb_typeof(v_filters -> 'review') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'review')) else array[v_filters ->> 'review'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{reviewDue,0}', v_filters ->> 'reviewDue'), '') = 'true', false) or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+        and (v_search is null or x."document_number" ilike v_search or x."name" ilike v_search)
+        and (v_after is null or (coalesce(x."next_review_on", date '9999-12-31') <= (v_after ->> 0)::date and ((coalesce(x."next_review_on", date '9999-12-31') < (v_after ->> 0)::date) or (coalesce(x."next_review_on", date '9999-12-31') = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."next_review_on", date '9999-12-31') desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."drive_nodes" x
+      where x."tenant_id" = page_drive_documents.tenant
+        and x."document_status" is not null
+        and x."archived_at" is null
+        and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+        and (not (v_filters -> 'type' is not null and jsonb_typeof(v_filters -> 'type') <> 'null' and not (jsonb_typeof(v_filters -> 'type') = 'array' and jsonb_array_length(v_filters -> 'type') = 0)) or x."document_type" = any((case when jsonb_typeof(v_filters -> 'type') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'type')) else array[v_filters ->> 'type'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."document_status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."document_owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'review' is not null and jsonb_typeof(v_filters -> 'review') <> 'null' and not (jsonb_typeof(v_filters -> 'review') = 'array' and jsonb_array_length(v_filters -> 'review') = 0)) or case when x."document_status" = 'effective' and x."next_review_on" <= current_date then 'due' else 'ok' end = any((case when jsonb_typeof(v_filters -> 'review') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'review')) else array[v_filters ->> 'review'] end)::text[]))
+        and (not coalesce(nullif(coalesce(v_filters #>> '{reviewDue,0}', v_filters ->> 'reviewDue'), '') = 'true', false) or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+        and (v_search is null or x."document_number" ilike v_search or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_drive_documents"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_drive_documents"(uuid, jsonb) to authenticated, service_role;
+
 -- The document register of an organization: its controlled files the caller
 -- reads, by number. filters takes type, status, ownerId, reviewDue (true for
 -- effective documents whose review date has come) and search (number or name).
@@ -1992,6 +2322,16 @@ set search_path = ''
 as $$ select "better_supabase"."drive_document_review"($1, $2, $3) $$;
 revoke execute on function "api"."drive_document_review"(uuid, text, text) from public, anon;
 grant execute on function "api"."drive_document_review"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."page_drive_documents"(tenant uuid, filters jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_drive_documents"($1, $2) $$;
+revoke execute on function "api"."page_drive_documents"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_drive_documents"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."drive_documents"(tenant uuid, filters jsonb default '{}'::jsonb)
 returns jsonb

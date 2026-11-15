@@ -42,7 +42,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
-import { formListSurface } from "./lists.ts";
+import { formListSurface, formSubmissionListSurface } from "./lists.ts";
 
 export interface FormsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -249,6 +249,10 @@ export interface Forms<F extends object = Record<never, never>> {
   }): AsyncResult<FormVersion>;
   get(id: string): AsyncResult<FormDetail<F>>;
   getVersion(versionId: string): AsyncResult<FormVersion>;
+  /**
+   * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+   * filters and a count (ADR 1077).
+   */
   list(
     input: { organizationId: string; readonly limit?: number } & {
       readonly status?: FormStatus;
@@ -256,7 +260,8 @@ export interface Forms<F extends object = Record<never, never>> {
   ): AsyncResult<readonly Form<F>[]>;
   /**
    * One keyset page of the organization's forms, newest first. Sort by
-   * `createdAt`, `title` or `key`; filter by `status`.
+   * `createdAt`, `title` or `key`; filter by `status`; `q` searches the title
+   * and the key.
    */
   page(
     options: PageOptions & RequiredTenantOption,
@@ -277,10 +282,32 @@ export interface Forms<F extends object = Record<never, never>> {
     input: { token: string; answers: FormAnswers } & PublicSubmitOptions,
   ): AsyncResult<PublicSubmission>;
   getSubmission(id: string): AsyncResult<FormSubmission>;
-  /** Newest first. */
+  /**
+   * Newest first.
+   *
+   * @deprecated Use `submissionPage`, which pages by keyset and takes `q`,
+   * sorts, array filters and a count (ADR 1077).
+   */
   listSubmissions(
     input: { formId: string } & SubmissionListOptions,
   ): AsyncResult<readonly FormSubmission[]>;
+  /**
+   * One keyset page of the organization's submissions, newest first. `filters`
+   * takes `formId`, `status` and `respondentId` as lists and `includeArchived:
+   * ["true"]`; `q` is a text match in the answers. Reviewers see every
+   * submission and everyone else their own.
+   */
+  submissionPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<FormSubmission>>;
+  /** The values of each facet (`status`, `formId`) under the page's filters. */
+  submissionFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many submissions match the page's filters. */
+  submissionCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
   review(input: {
     id: string;
     status: "accepted" | "rejected" | "submitted";
@@ -505,6 +532,15 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
     rowOf: formOf,
   });
 
+  const submissions = entityList<FormSubmission, RequiredTenantOption>({
+    entity: "form_submission",
+    surface: formSubmissionListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_form_submissions",
+    rowOf: (row, fn) => submissionOf(row, fn),
+  });
+
   const client: Forms<F> = {
     create: (input) =>
       extra(input.fields)
@@ -560,6 +596,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
       call("get_form_version", { version_id: versionId }, (value) =>
         versionOf(value, "get_form_version"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, limit, ...list }) =>
       call(
         "list_forms",
@@ -629,6 +666,10 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
       call("get_form_submission", { submission_id: id }, (value) =>
         submissionOf(value, "get_form_submission"),
       ),
+    submissionPage: submissions.page,
+    submissionFacets: submissions.facets,
+    submissionCount: submissions.count,
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listSubmissions: ({ formId, ...list }) =>
       call(
         "list_form_submissions",

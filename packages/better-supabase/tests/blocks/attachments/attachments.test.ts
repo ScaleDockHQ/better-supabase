@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 4 findings. */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
@@ -1513,5 +1514,23 @@ describe("createAttachments on another file store", () => {
     expect(() =>
       createAttachmentSweeper({ transport: storeTransport({}).transport }),
     ).toThrow(/needs storage or files/u);
+  });
+});
+
+describe("attachment page", () => {
+  it("maps the rows of one page", async () => {
+    const { transport } = fakeTransport({
+      page_attachments: { items: [row()], hasMore: false },
+    });
+
+    const attachments = createAttachments({
+      transport,
+      storage: fakeStorage().storage,
+      tenant: () => "org-1",
+    });
+
+    const page = await attachments.attachmentPage().orThrow();
+
+    expect(page.items.map((attachment) => attachment.id)).toEqual(["a1"]);
   });
 });

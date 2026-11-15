@@ -5,6 +5,7 @@ import { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts"
 import { appraisalsBlock } from "../../src/blocks/appraisals/manifest.ts";
 import { approvalsBlock } from "../../src/blocks/approvals/manifest.ts";
 import { assetsBlock } from "../../src/blocks/assets/manifest.ts";
+import { attachmentsBlock } from "../../src/blocks/attachments/manifest.ts";
 import { casesBlock } from "../../src/blocks/cases/manifest.ts";
 import { commissionsBlock } from "../../src/blocks/commissions/manifest.ts";
 import { contentBlock } from "../../src/blocks/content/manifest.ts";
@@ -23,6 +24,7 @@ import { guestsBlock } from "../../src/blocks/guests/manifest.ts";
 import { importsBlock } from "../../src/blocks/imports/manifest.ts";
 import { incidentsBlock } from "../../src/blocks/incidents/manifest.ts";
 import { inspectionsBlock } from "../../src/blocks/inspections/manifest.ts";
+import { inventoryBlock } from "../../src/blocks/inventory/manifest.ts";
 import { leasesBlock } from "../../src/blocks/leases/manifest.ts";
 import { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import { legalEntitiesBlock } from "../../src/blocks/legal-entities/manifest.ts";
@@ -34,17 +36,23 @@ import { organizationsBlock } from "../../src/blocks/organizations/manifest.ts";
 import { passesBlock } from "../../src/blocks/passes/manifest.ts";
 import { payrollExportBlock } from "../../src/blocks/payroll-export/manifest.ts";
 import { periodsBlock } from "../../src/blocks/periods/manifest.ts";
+import { qualificationsBlock } from "../../src/blocks/qualifications/manifest.ts";
 import { referralsBlock } from "../../src/blocks/referrals/manifest.ts";
 import { rfqsBlock } from "../../src/blocks/rfqs/manifest.ts";
 import { risksBlock } from "../../src/blocks/risks/manifest.ts";
 import { sequencesBlock } from "../../src/blocks/sequences/manifest.ts";
 import { shipmentsBlock } from "../../src/blocks/shipments/manifest.ts";
+import { signaturesBlock } from "../../src/blocks/signatures/manifest.ts";
+import { templatesBlock } from "../../src/blocks/templates/manifest.ts";
 import { tillsBlock } from "../../src/blocks/tills/manifest.ts";
+import { versionsBlock } from "../../src/blocks/versions/manifest.ts";
 import { warehouseBlock } from "../../src/blocks/warehouse/manifest.ts";
 import { warrantyBlock } from "../../src/blocks/warranty/manifest.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
+// The drive document register renders only with `options.control`; its tests
+// render that option.
 const BLOCKS = [
   approvalsBlock,
   assetsBlock,
@@ -88,6 +96,12 @@ const BLOCKS = [
   tillsBlock,
   warehouseBlock,
   warrantyBlock,
+  signaturesBlock,
+  qualificationsBlock,
+  versionsBlock,
+  attachmentsBlock,
+  templatesBlock,
+  inventoryBlock,
 ];
 
 const RENDERED = renderBlocks(
@@ -145,6 +159,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(48);
+    expect(CASES).toHaveLength(57);
   });
 });

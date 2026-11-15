@@ -61,6 +61,7 @@ import {
   attachmentsOfflineSql,
   attachmentsOnlineSql,
 } from "./attachments-offline.ts";
+import { attachmentPageSql } from "./attachments-page.ts";
 import { pathExpression, pathTemplate } from "./attachments-path.ts";
 import { attachmentsSeeds } from "./attachments-seeds.ts";
 import {
@@ -853,9 +854,7 @@ begin
   )}
   return v_files;
 end;
-$$;
-
-create or replace function ${fn("get_attachment")}(id uuid)
+$$;${attachmentPageSql(ctx, { authors, extras, json: rowJson })}create or replace function ${fn("get_attachment")}(id uuid)
 returns jsonb
 language sql
 stable

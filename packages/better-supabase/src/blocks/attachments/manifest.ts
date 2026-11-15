@@ -4,6 +4,7 @@ import type { AttachmentsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createAttachments } from "./attachments.ts";
 import { attachmentsEvents } from "./events.ts";
+import { attachmentListSurface } from "./lists.ts";
 import { attachmentsSqlOptions } from "./options.ts";
 import { attachmentsBinding } from "./record-binding.ts";
 import { attachmentInputSchema } from "./schemas.ts";
@@ -29,6 +30,7 @@ export const attachmentsBlock: BlockOf<
   importTarget: ["attachment"],
   entities: {
     attachment: {
+      ...attachmentListSurface,
       mutability: "state-machine",
       offline: {
         scope: "tenant",

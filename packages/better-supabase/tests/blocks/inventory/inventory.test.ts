@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 2 findings. */
 import { describe, expect, it } from "vitest";
 
 import type { Inventory } from "../../../src/blocks/inventory/index.ts";

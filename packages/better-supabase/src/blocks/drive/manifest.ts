@@ -4,6 +4,7 @@ import type { DriveEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDrive } from "./drive.ts";
 import { driveEvents } from "./events.ts";
+import { driveDocumentListSurface } from "./lists.ts";
 import { driveSqlOptions } from "./options.ts";
 import { driveBinding } from "./record-binding.ts";
 
@@ -29,6 +30,10 @@ export const driveBlock: BlockOf<
     drive: {
       mutability: "editable",
       emits: { create: true, archive: true, restore: true, purge: true },
+    },
+    drive_document: {
+      ...driveDocumentListSurface,
+      mutability: "state-machine",
     },
   },
   concerns: ["lifecycle"],

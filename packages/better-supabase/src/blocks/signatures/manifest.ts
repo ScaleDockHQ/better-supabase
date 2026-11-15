@@ -3,6 +3,7 @@ import type { SignaturesEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { signaturesEvents } from "./events.ts";
+import { signatureRequestListSurface } from "./lists.ts";
 import { signaturesSqlOptions } from "./options.ts";
 import { signaturesBinding } from "./record-binding.ts";
 import { createSignatures } from "./signatures.ts";
@@ -25,6 +26,7 @@ export const signaturesBlock: BlockOf<
   category: "content",
   entities: {
     signature_request: {
+      ...signatureRequestListSurface,
       mutability: "state-machine",
       emits: { create: false },
     },

@@ -1,8 +1,15 @@
 import type { Author } from "../../core/block-authors.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
@@ -31,6 +38,7 @@ import {
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { storageReply } from "../../storage/file-store.ts";
@@ -60,6 +68,7 @@ import {
   unsupported,
   uploadTicket,
 } from "./files.ts";
+import { attachmentListSurface } from "./lists.ts";
 
 interface StorageReply<T> {
   readonly data: T | null;
@@ -384,8 +393,27 @@ export interface Attachments<F extends object = Record<never, never>> {
    */
   confirm(id: string): AsyncResult<Attachment & F>;
   get(id: string): AsyncResult<Attachment & F>;
-  /** The files of `subject`, or every file of the tenant without one. */
+  /**
+   * The files of `subject`, or every file of the tenant without one.
+   *
+   * @deprecated Use `attachmentPage`, which pages by keyset and takes `q`,
+   * sorts, array filters and a count (ADR 1077).
+   */
   list(subject?: RecordRef | null): AsyncResult<readonly (Attachment & F)[]>;
+  /**
+   * One keyset page of the tenant's files, newest first. `filters` takes
+   * `subjectType`, `subjectId`, `status` and `documentTypeId` as lists; `q`
+   * searches the file name. Row security decides what the caller sees. The
+   * organization is `options.tenant`.
+   */
+  attachmentPage(options?: PageOptions): AsyncResult<ListPage<Attachment & F>>;
+  /**
+   * The values of each facet (`status`, `subjectType`) under the page's
+   * filters.
+   */
+  attachmentFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many files match the page's filters. */
+  attachmentCount(options?: CountOptions): AsyncResult<Count>;
   /**
    * A signed URL for a file the scanner passed. `invalid_request` with hint
    * `ATTACHMENT_NOT_SCANNED` until then, and for an infected file.
@@ -671,6 +699,15 @@ export function createAttachments<
   const typed = (value: unknown): AsyncResult<Attachment & F> =>
     AsyncResult.from(() => withFields(fields, value, attachmentOf(value)));
 
+  const attachmentRows = entityList<readonly [unknown, Attachment]>({
+    entity: "attachment",
+    surface: attachmentListSurface,
+    call,
+    tenant: () => requireTenant(options.tenant),
+    fn: "page_attachments",
+    rowOf: (row) => [row, attachmentOf(row)] as const,
+  });
+
   const find = (id: string): AsyncResult<Attachment & F> =>
     call("get_attachment", { id }, (value) => value).andThen((value) =>
       isRecord(value) ? typed(value) : AsyncResult.err(notFound()),
@@ -910,6 +947,7 @@ export function createAttachments<
     upload,
     confirm,
     get: find,
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (subject) =>
       tenantOf(subject).andThen((organizationId) =>
         call(
@@ -925,6 +963,16 @@ export function createAttachments<
             ),
         ).andThen((rows) => allWithFields(fields, rows)),
       ),
+    attachmentPage: (page = {}) =>
+      attachmentRows
+        .page(page)
+        .andThen((read) =>
+          allWithFields(fields, read.items).then((typed) =>
+            typed.ok ? ok({ ...read, items: typed.data }) : typed,
+          ),
+        ),
+    attachmentFacets: attachmentRows.facets,
+    attachmentCount: attachmentRows.count,
     download: ({ id, options: download = {} }) =>
       find(id).andThen((attachment) => {
         const { version } = download;

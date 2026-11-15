@@ -7,6 +7,7 @@ import { cacheTag } from "next/cache";
 import { notFound, unstable_rethrow } from "next/navigation";
 
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { DRIVE_TAG } from "./drive-cache";
@@ -158,13 +159,11 @@ async function loadRegister(): Promise<readonly DocumentRow[] | null> {
     return null;
   }
 
-  const documents = await driveOf(db).documents({ organizationId: tenant });
+  const documents = await readAllPages((page) =>
+    driveOf(db).documentPage({ organizationId: tenant, ...page }),
+  );
 
-  if (!documents.ok) {
-    throw new Error(documents.error.message);
-  }
-
-  return documents.data.flatMap((node): DocumentRow[] =>
+  return documents.flatMap((node): DocumentRow[] =>
     node.document === undefined
       ? []
       : [

@@ -3,6 +3,7 @@ import type { QualificationsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { qualificationsEvents } from "./events.ts";
+import { qualificationTypeListSurface } from "./lists.ts";
 import { qualificationsSqlOptions } from "./options.ts";
 import { createQualifications } from "./qualifications.ts";
 import {
@@ -30,6 +31,7 @@ export const qualificationsBlock: BlockOf<
   entities: {
     qualification: { mutability: "state-machine" },
     qualification_type: {
+      ...qualificationTypeListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
     },

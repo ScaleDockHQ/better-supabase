@@ -4,6 +4,11 @@ import type { InventoryEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { inventoryEvents } from "./events.ts";
 import { createInventory } from "./inventory.ts";
+import {
+  stockLevelListSurface,
+  stockLotListSurface,
+  stockMovementListSurface,
+} from "./lists.ts";
 import { inventorySqlOptions } from "./options.ts";
 
 /** The `inventory` block's manifest (ADR 0029). */
@@ -21,6 +26,12 @@ export const inventoryBlock: BlockOf<
   importTarget: ["stock_count", "stock_allocation"],
   entities: {
     inventory_location: { mutability: "read-only" },
+    inventory_level: { ...stockLevelListSurface, mutability: "read-only" },
+    inventory_movement: {
+      ...stockMovementListSurface,
+      mutability: "read-only",
+    },
+    inventory_lot: { ...stockLotListSurface, mutability: "read-only" },
     purchase_order: { mutability: "editable", emits: { update: false } },
     purchase_requisition: {
       mutability: "state-machine",
