@@ -77,6 +77,10 @@ returns every channel the caller can see, joined or not, with `memberCount`
 and the caller's `role`. Archived channels are left out unless
 `includeArchived` is set.
 
+## Paging channels
+
+`page` pages channels by keyset (ADR 1077), with `facets` and `count`, and `getChannel` returns a `not_found` error for an unknown id. Sorts are `name` (the default), `createdAt` and `lastMessageAt`. `visibility` filters by a list of values, `browse` and `includeArchived` are flag filters (`["true"]`), and `q` searches the name, the topic and the purpose. `list` and `get` keep working and are deprecated; `list` stays the read for the channels of one record (`on`). A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Membership
 
 `join` adds the caller to a public channel; joining a private one fails as if

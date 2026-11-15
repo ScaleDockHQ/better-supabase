@@ -13,14 +13,13 @@ export const GET = bsb.route(async (request, { db }) => {
     return Response.json({ issues: [] }, { status: 400 });
   }
 
-  const conversation = await db.inbox.conversations.get(id);
+  const conversation = await db.inbox.conversations.getConversation(id);
 
   if (!conversation.ok) {
-    return Response.json({ error: conversation.error.code }, { status: 500 });
-  }
-
-  if (conversation.data === null) {
-    return Response.json({ error: "not_found" }, { status: 404 });
+    return Response.json(
+      { error: conversation.error.code },
+      { status: conversation.error.code === "not_found" ? 404 : 500 },
+    );
   }
 
   const deals = await loadContactDeals(

@@ -1577,7 +1577,7 @@ export interface BlockNameRegistry {
       readonly "messageEmbeddings": "chat" | "message" | "user" | "tenant" | "embedding" | "model" | "createdAt";
       readonly "documents": "scopeKey" | "path" | "content" | "version" | "expiresAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "memory_create" | "memory_delete" | "memory_document_read" | "memory_document_write" | "memory_forget" | "memory_insert" | "memory_list" | "memory_rename" | "memory_restore" | "memory_save" | "memory_search" | "memory_str_replace" | "memory_view" | "pending_memory_embeddings" | "purge_memories" | "purge_memory_documents" | "recall_ai_messages" | "set_ai_message_embedding" | "set_memory_embedding" | "set_memory_embeddings";
+    readonly functions: "get_memory" | "memory_create" | "memory_delete" | "memory_document_read" | "memory_document_write" | "memory_forget" | "memory_insert" | "memory_list" | "memory_rename" | "memory_restore" | "memory_save" | "memory_search" | "memory_str_replace" | "memory_view" | "page_memories" | "pending_memory_embeddings" | "purge_memories" | "purge_memory_documents" | "recall_ai_messages" | "set_ai_message_embedding" | "set_memory_embedding" | "set_memory_embeddings";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {

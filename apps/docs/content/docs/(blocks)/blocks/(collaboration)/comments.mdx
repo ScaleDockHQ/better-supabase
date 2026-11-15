@@ -81,6 +81,10 @@ export default defineConfig({
 
 Record types without a `comment` action keep the messaging keys.
 
+## Paging
+
+`comments` does not take the block list contract. A comment thread belongs to one record and reads oldest first as a tree, so `list` takes the `subject` and a `limit` instead of `q`, sorts and array filters, and `get` already returns a `not_found` error for an unknown id (ADR 1077). `counts` reads how many comments each of several subjects has.
+
 ## Config
 
 ```ts title="better-supabase.config.ts"

@@ -78,6 +78,10 @@ with a `service` transport the block schedules it right after the save. A
 the user owns or that is published (`AI_TASK_AGENT_FORBIDDEN`). An unknown
 time zone fails with `AI_TASK_INVALID`.
 
+## Paging tasks
+
+`page` pages scheduled tasks by keyset (ADR 1077), with `facets` and `count`, and `get` returns a `not_found` error for an unknown id. Sorts are `createdAt`, `title` and `nextRunAt`. `enabled` filters by a list of values, `all: ["true"]` reads every member's tasks (the caller needs `ai_schedules.manage`), and `q` searches the title and the prompt. `list` keeps working and is deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Running tasks
 
 AI tasks are the per-user layer of scheduling; app-level job schedules and

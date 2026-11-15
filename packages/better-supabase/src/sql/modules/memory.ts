@@ -21,6 +21,7 @@ import {
   SHARED,
   upgradeOwners,
 } from "./memory-limits.ts";
+import { memoryPagesSql } from "./memory-pages.ts";
 import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -639,6 +640,8 @@ begin${namespace("memory_list", false)}
 end;
 $$;
 ${userGrant(signature("memory_list", `${id}, jsonb, text, integer`))}
+
+${memoryPagesSql(ctx, { m, has: (column) => ctx.has("memories", column), memories, live, fresh, createdAt, memoryJson, namespace: (name) => namespace(name, false), declare, inNamespace })}
 
 -- Saves an archival fact, with its embedding when the caller has one, a
 -- category, a confidence from 0 to 1 that weighs it in searches, and the time

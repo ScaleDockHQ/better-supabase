@@ -1,6 +1,6 @@
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:3f370d377fc7fee7681f9f5e9a50256a36df8bb10b8e85644737999d8ea1ac32
+-- @bsb-hash sha256:ab772505f9ebae7e82e33b128eb56b2f39c53c705ce802a02ef894b730d6366e
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -755,6 +755,572 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_ai_projects"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_projects"(uuid) to authenticated, service_role;
+
+-- The caller's chats and the chats they take part in, in a tenant, as a keyset
+-- page (ADR 1077), newest activity first. filters is { projectId (one uuid),
+-- pinned, archived (a value or a list of 'true' and 'false'; without archived
+-- the archived chats stay out), search (titles and message text), sort
+-- (lastMessageAt, createdAt, title), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }. Temporary chats never show.
+create or replace function "better_supabase"."page_ai_chats"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_uid uuid := auth.uid();
+  v_filters jsonb := coalesce(page_ai_chats.filters, '{}'::jsonb);
+  v_project text := nullif(coalesce(v_filters #>> '{projectId,0}', v_filters ->> 'projectId'), '');
+  v_query tsquery;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_uid is null then
+    return case when v_paged then jsonb_build_object('items', '[]'::jsonb, 'hasMore', false, 'nextCursor', null) else '[]'::jsonb end;
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'projectId') = 'array' then v_filters -> 'projectId' when jsonb_typeof(v_filters -> 'projectId') in ('string', 'number') then jsonb_build_array(v_filters -> 'projectId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'projectId is a uuid' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  if nullif(btrim(v_filters ->> 'search'), '') is not null then
+    v_query := websearch_to_tsquery('simple'::regconfig, v_filters ->> 'search');
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('pinned', 'archived') then
+      raise exception 'facet is one of pinned, archived' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'pinned' then (x."pinned")::text when 'archived' then ((x."archived_at" is not null))::text end) as v
+      from "better_supabase"."ai_chats" x
+      where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+        and not x."is_temporary"
+        and x."tenant_id" = page_ai_chats.tenant
+        and (v_project is null or x."project_id" = v_project::uuid)
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_query is null or x."search_tsv" @@ v_query
+        or exists (select 1 from "better_supabase"."ai_messages" mm where mm."chat_id" = x."id" and mm."search_tsv" @@ v_query))
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."ai_chats" x
+      where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+        and not x."is_temporary"
+        and x."tenant_id" = page_ai_chats.tenant
+        and (v_project is null or x."project_id" = v_project::uuid)
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_query is null or x."search_tsv" @@ v_query
+        or exists (select 1 from "better_supabase"."ai_messages" mm where mm."chat_id" = x."id" and mm."search_tsv" @@ v_query))
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'createdAt', 'title') then
+    raise exception 'sort is one of lastMessageAt, createdAt, title' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'project_id', x."project_id", 'agent_id', x."agent_id", 'title', x."title", 'model', x."model", 'visibility', x."visibility", 'mode', x."mode", 'pinned', x."pinned", 'archived_at', x."archived_at", 'is_temporary', x."is_temporary", 'expires_at', x."expires_at", 'current_leaf_id', x."current_leaf_id", 'active_stream_id', x."active_stream_id", 'active_run_id', x."active_run_id", 'last_message_at', x."last_message_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_chats" x
+      where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+        and not x."is_temporary"
+        and x."tenant_id" = page_ai_chats.tenant
+        and (v_project is null or x."project_id" = v_project::uuid)
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_query is null or x."search_tsv" @@ v_query
+        or exists (select 1 from "better_supabase"."ai_messages" mm where mm."chat_id" = x."id" and mm."search_tsv" @@ v_query))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'project_id', x."project_id", 'agent_id', x."agent_id", 'title', x."title", 'model', x."model", 'visibility', x."visibility", 'mode', x."mode", 'pinned', x."pinned", 'archived_at', x."archived_at", 'is_temporary', x."is_temporary", 'expires_at', x."expires_at", 'current_leaf_id', x."current_leaf_id", 'active_stream_id', x."active_stream_id", 'active_run_id', x."active_run_id", 'last_message_at', x."last_message_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_chats" x
+      where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+        and not x."is_temporary"
+        and x."tenant_id" = page_ai_chats.tenant
+        and (v_project is null or x."project_id" = v_project::uuid)
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_query is null or x."search_tsv" @@ v_query
+        or exists (select 1 from "better_supabase"."ai_messages" mm where mm."chat_id" = x."id" and mm."search_tsv" @@ v_query))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'project_id', x."project_id", 'agent_id', x."agent_id", 'title', x."title", 'model', x."model", 'visibility', x."visibility", 'mode', x."mode", 'pinned', x."pinned", 'archived_at', x."archived_at", 'is_temporary', x."is_temporary", 'expires_at', x."expires_at", 'current_leaf_id', x."current_leaf_id", 'active_stream_id', x."active_stream_id", 'active_run_id', x."active_run_id", 'last_message_at', x."last_message_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_chats" x
+      where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+        and not x."is_temporary"
+        and x."tenant_id" = page_ai_chats.tenant
+        and (v_project is null or x."project_id" = v_project::uuid)
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_query is null or x."search_tsv" @@ v_query
+        or exists (select 1 from "better_supabase"."ai_messages" mm where mm."chat_id" = x."id" and mm."search_tsv" @@ v_query))
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'project_id', x."project_id", 'agent_id', x."agent_id", 'title', x."title", 'model', x."model", 'visibility', x."visibility", 'mode', x."mode", 'pinned', x."pinned", 'archived_at', x."archived_at", 'is_temporary', x."is_temporary", 'expires_at', x."expires_at", 'current_leaf_id', x."current_leaf_id", 'active_stream_id', x."active_stream_id", 'active_run_id', x."active_run_id", 'last_message_at', x."last_message_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_chats" x
+      where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+        and not x."is_temporary"
+        and x."tenant_id" = page_ai_chats.tenant
+        and (v_project is null or x."project_id" = v_project::uuid)
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_query is null or x."search_tsv" @@ v_query
+        or exists (select 1 from "better_supabase"."ai_messages" mm where mm."chat_id" = x."id" and mm."search_tsv" @@ v_query))
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'project_id', x."project_id", 'agent_id', x."agent_id", 'title', x."title", 'model', x."model", 'visibility', x."visibility", 'mode', x."mode", 'pinned', x."pinned", 'archived_at', x."archived_at", 'is_temporary', x."is_temporary", 'expires_at', x."expires_at", 'current_leaf_id', x."current_leaf_id", 'active_stream_id', x."active_stream_id", 'active_run_id', x."active_run_id", 'last_message_at', x."last_message_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_chats" x
+      where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+        and not x."is_temporary"
+        and x."tenant_id" = page_ai_chats.tenant
+        and (v_project is null or x."project_id" = v_project::uuid)
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_query is null or x."search_tsv" @@ v_query
+        or exists (select 1 from "better_supabase"."ai_messages" mm where mm."chat_id" = x."id" and mm."search_tsv" @@ v_query))
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'project_id', x."project_id", 'agent_id', x."agent_id", 'title', x."title", 'model', x."model", 'visibility', x."visibility", 'mode', x."mode", 'pinned', x."pinned", 'archived_at', x."archived_at", 'is_temporary', x."is_temporary", 'expires_at', x."expires_at", 'current_leaf_id', x."current_leaf_id", 'active_stream_id', x."active_stream_id", 'active_run_id', x."active_run_id", 'last_message_at', x."last_message_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_chats" x
+      where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+        and not x."is_temporary"
+        and x."tenant_id" = page_ai_chats.tenant
+        and (v_project is null or x."project_id" = v_project::uuid)
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_query is null or x."search_tsv" @@ v_query
+        or exists (select 1 from "better_supabase"."ai_messages" mm where mm."chat_id" = x."id" and mm."search_tsv" @@ v_query))
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'project_id', x."project_id", 'agent_id', x."agent_id", 'title', x."title", 'model', x."model", 'visibility', x."visibility", 'mode', x."mode", 'pinned', x."pinned", 'archived_at', x."archived_at", 'is_temporary', x."is_temporary", 'expires_at', x."expires_at", 'current_leaf_id', x."current_leaf_id", 'active_stream_id', x."active_stream_id", 'active_run_id', x."active_run_id", 'last_message_at', x."last_message_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((lower(coalesce(x."title", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_chats" x
+      where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+        and not x."is_temporary"
+        and x."tenant_id" = page_ai_chats.tenant
+        and (v_project is null or x."project_id" = v_project::uuid)
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_query is null or x."search_tsv" @@ v_query
+        or exists (select 1 from "better_supabase"."ai_messages" mm where mm."chat_id" = x."id" and mm."search_tsv" @@ v_query))
+        and (v_after is null or (lower(coalesce(x."title", '')) >= (v_after ->> 0)::text and ((lower(coalesce(x."title", '')) > (v_after ->> 0)::text) or (lower(coalesce(x."title", '')) = (v_after ->> 0)::text and x."id" < (v_after ->> 1)::uuid))))
+      order by lower(coalesce(x."title", '')) asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'project_id', x."project_id", 'agent_id', x."agent_id", 'title', x."title", 'model', x."model", 'visibility', x."visibility", 'mode', x."mode", 'pinned', x."pinned", 'archived_at', x."archived_at", 'is_temporary', x."is_temporary", 'expires_at', x."expires_at", 'current_leaf_id', x."current_leaf_id", 'active_stream_id', x."active_stream_id", 'active_run_id', x."active_run_id", 'last_message_at', x."last_message_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((lower(coalesce(x."title", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_chats" x
+      where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+        and not x."is_temporary"
+        and x."tenant_id" = page_ai_chats.tenant
+        and (v_project is null or x."project_id" = v_project::uuid)
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_query is null or x."search_tsv" @@ v_query
+        or exists (select 1 from "better_supabase"."ai_messages" mm where mm."chat_id" = x."id" and mm."search_tsv" @@ v_query))
+        and (v_after is null or (lower(coalesce(x."title", '')), x."id") < ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(coalesce(x."title", '')) desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."ai_chats" x
+      where (x."owner_id" = v_uid or (x."visibility" <> 'private' and exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and ((((pa."kind"::text = 'user' and pa."user_id" = (select auth.uid())) or (pa."kind"::text = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = pa."team_id"::text and tm."user_id" = (select auth.uid())))) and (x."tenant_id" is null or x."tenant_id" in (select better_supabase.member_organization_ids()))) or (pa."kind"::text = 'customer' and pa."customer_id" = (select auth.uid()) and ((x."tenant_id")::text, ('ai-chat')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g))))))
+        and not x."is_temporary"
+        and x."tenant_id" = page_ai_chats.tenant
+        and (v_project is null or x."project_id" = v_project::uuid)
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_query is null or x."search_tsv" @@ v_query
+        or exists (select 1 from "better_supabase"."ai_messages" mm where mm."chat_id" = x."id" and mm."search_tsv" @@ v_query))
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_ai_chats"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_ai_chats"(uuid, jsonb) to authenticated, service_role;
+
+-- The caller's projects in a tenant as a keyset page (ADR 1077), pinned first,
+-- then the most recently changed. filters is { pinned, archived (a value or a
+-- list of 'true' and 'false'; without archived the archived projects stay
+-- out), search (name), sort (updatedAt, name), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_ai_projects"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_uid uuid := (select auth.uid());
+  v_filters jsonb := coalesce(page_ai_projects.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_uid is null then
+    return case when v_paged then jsonb_build_object('items', '[]'::jsonb, 'hasMore', false, 'nextCursor', null) else '[]'::jsonb end;
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('pinned', 'archived') then
+      raise exception 'facet is one of pinned, archived' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'pinned' then (x."pinned")::text when 'archived' then ((x."archived_at" is not null))::text end) as v
+      from "better_supabase"."ai_projects" x
+      where x."owner_id" = v_uid
+        and x."tenant_id" is not distinct from page_ai_projects.tenant
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."ai_projects" x
+      where x."owner_id" = v_uid
+        and x."tenant_id" is not distinct from page_ai_projects.tenant
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('updatedAt', 'name') then
+    raise exception 'sort is one of updatedAt, name' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."pinned")::text, (x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_projects" x
+      where x."owner_id" = v_uid
+        and x."tenant_id" is not distinct from page_ai_projects.tenant
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."pinned" >= (v_after ->> 0)::boolean and ((x."pinned" > (v_after ->> 0)::boolean) or (x."pinned" = (v_after ->> 0)::boolean and x."updated_at" < (v_after ->> 1)::timestamptz) or (x."pinned" = (v_after ->> 0)::boolean and x."updated_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."pinned" asc, x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."pinned")::text, (x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_projects" x
+      where x."owner_id" = v_uid
+        and x."tenant_id" is not distinct from page_ai_projects.tenant
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."pinned" <= (v_after ->> 0)::boolean and ((x."pinned" < (v_after ->> 0)::boolean) or (x."pinned" = (v_after ->> 0)::boolean and x."updated_at" < (v_after ->> 1)::timestamptz) or (x."pinned" = (v_after ->> 0)::boolean and x."updated_at" = (v_after ->> 1)::timestamptz and x."id" > (v_after ->> 2)::uuid))))
+      order by x."pinned" desc, x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_projects" x
+      where x."owner_id" = v_uid
+        and x."tenant_id" is not distinct from page_ai_projects.tenant
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_projects" x
+      where x."owner_id" = v_uid
+        and x."tenant_id" is not distinct from page_ai_projects.tenant
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_projects" x
+      where x."owner_id" = v_uid
+        and x."tenant_id" is not distinct from page_ai_projects.tenant
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_projects" x
+      where x."owner_id" = v_uid
+        and x."tenant_id" is not distinct from page_ai_projects.tenant
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_search is null or x."name" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."ai_projects" x
+      where x."owner_id" = v_uid
+        and x."tenant_id" is not distinct from page_ai_projects.tenant
+        and (not (v_filters -> 'pinned' is not null and jsonb_typeof(v_filters -> 'pinned') <> 'null' and not (jsonb_typeof(v_filters -> 'pinned') = 'array' and jsonb_array_length(v_filters -> 'pinned') = 0)) or x."pinned"::text = any((case when jsonb_typeof(v_filters -> 'pinned') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'pinned')) else array[v_filters ->> 'pinned'] end)::text[]))
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (x."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else not (x."archived_at" is not null) end)
+        and (v_search is null or x."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_ai_projects"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_ai_projects"(uuid, jsonb) to authenticated, service_role;
+
+-- One of the caller's projects, or null.
+create or replace function "better_supabase"."get_ai_project"(id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'name', x."name", 'instructions', x."instructions", 'default_model', x."default_model", 'pinned', x."pinned", 'archived_at', x."archived_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_projects" x
+  where x."id" = get_ai_project.id and x."owner_id" = (select auth.uid())
+$$;
+revoke execute on function "better_supabase"."get_ai_project"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_ai_project"(uuid) to authenticated, service_role;
 
 -- Adds someone to a chat, or changes their role: viewer or editor. The
 -- chat's owner with 'ai_chat.share', or the service role.
@@ -2863,6 +3429,36 @@ set search_path = ''
 as $$ select "better_supabase"."list_ai_projects"($1) $$;
 revoke execute on function "api"."list_ai_projects"(uuid) from public, anon;
 grant execute on function "api"."list_ai_projects"(uuid) to authenticated, service_role;
+
+create or replace function "api"."page_ai_chats"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_ai_chats"($1, $2) $$;
+revoke execute on function "api"."page_ai_chats"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_ai_chats"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."page_ai_projects"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_ai_projects"($1, $2) $$;
+revoke execute on function "api"."page_ai_projects"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_ai_projects"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."get_ai_project"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_ai_project"($1) $$;
+revoke execute on function "api"."get_ai_project"(uuid) from public, anon;
+grant execute on function "api"."get_ai_project"(uuid) to authenticated, service_role;
 
 create or replace function "api"."add_ai_chat_participant"(chat uuid, participant uuid, participant_role text default 'viewer', fields jsonb default '{}')
 returns jsonb

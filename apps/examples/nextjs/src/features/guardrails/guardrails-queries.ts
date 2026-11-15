@@ -9,7 +9,6 @@ import type { OpsListQuery } from "@/components/ops-list/ops-list-params";
 
 import { agentsBlock } from "@/features/agents/agents-server";
 import { ASSISTANT_AGENT, opsAccess } from "@/features/assistant/assistant-ops";
-import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { guardrailsBlock } from "./guardrails-server";
@@ -39,9 +38,9 @@ async function targets(
 ): Promise<readonly { agent: string; title: string }[]> {
   const { supabase } = await bsbCore.context();
 
-  const agents = await agentsBlock(supabase).list({
+  const agents = await agentsBlock(supabase).page({
     organizationId,
-    filter: "mine",
+    filters: { mode: ["mine"] },
     limit: 100,
   });
 
@@ -49,7 +48,10 @@ async function targets(
     { agent: "*", title: "Every agent" },
     { agent: ASSISTANT_AGENT, title: "Assistant" },
     ...(agents.ok
-      ? agents.data.map((agent) => ({ agent: agent.slug, title: agent.name }))
+      ? agents.data.items.map((agent) => ({
+          agent: agent.slug,
+          title: agent.name,
+        }))
       : []),
   ];
 }
@@ -129,8 +131,10 @@ export async function getDecisionPage(
       ? query.filter
       : undefined;
 
-  const entries = await guardrailsBlock(access)
-    .decisions.list({ organizationId, limit: 200, ...present({ decision }) })
+  const filters = { decision: decision === undefined ? [] : [decision] };
+
+  const { items: entries } = await guardrailsBlock(access)
+    .decisions.page({ organizationId, limit: 200, filters })
     .orThrow();
 
   const needle = query.q.toLowerCase();

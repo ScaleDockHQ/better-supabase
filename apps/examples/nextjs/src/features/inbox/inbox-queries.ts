@@ -48,16 +48,28 @@ export async function getConversationContext(
   cacheTag(INBOX_TAG);
   const tenant = tenantOf(session);
 
-  const found = await db.inbox.conversations.get(conversationId).orThrow();
+  const foundResult =
+    await db.inbox.conversations.getConversation(conversationId);
 
-  if (found === null || !tenant) {
+  if (!foundResult.ok && foundResult.error.code === "not_found") {
     return null;
   }
 
-  const earlier = await db.inbox.conversations
-    .list({
-      tenant,
-      filter: { contactId: found.contactId, status: "all", limit: 6 },
+  if (!foundResult.ok) {
+    throw new Error(foundResult.error.message);
+  }
+
+  const found = foundResult.data;
+
+  if (!tenant) {
+    return null;
+  }
+
+  const { items: earlier } = await db.inbox.conversations
+    .page({
+      organizationId: tenant,
+      filters: { contactId: [found.contactId], status: ["all"] },
+      limit: 6,
     })
     .orThrow();
 

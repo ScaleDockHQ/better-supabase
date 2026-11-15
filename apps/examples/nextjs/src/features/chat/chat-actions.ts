@@ -25,11 +25,14 @@ export interface ChannelRow {
 export const browseChannels = bsb.action(
   { requireTenant: true },
   async (_input, { db }) => {
-    const listed = await db.channels.list({ browse: true });
+    const listed = await db.channels.page({
+      filters: { browse: ["true"] },
+      limit: 200,
+    });
 
     return listed.ok
       ? ok(
-          listed.data.map((channel): ChannelRow => ({
+          listed.data.items.map((channel): ChannelRow => ({
             id: channel.id,
             name: channel.name,
             topic: channel.topic ?? null,

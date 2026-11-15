@@ -52,9 +52,9 @@ export async function getAiTasks(): Promise<AiTasksRead> {
     return { ok: true, tasks: [] };
   }
 
-  const result = await aiTasks(supabase).list({
+  const result = await aiTasks(supabase).page({
     organizationId,
-    all: can(permissions, "ai_schedules.manage"),
+    filters: { all: can(permissions, "ai_schedules.manage") ? ["true"] : [] },
     limit: 100,
   });
 
@@ -64,7 +64,7 @@ export async function getAiTasks(): Promise<AiTasksRead> {
 
   return {
     ok: true,
-    tasks: result.data.map((task) => ({
+    tasks: result.data.items.map((task) => ({
       id: task.id,
       title: task.title,
       prompt: task.prompt,

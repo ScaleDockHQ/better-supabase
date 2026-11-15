@@ -64,9 +64,11 @@ export async function answerHelp(
   message: string,
 ): Promise<void> {
   const inbox = serviceInbox();
-  const conversation = await inbox.conversations.get(conversationId);
 
-  if (!conversation.ok || conversation.data?.botMode !== "bot") {
+  const conversation =
+    await inbox.conversations.getConversation(conversationId);
+
+  if (!conversation.ok || conversation.data.botMode !== "bot") {
     return;
   }
 
@@ -98,9 +100,9 @@ export async function answerHelp(
     }
 
     const answer = await streamedText(response);
-    const current = await inbox.conversations.get(conversationId);
+    const current = await inbox.conversations.getConversation(conversationId);
 
-    if (answer === "" || !current.ok || current.data?.botMode !== "bot") {
+    if (answer === "" || !current.ok || current.data.botMode !== "bot") {
       return;
     }
 

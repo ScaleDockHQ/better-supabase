@@ -248,7 +248,7 @@ describe("memory module", () => {
   });
 
   it("caps archival facts with options.maxItems", () => {
-    expect(body()).not.toContain("offset ");
+    expect(body()).not.toMatch(/offset \d/u);
 
     const sql = body({ memory: { options: { maxItems: 50 } } });
     expect(sql).toContain("offset 50");

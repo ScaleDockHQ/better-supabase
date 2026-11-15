@@ -1111,6 +1111,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "MEMORY_EMPTY": "Memory content is empty.",
   "MEMORY_EXISTS": "Memory exists.",
   "MEMORY_FORBIDDEN": "You may not use memory here.",
+  "MEMORY_INVALID": "Kind is core or archival.",
   "MEMORY_LINE": "Memory line.",
   "MEMORY_NAMESPACE": "Memory namespace.",
   "MEMORY_NOT_FOUND": "Memory not found.",

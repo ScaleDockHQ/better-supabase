@@ -32380,7 +32380,29 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "MemoryView"
         }
-      ]
+      ],
+      "entityLists": {
+        "memory": {
+          "sorts": [
+            "createdAt",
+            "updatedAt",
+            "path",
+            "useCount",
+            "lastUsedAt"
+          ],
+          "facets": [
+            "kind",
+            "category"
+          ],
+          "filters": [
+            "kind",
+            "category"
+          ],
+          "search": [
+            "content"
+          ]
+        }
+      }
     },
     {
       "name": "messaging",
