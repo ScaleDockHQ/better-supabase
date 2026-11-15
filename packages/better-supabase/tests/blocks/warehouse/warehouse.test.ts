@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated array methods until 0.70 (ADR 1077). 3 findings. */
 import { describe, expect, it } from "vitest";
 
 import type { RouteOptimizer } from "../../../src/core/route-optimizer.ts";
@@ -522,5 +523,27 @@ describe("warehouse putaway, slotting and routes", () => {
     expect(
       validate(slottingOptionsSchema, { locationId: L1, days: 0 }).issues,
     ).toBeDefined();
+  });
+
+  it("returns one wave, rule and count plan", async () => {
+    const t = fieldsTransport({
+      get_pick_wave: () => WAVE,
+      get_putaway_rule: () => RULE,
+      get_count_plan: () => PLAN,
+    });
+
+    const client = createWarehouse({ transport: t, tenant: "org-1" });
+
+    const getPickWaveRow = await client.getPickWave("w1").orThrow();
+
+    expect(getPickWaveRow.id).toBe(WAVE.id);
+
+    const getPutawayRuleRow = await client.getPutawayRule("r1").orThrow();
+
+    expect(getPutawayRuleRow.id).toBe(RULE.id);
+
+    const getCountPlanRow = await client.getCountPlan("p1").orThrow();
+
+    expect(getCountPlanRow.id).toBe(PLAN.id);
   });
 });

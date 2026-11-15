@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated array methods until 0.70 (ADR 1077). 2 findings. */
 import { describe, expect, it } from "vitest";
 
 import {
@@ -300,5 +301,15 @@ describe("createMaintenance", () => {
         result: "meh",
       }).issues,
     ).toBeDefined();
+  });
+
+  it("returns one meter", async () => {
+    const t = fieldsTransport({ get_maintenance_meter: () => METER });
+
+    const client = createMaintenance({ transport: t, tenant: "org-1" });
+
+    const getMeterRow = await client.getMeter("m1").orThrow();
+
+    expect(getMeterRow.id).toBe(METER.id);
   });
 });

@@ -163,3 +163,7 @@ const total = await rfqs
 ```
 
 A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.
+
+### Searching
+
+`rfqPage` takes `q`, which searches the request number and title (ADR 1077).

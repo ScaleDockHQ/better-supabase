@@ -2,7 +2,15 @@ import type { BlockSqlContext } from "../context.ts";
 import type { LimsSql } from "./lims-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import { getFunction } from "../get-template.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  pageFunction,
+  searchPattern,
+} from "../list-template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { userGrant } from "../shared.ts";
 import { limsSql } from "./lims-sql.ts";
@@ -19,6 +27,42 @@ function methodFunctions(ctx: BlockSqlContext, q: LimsSql): string {
       tenant: `v_row.${m("tenant")}`,
       audit: false,
     });
+
+  const methodKeys = (
+    first: "key" | "name" | "createdAt",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => [
+    first === "createdAt"
+      ? { expr: `x.${m("createdAt")}`, dir: "desc", type: "timestamptz" }
+      : { expr: `lower(x.${m(first)})`, dir: "asc", type: "text" },
+    { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
+  ];
+
+  const methodPage = {
+    name: "page_lims_methods",
+    from: methods,
+    alias: "x",
+    where: [
+      `x.${m("tenant")} = page_lims_methods.tenant`,
+      filterAny("unit", `coalesce(x.${m("unit")}, '')`),
+      `(${filterFlag("includeArchived")} or x.${m("archivedAt")} is null)`,
+      `(v_search is null or x.${m("key")} ilike v_search or x.${m("name")} ilike v_search)`,
+    ],
+    keys: methodKeys("key"),
+    sorts: {
+      key: methodKeys("key"),
+      name: methodKeys("name"),
+      createdAt: methodKeys("createdAt"),
+    },
+    facets: { unit: `coalesce(x.${m("unit")}, '')` },
+    rowJson: q.methodJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: q.invalid,
+  } as const;
 
   const formCheck =
     q.forms === undefined
@@ -168,7 +212,33 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_lims_methods")}(${idType}, boolean)`)}
-`;
+
+-- The organization's test methods as a keyset page, by key unless sort says
+-- otherwise (ADR 1077). filters may hold unit (a value or a list),
+-- includeArchived, search, sort (key, name, createdAt), direction, facet,
+-- count, limit and after.
+${pageFunction({
+  name: fn("page_lims_methods"),
+  idType,
+  list: methodPage,
+  allowed: q.allowed("page_lims_methods.tenant", q.read),
+  forbidden: q.forbidden("not allowed to read test methods"),
+  grant: userGrant(`${fn("page_lims_methods")}(${idType}, jsonb)`),
+})}
+-- One test method the caller may read, or null.
+${getFunction({
+  name: fn("get_lims_method"),
+  bare: "get_lims_method",
+  arg: "method_id",
+  from: methods,
+  idColumn: m("id"),
+  tenantColumn: m("tenant"),
+  tenantType: idType,
+  rowJson: q.methodJson("x"),
+  allowed: (tenant) => q.allowed(tenant, q.read),
+  forbidden: q.forbidden("not allowed to read test methods"),
+  grant: userGrant(`${fn("get_lims_method")}(uuid)`),
+})}`;
 }
 
 function sampleFunctions(ctx: BlockSqlContext, q: LimsSql): string {
@@ -183,6 +253,7 @@ function sampleFunctions(ctx: BlockSqlContext, q: LimsSql): string {
       `x.${s("tenant")} = list_samples.tenant`,
       filterAny("status", `x.${s("status")}`),
       filterAny("kind", `x.${s("kind")}`),
+      `(v_search is null or x.${s("number")} ilike v_search or x.${s("title")} ilike v_search or coalesce(x.${s("lot")}, '') ilike v_search)`,
     ],
     keys: [
       { expr: `x.${s("sequence")}`, dir: "desc", type: "bigint" },
@@ -293,6 +364,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_samples.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(list)}
 begin
   if not ${q.allowed("list_samples.tenant", q.read)} then

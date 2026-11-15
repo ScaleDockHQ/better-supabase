@@ -5,6 +5,7 @@ import { cacheTag } from "next/cache";
 import { postgres, userClaims } from "@/features/developer/postgres";
 import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
 import { SHOP_TAG } from "@/features/shop/shop-cache";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { WAREHOUSE_TAG } from "./warehouse-cache";
@@ -213,7 +214,7 @@ export async function loadWaves(): Promise<readonly WaveRow[] | null> {
     return null;
   }
 
-  const waves = await db.warehouse.listPickWaves().orThrow();
+  const waves = await readAllPages((page) => db.warehouse.pickWavePage(page));
 
   return waves.map((wave) => ({
     id: wave.id,
@@ -247,7 +248,9 @@ export async function loadPutawayRules(): Promise<
     return null;
   }
 
-  const rules = await db.warehouse.listPutawayRules().orThrow();
+  const rules = await readAllPages((page) =>
+    db.warehouse.putawayRulePage(page),
+  );
 
   return rules.map((rule) => ({
     id: rule.id,
@@ -321,7 +324,7 @@ export async function loadCountPlans(): Promise<
     return null;
   }
 
-  const plans = await db.warehouse.listCountPlans().orThrow();
+  const plans = await readAllPages((page) => db.warehouse.countPlanPage(page));
   const today = new Date().toISOString().slice(0, 10);
 
   return plans.map((plan) => ({

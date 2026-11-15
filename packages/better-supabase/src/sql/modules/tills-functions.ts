@@ -1,6 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import { getFunction } from "../get-template.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { userGrant } from "../shared.ts";
 import { tillsSql } from "./tills-sql.ts";
 
@@ -17,6 +24,7 @@ export function tillsFunctions(ctx: BlockSqlContext): string {
       `x.${s("tenant")} = list_till_sessions.tenant`,
       filterAny("tillId", `x.${s("till")}::text`),
       filterAny("status", `x.${s("status")}`),
+      `(v_search is null or coalesce(x.${s("notes")}, '') ilike v_search)`,
     ],
     keys: [
       { expr: `x.${s("openedAt")}`, dir: "desc", type: "timestamptz" },
@@ -38,6 +46,38 @@ export function tillsFunctions(ctx: BlockSqlContext): string {
     },
     facets: { status: `x.${s("status")}`, tillId: `x.${s("till")}` },
     rowJson: sql.sessionJson("x"),
+    invalid: sql.invalid,
+  } as const;
+
+  const tillKeys = (
+    first: "name" | "createdAt",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => [
+    first === "name"
+      ? { expr: `lower(x.${t("name")})`, dir: "asc", type: "text" }
+      : { expr: `x.${t("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${t("id")}`, dir: "asc", type: "uuid" },
+  ];
+
+  const tillList = {
+    name: "list_tills",
+    from: tills,
+    alias: "x",
+    where: [
+      `x.${t("tenant")} = list_tills.tenant`,
+      filterAny("currency", `x.${t("currency")}`),
+      `(${filterFlag("includeArchived")} or v_filters ->> 'archived' = 'true' or x.${t("archivedAt")} is null)`,
+      `(v_search is null or x.${t("name")} ilike v_search)`,
+    ],
+    keys: tillKeys("name"),
+    sorts: { name: tillKeys("name"), createdAt: tillKeys("createdAt") },
+    facets: { currency: `x.${t("currency")}` },
+    rowJson: sql.tillJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
     invalid: sql.invalid,
   } as const;
 
@@ -152,7 +192,10 @@ end;
 $$;
 ${userGrant(`${fn("update_till")}(uuid, jsonb)`)}
 
--- Tills by name. filters is { archived } (true lists archived ones too).
+-- Tills as a keyset page, by name unless sort says otherwise (ADR 1077).
+-- filters may hold currency (a value or a list), includeArchived, search,
+-- sort (name, createdAt), direction, facet, count, limit and after. Without
+-- paged it returns the plain array.
 create or replace function ${fn("list_tills")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -163,19 +206,31 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_tills.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(tillList)}
 begin
   if not ${sql.allowed("list_tills.tenant", sql.read)} then
     ${sql.forbidden("not allowed to read tills")}
   end if;
-  return coalesce((
-    select jsonb_agg(${sql.tillJson("y")} order by y.${t("name")})
-    from ${tills} y
-    where y.${t("tenant")} = list_tills.tenant
-      and (v_filters ->> 'archived' = 'true' or y.${t("archivedAt")} is null)
-  ), '[]'::jsonb);
+  ${listBody(tillList)}
 end;
 $$;
 ${userGrant(`${fn("list_tills")}(${idType}, jsonb)`)}
+
+-- One till the caller may read, or null.
+${getFunction({
+  name: fn("get_till"),
+  bare: "get_till",
+  arg: "till_id",
+  from: tills,
+  idColumn: t("id"),
+  tenantColumn: t("tenant"),
+  tenantType: idType,
+  rowJson: sql.tillJson("x"),
+  allowed: (tenant) => sql.allowed(tenant, sql.read),
+  forbidden: sql.forbidden("not allowed to read tills"),
+  grant: userGrant(`${fn("get_till")}(uuid)`),
+})}
 
 -- Starts a shift at a till with the cash in the drawer (opening_float, minor
 -- units). A till has one open session at a time. Needs tills.write.
@@ -257,6 +312,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_till_sessions.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(list)}
 begin
   if not ${sql.allowed("list_till_sessions.tenant", sql.read)} then

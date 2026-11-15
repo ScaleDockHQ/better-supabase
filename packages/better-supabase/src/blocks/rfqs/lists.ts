@@ -9,4 +9,5 @@ export const rfqListSurface: EntityListSurface = {
   sorts: ["number", "dueAt"],
   facets: ["status"],
   filters: ["status"],
+  search: ["number", "title"],
 };

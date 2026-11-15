@@ -20,6 +20,7 @@ import type { BlockOptions } from "../shared.ts";
 
 import { detailArg } from "../../commerce/stock-detail.ts";
 import { blockFields } from "../../core/block-fields.ts";
+import { foundRow } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { entityList } from "../../core/entity-list.ts";
@@ -43,7 +44,11 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
-import { productionOrderListSurface } from "./lists.ts";
+import {
+  bomListSurface,
+  productionOrderListSurface,
+  workCenterListSurface,
+} from "./lists.ts";
 
 /** Where a bill of materials version stands; one per variant is active. */
 export type BomStatus = (typeof BOM_STATUSES)[number];
@@ -421,8 +426,26 @@ export interface Manufacturing<F extends object = Record<never, never>> {
    */
   activateBom(bomId: string): AsyncResult<BomDetail>;
   getBom(bomId: string): AsyncResult<BomDetail>;
-  /** Every version, by variant and the latest first. */
+  /**
+   * Every version, by variant and the latest first.
+   *
+   * @deprecated Use `bomPage`, which pages by keyset and takes `q`, `sort`
+   * and array filters. The alias stays until 0.70 (ADR 1077).
+   */
   listBoms(variantId?: string): AsyncResult<readonly Bom[]>;
+  /**
+   * One keyset page of bill of materials versions, by variant and the latest
+   * version first unless `sort` says otherwise, with `hasMore` and a
+   * `nextCursor` to pass as `after`.
+   */
+  bomPage(options?: PageOptions): AsyncResult<ListPage<Bom>>;
+  /**
+   * The values of each facet of bills of materials and their counts, under the
+   * page's filters.
+   */
+  bomFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many bills of materials match the page's filters. */
+  bomCount(options?: CountOptions): AsyncResult<Count>;
   /** The components of `quantity` units at every level of active versions. */
   explodeBom(input: {
     variantId: string;
@@ -435,7 +458,27 @@ export interface Manufacturing<F extends object = Record<never, never>> {
     input: WorkCenterInput;
     workCenterId?: string | undefined;
   }): AsyncResult<WorkCenter>;
+  /**
+   * Every work center by name, archived ones included.
+   *
+   * @deprecated Use `workCenterPage`, which pages by keyset and takes `q`,
+   * `sort` and array filters. The alias stays until 0.70 (ADR 1077).
+   */
   workCenters(): AsyncResult<readonly WorkCenter[]>;
+  /**
+   * One keyset page of work centers, by name unless `sort` says otherwise, with
+   * `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  workCenterPage(options?: PageOptions): AsyncResult<ListPage<WorkCenter>>;
+  /**
+   * The values of each facet of work centers and their counts, under the page's
+   * filters.
+   */
+  workCenterFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many work centers match the page's filters. */
+  workCenterCount(options?: CountOptions): AsyncResult<Count>;
+  /** One work center, or a `not_found` error; needs `manufacturing.read`. */
+  getWorkCenter(workCenterId: string): AsyncResult<WorkCenter>;
   /** A draft order numbered `MO-2026-0001`; needs `manufacturing.write`. */
   createOrder(
     input: ProductionOrderInput<F>,
@@ -880,6 +923,24 @@ export function createManufacturing<
     rowOf: orderOf,
   });
 
+  const boms = entityList({
+    entity: "bom",
+    surface: bomListSurface,
+    call,
+    tenant,
+    fn: "page_boms",
+    rowOf: bomOf,
+  });
+
+  const workCenters = entityList({
+    entity: "work_center",
+    surface: workCenterListSurface,
+    call,
+    tenant,
+    fn: "page_work_centers",
+    rowOf: workCenterOf,
+  });
+
   const bom = (fn: string) => (value: unknown) => bomDetailOf(value, fn);
   const order = (fn: string) => (value: unknown) => orderDetailOf(value, fn);
 
@@ -908,6 +969,10 @@ export function createManufacturing<
     activateBom: (bomId) =>
       call("activate_bom", { bom_id: bomId }, bom("activate_bom")),
     getBom: (bomId) => call("get_bom", { bom_id: bomId }, bom("get_bom")),
+    bomPage: boms.page,
+    bomFacets: boms.facets,
+    bomCount: boms.count,
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listBoms: (variantId) =>
       tenant().andThen((organizationId) =>
         call(
@@ -969,6 +1034,20 @@ export function createManufacturing<
           (value) => workCenterOf(value, "save_work_center"),
         ),
       ),
+    workCenterPage: workCenters.page,
+    workCenterFacets: workCenters.facets,
+    workCenterCount: workCenters.count,
+    getWorkCenter: (workCenterId) =>
+      foundRow(
+        call(
+          "get_work_center",
+          { work_center_id: workCenterId },
+          (value) => value,
+        ),
+        "work center not found",
+        (row) => workCenterOf(row, "get_work_center"),
+      ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     workCenters: () =>
       tenant().andThen((organizationId) =>
         call("list_work_centers", { tenant: organizationId }, (value) =>
