@@ -709,7 +709,13 @@ describe("catalog block", () => {
     ]);
     expect(calls[0]).toEqual({
       fn: "channel_products",
-      args: { channel: "ch1", locale: "de-AT", page_size: 20, after: null },
+      args: {
+        channel: "ch1",
+        locale: "de-AT",
+        page_size: 20,
+        after: null,
+        archived: false,
+      },
     });
   });
 

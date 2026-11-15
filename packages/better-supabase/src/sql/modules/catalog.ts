@@ -54,6 +54,7 @@ import {
   supplyTables,
 } from "./catalog-supply.ts";
 import { variantStatusFunction } from "./catalog-variant-status.ts";
+import { variantFunctions } from "./catalog-variants.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const tenantExport = { tenant: "tenant", export: true } as const;
@@ -784,7 +785,7 @@ function build(ctx: BlockSqlContext): string {
 -- categories, collections, price lists, sales channels, translations,
 -- product media and an optional public storefront.
 ${currencyMinorUnitsFunction(names.fn("currency_minor_units"))}
-${tables(ctx, names)}${supplyColumns(ctx)}${discountColumns(ctx)}${productFunctions(ctx, names)}${productImportSql(ctx)}${variantStatusFunction(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}${channelModuleFunctions(ctx, names)}${supplyFunctions(ctx, names)}${discountFunctions(ctx, names)}
+${tables(ctx, names)}${supplyColumns(ctx)}${discountColumns(ctx)}${productFunctions(ctx, names)}${variantFunctions(ctx, names)}${productImportSql(ctx)}${variantStatusFunction(ctx, names)}${optionFunctions(ctx, names)}${priceFunctions(ctx, names)}${categoryFunctions(ctx, names)}${collectionFunctions(ctx, names)}${storefrontFunctions(ctx, names)}${channelModuleFunctions(ctx, names)}${supplyFunctions(ctx, names)}${discountFunctions(ctx, names)}
 ${ctx.hasTable("storefronts") ? storefrontPolicies(ctx, names) : ""}
 `;
 }

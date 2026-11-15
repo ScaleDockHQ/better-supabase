@@ -53,7 +53,7 @@ Products with options, variants and prices in minor units, price lists, a catego
 - Entities: `product`, `product_variant`
 - Tables: `products`, `product_variants`
 - Permission keys: `catalog.manage`, `catalog.read`
-- Events (`CatalogEvents`): `catalog.price_changed`, `product.created`, `product.deleted`, `product.status_changed`, `product.updated`, `product_variant.created`, `product_variant.deleted`, `product_variant.updated`, `storefront.published`, `storefront.unpublished`
+- Events (`CatalogEvents`): `catalog.price_changed`, `product.archived`, `product.created`, `product.purged`, `product.restored`, `product.status_changed`, `product.updated`, `product_variant.created`, `product_variant.purged`, `product_variant.updated`, `storefront.published`, `storefront.unpublished`
 
 ## inventory
 

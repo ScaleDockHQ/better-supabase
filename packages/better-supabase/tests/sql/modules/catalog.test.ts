@@ -161,7 +161,7 @@ describe("catalog module", () => {
       'create or replace function "better_supabase"."set_channel_listing"(channel uuid, products uuid[], listed boolean)',
     );
     expect(unnamedChecks(sql)).toContain(
-      'create or replace function "better_supabase"."channel_products"(channel uuid, locale text default null, page_size integer default null, after text default null)',
+      'create or replace function "better_supabase"."channel_products"(channel uuid, locale text default null, page_size integer default null, after text default null, archived boolean default false)',
     );
     expect(unnamedChecks(sql)).toContain(
       'create or replace function "better_supabase"."channel_price"(channel uuid, variant uuid, as_of timestamptz default null)',

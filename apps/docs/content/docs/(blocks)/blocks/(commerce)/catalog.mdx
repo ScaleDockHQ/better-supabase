@@ -35,9 +35,9 @@ roles: {
 
 The service role passes every check, for imports and sync jobs.
 
-`blocks.catalog.permissions.create`, `update` and `delete` name separate keys
-for creating, changing and deleting products, options and variants (statuses
-and options count as changes). `categoryCreate`, `categoryUpdate` and
+`blocks.catalog.permissions.create`, `update` and `purge` name separate keys
+for creating, changing and purging products and variants (statuses, archive,
+restore and options count as changes; `purge` falls back to `manage`). `categoryCreate`, `categoryUpdate` and
 `categoryDelete` do the same for `save_category` (a new or an existing
 category), `move_category` and `delete_category`. Without them those writes
 check `manage`, and prices, product categories, collections and channels
@@ -155,7 +155,27 @@ boolean`. Archiving sets the mapped `columns.variants.status` to its `archived`
 value (through `values.variants.status`) and drops the variant's option values;
 without a status column such a variant refuses the change
 (`CATALOG_OPTION_VALUE_IN_USE`). Removing variants needs the update permission,
-not delete. An archived variant doesn't block a new one with the same values.
+not purge. An archived variant doesn't block a new one with the same values.
+
+## Archive, restore and purge
+
+`archiveProduct(id)` moves a product to its `archived` status and
+`restoreProduct(id)` puts it back to `active` (or `draft` when the app has a
+draft status). Both go through `setProductStatus`, so there is no new column:
+the archive is the status, and each call records `product.archived` or
+`product.restored` next to `product.status_changed`. Restoring a product that
+is not archived changes nothing. `archiveVariant(id)` and `restoreVariant(id)`
+do the same for a variant when `columns.variants.status` is mapped; without it
+they refuse with `CATALOG_VARIANT_STATUS_UNSUPPORTED`.
+
+An archived product leaves the storefront and the `channelProducts` list unless
+you pass `archived: true`, which lists only archived products. An archived
+variant can't be added to a cart (the orders block refuses it) and leaves the
+storefront. Search and the subject registry hide a row by its `deletedAt`, not
+by its status, so an archived product stays findable by staff. `purgeProduct(id)`
+and `purgeVariant(id)` replace `deleteProduct` and `deleteVariant`: they delete
+the row for good, record `product.purged` or `product_variant.purged` and need
+`permissions.purge`, falling back to `catalog.manage` (ADRs 1048 and 1049).
 
 ```ts
 catalog: {
@@ -793,14 +813,15 @@ blocks: {
 
 ## Events
 
-| Event                                                                           | When                                      |
-| ------------------------------------------------------------------------------- | ----------------------------------------- |
-| `product.created`, `product.updated`                                            | `createProduct`, `updateProduct`          |
-| `product.status_changed`                                                        | A status transition, with `from` and `to` |
-| `product.deleted`                                                               | `deleteProduct`                           |
-| `product_variant.created`, `product_variant.updated`, `product_variant.deleted` | A variant change                          |
-| `catalog.price_changed`                                                         | A price's amount changes                  |
-| `storefront.published`, `storefront.unpublished`                                | `publishStorefront`                       |
+| Event                                                                            | When                                               |
+| -------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `product.created`, `product.updated`                                             | `createProduct`, `updateProduct`                   |
+| `product.status_changed`                                                         | A status transition, with `from` and `to`          |
+| `product.archived`, `product.restored`, `product.purged`                         | `archiveProduct`, `restoreProduct`, `purgeProduct` |
+| `product_variant.created`, `product_variant.updated`                             | A variant change                                   |
+| `product_variant.archived`, `product_variant.restored`, `product_variant.purged` | `archiveVariant`, `restoreVariant`, `purgeVariant` |
+| `catalog.price_changed`                                                          | A price's amount changes                           |
+| `storefront.published`, `storefront.unpublished`                                 | `publishStorefront`                                |
 
 ## Hooks
 

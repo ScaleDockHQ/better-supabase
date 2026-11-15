@@ -251,6 +251,7 @@ describe("channels and listings", () => {
       locale: null,
       page_size: null,
       after: null,
+      archived: false,
     });
   });
 

@@ -27,6 +27,8 @@ const NOT_LITERAL = [
   "approvals: approval_policy.deleted",
   "access-requests: access_request.emergency_opened",
   "access-requests: access_request.emergency_reviewed",
+  "catalog: product_variant.archived",
+  "catalog: product_variant.restored",
   "drive: drive.download_blocked_changed",
   "drive: drive.created",
   "drive: drive.renamed",
