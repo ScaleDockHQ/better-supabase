@@ -4841,6 +4841,10 @@
     "message": "No SCIM user has this id"
   },
   {
+    "code": "SCORES_MODEL_ARCHIVED",
+    "message": "the score model is archived; restore it first"
+  },
+  {
     "code": "SCORES_MODEL_CONFLICT",
     "message": "the score model changed since it was read"
   },
