@@ -407,7 +407,7 @@
   "/[locale]/(app)/customers/page": {
     "raw": 3105468,
     "gzip": 944938,
-    "brotli": 784349
+    "brotli": 786426
   },
   "/[locale]/(app)/dam/page": {
     "raw": 3094017,
@@ -422,7 +422,7 @@
   "/[locale]/(app)/documents/[id]/page": {
     "raw": 3092410,
     "gzip": 939873,
-    "brotli": 780014
+    "brotli": 782076
   },
   "/[locale]/(app)/documents/page": {
     "raw": 3098451,
@@ -1182,7 +1182,7 @@
   "/[locale]/(app)/templates/page": {
     "raw": 3105519,
     "gzip": 944657,
-    "brotli": 784112
+    "brotli": 786086
   },
   "/[locale]/(app)/tills/[id]/page": {
     "raw": 3130704,
