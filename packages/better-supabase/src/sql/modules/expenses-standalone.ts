@@ -241,12 +241,14 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const approve = ctx.permission("approve", ops.approve);
   const createOthers = expenseKey(ctx, "create");
   const updateOthers = expenseKey(ctx, "update");
+
   // permissions.purge, then the delete key it replaces, then manage.
   const purgeOthers = sqlString(
     ctx.config.permissions["purge"] ??
       ctx.config.permissions["delete"] ??
       ctx.permissionKey("manage", ops.manage),
   );
+
   const reimburse = expenseKey(ctx, "reimburse");
   const withdrawApproved = ctx.flag("withdrawApproved", false);
 
