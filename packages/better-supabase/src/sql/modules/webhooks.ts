@@ -504,6 +504,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "text",
     },
     { name: "redeliver_webhook", args: ["uuid"], returns: "uuid" },
+    { name: "get_webhook_delivery", args: ["uuid"], returns: "jsonb" },
     {
       name: "purge_webhook_deliveries",
       args: ["interval", "boolean", "integer"],
@@ -551,7 +552,7 @@ export const WEBHOOKS: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 7,
+  version: 8,
   names: NAMES,
   contract,
   upgrades: [
@@ -595,6 +596,12 @@ export const WEBHOOKS: BlockSqlDefinition = {
       from: 6,
       description:
         "webhook_deliveries_has_work() says whether a delivery is due, as the probe of the delivery schedule.",
+      sql: () => "",
+    },
+    {
+      from: 7,
+      description:
+        "get_webhook_delivery(delivery) reads one delivery for a caller who may read its endpoint's tenant, as the job source of dispatch and redeliver.",
       sql: () => "",
     },
   ],

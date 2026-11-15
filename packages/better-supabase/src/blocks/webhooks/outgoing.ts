@@ -51,6 +51,7 @@ import {
 import { encoderRegistry, WEBHOOK_FORMAT } from "./encoders.ts";
 import { WebhookPolicyError, fetchTransport } from "./http.ts";
 import { endpointMethods } from "./outgoing-endpoints.ts";
+import { webhookJobs } from "./outgoing-jobs.ts";
 import { sqlSecretStore } from "./secrets.ts";
 import { standardWebhooks } from "./signers.ts";
 import { publicUrl } from "./url-policy.ts";
@@ -801,8 +802,11 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
     });
   };
 
+  const jobSource = webhookJobs(db);
+
   const client: Webhooks = {
     ...endpoints,
+    ...jobSource,
     // SAFETY: `withSecret: true` selects the overload that carries the secret,
     // and `createEndpointWithSecret` adds it exactly then.
     createEndpoint: createEndpointWithSecret as Webhooks["createEndpoint"],

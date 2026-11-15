@@ -6,6 +6,7 @@ import type {
 } from "../../core/contracts/authorization-hooks.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { EventHub } from "../../core/events.ts";
+import type { JobRef, JobSource } from "../../core/jobs.ts";
 import type { RequestContext } from "../../core/plugin.ts";
 import type { BlockProblemOptions } from "../../core/problem.ts";
 import type { AsyncResult, Result } from "../../core/result.ts";
@@ -265,6 +266,21 @@ export interface Webhooks extends WebhookEndpoints {
   dispatch(input: DispatchInput): AsyncResult<string>;
   /** Queues a finished delivery again. */
   redeliver(deliveryId: string): AsyncResult<string>;
+  /**
+   * `dispatch` that returns `{ jobId: "webhook:<delivery id>" }`; read the
+   * delivery back with `jobs.get` (ADR 1034).
+   */
+  dispatchJob(input: DispatchInput): AsyncResult<JobRef>;
+  /** `redeliver` that returns the `{ jobId }` of the delivery queued again. */
+  redeliverJob(deliveryId: string): AsyncResult<JobRef>;
+  /**
+   * The `webhook` job source: `pending` while the delivery waits, `running`
+   * while it is delivered or retried, `completed` once it succeeded (with the
+   * delivery as `result`) and `failed` when it is dead or canceled, with the
+   * hint `WEBHOOK_DELIVERY_DEAD` or `WEBHOOK_DELIVERY_CANCELED`. It shows the
+   * deliveries the caller may read.
+   */
+  readonly jobs: JobSource;
   /** A new signing secret, returned once. */
   rotateSecret(
     input: { endpointId: string } & RotateSecretOptions,

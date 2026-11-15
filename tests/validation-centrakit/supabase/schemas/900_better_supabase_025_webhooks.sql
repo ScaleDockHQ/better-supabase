@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks
--- @bsb-block webhooks@7 managed
--- @bsb-hash sha256:c87e25b748bb5306979c48c19d9ceb39412c8bf760a73dfcb5ebe21b19869384
+-- @bsb-block webhooks@8 managed
+-- @bsb-hash sha256:76c3398de4e52b63537ef38d9e23facc4add966b633bf13b8aab850d70e95685
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -376,6 +376,40 @@ end;
 $$;
 revoke execute on function "better_supabase"."redeliver_webhook"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."redeliver_webhook"(uuid) to authenticated, service_role;
+
+-- One delivery as the caller may read it (a member with the read permission, or
+-- the service), or null; the job source of dispatch_webhook and redeliver_webhook.
+create or replace function "better_supabase"."get_webhook_delivery"(delivery uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_endpoint uuid;
+  v_tenant uuid;
+  v_enabled boolean;
+begin
+  select v."destination_id" into v_endpoint
+  from "centrakit"."webhook_deliveries" v where v."id" = get_webhook_delivery.delivery;
+  if not found then
+    return null;
+  end if;
+  select d."organization_id", d."enabled" into v_tenant, v_enabled
+  from "centrakit"."webhook_destinations" d where d."id" = v_endpoint;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_tenant, 'webhook.view'), false) then
+    raise exception 'Not allowed to manage this webhook endpoint' using errcode = '42501', hint = 'WEBHOOK_FORBIDDEN';
+  end if;
+  return (
+    select jsonb_build_object('id', v."id", 'endpointId', v."destination_id", 'type', v."event_kind", 'status', v."status", 'attempt', v."attempt", 'responseStatus', v."response_status", 'durationMs', v."duration_ms", 'lastError', v."last_error", 'processedAt', v."processed_at", 'createdAt', v."created_at")
+    from "centrakit"."webhook_deliveries" v where v."id" = get_webhook_delivery.delivery
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."get_webhook_delivery"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_webhook_delivery"(uuid) to authenticated, service_role;
 
 -- Deletes up to batch finished deliveries (and dead ones with include_dead)
 -- created before older_than. A purged event id can be queued again for the
