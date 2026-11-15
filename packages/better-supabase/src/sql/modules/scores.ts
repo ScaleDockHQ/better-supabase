@@ -23,7 +23,9 @@ const MODEL_PAYLOAD = [
 const EVENTS: BlockSqlEvents<ScoresEvents> = {
   "score_model.created": { subject: "score-models", payload: MODEL_PAYLOAD },
   "score_model.updated": { subject: "score-models", payload: MODEL_PAYLOAD },
-  "score_model.deleted": { subject: "score-models", payload: MODEL_PAYLOAD },
+  "score_model.archived": { subject: "score-models", payload: MODEL_PAYLOAD },
+  "score_model.restored": { subject: "score-models", payload: MODEL_PAYLOAD },
+  "score_model.purged": { subject: "score-models", payload: MODEL_PAYLOAD },
   "score.changed": {
     subject: "scores",
     payload: [
@@ -51,7 +53,13 @@ const NAMES: BlockSqlNames = {
       name: "score_models",
       app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
-      optional: ["description", "createdBy", "createdAt", "updatedAt"],
+      optional: [
+        "description",
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+        "archivedAt",
+      ],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -67,6 +75,7 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        archivedAt: "archived_at",
       },
     },
     versions: {
@@ -153,11 +162,11 @@ function build(ctx: BlockSqlContext): string {
   -- [{ label, min }], highest min first: the first band the score reaches.
   ${jsonArray(m("bands"))},
   ${m("enabled")} boolean not null default true,
-  ${m("version")} integer not null default 1,${optional("models", "createdBy", (c) => `${c} uuid`)}${optional("models", "createdAt", (c) => `${c} timestamptz not null default now()`)}${optional("models", "updatedAt", (c) => `${c} timestamptz not null default now()`)}
+  ${m("version")} integer not null default 1,${optional("models", "createdBy", (c) => `${c} uuid`)}${optional("models", "createdAt", (c) => `${c} timestamptz not null default now()`)}${optional("models", "updatedAt", (c) => `${c} timestamptz not null default now()`)}${optional("models", "archivedAt", (c) => `${c} timestamptz`)}
   unique (${m("tenant")}, ${m("key")})
 );
 create index if not exists ${name("models", "subject_idx")} on ${models} (${m("tenant")}, ${m("subjectType")});
-
+${ctx.has("models", "archivedAt") ? `alter table ${models} add column if not exists ${m("archivedAt")} timestamptz;\n` : ""}
 create table if not exists ${versions} (
   ${v("model")} uuid not null references ${models} (${m("id")}) on delete cascade,
   ${v("version")} integer not null,

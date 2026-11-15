@@ -222,6 +222,9 @@ the `archived_at` column and replaces the delete function with `purge`.
 | `posts`         | `posts.delete(id)`, `delete_post()`                       | `posts.purge(id)`, `purge_post()`, plus `archive` and `restore`                                   |
 | `posts`         | event `post.deleted`                                      | `post.purged`, plus `archived` and `restored`                                                     |
 | `posts`         | `posts.list()` shows every post                           | hides archived posts; `list({ archived: true })` lists only them                                  |
+| `scores`        | `scores.deleteModel(id)`, `delete_score_model()`          | `scores.purgeModel(id)`, `purge_score_model()` (ADR 1053)                                         |
+| `scores`        | event `score_model.deleted`                               | `score_model.purged`, plus `archived` and `restored`                                              |
+| `scores`        | `models()` and `list_score_models()` show every row       | hide archived models; `models({ includeArchived: true })` adds them                               |
 
 ## Team purge
 
