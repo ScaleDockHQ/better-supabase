@@ -12,7 +12,7 @@ export interface Names {
   readonly read: string;
   readonly create: string;
   readonly update: string;
-  readonly remove: string;
+  readonly purge: string;
   readonly categoryCreate: string;
   readonly categoryUpdate: string;
   readonly categoryDelete: string;

@@ -9591,7 +9591,8 @@
       "VariantIdentifier",
       "VariantInput",
       "VariantPriceOptions",
-      "VariantRelation"
+      "VariantRelation",
+      "VariantStatusChange"
     ]
   },
   "./blocks/inventory": {

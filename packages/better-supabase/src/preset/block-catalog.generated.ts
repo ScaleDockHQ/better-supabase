@@ -2055,12 +2055,14 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "events": [
         "catalog.price_changed",
+        "product.archived",
         "product.created",
-        "product.deleted",
+        "product.purged",
+        "product.restored",
         "product.status_changed",
         "product.updated",
         "product_variant.created",
-        "product_variant.deleted",
+        "product_variant.purged",
         "product_variant.updated",
         "storefront.published",
         "storefront.unpublished"
