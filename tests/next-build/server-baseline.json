@@ -276,7 +276,7 @@
   },
   "/[locale]/(app)/crm/companies/[id]/page": {
     "raw": 3196369,
-    "gzip": 974036,
+    "gzip": 976474,
     "brotli": 814811
   },
   "/[locale]/(app)/crm/companies/page": {
@@ -286,7 +286,7 @@
   },
   "/[locale]/(app)/crm/contacts/[id]/page": {
     "raw": 3196347,
-    "gzip": 974030,
+    "gzip": 976472,
     "brotli": 814783
   },
   "/[locale]/(app)/crm/contacts/page": {
@@ -401,12 +401,12 @@
   },
   "/[locale]/(app)/customers/[id]/page": {
     "raw": 3165025,
-    "gzip": 962091,
+    "gzip": 964514,
     "brotli": 802130
   },
   "/[locale]/(app)/customers/page": {
     "raw": 3122440,
-    "gzip": 947341,
+    "gzip": 949777,
     "brotli": 788503
   },
   "/[locale]/(app)/dam/page": {
@@ -421,7 +421,7 @@
   },
   "/[locale]/(app)/documents/[id]/page": {
     "raw": 3109382,
-    "gzip": 942275,
+    "gzip": 944716,
     "brotli": 784447
   },
   "/[locale]/(app)/documents/page": {
@@ -537,7 +537,7 @@
   "/[locale]/(app)/finance/payables/page": {
     "raw": 3177806,
     "gzip": 967356,
-    "brotli": 802958
+    "brotli": 805086
   },
   "/[locale]/(app)/finance/periods/[id]/page": {
     "raw": 3165899,
@@ -1576,7 +1576,7 @@
   },
   "/api/incidents/list/route": {
     "raw": 2608730,
-    "gzip": 787976,
+    "gzip": 789977,
     "brotli": 670637
   },
   "/api/incoming-webhooks/list/route": {
@@ -1686,7 +1686,7 @@
   },
   "/api/periods/export/route": {
     "raw": 2608680,
-    "gzip": 788006,
+    "gzip": 790009,
     "brotli": 668990
   },
   "/api/periods/list/route": {
