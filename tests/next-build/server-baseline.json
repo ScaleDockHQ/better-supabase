@@ -887,7 +887,7 @@
   "/[locale]/(app)/settings/billing/page": {
     "raw": 3127546,
     "gzip": 951086,
-    "brotli": 790216
+    "brotli": 792206
   },
   "/[locale]/(app)/settings/custom-fields/page": {
     "raw": 3116807,
@@ -1202,12 +1202,12 @@
   "/[locale]/(app)/warehouse/[id]/page": {
     "raw": 3159808,
     "gzip": 961606,
-    "brotli": 799455
+    "brotli": 801461
   },
   "/[locale]/(app)/warehouse/counts/[id]/page": {
     "raw": 3159779,
     "gzip": 961565,
-    "brotli": 799419
+    "brotli": 801429
   },
   "/[locale]/(app)/warehouse/page": {
     "raw": 3146216,
@@ -1217,12 +1217,12 @@
   "/[locale]/(app)/warehouse/rules/[id]/page": {
     "raw": 3159775,
     "gzip": 961564,
-    "brotli": 799416
+    "brotli": 801424
   },
   "/[locale]/(app)/warehouse/waves/[id]/page": {
     "raw": 3159773,
     "gzip": 961563,
-    "brotli": 799428
+    "brotli": 801429
   },
   "/[locale]/(app)/work/grid/page": {
     "raw": 3110754,
@@ -1441,17 +1441,17 @@
   },
   "/api/chat/durable/[id]/stop/route": {
     "raw": 3562815,
-    "gzip": 1082546,
+    "gzip": 1085280,
     "brotli": 920968
   },
   "/api/chat/durable/[id]/stream/route": {
     "raw": 3562963,
-    "gzip": 1082621,
+    "gzip": 1085355,
     "brotli": 921026
   },
   "/api/chat/durable/route": {
     "raw": 3562918,
-    "gzip": 1082613,
+    "gzip": 1085348,
     "brotli": 920980
   },
   "/api/chat/route": {
