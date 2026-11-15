@@ -54,6 +54,8 @@ const EVENTS: BlockSqlEvents<RisksEvents> = {
     payload: [...RISK, "nextReviewOn", "note"],
   },
   "risk.closed": { subject: "risks", payload: [...RISK, "reason"] },
+  "risk.archived": { subject: "risks", payload: [...RISK] },
+  "risk.restored": { subject: "risks", payload: [...RISK] },
   "risk.review_date_reached": {
     subject: "risks",
     payload: [...RISK, "ownerId", "nextReviewOn"],
@@ -364,6 +366,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "review_risk", args: ["uuid", "text"], returns: "jsonb" },
     { name: "close_risk", args: ["uuid", "text"], returns: "jsonb" },
+    { name: "archive_risk", args: ["uuid"], returns: "jsonb" },
+    { name: "restore_risk", args: ["uuid"], returns: "jsonb" },
     { name: "get_risk", args: ["uuid"], returns: "jsonb" },
     { name: "list_risks", args: ["{id}", "jsonb"], returns: "jsonb" },
     ...(ctx.installed("relations") && ctx.of("relations").mode !== "custom"

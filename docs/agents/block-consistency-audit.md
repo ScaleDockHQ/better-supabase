@@ -999,6 +999,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Log: 2026-11-14, slice 4a (ADR 1025, branch `feat/audit-i-4`): `restore` for cases, lims, contacts, consents, shifts and observations. Slice 4b (assets, medications, compliance, content, care-plans, pipelines, option-sets) follows. Invoices, risks, shipments and bookings stay deferred (needs: an archive method first; only an `archived_at` column mapping exists).
 - Log: 2026-11-14, slice 4b (ADR 1026, branch `feat/audit-i-5`): `restore` for assets, medications, compliance, content, option-sets and pipelines. Deferred (needs: an archive method first): invoices, risks, shipments, bookings. Deferred (needs: a product decision on restoring a care plan, whose archive ends its actions): care-plans.
 - Log: 2026-11-14, slice 5 (ADR 1027): audited about 110 ending events, renamed none (two outliers keep a domain verb, `lease.terminated` and `medication_order.stopped`) and closed the vocabulary in `check:naming` with `bannedEnding` and `endingExceptions`. Lane I merged; EX-1206 and EX-1207 stay deferred with their reasons, EX-1230 is fixed.
+- Log: 2026-11-15, lane Y2 slice 1 (ADR 1028, PR [#986](https://github.com/ScaleDockHQ/better-supabase/pull/986), branch `feat/audit-y2-archive`): `archive` and `restore` for invoices, risks, shipments and bookings, with `archived_at` columns on shipments and bookings. PR #972 was closed as already landed on main (a merge left no net diff). The care-plan restore and the delete-only blocks follow.
 
 ### Lane L
 

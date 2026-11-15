@@ -75,7 +75,7 @@ as $$
     select ${bookingJson(p, "bk")} as item, lower(bk.${b("during")}) as starts, bk.${b("id")} as id
     from ${p.bookings} bk
     where bk.${b("tenant")} = list_bookings_for_customer.tenant
-      and bk.${b("customerUser")}::text = list_bookings_for_customer.customer
+      and bk.${b("customerUser")}::text = list_bookings_for_customer.customer${ctx.has("bookings", "archivedAt") ? `\n      and bk.${b("archivedAt")} is null` : ""}
     order by lower(bk.${b("during")}) desc, bk.${b("id")} desc
     limit least(greatest(coalesce(list_bookings_for_customer.page_size, 50), 1), 200)
   ) z

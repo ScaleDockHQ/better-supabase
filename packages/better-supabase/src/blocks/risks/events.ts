@@ -69,6 +69,8 @@ export type RisksEvents = {
   readonly "risk.treatment_changed": RiskTreatmentChangedEventData;
   readonly "risk.reviewed": RiskReviewedEventData;
   readonly "risk.closed": RiskClosedEventData;
+  readonly "risk.archived": RiskEventData;
+  readonly "risk.restored": RiskEventData;
   readonly "risk.review_date_reached": RiskReviewDateReachedEventData;
 };
 
@@ -82,5 +84,7 @@ export const risksEvents: Events<RisksEvents> = defineEvents({
   "risk.treatment_changed": event<RiskTreatmentChangedEventData>(),
   "risk.reviewed": event<RiskReviewedEventData>(),
   "risk.closed": event<RiskClosedEventData>(),
+  "risk.archived": event<RiskEventData>(),
+  "risk.restored": event<RiskEventData>(),
   "risk.review_date_reached": event<RiskReviewDateReachedEventData>(),
 });

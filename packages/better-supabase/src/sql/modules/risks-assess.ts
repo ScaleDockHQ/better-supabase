@@ -216,6 +216,46 @@ begin
 end;
 $$;
 ${userGrant(`${fn("close_risk")}(uuid, text)`)}
+${["archive", "restore"]
+  .map((verb) => {
+    const past = verb === "archive" ? "archived" : "restored";
+    const was = verb === "archive" ? "is not null" : "is null";
+    const mark = verb === "archive" ? "now()" : "null";
+
+    return `
+-- ${verb === "archive" ? "Archives a risk of any status: it leaves the lists and the heatmap, and keeps its assessments." : "Restores an archived risk to the lists and the heatmap."}
+create or replace function ${fn(`${verb}_risk`)}(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${risks};
+begin
+  select * into v_row from ${risks} x where x.${r("id")} = ${verb}_risk.risk_id for update;
+  if not found then
+    ${q.missing}
+  end if;
+  if not ${q.allowed(`v_row.${r("tenant")}`, q.manage)} then
+    ${q.forbidden(`not allowed to ${verb} risks`)}
+  end if;
+  if v_row.${r("archivedAt")} ${was} then
+    return ${riskJson("v_row")};
+  end if;
+  update ${risks} x set
+    ${r("archivedAt")} = ${mark},
+    ${r("updatedAt")} = now()
+  where x.${r("id")} = v_row.${r("id")}
+  returning * into v_row;
+  ${q.record(`risk.${past}`, "v_row", `risk ${past}`)}
+  return ${riskJson("v_row")};
+end;
+$$;
+${userGrant(`${fn(`${verb}_risk`)}(uuid)`)}`;
+  })
+  .join("\n")}
 `;
 }
 

@@ -8,5 +8,5 @@ import type { EntityListSurface } from "../../core/entity-list.ts";
 export const shipmentListSurface: EntityListSurface = {
   sorts: ["createdAt", "deliveredAt"],
   facets: ["status", "carrier"],
-  filters: ["status", "carrier", "subjectType", "subjectId"],
+  filters: ["status", "carrier", "subjectType", "subjectId", "archived"],
 };

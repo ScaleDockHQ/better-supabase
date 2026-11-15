@@ -184,6 +184,21 @@ removes both.
 | `list(organizationId, range, opts)`      | The bookings that overlap the range, as the caller's policies allow     |
 | `expireHolds()`, `job`                   | Cancels expired holds; `job` is the handler for `bookings.expire-holds` |
 
+## Archive and restore
+
+`archive(bookingId)` hides a cancelled booking, or one that has ended, from
+`list` and `forCustomer` and records `booking.archived`. An upcoming booking
+that is not cancelled fails with `BOOKING_ACTIVE`. `list` takes
+`includeArchived: true` to show archived bookings too, and `restore(bookingId)`
+brings one back and records `booking.restored`. Both need `bookings.manage`.
+The `archived_at` column is new, so an app table made before it maps
+`archivedAt: null` in `columns.bookings` to leave the pair out.
+
+```ts
+await bookings.archive(booking.id).orThrow();
+await bookings.restore(booking.id).orThrow();
+```
+
 ## Recurring bookings
 
 Turn on `recurring` to book a series: a weekly class, a standing appointment.
@@ -480,6 +495,7 @@ the change. Every occurrence of a series runs the same hooks. See [block hooks](
 | `BOOKING_SLOT_UNAVAILABLE`   | The slot is outside the hours, too soon, not served by the resource's kind, or every seat is taken (`exclusion`) |
 | `BOOKING_HOLD_EXPIRED`       | Confirming a hold whose time is up, or a cancelled booking                                                       |
 | `BOOKING_STATUS_INVALID`     | A status other than `confirmed` or `cancelled`                                                                   |
+| `BOOKING_ACTIVE`             | `archive` on a booking that is upcoming and not cancelled                                                        |
 | `BOOKING_NOT_FOUND`          | The booking does not exist                                                                                       |
 | `BOOKING_RESOURCE_NOT_FOUND` | The resource does not exist, is inactive, or is in another organization                                          |
 | `BOOKING_SERVICE_NOT_FOUND`  | The service does not exist or is inactive                                                                        |

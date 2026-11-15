@@ -843,6 +843,7 @@ export default defineConfig({
       names: { invoice: { url: "/finance/payables" } },
       columns: {
         invoices: {
+          archivedAt: "archived_at",
           depositAmount: "deposit_amount",
           discountBps: "discount_bps",
           discountAmount: "discount_amount",
