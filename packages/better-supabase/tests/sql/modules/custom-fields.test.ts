@@ -159,6 +159,44 @@ describe("custom-fields module", () => {
     );
   });
 
+  it("archives, restores and purges a field definition", () => {
+    const sql = sqlOf();
+
+    expect(sql).toContain(`add column "archived_at" timestamptz;`);
+    expect(sql).toContain(`"archive_field_definition"(definition uuid)`);
+    expect(sql).toContain(`"restore_field_definition"(definition uuid)`);
+    expect(sql).toContain(`"purge_field_definition"(definition uuid)`);
+    expect(sql).toContain("include_archived boolean default false");
+    expect(sql).toContain("CUSTOM_FIELD_ARCHIVED");
+    expect(sql).not.toContain("delete_field_definition");
+  });
+
+  it("has no archive in the inline layout or over a table without archivedAt", () => {
+    const inline = sqlOf({
+      modules: { "custom-fields": { options: { layout: "inline" } } },
+    });
+
+    expect(inline).not.toContain("archive_field_definition");
+    expect(inline).toContain("purge_field_definition");
+
+    const modules = {
+      "custom-fields": {
+        tables: {
+          definitions: "app.field_definitions",
+          options: "app.field_options",
+          values: "app.field_values",
+        },
+        columns: { definitions: { archivedAt: null } },
+      },
+    };
+
+    const own = sqlOf({ modules, ownTables: ownTablesOf(modules) });
+
+    expect(own).not.toContain("archive_field_definition");
+    expect(own).not.toContain("include_archived boolean");
+    expect(own).toContain("purge_field_definition");
+  });
+
   it("audits protected reads once per call with auditReads", () => {
     const sql = sqlOf(
       { modules: { "custom-fields": { options: { auditReads: true } } } },

@@ -26,6 +26,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { subjectActionCheck, subjectReadable } from "../subjects.ts";
+import { archiveFunctions } from "./custom-fields-archive.ts";
 import {
   checkSubjectColumns,
   fieldReadGate,
@@ -35,6 +36,7 @@ import {
   keyedOptions,
   recordReadSubjects,
 } from "./custom-fields-keyed.ts";
+import { listDefinitions } from "./custom-fields-list.ts";
 import {
   FIELD_VALUE_ENTITY_COLUMN,
   entityCheck,
@@ -67,7 +69,15 @@ const EVENTS: BlockSqlEvents<CustomFieldsEvents> = {
     subject: "custom-fields",
     payload: ["organizationId", "id", "entity"],
   },
-  "field_definition.deleted": {
+  "field_definition.archived": {
+    subject: "custom-fields",
+    payload: ["organizationId", "id"],
+  },
+  "field_definition.restored": {
+    subject: "custom-fields",
+    payload: ["organizationId", "id"],
+  },
+  "field_definition.purged": {
     subject: "custom-fields",
     payload: ["organizationId", "id"],
   },
@@ -123,8 +133,9 @@ const NAMES: BlockSqlNames = {
         encrypted: "encrypted",
         pack: "pack",
         packVersion: "pack_version",
+        archivedAt: "archived_at",
       },
-      optional: ["rank", "encrypted", "pack", "packVersion"],
+      optional: ["rank", "encrypted", "pack", "packVersion", "archivedAt"],
     },
     options: {
       name: "field_options",
@@ -257,6 +268,7 @@ ${keyedFields(
   const rank = ranked ? ctx.col("definitions", "rank") : "";
   const values = ctx.table("values");
   const manage = manageKey;
+  const purge = ctx.permission("purge", OPERATIONS["custom-fields.manage"]);
   const read = ctx.permission("read", OPERATIONS["custom-fields.read"]);
 
   const sensitive = ctx.permission(
@@ -285,7 +297,16 @@ ${keyedFields(
     );
   }
 
-  const tables = ctx.manages
+  const archivable = !inline && ctx.has("definitions", "archivedAt");
+  const archivedAt = archivable ? ctx.col("definitions", "archivedAt") : "";
+
+  const archivedError = fail(
+    "CUSTOM_FIELD_ARCHIVED",
+    "field is archived; restore it first",
+    "55000",
+  );
+
+  const baseTables = ctx.manages
     ? `${
         inline
           ? ""
@@ -327,6 +348,8 @@ ${packColumns(ctx, definitions)}`
       : inline
         ? ""
         : packColumns(ctx, definitions);
+
+  const tables = `${baseTables}${archivable ? `alter table ${definitions} add column if not exists ${archivedAt} timestamptz;\n` : ""}`;
 
   const perEntity = perEntityValues(ctx);
 
@@ -395,6 +418,15 @@ begin
             ? `select max(d.${rank} collate "C") into v_last from ${definitions} d
     where d.${ctx.col("definitions", "tenant")} = save_field_definition.tenant and d.${ctx.col("definitions", "entity")} = save_field_definition.entity;
   v_rank := ${rankAfter("v_last")};
+  `
+            : ""
+        }${
+          archivable
+            ? `if exists (select 1 from ${definitions} d
+    where d.${ctx.col("definitions", "tenant")} = save_field_definition.tenant and d.${ctx.col("definitions", "entity")} = save_field_definition.entity
+      and d.${ctx.col("definitions", "key")} = save_field_definition.key and d.${archivedAt} is not null) then
+    ${archivedError}
+  end if;
   `
             : ""
         }insert into ${definitions} (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")}, ${ctx.col("definitions", "label")}, ${ctx.col("definitions", "type")}, ${ctx.col("definitions", "sensitive")}${ranked ? `, ${rank}` : ""})
@@ -505,7 +537,14 @@ begin
     inline
       ? ""
       : `
-  if exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and not (${customFieldValueCheck(`d.${ctx.col("definitions", "type")}`, "set_field_value.value", ctx.schemaName)})) then
+${
+  archivable
+    ? `  if exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and d.${archivedAt} is not null) then
+    ${archivedError}
+  end if;
+`
+    : ""
+}  if exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and not (${customFieldValueCheck(`d.${ctx.col("definitions", "type")}`, "set_field_value.value", ctx.schemaName)})) then
     ${fail("CUSTOM_FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
   end if;`
   }
@@ -624,38 +663,7 @@ end;
 $$;
 ${userGrant(`${ctx.fn("delete_field_value")}(uuid)`)}
 
-create or replace function ${ctx.fn("delete_field_definition")}(definition uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_tenant ${ctx.idType};
-begin
-  ${
-    inline
-      ? fail("FIELD_INLINE", "inline fields have no definition row", "0A000")
-      : `select ${ctx.col("definitions", "tenant")} into v_tenant from ${definitions} where ${ctx.col("definitions", "id")} = delete_field_definition.definition;
-  if not found then
-    ${fail("CUSTOM_FIELD_NOT_FOUND", "field not found", "P0002")}
-  end if;
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
-    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to manage custom fields")}
-  end if;
-  delete from ${definitions} where ${ctx.col("definitions", "id")} = delete_field_definition.definition;`
-  }
-  ${ctx.record({
-    type: "field_definition.deleted",
-    payload: `jsonb_build_object('organizationId', v_tenant, 'id', delete_field_definition.definition)`,
-    subject: `'custom-fields/' || delete_field_definition.definition::text`,
-    tenant: "v_tenant",
-    audit: false,
-  })}
-  return true;
-end;
-$$;
-${userGrant(`${ctx.fn("delete_field_definition")}(uuid)`)}
+${archiveFunctions(ctx, { archivable, archivedAt, definitions, inline, manage, purge })}
 ${inline ? "" : listDefinitions(ctx, definitions, rank, read)}${ranked ? rankDefinition(ctx, definitions, rank, manage) : ""}${encrypted === "" ? "" : encryptDefinition(ctx, definitions, values, manage)}${packsOn(ctx) ? installFieldPack(ctx, manage) : ""}${
     importsOn(ctx)
       ? importFieldValue(ctx, {
@@ -810,56 +818,6 @@ function typeCheck(ctx: BlockSqlContext, definitions: string): string {
 ${ensureCheck(definitions, ctx.naming.rename("bsb_field_definitions_type"), `${sqlIdent(column)} in (${CUSTOM_FIELD_TYPES.map(sqlString).join(", ")})`)}`;
 }
 
-function listDefinitions(
-  ctx: BlockSqlContext,
-  definitions: string,
-  rank: string,
-  read: string,
-): string {
-  const order =
-    rank === ""
-      ? `d.${ctx.col("definitions", "key")}`
-      : `d.${rank} collate "C", d.${ctx.col("definitions", "key")}`;
-
-  return `
--- The definitions of one entity in display order.
-create or replace function ${ctx.fn("list_field_definitions")}(tenant ${ctx.idType}, entity text)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'id', d.${ctx.col("definitions", "id")},
-    'entity', d.${ctx.col("definitions", "entity")},
-    'key', d.${ctx.col("definitions", "key")},
-    'label', d.${ctx.col("definitions", "label")},
-    'type', d.${ctx.col("definitions", "type")},
-    'required', d.${ctx.col("definitions", "required")},
-    'sensitive', d.${ctx.col("definitions", "sensitive")},${
-      ctx.has("definitions", "encrypted")
-        ? `
-    'encrypted', d.${ctx.col("definitions", "encrypted")},`
-        : ""
-    }
-    ${
-      packsOn(ctx)
-        ? `'pack', d.${ctx.col("definitions", "pack")},
-    'packVersion', d.${ctx.col("definitions", "packVersion")},
-    `
-        : ""
-    }'rank', ${rank === "" ? "null" : `d.${rank}`}
-  ) order by ${order}), '[]'::jsonb)
-  from ${definitions} d
-  where d.${ctx.col("definitions", "tenant")} = list_field_definitions.tenant
-    and d.${ctx.col("definitions", "entity")} = list_field_definitions.entity
-    and (auth.role() = 'service_role' or ${ctx.scope.can("list_field_definitions.tenant", read)})
-$$;
-${userGrant(`${ctx.fn("list_field_definitions")}(${ctx.idType}, text)`)}
-`;
-}
-
 function rankDefinition(
   ctx: BlockSqlContext,
   definitions: string,
@@ -930,13 +888,25 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "update_field_value", args: ["uuid", "text"], returns: "jsonb" },
     { name: "delete_field_value", args: ["uuid"], returns: "boolean" },
-    { name: "delete_field_definition", args: ["uuid"], returns: "boolean" },
+    { name: "purge_field_definition", args: ["uuid"], returns: "boolean" },
+    ...(ctx.text("layout", "normalized") !== "inline" &&
+    ctx.has("definitions", "archivedAt")
+      ? (["archive_field_definition", "restore_field_definition"] as const).map(
+          (name) => ({ name, args: ["uuid"], returns: "jsonb" }) as const,
+        )
+      : []),
     ...(ctx.text("layout", "normalized") === "inline"
       ? []
       : [
           {
             name: "list_field_definitions",
-            args: ["{id}", "text"],
+            args: [
+              "{id}",
+              "text",
+              ...(ctx.has("definitions", "archivedAt")
+                ? (["boolean"] as const)
+                : []),
+            ],
             returns: "jsonb",
           },
         ]),
