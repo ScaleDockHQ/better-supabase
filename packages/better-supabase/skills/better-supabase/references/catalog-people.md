@@ -78,7 +78,7 @@ Programs of steps per organization, and enrollments of a party, a member or any 
 - Entities: `enrollment_program`, `enrollment`
 - Tables: `enrollment_programs`, `enrollments`
 - Permission keys: `enrollments.read`, `enrollments.enroll`, `enrollments.manage`
-- Events (`EnrollmentsEvents`): `enrollment.cancelled`, `enrollment.completed`, `enrollment.created`, `enrollment.paused`, `enrollment.resumed`, `enrollment.step_completed`, `enrollment_program.created`, `enrollment_program.deleted`, `enrollment_program.updated`
+- Events (`EnrollmentsEvents`): `enrollment.cancelled`, `enrollment.completed`, `enrollment.created`, `enrollment.paused`, `enrollment.resumed`, `enrollment.step_completed`, `enrollment_program.archived`, `enrollment_program.created`, `enrollment_program.purged`, `enrollment_program.restored`, `enrollment_program.updated`
 
 ## qualifications
 
