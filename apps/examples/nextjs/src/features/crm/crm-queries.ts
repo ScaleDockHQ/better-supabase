@@ -9,6 +9,8 @@ import { unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { orMissing } from "@/lib/or-missing";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { CRM_TAG } from "./crm-cache";
@@ -103,8 +105,8 @@ export async function readContacts({
   const { contacts: parties } = db.$blocks;
 
   const [companies, people] = await Promise.all([
-    parties.listCompanies({ organizationId: tenant, limit: PAGE }).orThrow(),
-    parties.listPeople({ organizationId: tenant, limit: PAGE }).orThrow(),
+    parties.companyPage({ organizationId: tenant, limit: PAGE }).orThrow(),
+    parties.personPage({ organizationId: tenant, limit: PAGE }).orThrow(),
   ]);
 
   return [
@@ -142,15 +144,18 @@ export async function loadContact(
 
   const { contacts: parties } = db.$blocks;
 
-  const [company, person] = await Promise.all([
-    parties.getCompany(id).orThrow(),
-    parties.getPerson(id).orThrow(),
+  const [companyRead, personRead] = await Promise.all([
+    parties.companyById(id),
+    parties.personById(id),
   ]);
+
+  const company = orMissing(companyRead);
+  const person = orMissing(personRead);
 
   if (company) {
     const [people, everyone] = await Promise.all([
       parties.peopleOf(company.id).orThrow(),
-      parties.listPeople({ organizationId: tenant, limit: PAGE }).orThrow(),
+      parties.personPage({ organizationId: tenant, limit: PAGE }).orThrow(),
     ]);
 
     const linked = new Set(people.map((member) => member.id));
@@ -287,9 +292,13 @@ export async function loadDealBoard(): Promise<DealBoardData | null> {
 
   const { pipelines, deals } = db;
 
-  const all = await pipelines
-    .list({ organizationId: tenant, subjectType: "deal", limit: 50 })
-    .orThrow();
+  const all = await readAllPages((page) =>
+    pipelines.page({
+      organizationId: tenant,
+      filters: { subjectType: ["deal"] },
+      ...page,
+    }),
+  );
 
   const pipeline = all.find((item) => item.isDefault) ?? all[0];
 

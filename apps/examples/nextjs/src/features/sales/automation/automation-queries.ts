@@ -4,6 +4,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { CRM_TAG } from "@/features/crm/crm-cache";
+import { orMissing } from "@/lib/or-missing";
 import { bsb } from "@/lib/supabase/server";
 
 import { queueOf, queuesFrom } from "../list-reads/queues-reads";
@@ -75,7 +76,7 @@ export async function loadSegment(
     return null;
   }
 
-  const segment = await db.segments.get(id).orThrow();
+  const segment = orMissing(await db.segments.getSegment(id));
 
   if (!segment) {
     return undefined;

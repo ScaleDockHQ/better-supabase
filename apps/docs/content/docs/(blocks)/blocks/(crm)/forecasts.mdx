@@ -65,6 +65,22 @@ it, so the numbers match for everyone who opens it later. It copies the open
 deals that close in the period and the deals won or lost in it. Pass a
 `pipelineId` to snapshot one pipeline. A period runs at most 366 days.
 
+## Paging snapshots
+
+`page` pages the saved snapshots by keyset (ADR 1077), newest first by default. `list` stays as a deprecated alias until 0.70. Sorts are `takenAt` (the default), `since` and `dealCount`. `pipelineId` and `currency` filter by a list of values, `since` and `until` take one value each, and the facets are `currency` and `pipelineId`. The organization comes from `organizationId`.
+
+```ts
+const first = await forecasts
+  .page({ organizationId, filters: { currency: ["EUR"] }, limit: 20 })
+  .orThrow();
+
+const facets = await forecasts.facets({ organizationId }).orThrow();
+const total = await forecasts.count({ organizationId }).orThrow();
+const one = await forecasts.get(first.items[0].id).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Compare two snapshots
 
 ```ts

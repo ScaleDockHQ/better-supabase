@@ -11,6 +11,12 @@ import type { RegisteredSubject } from "../subject-registry.ts";
 import { subjectPermissionKey } from "../../core/subject-permission.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -254,6 +260,41 @@ function functions(ctx: BlockSqlContext, n: SegmentNames): string {
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'name', ${row}.${s("name")}, 'description', ${optional(row, "description")}, 'subjectType', ${row}.${s("subjectType")}, 'conditions', ${row}.${s("conditions")}, 'memberCount', ${row}.${s("memberCount")}, 'refreshedAt', ${row}.${s("refreshedAt")}, 'createdBy', ${optional(row, "createdBy")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})`;
 
+  const idKey = { expr: `x.${s("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const nameKeys = [
+    { expr: `lower(x.${s("name")})`, dir: "asc", type: "text" },
+    idKey,
+  ] as const;
+
+  const segmentPage = {
+    name: "page_segments",
+    from: t("segments"),
+    alias: "x",
+    where: [
+      `x.${s("tenant")} = page_segments.tenant`,
+      filterAny("subjectType", `x.${s("subjectType")}`),
+      `(v_search is null or x.${s("name")} ilike v_search${n.has("description") ? ` or x.${s("description")} ilike v_search` : ""})`,
+    ],
+    keys: nameKeys,
+    sorts: {
+      name: nameKeys,
+      createdAt: [
+        { expr: `x.${s("createdAt")}`, dir: "desc", type: "timestamptz" },
+        idKey,
+      ],
+      memberCount: [
+        { expr: `x.${s("memberCount")}`, dir: "desc", type: "integer" },
+        idKey,
+      ],
+    },
+    facets: { subjectType: `x.${s("subjectType")}` },
+    rowJson: json("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("SEGMENT_INVALID", message, "22023"),
+  } as const;
+
   const optionalColumn = (column: string): string =>
     n.has(column) ? `${s(column)}, ` : "";
 
@@ -413,6 +454,31 @@ begin
 end;
 $$;
 ${userGrant(`${fn("segments_list")}(${ctx.idType}, text)`)}
+
+-- The organization's segments as a keyset page, by name (ADR 1077). Needs
+-- segments.read. filters is { subjectType (a value or a list), search (name,
+-- description), sort (name, createdAt, memberCount), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_segments")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_segments.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(segmentPage)}
+begin
+  if not ${ctx.scope.can("page_segments.tenant", n.read)} then
+    ${fail("SEGMENT_FORBIDDEN", "You need segments.read to list segments")}
+  end if;
+  ${listBody(segmentPage)}
+end;
+$$;
+${userGrant(`${fn("page_segments")}(${ctx.idType}, jsonb)`)}
 
 create or replace function ${fn("segment_get")}(segment uuid)
 returns jsonb
@@ -599,6 +665,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "save_segment", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "remove_segment", args: ["uuid"], returns: "boolean" },
     { name: "segments_list", args: ["{id}", "text"], returns: "jsonb" },
+    { name: "page_segments", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "segment_get", args: ["uuid"], returns: "jsonb" },
     {
       name: "list_segment_members",

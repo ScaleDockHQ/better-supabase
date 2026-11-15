@@ -5,6 +5,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { CRM_TAG } from "@/features/crm/crm-cache";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { contractOf, contractsFrom } from "../list-reads/contracts-reads";
@@ -69,9 +70,13 @@ export async function loadContract(
 
   const [contract, obligations] = await Promise.all([
     db.contracts.get(id).orThrow(),
-    db.contracts
-      .obligations({ organizationId: tenant, contractId: id, pageSize: 100 })
-      .orThrow(),
+    readAllPages((page) =>
+      db.contracts.obligationPage({
+        organizationId: tenant,
+        filters: { contractId: [id] },
+        ...page,
+      }),
+    ),
   ]);
 
   return {

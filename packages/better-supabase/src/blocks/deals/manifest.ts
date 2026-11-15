@@ -5,6 +5,7 @@ import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDeals } from "./deals.ts";
 import { dealsEvents } from "./events.ts";
+import { dealListSurface } from "./lists.ts";
 import { dealsSqlOptions } from "./options.ts";
 import { dealsBinding } from "./record-binding.ts";
 import { dealChangeSchema, dealInputSchema } from "./schemas.ts";
@@ -27,6 +28,7 @@ export const dealsBlock: BlockOf<
   category: "crm",
   entities: {
     deal: {
+      ...dealListSurface,
       mutability: "editable",
       expectedVersion: true,
       idempotent: ["create"],

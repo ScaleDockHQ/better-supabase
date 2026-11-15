@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:6b374ae79c768e0fbdce9560dfa18c45dae5340e6f975ae5d5cceae39cabf52f
+-- @bsb-hash sha256:10da07b2f3855eda8d8b7fc1fd4f3015d903c0d079d5553f73e0b03d1ca4bd4a
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -622,6 +622,509 @@ $$;
 revoke execute on function "better_supabase"."unlink_mail_thread"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."unlink_mail_thread"(uuid, text, text) to authenticated, service_role;
 
+-- The threads the caller can see in a tenant as a keyset page, the latest
+-- message first (ADR 1077). It runs as the caller. filters is { accountId
+-- (a value or a list), subjectType and subjectId (the records a thread is
+-- linked to), search (subject, snippet), sort (lastMessageAt, subject,
+-- messageCount), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "better_supabase"."page_mail_threads"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_threads.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 25), 1), 100);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('accountId') then
+      raise exception 'facet is one of accountId' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'accountId' then (x."account_id"::text)::text end) as v
+      from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'subject', 'messageCount') then
+    raise exception 'sort is one of lastMessageAt, subject, messageCount' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(coalesce(x."subject", '')) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')) <= (v_after ->> 0)::text and ((lower(coalesce(x."subject", '')) < (v_after ->> 0)::text) or (lower(coalesce(x."subject", '')) = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(coalesce(x."subject", '')) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count" >= (v_after ->> 0)::integer and ((x."message_count" > (v_after ->> 0)::integer) or (x."message_count" = (v_after ->> 0)::integer and x."id" < (v_after ->> 1)::uuid))))
+      order by x."message_count" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count", x."id") < ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."message_count" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_mail_threads"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_mail_threads"(uuid, jsonb) to authenticated, service_role;
+
+-- The caller's mailboxes in a tenant as a keyset page, by address; with
+-- mail.manage, every member's (ADR 1077). It runs as the caller. filters is
+-- { status, provider, share, userId (each a value or a list), search
+-- (address), sort (address, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_mail_accounts"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_accounts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'provider', 'share') then
+      raise exception 'facet is one of status, provider, share' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'provider' then (x."provider")::text when 'share' then (x."share")::text end) as v
+      from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('address', 'createdAt') then
+    raise exception 'sort is one of address, createdAt' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_mail_accounts"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_mail_accounts"(uuid, jsonb) to authenticated, service_role;
+
 -- A record's threads the caller can see, the latest message first. before
 -- continues after the last thread of the previous page.
 create or replace function "better_supabase"."mail_threads_of"(subject_type text, subject_id text, before timestamptz, page_size integer)
@@ -893,7 +1396,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:8a814b5b0483b235e96bccdbb1aa89a0f358c443ec47728004d9f8cff17aadeb
+-- @bsb-hash sha256:98be54139fb949486ebd69187f146b5650b2eb738c074068d812f11d58dc9411
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1620,6 +2123,509 @@ $$;
 revoke execute on function "better_supabase"."unlink_mail_thread"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."unlink_mail_thread"(uuid, text, text) to authenticated, service_role;
 
+-- The threads the caller can see in a tenant as a keyset page, the latest
+-- message first (ADR 1077). It runs as the caller. filters is { accountId
+-- (a value or a list), subjectType and subjectId (the records a thread is
+-- linked to), search (subject, snippet), sort (lastMessageAt, subject,
+-- messageCount), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "better_supabase"."page_mail_threads"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_threads.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 25), 1), 100);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('accountId') then
+      raise exception 'facet is one of accountId' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'accountId' then (x."account_id"::text)::text end) as v
+      from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'subject', 'messageCount') then
+    raise exception 'sort is one of lastMessageAt, subject, messageCount' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(coalesce(x."subject", '')) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')) <= (v_after ->> 0)::text and ((lower(coalesce(x."subject", '')) < (v_after ->> 0)::text) or (lower(coalesce(x."subject", '')) = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(coalesce(x."subject", '')) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count" >= (v_after ->> 0)::integer and ((x."message_count" > (v_after ->> 0)::integer) or (x."message_count" = (v_after ->> 0)::integer and x."id" < (v_after ->> 1)::uuid))))
+      order by x."message_count" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count", x."id") < ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."message_count" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_mail_threads"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_mail_threads"(uuid, jsonb) to authenticated, service_role;
+
+-- The caller's mailboxes in a tenant as a keyset page, by address; with
+-- mail.manage, every member's (ADR 1077). It runs as the caller. filters is
+-- { status, provider, share, userId (each a value or a list), search
+-- (address), sort (address, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_mail_accounts"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_accounts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'provider', 'share') then
+      raise exception 'facet is one of status, provider, share' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'provider' then (x."provider")::text when 'share' then (x."share")::text end) as v
+      from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('address', 'createdAt') then
+    raise exception 'sort is one of address, createdAt' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_mail_accounts"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_mail_accounts"(uuid, jsonb) to authenticated, service_role;
+
 -- A record's threads the caller can see, the latest message first. before
 -- continues after the last thread of the previous page.
 create or replace function "better_supabase"."mail_threads_of"(subject_type text, subject_id text, before timestamptz, page_size integer)
@@ -1896,7 +2902,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:7dcad40da6e5733f397232bf4e02996e89b21739c3a5b05451806bc320318102
+-- @bsb-hash sha256:4b052e80227339bda7c81408a420251b3a76fe612b2cf29d84147d96a71824f6
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2522,6 +3528,509 @@ $$;
 revoke execute on function "app_private"."unlink_mail_thread"(uuid, text, text) from public, anon;
 grant execute on function "app_private"."unlink_mail_thread"(uuid, text, text) to authenticated, service_role;
 
+-- The threads the caller can see in a tenant as a keyset page, the latest
+-- message first (ADR 1077). It runs as the caller. filters is { accountId
+-- (a value or a list), subjectType and subjectId (the records a thread is
+-- linked to), search (subject, snippet), sort (lastMessageAt, subject,
+-- messageCount), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "app_private"."page_mail_threads"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_threads.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 25), 1), 100);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('accountId') then
+      raise exception 'facet is one of accountId' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'accountId' then (x."account_id"::text)::text end) as v
+      from "app_private"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'subject', 'messageCount') then
+    raise exception 'sort is one of lastMessageAt, subject, messageCount' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "app_private"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "app_private"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "app_private"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "app_private"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "app_private"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(coalesce(x."subject", '')) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "app_private"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')) <= (v_after ->> 0)::text and ((lower(coalesce(x."subject", '')) < (v_after ->> 0)::text) or (lower(coalesce(x."subject", '')) = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(coalesce(x."subject", '')) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "app_private"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count" >= (v_after ->> 0)::integer and ((x."message_count" > (v_after ->> 0)::integer) or (x."message_count" = (v_after ->> 0)::integer and x."id" < (v_after ->> 1)::uuid))))
+      order by x."message_count" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "app_private"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count", x."id") < ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."message_count" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "app_private"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_mail_threads"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_mail_threads"(uuid, jsonb) to authenticated, service_role;
+
+-- The caller's mailboxes in a tenant as a keyset page, by address; with
+-- mail.manage, every member's (ADR 1077). It runs as the caller. filters is
+-- { status, provider, share, userId (each a value or a list), search
+-- (address), sort (address, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_mail_accounts"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_accounts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'provider', 'share') then
+      raise exception 'facet is one of status, provider, share' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'provider' then (x."provider")::text when 'share' then (x."share")::text end) as v
+      from "app_private"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('address', 'createdAt') then
+    raise exception 'sort is one of address, createdAt' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_mail_accounts"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_mail_accounts"(uuid, jsonb) to authenticated, service_role;
+
 -- A record's threads the caller can see, the latest message first. before
 -- continues after the last thread of the previous page.
 create or replace function "app_private"."mail_threads_of"(subject_type text, subject_id text, before timestamptz, page_size integer)
@@ -2793,7 +4302,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:637a17aa0077c50ca96c62fcaa0d4b7a340e9c7e3e2712a541c10d351c58a1f1
+-- @bsb-hash sha256:4c5ac2ed5a7995780b8f08334f4d3da918f9f1bc12ac4e855d2c265e19b0446d
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3414,6 +4923,509 @@ $$;
 revoke execute on function "better_supabase"."unlink_mail_thread"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."unlink_mail_thread"(uuid, text, text) to authenticated, service_role;
 
+-- The threads the caller can see in a tenant as a keyset page, the latest
+-- message first (ADR 1077). It runs as the caller. filters is { accountId
+-- (a value or a list), subjectType and subjectId (the records a thread is
+-- linked to), search (subject, snippet), sort (lastMessageAt, subject,
+-- messageCount), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "better_supabase"."page_mail_threads"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_threads.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 25), 1), 100);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('accountId') then
+      raise exception 'facet is one of accountId' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'accountId' then (x."account_id"::text)::text end) as v
+      from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'subject', 'messageCount') then
+    raise exception 'sort is one of lastMessageAt, subject, messageCount' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(coalesce(x."subject", '')) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')) <= (v_after ->> 0)::text and ((lower(coalesce(x."subject", '')) < (v_after ->> 0)::text) or (lower(coalesce(x."subject", '')) = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(coalesce(x."subject", '')) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count" >= (v_after ->> 0)::integer and ((x."message_count" > (v_after ->> 0)::integer) or (x."message_count" = (v_after ->> 0)::integer and x."id" < (v_after ->> 1)::uuid))))
+      order by x."message_count" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count", x."id") < ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."message_count" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_mail_threads"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_mail_threads"(uuid, jsonb) to authenticated, service_role;
+
+-- The caller's mailboxes in a tenant as a keyset page, by address; with
+-- mail.manage, every member's (ADR 1077). It runs as the caller. filters is
+-- { status, provider, share, userId (each a value or a list), search
+-- (address), sort (address, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_mail_accounts"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_accounts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'provider', 'share') then
+      raise exception 'facet is one of status, provider, share' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'provider' then (x."provider")::text when 'share' then (x."share")::text end) as v
+      from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('address', 'createdAt') then
+    raise exception 'sort is one of address, createdAt' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_mail_accounts"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_mail_accounts"(uuid, jsonb) to authenticated, service_role;
+
 -- A record's threads the caller can see, the latest message first. before
 -- continues after the last thread of the previous page.
 create or replace function "better_supabase"."mail_threads_of"(subject_type text, subject_id text, before timestamptz, page_size integer)
@@ -3784,6 +5796,26 @@ as $$ select "better_supabase"."unlink_mail_thread"($1, $2, $3) $$;
 revoke execute on function "api"."unlink_mail_thread"(uuid, text, text) from public, anon;
 grant execute on function "api"."unlink_mail_thread"(uuid, text, text) to authenticated, service_role;
 
+create or replace function "api"."page_mail_threads"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_mail_threads"($1, $2) $$;
+revoke execute on function "api"."page_mail_threads"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_mail_threads"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."page_mail_accounts"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_mail_accounts"($1, $2) $$;
+revoke execute on function "api"."page_mail_accounts"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_mail_accounts"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "api"."mail_threads_of"(subject_type text, subject_id text, before timestamptz, page_size integer)
 returns jsonb
 language sql
@@ -3850,7 +5882,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:e1ec03b9e27059709bad79b2fb5f9c230e8c3d21a6897c13c8d402e41ce60748
+-- @bsb-hash sha256:621281016d975a21ce0513d7d6a35f172ac580adf681d58343a8e4c80e0f8546
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4457,6 +6489,509 @@ $$;
 revoke execute on function "better_supabase"."unlink_mail_thread"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."unlink_mail_thread"(uuid, text, text) to authenticated, service_role;
 
+-- The threads the caller can see in a tenant as a keyset page, the latest
+-- message first (ADR 1077). It runs as the caller. filters is { accountId
+-- (a value or a list), subjectType and subjectId (the records a thread is
+-- linked to), search (subject, snippet), sort (lastMessageAt, subject,
+-- messageCount), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "better_supabase"."page_mail_threads"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_threads.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 25), 1), 100);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('accountId') then
+      raise exception 'facet is one of accountId' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'accountId' then (x."account_id"::text)::text end) as v
+      from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'subject', 'messageCount') then
+    raise exception 'sort is one of lastMessageAt, subject, messageCount' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(coalesce(x."subject", '')) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')) <= (v_after ->> 0)::text and ((lower(coalesce(x."subject", '')) < (v_after ->> 0)::text) or (lower(coalesce(x."subject", '')) = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(coalesce(x."subject", '')) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count" >= (v_after ->> 0)::integer and ((x."message_count" > (v_after ->> 0)::integer) or (x."message_count" = (v_after ->> 0)::integer and x."id" < (v_after ->> 1)::uuid))))
+      order by x."message_count" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'account_id', x."account_id", 'external_id', x."external_id", 'subject', x."subject", 'snippet', x."snippet", 'last_message_at', x."last_message_at", 'message_count', x."message_count", 'activity_id', x."activity_id", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count", x."id") < ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."message_count" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_threads" x
+      where x."tenant_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_mail_threads"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_mail_threads"(uuid, jsonb) to authenticated, service_role;
+
+-- The caller's mailboxes in a tenant as a keyset page, by address; with
+-- mail.manage, every member's (ADR 1077). It runs as the caller. filters is
+-- { status, provider, share, userId (each a value or a list), search
+-- (address), sort (address, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_mail_accounts"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_accounts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'provider', 'share') then
+      raise exception 'facet is one of status, provider, share' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text when 'provider' then (x."provider")::text when 'share' then (x."share"::text)::text end) as v
+      from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share"::text = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share"::text = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('address', 'createdAt') then
+    raise exception 'sort is one of address, createdAt' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'user_id', x."user_id", 'provider', x."provider", 'address', x."address", 'credential_ref', x."credential_ref", 'share', x."share", 'status', x."status", 'sync_cursor', x."sync_cursor", 'last_synced_at', x."last_synced_at", 'last_error', x."last_error", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share"::text = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'user_id', x."user_id", 'provider', x."provider", 'address', x."address", 'credential_ref', x."credential_ref", 'share', x."share", 'status', x."status", 'sync_cursor', x."sync_cursor", 'last_synced_at', x."last_synced_at", 'last_error', x."last_error", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share"::text = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'user_id', x."user_id", 'provider', x."provider", 'address', x."address", 'credential_ref', x."credential_ref", 'share', x."share", 'status', x."status", 'sync_cursor', x."sync_cursor", 'last_synced_at', x."last_synced_at", 'last_error', x."last_error", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share"::text = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'user_id', x."user_id", 'provider', x."provider", 'address', x."address", 'credential_ref', x."credential_ref", 'share', x."share", 'status', x."status", 'sync_cursor', x."sync_cursor", 'last_synced_at', x."last_synced_at", 'last_error', x."last_error", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share"::text = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'user_id', x."user_id", 'provider', x."provider", 'address', x."address", 'credential_ref', x."credential_ref", 'share', x."share", 'status', x."status", 'sync_cursor', x."sync_cursor", 'last_synced_at', x."last_synced_at", 'last_error', x."last_error", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share"::text = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'user_id', x."user_id", 'provider', x."provider", 'address', x."address", 'credential_ref', x."credential_ref", 'share', x."share", 'status', x."status", 'sync_cursor', x."sync_cursor", 'last_synced_at', x."last_synced_at", 'last_error', x."last_error", 'created_at', x."created_at", 'updated_at', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share"::text = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_accounts" x
+      where x."tenant_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share"::text = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_mail_accounts"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_mail_accounts"(uuid, jsonb) to authenticated, service_role;
+
 -- A record's threads the caller can see, the latest message first. before
 -- continues after the last thread of the previous page.
 create or replace function "better_supabase"."mail_threads_of"(subject_type text, subject_id text, before timestamptz, page_size integer)
@@ -4728,7 +7263,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:de2d499402f9eab5c2548fa742f972b914d3f35f55084d85b5746ded34be25aa
+-- @bsb-hash sha256:b3f59c8f7121932980e85a15a7b2fc537890b8694b1b745ca8f9a5943092599f
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email activities, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5348,6 +7883,509 @@ end;
 $$;
 revoke execute on function "better_supabase"."unlink_mail_thread"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."unlink_mail_thread"(uuid, text, text) to authenticated, service_role;
+
+-- The threads the caller can see in a tenant as a keyset page, the latest
+-- message first (ADR 1077). It runs as the caller. filters is { accountId
+-- (a value or a list), subjectType and subjectId (the records a thread is
+-- linked to), search (subject, snippet), sort (lastMessageAt, subject,
+-- messageCount), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "better_supabase"."page_mail_threads"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_threads.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 25), 1), 100);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('accountId') then
+      raise exception 'facet is one of accountId' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'accountId' then (x."account_id"::text)::text end) as v
+      from "better_supabase"."mail_threads" x
+      where x."org_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_threads" x
+      where x."org_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'subject', 'messageCount') then
+    raise exception 'sort is one of lastMessageAt, subject, messageCount' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."org_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."org_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."org_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at" >= (v_after ->> 0)::timestamptz and ((x."last_message_at" > (v_after ->> 0)::timestamptz) or (x."last_message_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."last_message_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."last_message_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."org_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."last_message_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."last_message_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."org_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(coalesce(x."subject", '')) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'subject' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((lower(coalesce(x."subject", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."org_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."subject", '')) <= (v_after ->> 0)::text and ((lower(coalesce(x."subject", '')) < (v_after ->> 0)::text) or (lower(coalesce(x."subject", '')) = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(coalesce(x."subject", '')) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."org_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count" >= (v_after ->> 0)::integer and ((x."message_count" > (v_after ->> 0)::integer) or (x."message_count" = (v_after ->> 0)::integer and x."id" < (v_after ->> 1)::uuid))))
+      order by x."message_count" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'messageCount' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('address', (select k."address" from "better_supabase"."mail_accounts" k where k."id" = x."account_id"), 'subjects', coalesce((select jsonb_agg(jsonb_build_object('type', s."subject_type", 'id', s."subject_id") order by s."created_at", s."subject_type", s."subject_id") from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id"), '[]'::jsonb)) as j, jsonb_build_array((x."message_count")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_threads" x
+      where x."org_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+        and (v_after is null or (x."message_count", x."id") < ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."message_count" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_threads" x
+      where x."org_id" = page_mail_threads.tenant
+        and (not (v_filters -> 'accountId' is not null and jsonb_typeof(v_filters -> 'accountId') <> 'null' and not (jsonb_typeof(v_filters -> 'accountId') = 'array' and jsonb_array_length(v_filters -> 'accountId') = 0)) or x."account_id" = any((case when jsonb_typeof(v_filters -> 'accountId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'accountId')) else array[v_filters ->> 'accountId'] end)::uuid[]))
+        and (nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') is null or exists (select 1 from "better_supabase"."mail_thread_subjects" s where s."thread_id" = x."id" and s."subject_type" = nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '') and (nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '') is null or s."subject_id" = nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), ''))))
+        and (v_search is null or x."subject" ilike v_search or x."snippet" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_mail_threads"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_mail_threads"(uuid, jsonb) to authenticated, service_role;
+
+-- The caller's mailboxes in a tenant as a keyset page, by address; with
+-- mail.manage, every member's (ADR 1077). It runs as the caller. filters is
+-- { status, provider, share, userId (each a value or a list), search
+-- (address), sort (address, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_mail_accounts"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_mail_accounts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'provider', 'share') then
+      raise exception 'facet is one of status, provider, share' using errcode = '22023', hint = 'MAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'provider' then (x."provider")::text when 'share' then (x."share")::text end) as v
+      from "better_supabase"."mail_accounts" x
+      where x."org_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_accounts" x
+      where x."org_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('address', 'createdAt') then
+    raise exception 'sort is one of address, createdAt' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."org_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."org_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."org_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."address") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'address' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((lower(x."address"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."org_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (lower(x."address") <= (v_after ->> 0)::text and ((lower(x."address") < (v_after ->> 0)::text) or (lower(x."address") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."address") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."org_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."mail_accounts" x
+      where x."org_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."mail_accounts" x
+      where x."org_id" = page_mail_accounts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'provider' is not null and jsonb_typeof(v_filters -> 'provider') <> 'null' and not (jsonb_typeof(v_filters -> 'provider') = 'array' and jsonb_array_length(v_filters -> 'provider') = 0)) or x."provider" = any((case when jsonb_typeof(v_filters -> 'provider') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provider')) else array[v_filters ->> 'provider'] end)::text[]))
+        and (not (v_filters -> 'share' is not null and jsonb_typeof(v_filters -> 'share') <> 'null' and not (jsonb_typeof(v_filters -> 'share') = 'array' and jsonb_array_length(v_filters -> 'share') = 0)) or x."share" = any((case when jsonb_typeof(v_filters -> 'share') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'share')) else array[v_filters ->> 'share'] end)::text[]))
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (v_search is null or x."address" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_mail_accounts"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_mail_accounts"(uuid, jsonb) to authenticated, service_role;
 
 -- A record's threads the caller can see, the latest message first. before
 -- continues after the last thread of the previous page.

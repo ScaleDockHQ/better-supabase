@@ -146,6 +146,22 @@ The brand is read when the organization's pipeline is first created, so changing
 
 Without transitions, a record moves from any stage to any other. `setTransitions(pipelineId, [{ from, to }])` limits the moves to the pairs you list, and an empty list allows every move again (`PIPELINE_TRANSITION_INVALID` for any other move).
 
+## Paging pipelines
+
+`page` pages the organization's pipelines by keyset (ADR 1077), and `get(id)` reads one and returns a `not_found` error for an unknown id. `list` stays as a deprecated alias until 0.70. Sorts are `rank` (the default), `name` and `key`. `subjectType`, `key` and `scopeId` filter by a list of values, `q` searches the name and the key, and `subjectType` is the one facet. The organization comes from `organizationId`.
+
+```ts
+const first = await pipelines
+  .page({ organizationId, filters: { subjectType: ["deal"] }, limit: 50 })
+  .orThrow();
+
+const facets = await pipelines.facets({ organizationId }).orThrow();
+const total = await pipelines.count({ organizationId }).orThrow();
+const one = await pipelines.get(first.items[0].id).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Move records
 
 A record changes stage when its stage column changes. An update from your app, a bulk action or a board drag all go through the same trigger, which refuses a stage of another pipeline, an archived stage, or a stage of another organization (`PIPELINE_STAGE_INVALID`), checks the transitions, closes the previous history row and opens a new one.

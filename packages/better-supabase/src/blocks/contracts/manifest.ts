@@ -4,6 +4,7 @@ import type { ContractsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createContracts } from "./contracts.ts";
 import { contractsEvents } from "./events.ts";
+import { contractListSurface, obligationListSurface } from "./lists.ts";
 import { contractsSqlOptions } from "./options.ts";
 import { contractsBinding } from "./record-binding.ts";
 import {
@@ -34,8 +35,13 @@ export const contractsBlock: BlockOf<
   recipes: ["contract-renewals"],
   category: "crm",
   entities: {
-    contract: { mutability: "editable", emits: { create: true, update: true } },
+    contract: {
+      ...contractListSurface,
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
     contract_obligation: {
+      ...obligationListSurface,
       mutability: "editable",
       emits: { create: true, update: true, delete: false },
     },

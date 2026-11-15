@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:9ca80f7c08b2eadfb860513f3bffd64ab83d723352dbf8425748777a9ad07c24
+-- @bsb-hash sha256:672a9510d08b26c129866b397cdda203d3742c2dc21c1611340bd6315ca6ea24
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -654,6 +654,340 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_pipelines"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."list_pipelines"(uuid, text) to authenticated, service_role;
+
+-- The tenant's active pipelines as a keyset page, in board order (ADR 1077).
+-- Runs with the caller's rights, so row level security decides what shows.
+-- filters is { subjectType, key, scopeId (each a value or a list), search
+-- (name, key), sort (rank, name, key), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_pipelines"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_pipelines.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'PIPELINE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('subjectType') then
+      raise exception 'facet is one of subjectType' using errcode = '22023', hint = 'PIPELINE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'subjectType' then (x."subject_type")::text end) as v
+      from "better_supabase"."pipelines" x
+      where x."tenant_id" = page_pipelines.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'scopeId' is not null and jsonb_typeof(v_filters -> 'scopeId') <> 'null' and not (jsonb_typeof(v_filters -> 'scopeId') = 'array' and jsonb_array_length(v_filters -> 'scopeId') = 0)) or x."scope_id"::text = any((case when jsonb_typeof(v_filters -> 'scopeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scopeId')) else array[v_filters ->> 'scopeId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."pipelines" x
+      where x."tenant_id" = page_pipelines.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'scopeId' is not null and jsonb_typeof(v_filters -> 'scopeId') <> 'null' and not (jsonb_typeof(v_filters -> 'scopeId') = 'array' and jsonb_array_length(v_filters -> 'scopeId') = 0)) or x."scope_id"::text = any((case when jsonb_typeof(v_filters -> 'scopeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scopeId')) else array[v_filters ->> 'scopeId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('rank', 'name', 'key') then
+    raise exception 'sort is one of rank, name, key' using errcode = '22023', hint = 'PIPELINE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'PIPELINE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PIPELINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('stages', coalesce((
+      select jsonb_agg(to_jsonb(st) order by st."rank" collate "C")
+      from "better_supabase"."pipeline_stages" st where st."pipeline_id" = x."id" and st."archived_at" is null
+    ), '[]'::jsonb)) as j, jsonb_build_array((x."rank" collate "C")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pipelines" x
+      where x."tenant_id" = page_pipelines.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'scopeId' is not null and jsonb_typeof(v_filters -> 'scopeId') <> 'null' and not (jsonb_typeof(v_filters -> 'scopeId') = 'array' and jsonb_array_length(v_filters -> 'scopeId') = 0)) or x."scope_id"::text = any((case when jsonb_typeof(v_filters -> 'scopeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scopeId')) else array[v_filters ->> 'scopeId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."rank" collate "C", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."rank" collate "C" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PIPELINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('stages', coalesce((
+      select jsonb_agg(to_jsonb(st) order by st."rank" collate "C")
+      from "better_supabase"."pipeline_stages" st where st."pipeline_id" = x."id" and st."archived_at" is null
+    ), '[]'::jsonb)) as j, jsonb_build_array((x."rank" collate "C")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pipelines" x
+      where x."tenant_id" = page_pipelines.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'scopeId' is not null and jsonb_typeof(v_filters -> 'scopeId') <> 'null' and not (jsonb_typeof(v_filters -> 'scopeId') = 'array' and jsonb_array_length(v_filters -> 'scopeId') = 0)) or x."scope_id"::text = any((case when jsonb_typeof(v_filters -> 'scopeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scopeId')) else array[v_filters ->> 'scopeId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."rank" collate "C" <= (v_after ->> 0)::text and ((x."rank" collate "C" < (v_after ->> 0)::text) or (x."rank" collate "C" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."rank" collate "C" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rank' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PIPELINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('stages', coalesce((
+      select jsonb_agg(to_jsonb(st) order by st."rank" collate "C")
+      from "better_supabase"."pipeline_stages" st where st."pipeline_id" = x."id" and st."archived_at" is null
+    ), '[]'::jsonb)) as j, jsonb_build_array((x."rank" collate "C")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pipelines" x
+      where x."tenant_id" = page_pipelines.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'scopeId' is not null and jsonb_typeof(v_filters -> 'scopeId') <> 'null' and not (jsonb_typeof(v_filters -> 'scopeId') = 'array' and jsonb_array_length(v_filters -> 'scopeId') = 0)) or x."scope_id"::text = any((case when jsonb_typeof(v_filters -> 'scopeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scopeId')) else array[v_filters ->> 'scopeId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."rank" collate "C", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."rank" collate "C" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rank' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PIPELINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('stages', coalesce((
+      select jsonb_agg(to_jsonb(st) order by st."rank" collate "C")
+      from "better_supabase"."pipeline_stages" st where st."pipeline_id" = x."id" and st."archived_at" is null
+    ), '[]'::jsonb)) as j, jsonb_build_array((x."rank" collate "C")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pipelines" x
+      where x."tenant_id" = page_pipelines.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'scopeId' is not null and jsonb_typeof(v_filters -> 'scopeId') <> 'null' and not (jsonb_typeof(v_filters -> 'scopeId') = 'array' and jsonb_array_length(v_filters -> 'scopeId') = 0)) or x."scope_id"::text = any((case when jsonb_typeof(v_filters -> 'scopeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scopeId')) else array[v_filters ->> 'scopeId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."rank" collate "C" <= (v_after ->> 0)::text and ((x."rank" collate "C" < (v_after ->> 0)::text) or (x."rank" collate "C" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."rank" collate "C" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PIPELINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('stages', coalesce((
+      select jsonb_agg(to_jsonb(st) order by st."rank" collate "C")
+      from "better_supabase"."pipeline_stages" st where st."pipeline_id" = x."id" and st."archived_at" is null
+    ), '[]'::jsonb)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pipelines" x
+      where x."tenant_id" = page_pipelines.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'scopeId' is not null and jsonb_typeof(v_filters -> 'scopeId') <> 'null' and not (jsonb_typeof(v_filters -> 'scopeId') = 'array' and jsonb_array_length(v_filters -> 'scopeId') = 0)) or x."scope_id"::text = any((case when jsonb_typeof(v_filters -> 'scopeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scopeId')) else array[v_filters ->> 'scopeId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PIPELINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('stages', coalesce((
+      select jsonb_agg(to_jsonb(st) order by st."rank" collate "C")
+      from "better_supabase"."pipeline_stages" st where st."pipeline_id" = x."id" and st."archived_at" is null
+    ), '[]'::jsonb)) as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pipelines" x
+      where x."tenant_id" = page_pipelines.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'scopeId' is not null and jsonb_typeof(v_filters -> 'scopeId') <> 'null' and not (jsonb_typeof(v_filters -> 'scopeId') = 'array' and jsonb_array_length(v_filters -> 'scopeId') = 0)) or x."scope_id"::text = any((case when jsonb_typeof(v_filters -> 'scopeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scopeId')) else array[v_filters ->> 'scopeId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PIPELINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('stages', coalesce((
+      select jsonb_agg(to_jsonb(st) order by st."rank" collate "C")
+      from "better_supabase"."pipeline_stages" st where st."pipeline_id" = x."id" and st."archived_at" is null
+    ), '[]'::jsonb)) as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pipelines" x
+      where x."tenant_id" = page_pipelines.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'scopeId' is not null and jsonb_typeof(v_filters -> 'scopeId') <> 'null' and not (jsonb_typeof(v_filters -> 'scopeId') = 'array' and jsonb_array_length(v_filters -> 'scopeId') = 0)) or x."scope_id"::text = any((case when jsonb_typeof(v_filters -> 'scopeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scopeId')) else array[v_filters ->> 'scopeId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'PIPELINE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('stages', coalesce((
+      select jsonb_agg(to_jsonb(st) order by st."rank" collate "C")
+      from "better_supabase"."pipeline_stages" st where st."pipeline_id" = x."id" and st."archived_at" is null
+    ), '[]'::jsonb)) as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."pipelines" x
+      where x."tenant_id" = page_pipelines.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'scopeId' is not null and jsonb_typeof(v_filters -> 'scopeId') <> 'null' and not (jsonb_typeof(v_filters -> 'scopeId') = 'array' and jsonb_array_length(v_filters -> 'scopeId') = 0)) or x."scope_id"::text = any((case when jsonb_typeof(v_filters -> 'scopeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scopeId')) else array[v_filters ->> 'scopeId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key" <= (v_after ->> 0)::text and ((x."key" < (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."key" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."pipelines" x
+      where x."tenant_id" = page_pipelines.tenant
+        and x."archived_at" is null
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'key' is not null and jsonb_typeof(v_filters -> 'key') <> 'null' and not (jsonb_typeof(v_filters -> 'key') = 'array' and jsonb_array_length(v_filters -> 'key') = 0)) or x."key" = any((case when jsonb_typeof(v_filters -> 'key') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'key')) else array[v_filters ->> 'key'] end)::text[]))
+        and (not (v_filters -> 'scopeId' is not null and jsonb_typeof(v_filters -> 'scopeId') <> 'null' and not (jsonb_typeof(v_filters -> 'scopeId') = 'array' and jsonb_array_length(v_filters -> 'scopeId') = 0)) or x."scope_id"::text = any((case when jsonb_typeof(v_filters -> 'scopeId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scopeId')) else array[v_filters ->> 'scopeId'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_pipelines"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_pipelines"(uuid, jsonb) to authenticated, service_role;
+
+-- One active pipeline with its active stages, or a not-found error.
+create or replace function "better_supabase"."get_pipeline"(pipeline uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row jsonb;
+begin
+  select to_jsonb(x) || jsonb_build_object('fields', jsonb_build_object('app_note', x."app_note")) || jsonb_build_object('stages', coalesce((
+      select jsonb_agg(to_jsonb(st) order by st."rank" collate "C")
+      from "better_supabase"."pipeline_stages" st where st."pipeline_id" = x."id" and st."archived_at" is null
+    ), '[]'::jsonb)) into v_row from "better_supabase"."pipelines" x
+  where x."id" = get_pipeline.pipeline and x."archived_at" is null;
+  if v_row is null then
+    raise exception 'no pipeline you can read has this id' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
+  end if;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."get_pipeline"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_pipeline"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

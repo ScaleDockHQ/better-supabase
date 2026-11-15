@@ -173,6 +173,27 @@ const more = page.next
 
 The lists, `peopleOf` and the tables all run as the caller: a member reads the organization's records through the `contacts.read` policy, and PostgREST reads the tables directly.
 
+## Paging companies and people
+
+`companyPage` and `personPage` page the active records by keyset (ADR 1077), and `companyById` and `personById` read one record and return a `not_found` error for an unknown id. `listCompanies`, `listPeople`, `getCompany` and `getPerson` stay as deprecated aliases until 0.70. Sorts are `name` (the default), `createdAt` and `updatedAt`. `lifecycle`, `ownerId`, `role` and `supplierStatus` filter by a list of values. `q` searches the name and the domain for companies, and the name and the email for people. The facets are `lifecycle`, `ownerId` and `supplierStatus`, and `companyFacets`, `companyCount`, `personFacets` and `personCount` answer under the same filters. The organization comes from `organizationId`.
+
+```ts
+const first = await parties
+  .companyPage({
+    organizationId,
+    filters: { lifecycle: ["lead", "customer"] },
+    q: "acme",
+    limit: 25,
+  })
+  .orThrow();
+
+const facets = await parties.companyFacets({ organizationId }).orThrow();
+const total = await parties.personCount({ organizationId }).orThrow();
+const one = await parties.companyById(first.items[0].id).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Merge duplicates
 
 `mergeCompanies(keep, drop)` and `mergePeople(keep, drop)` fill the kept record's empty fields from the dropped one, move the dropped record's links to it, and archive the dropped record with `merged_into` set. Merging needs `contacts.manage` (`PARTY_MERGE_INVALID` for records of two organizations, one record twice, or one already merged). In the same transaction the merge moves the dropped record's comments, attachments, reactions, tags, relations and guest grants to the kept record ([Merging subject records](/docs/blocks/sql#merging-subject-records)). The `company.merged` and `person.merged` events carry `mergedId`, so a consumer can move the app's own references, such as deals, to the kept record, or the app can add its own merge handler in SQL. A merge is written to the audit log.

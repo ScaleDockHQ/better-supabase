@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:842d12b241715478a79ce4968fb7911a02c09498872eb25c5843d09e4efc31ab
+-- @bsb-hash sha256:4d0920279d25811fa2b9ea6716aa60e8cc4a18ae8396ba890ad123f650c59955
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -473,6 +473,351 @@ $$;
 revoke execute on function "better_supabase"."list_contracts"(uuid, text, text, text, uuid, date, timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."list_contracts"(uuid, text, text, text, uuid, date, timestamptz, integer) to authenticated, service_role;
 
+-- The organization's contracts as a keyset page, newest first (ADR 1077). It
+-- runs as the caller. filters is { status, ownerId, counterpartyType,
+-- counterpartyId (each a value or a list), renewingBefore (a date: active
+-- contracts whose notice deadline falls on or before it), search (title,
+-- description), sort (createdAt, endsOn, startsOn, title), direction, facet,
+-- count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_contracts"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_contracts.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'ownerId') then
+      raise exception 'facet is one of status, ownerId' using errcode = '22023', hint = 'CONTRACT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'ownerId' then (coalesce(x."owner_id"::text, ''))::text end) as v
+      from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'endsOn', 'startsOn', 'title') then
+    raise exception 'sort is one of createdAt, endsOn, startsOn, title' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'counterpartyType', x."counterparty_type", 'counterpartyId', x."counterparty_id", 'ownerId', x."owner_id", 'status', x."status", 'value', x."value"::text, 'currency', x."currency", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'autoRenew', x."auto_renew", 'renewalMonths', x."renewal_months", 'noticeDays', x."notice_days", 'noticeDeadline', case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end, 'renewedCount', x."renewed_count", 'signatureRequestId', x."signature_request_id", 'signedAt', x."signed_at", 'terminatedAt', x."terminated_at", 'terminationReason', x."termination_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'counterpartyType', x."counterparty_type", 'counterpartyId', x."counterparty_id", 'ownerId', x."owner_id", 'status', x."status", 'value', x."value"::text, 'currency', x."currency", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'autoRenew', x."auto_renew", 'renewalMonths', x."renewal_months", 'noticeDays', x."notice_days", 'noticeDeadline', case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end, 'renewedCount', x."renewed_count", 'signatureRequestId', x."signature_request_id", 'signedAt', x."signed_at", 'terminatedAt', x."terminated_at", 'terminationReason', x."termination_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'counterpartyType', x."counterparty_type", 'counterpartyId', x."counterparty_id", 'ownerId', x."owner_id", 'status', x."status", 'value', x."value"::text, 'currency', x."currency", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'autoRenew', x."auto_renew", 'renewalMonths', x."renewal_months", 'noticeDays', x."notice_days", 'noticeDeadline', case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end, 'renewedCount', x."renewed_count", 'signatureRequestId', x."signature_request_id", 'signedAt', x."signed_at", 'terminatedAt', x."terminated_at", 'terminationReason', x."termination_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'counterpartyType', x."counterparty_type", 'counterpartyId', x."counterparty_id", 'ownerId', x."owner_id", 'status', x."status", 'value', x."value"::text, 'currency', x."currency", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'autoRenew', x."auto_renew", 'renewalMonths', x."renewal_months", 'noticeDays', x."notice_days", 'noticeDeadline', case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end, 'renewedCount', x."renewed_count", 'signatureRequestId', x."signature_request_id", 'signedAt', x."signed_at", 'terminatedAt', x."terminated_at", 'terminationReason', x."termination_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'endsOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'counterpartyType', x."counterparty_type", 'counterpartyId', x."counterparty_id", 'ownerId', x."owner_id", 'status', x."status", 'value', x."value"::text, 'currency', x."currency", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'autoRenew', x."auto_renew", 'renewalMonths', x."renewal_months", 'noticeDays', x."notice_days", 'noticeDeadline', case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end, 'renewedCount', x."renewed_count", 'signatureRequestId', x."signature_request_id", 'signedAt', x."signed_at", 'terminatedAt', x."terminated_at", 'terminationReason', x."termination_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((coalesce(x."ends_on", date '9999-12-31'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."ends_on", date '9999-12-31'), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."ends_on", date '9999-12-31') asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'endsOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'counterpartyType', x."counterparty_type", 'counterpartyId', x."counterparty_id", 'ownerId', x."owner_id", 'status', x."status", 'value', x."value"::text, 'currency', x."currency", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'autoRenew', x."auto_renew", 'renewalMonths', x."renewal_months", 'noticeDays', x."notice_days", 'noticeDeadline', case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end, 'renewedCount', x."renewed_count", 'signatureRequestId', x."signature_request_id", 'signedAt', x."signed_at", 'terminatedAt', x."terminated_at", 'terminationReason', x."termination_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((coalesce(x."ends_on", date '9999-12-31'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."ends_on", date '9999-12-31') <= (v_after ->> 0)::date and ((coalesce(x."ends_on", date '9999-12-31') < (v_after ->> 0)::date) or (coalesce(x."ends_on", date '9999-12-31') = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."ends_on", date '9999-12-31') desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startsOn' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'counterpartyType', x."counterparty_type", 'counterpartyId', x."counterparty_id", 'ownerId', x."owner_id", 'status', x."status", 'value', x."value"::text, 'currency', x."currency", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'autoRenew', x."auto_renew", 'renewalMonths', x."renewal_months", 'noticeDays', x."notice_days", 'noticeDeadline', case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end, 'renewedCount', x."renewed_count", 'signatureRequestId', x."signature_request_id", 'signedAt', x."signed_at", 'terminatedAt', x."terminated_at", 'terminationReason', x."termination_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((coalesce(x."starts_on", date '0001-01-01'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."starts_on", date '0001-01-01'), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."starts_on", date '0001-01-01') asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'startsOn' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'counterpartyType', x."counterparty_type", 'counterpartyId', x."counterparty_id", 'ownerId', x."owner_id", 'status', x."status", 'value', x."value"::text, 'currency', x."currency", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'autoRenew', x."auto_renew", 'renewalMonths', x."renewal_months", 'noticeDays', x."notice_days", 'noticeDeadline', case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end, 'renewedCount', x."renewed_count", 'signatureRequestId', x."signature_request_id", 'signedAt', x."signed_at", 'terminatedAt', x."terminated_at", 'terminationReason', x."termination_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((coalesce(x."starts_on", date '0001-01-01'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."starts_on", date '0001-01-01') <= (v_after ->> 0)::date and ((coalesce(x."starts_on", date '0001-01-01') < (v_after ->> 0)::date) or (coalesce(x."starts_on", date '0001-01-01') = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."starts_on", date '0001-01-01') desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'counterpartyType', x."counterparty_type", 'counterpartyId', x."counterparty_id", 'ownerId', x."owner_id", 'status', x."status", 'value', x."value"::text, 'currency', x."currency", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'autoRenew', x."auto_renew", 'renewalMonths', x."renewal_months", 'noticeDays', x."notice_days", 'noticeDeadline', case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end, 'renewedCount', x."renewed_count", 'signatureRequestId', x."signature_request_id", 'signedAt', x."signed_at", 'terminatedAt', x."terminated_at", 'terminationReason', x."termination_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."title") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'counterpartyType', x."counterparty_type", 'counterpartyId', x."counterparty_id", 'ownerId', x."owner_id", 'status', x."status", 'value', x."value"::text, 'currency', x."currency", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'autoRenew', x."auto_renew", 'renewalMonths', x."renewal_months", 'noticeDays', x."notice_days", 'noticeDeadline', case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end, 'renewedCount', x."renewed_count", 'signatureRequestId', x."signature_request_id", 'signedAt', x."signed_at", 'terminatedAt', x."terminated_at", 'terminationReason', x."termination_reason", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."title") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."contracts" x
+      where x."tenant_id" = page_contracts.tenant
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'counterpartyType' is not null and jsonb_typeof(v_filters -> 'counterpartyType') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyType') = 'array' and jsonb_array_length(v_filters -> 'counterpartyType') = 0)) or x."counterparty_type" = any((case when jsonb_typeof(v_filters -> 'counterpartyType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyType')) else array[v_filters ->> 'counterpartyType'] end)::text[]))
+        and (not (v_filters -> 'counterpartyId' is not null and jsonb_typeof(v_filters -> 'counterpartyId') <> 'null' and not (jsonb_typeof(v_filters -> 'counterpartyId') = 'array' and jsonb_array_length(v_filters -> 'counterpartyId') = 0)) or x."counterparty_id" = any((case when jsonb_typeof(v_filters -> 'counterpartyId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'counterpartyId')) else array[v_filters ->> 'counterpartyId'] end)::text[]))
+        and (not (v_filters -> 'renewingBefore' is not null and jsonb_typeof(v_filters -> 'renewingBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'renewingBefore') = 'array' and jsonb_array_length(v_filters -> 'renewingBefore') = 0)) or (x."status" = 'active' and case when x."ends_on" is null then null else x."ends_on" - x."notice_days" end <= (v_filters ->> 'renewingBefore')::date))
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_contracts"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_contracts"(uuid, jsonb) to authenticated, service_role;
+
 -- Renews or expires the active contracts that reached their end date: an
 -- auto-renewing contract moves ends_on by its renewal period, any other
 -- expires. Run it daily from a job; it returns the counts.
@@ -651,6 +996,245 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_contract_obligations"(uuid, uuid, uuid, boolean, date, integer) from public, anon;
 grant execute on function "better_supabase"."list_contract_obligations"(uuid, uuid, uuid, boolean, date, integer) to authenticated, service_role;
+
+-- The organization's contract obligations as a keyset page, the earliest due
+-- first (ADR 1077). It runs as the caller. filters is { contractId, ownerId,
+-- status (each a value or a list), dueBefore (a date), search (title,
+-- description), sort (dueOn, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_contract_obligations"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_contract_obligations.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'contractId') then
+      raise exception 'facet is one of status, contractId' using errcode = '22023', hint = 'CONTRACT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'contractId' then (x."contract_id"::text)::text end) as v
+      from "better_supabase"."contract_obligations" x
+      where x."tenant_id" = page_contract_obligations.tenant
+        and (not (v_filters -> 'contractId' is not null and jsonb_typeof(v_filters -> 'contractId') <> 'null' and not (jsonb_typeof(v_filters -> 'contractId') = 'array' and jsonb_array_length(v_filters -> 'contractId') = 0)) or x."contract_id" = any((case when jsonb_typeof(v_filters -> 'contractId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contractId')) else array[v_filters ->> 'contractId'] end)::uuid[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'dueBefore' is not null and jsonb_typeof(v_filters -> 'dueBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'dueBefore') = 'array' and jsonb_array_length(v_filters -> 'dueBefore') = 0)) or x."due_on" <= (v_filters ->> 'dueBefore')::date)
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."contract_obligations" x
+      where x."tenant_id" = page_contract_obligations.tenant
+        and (not (v_filters -> 'contractId' is not null and jsonb_typeof(v_filters -> 'contractId') <> 'null' and not (jsonb_typeof(v_filters -> 'contractId') = 'array' and jsonb_array_length(v_filters -> 'contractId') = 0)) or x."contract_id" = any((case when jsonb_typeof(v_filters -> 'contractId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contractId')) else array[v_filters ->> 'contractId'] end)::uuid[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'dueBefore' is not null and jsonb_typeof(v_filters -> 'dueBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'dueBefore') = 'array' and jsonb_array_length(v_filters -> 'dueBefore') = 0)) or x."due_on" <= (v_filters ->> 'dueBefore')::date)
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('dueOn', 'createdAt') then
+    raise exception 'sort is one of dueOn, createdAt' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'contractId', x."contract_id", 'title', x."title", 'description', x."description", 'dueOn', x."due_on", 'ownerId', x."owner_id", 'status', x."status", 'overdue', (x."status" = 'open' and x."due_on" < current_date), 'completedAt', x."completed_at", 'completedBy', x."completed_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", date '9999-12-31'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contract_obligations" x
+      where x."tenant_id" = page_contract_obligations.tenant
+        and (not (v_filters -> 'contractId' is not null and jsonb_typeof(v_filters -> 'contractId') <> 'null' and not (jsonb_typeof(v_filters -> 'contractId') = 'array' and jsonb_array_length(v_filters -> 'contractId') = 0)) or x."contract_id" = any((case when jsonb_typeof(v_filters -> 'contractId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contractId')) else array[v_filters ->> 'contractId'] end)::uuid[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'dueBefore' is not null and jsonb_typeof(v_filters -> 'dueBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'dueBefore') = 'array' and jsonb_array_length(v_filters -> 'dueBefore') = 0)) or x."due_on" <= (v_filters ->> 'dueBefore')::date)
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", date '9999-12-31'), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."due_on", date '9999-12-31') asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'contractId', x."contract_id", 'title', x."title", 'description', x."description", 'dueOn', x."due_on", 'ownerId', x."owner_id", 'status', x."status", 'overdue', (x."status" = 'open' and x."due_on" < current_date), 'completedAt', x."completed_at", 'completedBy', x."completed_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", date '9999-12-31'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contract_obligations" x
+      where x."tenant_id" = page_contract_obligations.tenant
+        and (not (v_filters -> 'contractId' is not null and jsonb_typeof(v_filters -> 'contractId') <> 'null' and not (jsonb_typeof(v_filters -> 'contractId') = 'array' and jsonb_array_length(v_filters -> 'contractId') = 0)) or x."contract_id" = any((case when jsonb_typeof(v_filters -> 'contractId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contractId')) else array[v_filters ->> 'contractId'] end)::uuid[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'dueBefore' is not null and jsonb_typeof(v_filters -> 'dueBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'dueBefore') = 'array' and jsonb_array_length(v_filters -> 'dueBefore') = 0)) or x."due_on" <= (v_filters ->> 'dueBefore')::date)
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", date '9999-12-31') <= (v_after ->> 0)::date and ((coalesce(x."due_on", date '9999-12-31') < (v_after ->> 0)::date) or (coalesce(x."due_on", date '9999-12-31') = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."due_on", date '9999-12-31') desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'contractId', x."contract_id", 'title', x."title", 'description', x."description", 'dueOn', x."due_on", 'ownerId', x."owner_id", 'status', x."status", 'overdue', (x."status" = 'open' and x."due_on" < current_date), 'completedAt', x."completed_at", 'completedBy', x."completed_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", date '9999-12-31'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contract_obligations" x
+      where x."tenant_id" = page_contract_obligations.tenant
+        and (not (v_filters -> 'contractId' is not null and jsonb_typeof(v_filters -> 'contractId') <> 'null' and not (jsonb_typeof(v_filters -> 'contractId') = 'array' and jsonb_array_length(v_filters -> 'contractId') = 0)) or x."contract_id" = any((case when jsonb_typeof(v_filters -> 'contractId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contractId')) else array[v_filters ->> 'contractId'] end)::uuid[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'dueBefore' is not null and jsonb_typeof(v_filters -> 'dueBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'dueBefore') = 'array' and jsonb_array_length(v_filters -> 'dueBefore') = 0)) or x."due_on" <= (v_filters ->> 'dueBefore')::date)
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", date '9999-12-31'), x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by coalesce(x."due_on", date '9999-12-31') asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'dueOn' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'contractId', x."contract_id", 'title', x."title", 'description', x."description", 'dueOn', x."due_on", 'ownerId', x."owner_id", 'status', x."status", 'overdue', (x."status" = 'open' and x."due_on" < current_date), 'completedAt', x."completed_at", 'completedBy', x."completed_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((coalesce(x."due_on", date '9999-12-31'))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contract_obligations" x
+      where x."tenant_id" = page_contract_obligations.tenant
+        and (not (v_filters -> 'contractId' is not null and jsonb_typeof(v_filters -> 'contractId') <> 'null' and not (jsonb_typeof(v_filters -> 'contractId') = 'array' and jsonb_array_length(v_filters -> 'contractId') = 0)) or x."contract_id" = any((case when jsonb_typeof(v_filters -> 'contractId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contractId')) else array[v_filters ->> 'contractId'] end)::uuid[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'dueBefore' is not null and jsonb_typeof(v_filters -> 'dueBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'dueBefore') = 'array' and jsonb_array_length(v_filters -> 'dueBefore') = 0)) or x."due_on" <= (v_filters ->> 'dueBefore')::date)
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (coalesce(x."due_on", date '9999-12-31') <= (v_after ->> 0)::date and ((coalesce(x."due_on", date '9999-12-31') < (v_after ->> 0)::date) or (coalesce(x."due_on", date '9999-12-31') = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."due_on", date '9999-12-31') desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'contractId', x."contract_id", 'title', x."title", 'description', x."description", 'dueOn', x."due_on", 'ownerId', x."owner_id", 'status', x."status", 'overdue', (x."status" = 'open' and x."due_on" < current_date), 'completedAt', x."completed_at", 'completedBy', x."completed_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contract_obligations" x
+      where x."tenant_id" = page_contract_obligations.tenant
+        and (not (v_filters -> 'contractId' is not null and jsonb_typeof(v_filters -> 'contractId') <> 'null' and not (jsonb_typeof(v_filters -> 'contractId') = 'array' and jsonb_array_length(v_filters -> 'contractId') = 0)) or x."contract_id" = any((case when jsonb_typeof(v_filters -> 'contractId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contractId')) else array[v_filters ->> 'contractId'] end)::uuid[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'dueBefore' is not null and jsonb_typeof(v_filters -> 'dueBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'dueBefore') = 'array' and jsonb_array_length(v_filters -> 'dueBefore') = 0)) or x."due_on" <= (v_filters ->> 'dueBefore')::date)
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CONTRACT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'contractId', x."contract_id", 'title', x."title", 'description', x."description", 'dueOn', x."due_on", 'ownerId', x."owner_id", 'status', x."status", 'overdue', (x."status" = 'open' and x."due_on" < current_date), 'completedAt', x."completed_at", 'completedBy', x."completed_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."contract_obligations" x
+      where x."tenant_id" = page_contract_obligations.tenant
+        and (not (v_filters -> 'contractId' is not null and jsonb_typeof(v_filters -> 'contractId') <> 'null' and not (jsonb_typeof(v_filters -> 'contractId') = 'array' and jsonb_array_length(v_filters -> 'contractId') = 0)) or x."contract_id" = any((case when jsonb_typeof(v_filters -> 'contractId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contractId')) else array[v_filters ->> 'contractId'] end)::uuid[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'dueBefore' is not null and jsonb_typeof(v_filters -> 'dueBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'dueBefore') = 'array' and jsonb_array_length(v_filters -> 'dueBefore') = 0)) or x."due_on" <= (v_filters ->> 'dueBefore')::date)
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."contract_obligations" x
+      where x."tenant_id" = page_contract_obligations.tenant
+        and (not (v_filters -> 'contractId' is not null and jsonb_typeof(v_filters -> 'contractId') <> 'null' and not (jsonb_typeof(v_filters -> 'contractId') = 'array' and jsonb_array_length(v_filters -> 'contractId') = 0)) or x."contract_id" = any((case when jsonb_typeof(v_filters -> 'contractId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'contractId')) else array[v_filters ->> 'contractId'] end)::uuid[]))
+        and (not (v_filters -> 'ownerId' is not null and jsonb_typeof(v_filters -> 'ownerId') <> 'null' and not (jsonb_typeof(v_filters -> 'ownerId') = 'array' and jsonb_array_length(v_filters -> 'ownerId') = 0)) or x."owner_id"::text = any((case when jsonb_typeof(v_filters -> 'ownerId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'ownerId')) else array[v_filters ->> 'ownerId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'dueBefore' is not null and jsonb_typeof(v_filters -> 'dueBefore') <> 'null' and not (jsonb_typeof(v_filters -> 'dueBefore') = 'array' and jsonb_array_length(v_filters -> 'dueBefore') = 0)) or x."due_on" <= (v_filters ->> 'dueBefore')::date)
+        and (v_search is null or x."title" ilike v_search or x."description" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_contract_obligations"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_contract_obligations"(uuid, jsonb) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
