@@ -1,3 +1,4 @@
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
@@ -6,6 +7,7 @@ import type { AiAccess } from "../ai-access.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { DenyTopic, PiiKind } from "./heuristics.ts";
 
+import { pageRowsOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { consoleLogger } from "../../core/logger.ts";
@@ -157,6 +159,18 @@ export interface AiGuardrails {
         readonly organizationId?: string;
       },
     ): AsyncResult<GuardrailPolicy | undefined>;
+    /**
+     * One page of the policies an organization saved (the system's without
+     * one), ordered by agent and stage, enabled or not. It does not resolve the
+     * fallback `get` applies. `limit` defaults to 50 and is capped at 200; pass
+     * `nextCursor` as `after`.
+     */
+    list(options?: {
+      readonly organizationId?: string;
+      readonly agent?: string;
+      readonly limit?: number;
+      readonly after?: readonly string[];
+    }): AsyncResult<ListPage<GuardrailPolicy>>;
   };
   readonly decisions: {
     /** The decision log, newest first. */
@@ -389,6 +403,22 @@ export function createAiGuardrails(options: AiGuardrailsOptions): AiGuardrails {
           (value) =>
             value === null || value === undefined ? undefined : policyOf(value),
         ),
+      list: (listOptions = {}) =>
+        call(
+          "list_guardrail_policies",
+          {
+            tenant: listOptions.organizationId,
+            agent: listOptions.agent,
+            after_agent: listOptions.after?.[0],
+            after_stage: listOptions.after?.[1],
+            max_rows: listOptions.limit,
+          },
+          (value) => {
+            const page = pageRowsOf(value, "list_guardrail_policies");
+
+            return { ...page, items: page.items.map(policyOf) };
+          },
+        ),
     },
     decisions: {
       list: (listOptions = {}) =>
@@ -473,6 +503,13 @@ export function createAiGuardrails(options: AiGuardrailsOptions): AiGuardrails {
         const denied = accessDenied(access, [input.organizationId]);
 
         return denied ? AsyncResult.err(denied) : client.policies.get(input);
+      },
+      list: (listOptions) => {
+        const denied = accessDenied(access, [listOptions?.organizationId]);
+
+        return denied
+          ? AsyncResult.err(denied)
+          : client.policies.list(listOptions);
       },
     },
     decisions: {

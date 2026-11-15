@@ -1,3 +1,4 @@
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
@@ -7,6 +8,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 import type { PromptfooConfig } from "./promptfoo.ts";
 import type { EvalScorer, ScorerDescription } from "./scorers.ts";
 
+import { pageRowsOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -33,6 +35,14 @@ export interface EvalDataset {
   readonly name: string;
   readonly description: string | undefined;
   readonly createdAt: Temporal.Instant;
+}
+
+/** A dataset with how much it holds, from `datasets.list`. */
+export interface EvalDatasetSummary extends EvalDataset {
+  readonly itemCount: number;
+  readonly runCount: number;
+  /** When the latest run started; `undefined` for a dataset never run. */
+  readonly lastRunAt: Temporal.Instant | undefined;
 }
 
 export interface EvalItem {
@@ -161,6 +171,16 @@ export interface AiEvals {
     ): AsyncResult<EvalDataset>;
     /** The dataset, or `undefined` when there is none. */
     get(datasetId: string): AsyncResult<EvalDataset | undefined>;
+    /**
+     * One page of an organization's datasets (the system's without one), in
+     * name order, with item and run counts. `limit` defaults to 50 and is
+     * capped at 200; pass `nextCursor` as `after`.
+     */
+    list(options?: {
+      readonly organizationId?: string;
+      readonly limit?: number;
+      readonly after?: readonly string[];
+    }): AsyncResult<ListPage<EvalDatasetSummary>>;
   };
   readonly items: {
     /** Adds items and returns how many. */
@@ -263,6 +283,17 @@ function datasetOf(value: unknown): EvalDataset {
     name: textOf(row["name"]),
     description: optionalText(row["description"]),
     createdAt: instantOf(row["created_at"]),
+  };
+}
+
+function datasetSummaryOf(value: unknown): EvalDatasetSummary {
+  const row = recordOf(value, "list_eval_datasets");
+
+  return {
+    ...datasetOf(value),
+    itemCount: Number(row["item_count"]),
+    runCount: Number(row["run_count"]),
+    lastRunAt: nullableInstant(row["last_run_at"]) ?? undefined,
   };
 }
 
@@ -483,6 +514,20 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
         call("get_eval_dataset", { dataset: datasetId }, (value) =>
           value === null || value === undefined ? undefined : datasetOf(value),
         ),
+      list: (listOptions = {}) =>
+        call(
+          "list_eval_datasets",
+          {
+            tenant: listOptions.organizationId,
+            after: listOptions.after?.[0],
+            max_rows: listOptions.limit,
+          },
+          (value) => {
+            const page = pageRowsOf(value, "list_eval_datasets");
+
+            return { ...page, items: page.items.map(datasetSummaryOf) };
+          },
+        ),
     },
     items: {
       add: ({ datasetId, items }) =>
@@ -672,6 +717,13 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
       },
       get: (datasetId) =>
         within({ datasets: [datasetId] }, () => client.datasets.get(datasetId)),
+      list: (listOptions) => {
+        const denied = accessDenied(access, [listOptions?.organizationId]);
+
+        return denied
+          ? AsyncResult.err(denied)
+          : client.datasets.list(listOptions);
+      },
     },
     items: {
       add: (input) =>

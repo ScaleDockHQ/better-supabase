@@ -223,7 +223,58 @@ begin
   );
 end;
 $$;
-${serviceGrant(`${fn("list_prompt_versions")}(text, ${id})`)}`;
+${serviceGrant(`${fn("list_prompt_versions")}(text, ${id})`)}
+
+-- One page of the prompt names a tenant (or the system when tenant is null)
+-- has saved, in name order. Each item has the latest version, how many
+-- versions exist, the labels with the version each points at, and when the
+-- latest version was saved. after is the last name of the previous page. It
+-- runs as invoker: only the service role may call it and it reads no template.
+create or replace function ${fn("list_prompts")}(tenant ${id} default null, after text default null, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_size integer := least(greatest(coalesce(list_prompts.max_rows, 50), 1), 200);
+  v_items jsonb;
+  v_more boolean;
+begin
+  select coalesce(jsonb_agg(n.item order by n.name), '[]'::jsonb) into v_items
+  from (
+    select x.${v("name")} as name, jsonb_build_object(
+      'name', x.${v("name")},
+      'tenant_id', list_prompts.tenant,
+      'latest_version', max(x.${v("version")}),
+      'version_count', count(*),
+      'updated_at', ${hasCreated ? `max(x.${v("createdAt")})` : "null"},
+      'labels', coalesce((
+        select jsonb_object_agg(y.${l("label")}, y.${l("version")}) from ${labels} y
+        where ${key("y", l("tenant"))} = coalesce(list_prompts.tenant::text, '') and y.${l("name")} = x.${v("name")}
+      ), '{}'::jsonb)
+    ) as item
+    from ${versions} x
+    where ${key("x", v("tenant"))} = coalesce(list_prompts.tenant::text, '')
+      and (list_prompts.after is null or x.${v("name")} > list_prompts.after)
+    group by x.${v("name")}
+    order by x.${v("name")}
+    limit v_size + 1
+  ) n;
+  v_more := jsonb_array_length(v_items) > v_size;
+  if v_more then
+    v_items := v_items - v_size;
+  end if;
+  return jsonb_build_object(
+    'items', v_items,
+    'hasMore', v_more,
+    'nextCursor', case when v_more then jsonb_build_array(v_items -> (v_size - 1) ->> 'name') else null end
+  );
+end;
+$$;
+${serviceGrant(`${fn("list_prompts")}(${id}, text, integer)`)}`;
 }
 
 export const PROMPTS: BlockSqlDefinition = {

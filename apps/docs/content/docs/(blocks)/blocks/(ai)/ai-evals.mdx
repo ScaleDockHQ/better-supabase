@@ -52,6 +52,21 @@ the reply as the expected output. It reads thumbs down by default (`rating: -1`)
 skips replies already in the dataset and only takes the dataset tenant's chats.
 Without `ai-chat` it fails with `AI_EVAL_FEEDBACK_UNAVAILABLE`.
 
+## List the datasets
+
+```ts
+const page = await evals.datasets.list({ organizationId }).orThrow();
+
+for (const dataset of page.items) {
+  // dataset.name, dataset.itemCount, dataset.runCount, dataset.lastRunAt
+}
+```
+
+`datasets.list` returns one page of the organization's datasets in name order,
+each with its item count, run count and the start of its latest run
+(`lastRunAt` is `undefined` for a dataset never run). `limit` defaults to 50 and
+is at most 200. Pass the page's `nextCursor` as `after`.
+
 ## Run
 
 ```ts
@@ -130,6 +145,7 @@ one assertion per scorer (`equals`, `is-json` and `llm-rubric`). Write it to
 | ----------------------------------------------------------------------- | ------- |
 | `create_eval_dataset(name, tenant, description)`                        | service |
 | `get_eval_dataset(dataset)`                                             | service |
+| `list_eval_datasets(tenant, after, max_rows)`                           | service |
 | `add_eval_items(dataset, items)`                                        | service |
 | `add_eval_items_from_feedback(dataset, rating, since)`                  | service |
 | `list_eval_items(dataset, after, pending_for, limit)`                   | service |
