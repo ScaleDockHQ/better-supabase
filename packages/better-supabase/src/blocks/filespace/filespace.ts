@@ -1,4 +1,5 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BulkCallOptions, BulkReport } from "../../core/bulk.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockContext } from "../create-blocks.ts";
@@ -14,6 +15,7 @@ import type { CreatedShareLink } from "../share-links/index.ts";
 import type { FilespaceParts } from "./manifest.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { bulkItems } from "../../core/bulk.ts";
 import { AsyncResult as Async } from "../../core/result.ts";
 
 /**
@@ -21,6 +23,12 @@ import { AsyncResult as Async } from "../../core/result.ts";
  * changes it.
  */
 const DRIVE_SUBJECT = "drive_node";
+
+/** One principal of `filespace.bulkShare`. */
+export interface FilespacePrincipalGrant {
+  readonly principal: DrivePrincipal;
+  readonly role: string;
+}
 
 /** The helpers `filespace` adds over `drive` and `share-links`. */
 export interface Filespace {
@@ -35,8 +43,24 @@ export interface Filespace {
     send: (upload: DriveUpload) => PromiseLike<void>;
   }): AsyncResult<DriveNode>;
   /**
+   * Shares one node with each principal and reports per principal (ADR 1075):
+   * the report names a principal as `type:id`, so a refused principal lands in
+   * `failed` and the others still run. Takes at most 500 principals.
+   */
+  bulkShare(
+    input: {
+      id: string;
+      principals: readonly FilespacePrincipalGrant[];
+      expiresAt?: Temporal.Instant | undefined;
+    },
+    options?: BulkCallOptions,
+  ): AsyncResult<BulkReport>;
+  /**
    * Shares one node with each principal. A grant is idempotent, so a retry
    * finishes the rest.
+   *
+   * @deprecated Use `bulkShare`, which reports per principal and does not stop
+   * at the first failure. Removed in 0.70.
    */
   shareMany(input: {
     id: string;
@@ -87,6 +111,23 @@ export function createFilespace(options: FilespaceOptions): Filespace {
         }),
       ),
 
+    bulkShare: ({ id, principals, expiresAt }, options) =>
+      bulkItems(
+        principals.map((grant) => ({
+          id: `${grant.principal.type}:${grant.principal.id}`,
+          ...grant,
+        })),
+        ({ principal, role }) =>
+          drive.share({
+            id,
+            principal,
+            role,
+            ...(expiresAt === undefined ? {} : { expiresAt }),
+          }),
+        options,
+      ),
+
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1075)
     shareMany: ({ id, principals, expiresAt }) =>
       Async.from(async () => {
         const grants: DriveGrant[] = [];
