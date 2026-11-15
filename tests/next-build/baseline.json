@@ -255,7 +255,7 @@
     "brotli": 430550
   },
   "/[locale]/(app)/crm/companies/[id]/page": {
-    "raw": 1464948,
+    "raw": 1467976,
     "gzip": 473410,
     "brotli": 413678
   },
@@ -265,7 +265,7 @@
     "brotli": 429752
   },
   "/[locale]/(app)/crm/contacts/[id]/page": {
-    "raw": 1464948,
+    "raw": 1467976,
     "gzip": 473410,
     "brotli": 413678
   },
@@ -285,7 +285,7 @@
     "brotli": 429346
   },
   "/[locale]/(app)/crm/deals/[id]/page": {
-    "raw": 1585487,
+    "raw": 1588515,
     "gzip": 513139,
     "brotli": 448331
   },
@@ -380,7 +380,7 @@
     "brotli": 429346
   },
   "/[locale]/(app)/customers/[id]/page": {
-    "raw": 1509525,
+    "raw": 1512333,
     "gzip": 489354,
     "brotli": 427411
   },
@@ -765,7 +765,7 @@
     "brotli": 392336
   },
   "/[locale]/(app)/projects/[id]/page": {
-    "raw": 1422822,
+    "raw": 1423042,
     "gzip": 459524,
     "brotli": 401921
   },
@@ -1085,9 +1085,9 @@
     "brotli": 433521
   },
   "/[locale]/(app)/shop/inventory/[variantId]/page": {
-    "raw": 1383773,
-    "gzip": 444216,
-    "brotli": 388458
+    "raw": 1389006,
+    "gzip": 446885,
+    "brotli": 390800
   },
   "/[locale]/(app)/shop/inventory/lots/page": {
     "raw": 1532505,
