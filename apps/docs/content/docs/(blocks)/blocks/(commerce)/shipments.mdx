@@ -371,6 +371,10 @@ const total = await shipments
 
 A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter or facet the entity does not declare returns an `invalid_input` error. See [the list contract](/docs/extending/blocks#the-list-contract) for the options.
 
+### Searching
+
+`shipmentPage` takes `q`, which searches the shipment reference and tracking number (ADR 1077).
+
 ## Without the client
 
 `db.shipments` is this client. Code that does not go through `bsb.db()` builds it with a transport and an organization id:

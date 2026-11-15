@@ -68,6 +68,26 @@ describe.skipIf(!live)("tills", () => {
         .createTill({ name: "Front", currency: "EUR", accountId: cash.id })
         .orThrow();
 
+      const tillPage = await tills
+        .tillPage({
+          filters: { currency: ["EUR"] },
+          sort: { by: "name" },
+          limit: 10,
+        })
+        .orThrow();
+
+      expect(tillPage.items.map((row) => row.id)).toEqual([till.id]);
+      expect(
+        await tills.tillCount({ filters: { currency: ["USD"] } }).orThrow(),
+      ).toMatchObject({ value: 0 });
+      expect(
+        await tills.tillFacets({ facets: ["currency"] }).orThrow(),
+      ).toHaveLength(1);
+      expect((await tills.getTill(till.id).orThrow()).id).toBe(till.id);
+      expect(
+        (await tills.getTill("00000000-0000-4000-8000-00000000dead")).ok,
+      ).toBe(false);
+
       const session = await tills
         .openSession({ tillId: till.id, openingFloat: eur(10_000n) })
         .orThrow();

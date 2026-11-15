@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:ee06433ec47b7b0b80d5e2560afdca8e5bf2fa69078e224ad371581aa6e7e7ed
+-- @bsb-hash sha256:69c96da36d323c9989dc5aa9b399b967c727867ed6855a9d875e607a38ab0587
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -328,6 +328,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -358,6 +360,7 @@ begin
       from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -373,6 +376,7 @@ begin
       select 1 from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -397,6 +401,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -416,6 +421,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -435,6 +441,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -454,6 +461,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -473,6 +481,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -492,6 +501,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -506,6 +516,7 @@ begin
       select 1 from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -1099,7 +1110,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:a64fc8f00f0f326b5220fc727352c1e9157353735757d3b5d770123284ee601a
+-- @bsb-hash sha256:11beff721bbecc261da4f013e36f7c47c6021ff773b887f17d6b7a9754c4b02e
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1436,6 +1447,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -1466,6 +1479,7 @@ begin
       from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -1481,6 +1495,7 @@ begin
       select 1 from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -1505,6 +1520,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1524,6 +1540,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1543,6 +1560,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1562,6 +1580,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1581,6 +1600,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1600,6 +1620,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -1614,6 +1635,7 @@ begin
       select 1 from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -2288,7 +2310,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:bbcef92fed39613caab2420ae3c04e2d0564e50b8b76fc25b2b478c7442882a7
+-- @bsb-hash sha256:7481d1ce1fdc652a7ed1243816b94e9915c52ec223449fa6a7c71d68d4aaca68
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2620,6 +2642,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -2650,6 +2674,7 @@ begin
       from "app_private"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -2665,6 +2690,7 @@ begin
       select 1 from "app_private"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -2689,6 +2715,7 @@ begin
       select * from "app_private"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2708,6 +2735,7 @@ begin
       select * from "app_private"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2727,6 +2755,7 @@ begin
       select * from "app_private"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2746,6 +2775,7 @@ begin
       select * from "app_private"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2765,6 +2795,7 @@ begin
       select * from "app_private"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2784,6 +2815,7 @@ begin
       select * from "app_private"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -2798,6 +2830,7 @@ begin
       select 1 from "app_private"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -3391,7 +3424,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:92c59daa4179bb7fa5cb171539f058b1664c9a159659d10555158f2c82404d73
+-- @bsb-hash sha256:c84b7c84f1cb0ec62d78836747203eebba3798bcd640d331f76afaec1b59c655
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3718,6 +3751,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -3748,6 +3783,7 @@ begin
       from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -3763,6 +3799,7 @@ begin
       select 1 from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -3787,6 +3824,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3806,6 +3844,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3825,6 +3864,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3844,6 +3884,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3863,6 +3904,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3882,6 +3924,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -3896,6 +3939,7 @@ begin
       select 1 from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -4613,7 +4657,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:e58a29c0790daf2cf05e9069cf7f5f7b47c7ed73839409e074d21854430dab9e
+-- @bsb-hash sha256:e43f97b4e55f63c630845189436883d8bbae89b17cb129ad3e874ba8c5dfa106
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4930,6 +4974,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -4960,6 +5006,7 @@ begin
       from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -4975,6 +5022,7 @@ begin
       select 1 from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -4999,6 +5047,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5018,6 +5067,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5037,6 +5087,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5056,6 +5107,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5075,6 +5127,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5094,6 +5147,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -5108,6 +5162,7 @@ begin
       select 1 from "better_supabase"."rfqs" x
       where x."tenant_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -5701,7 +5756,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_168_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:4b2d0f7e99eb11c05b2778bd6c7408fd4cda4c8b84b66f54203f4c66a67d70c5
+-- @bsb-hash sha256:d49ede200a30ea606ffcd67b38fda84fbd11b62f9d15087b16619a99f9dfe2e9
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6028,6 +6083,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -6058,6 +6115,7 @@ begin
       from "better_supabase"."rfqs" x
       where x."org_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -6073,6 +6131,7 @@ begin
       select 1 from "better_supabase"."rfqs" x
       where x."org_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -6097,6 +6156,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."org_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -6116,6 +6176,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."org_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -6135,6 +6196,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."org_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
       order by x."sequence" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -6154,6 +6216,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."org_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (x."sequence" <= (v_after ->> 0)::bigint and ((x."sequence" < (v_after ->> 0)::bigint) or (x."sequence" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
       order by x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -6173,6 +6236,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."org_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) >= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) > (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) asc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -6192,6 +6256,7 @@ begin
       select * from "better_supabase"."rfqs" x
       where x."org_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
         and (v_after is null or (coalesce(x."due_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."due_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" < (v_after ->> 1)::bigint) or (coalesce(x."due_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."sequence" = (v_after ->> 1)::bigint and x."id" > (v_after ->> 2)::uuid))))
       order by coalesce(x."due_at", 'infinity'::timestamptz) desc, x."sequence" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -6206,6 +6271,7 @@ begin
       select 1 from "better_supabase"."rfqs" x
       where x."org_id" = list_rfqs.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."number" ilike v_search or x."title" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;

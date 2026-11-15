@@ -538,6 +538,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "activate_bom", args: ["uuid"], returns: "jsonb" },
     { name: "get_bom", args: ["uuid"], returns: "jsonb" },
     { name: "list_boms", args: ["{id}", "uuid"], returns: "jsonb" },
+    { name: "page_boms", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "explode_bom", args: ["uuid", "numeric"], returns: "jsonb" },
     { name: "bom_where_used", args: ["uuid"], returns: "jsonb" },
     {
@@ -546,6 +547,8 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "list_work_centers", args: ["{id}"], returns: "jsonb" },
+    { name: "page_work_centers", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_work_center", args: ["uuid"], returns: "jsonb" },
     {
       name: "create_production_order",
       args: ["{id}", "jsonb"],

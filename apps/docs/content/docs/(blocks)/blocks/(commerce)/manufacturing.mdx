@@ -300,6 +300,10 @@ const total = await manufacturing
 
 A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter or facet the entity does not declare returns an `invalid_input` error. See [the list contract](/docs/extending/blocks#the-list-contract) for the options.
 
+### Paging bills and work centers
+
+`listBoms` and `workCenters` are deprecated in favor of `bomPage` and `workCenterPage` (ADR 1077). `bomPage` sorts by `variant` (the default), `createdAt` or `activatedAt`, filters by `variantId` and `status`, facets by `status` and searches the note. `workCenterPage` sorts by `name` (the default) or `createdAt`, filters by `currency` and `includeArchived: ["true"]`, facets by `currency` and searches the name. Each has a `Facets` and a `Count` method, and `getBom` and `getWorkCenter` return one row or a `not_found` error. `orderPage` also takes `q` over the production order number and note. The SQL functions are `page_boms` and `page_work_centers`.
+
 ## Without the client
 
 `db.manufacturing` is this client. Code that does not go through `bsb.db()`

@@ -5,6 +5,7 @@ import { defineBlock } from "../define-block.ts";
 import { maintenanceEvents } from "./events.ts";
 import {
   maintenanceCalibrationListSurface,
+  maintenanceMeterListSurface,
   maintenancePlanListSurface,
 } from "./lists.ts";
 import { createMaintenance } from "./maintenance.ts";
@@ -42,7 +43,11 @@ export const maintenanceBlock: BlockOf<
       },
     },
     maintenance_plan_part: { mutability: "read-only" },
-    maintenance_meter: { mutability: "append-only", emits: { create: false } },
+    maintenance_meter: {
+      ...maintenanceMeterListSurface,
+      mutability: "append-only",
+      emits: { create: false },
+    },
     maintenance_meter_reading: {
       mutability: "append-only",
       emits: { create: true },

@@ -14,6 +14,7 @@ import type {
 } from "../../core/route-optimizer.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { foundRow } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { entityList } from "../../core/entity-list.ts";
@@ -35,7 +36,12 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
-import { pickListListSurface } from "./lists.ts";
+import {
+  countPlanListSurface,
+  pickListListSurface,
+  pickWaveListSurface,
+  putawayRuleListSurface,
+} from "./lists.ts";
 
 /** Where a pick wave stands. */
 export type PickWaveStatus = (typeof PICK_WAVE_STATUSES)[number];
@@ -357,7 +363,27 @@ export interface Warehouse {
   pickListFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
   /** How many of pick lists match the page's filters. */
   pickListCount(options?: CountOptions): AsyncResult<Count>;
+  /**
+   * Pick waves, newest first.
+   *
+   * @deprecated Use `pickWavePage`, which pages by keyset and takes `q`,
+   * `sort` and array filters. The alias stays until 0.70 (ADR 1077).
+   */
   listPickWaves(): AsyncResult<readonly PickWave[]>;
+  /**
+   * One keyset page of pick waves, newest first unless `sort` says otherwise,
+   * with `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  pickWavePage(options?: PageOptions): AsyncResult<ListPage<PickWave>>;
+  /**
+   * The values of each facet of pick waves and their counts, under the page's
+   * filters.
+   */
+  pickWaveFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many pick waves match the page's filters. */
+  pickWaveCount(options?: CountOptions): AsyncResult<Count>;
+  /** One pick wave, or a `not_found` error; needs `warehouse.read`. */
+  getPickWave(waveId: string): AsyncResult<PickWave>;
   /**
    * Creates a putaway rule, or changes the one named by `input.id`; needs
    * `warehouse.manage`.
@@ -365,10 +391,32 @@ export interface Warehouse {
   savePutawayRule(input: PutawayRuleInput): AsyncResult<PutawayRule>;
   /** `false` when the rule was already gone. */
   deletePutawayRule(ruleId: string): AsyncResult<boolean>;
+  /**
+   * Putaway rules, lowest priority first.
+   *
+   * @deprecated Use `putawayRulePage`, which pages by keyset and takes
+   * `sort` and array filters. The alias stays until 0.70 (ADR 1077).
+   */
   listPutawayRules(options?: {
     readonly locationId?: string;
     readonly variantId?: string;
   }): AsyncResult<readonly PutawayRule[]>;
+  /**
+   * One keyset page of putaway rules, lowest priority first unless `sort` says
+   * otherwise, with `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  putawayRulePage(options?: PageOptions): AsyncResult<ListPage<PutawayRule>>;
+  /**
+   * The values of each facet of putaway rules and their counts, under the
+   * page's filters.
+   */
+  putawayRuleFacets(
+    options?: FacetOptions,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many putaway rules match the page's filters. */
+  putawayRuleCount(options?: CountOptions): AsyncResult<Count>;
+  /** One putaway rule, or a `not_found` error; needs `warehouse.read`. */
+  getPutawayRule(ruleId: string): AsyncResult<PutawayRule>;
   /** Sets a bin's walk rank and capacity; needs `warehouse.manage`. */
   saveBinSlot(
     input: BinSlotInput,
@@ -418,7 +466,27 @@ export interface Warehouse {
   ): AsyncResult<OptimizedPickRoute>;
   /** Creates a cycle count plan; needs `warehouse.manage`. */
   createCountPlan(input: CountPlanInput): AsyncResult<CountPlan>;
+  /**
+   * Count plans by next run.
+   *
+   * @deprecated Use `countPlanPage`, which pages by keyset and takes `q`,
+   * `sort` and array filters. The alias stays until 0.70 (ADR 1077).
+   */
   listCountPlans(): AsyncResult<readonly CountPlan[]>;
+  /**
+   * One keyset page of count plans, by next run unless `sort` says otherwise,
+   * with `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  countPlanPage(options?: PageOptions): AsyncResult<ListPage<CountPlan>>;
+  /**
+   * The values of each facet of count plans and their counts, under the page's
+   * filters.
+   */
+  countPlanFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many count plans match the page's filters. */
+  countPlanCount(options?: CountOptions): AsyncResult<Count>;
+  /** One count plan, or a `not_found` error; needs `warehouse.read`. */
+  getCountPlan(planId: string): AsyncResult<CountPlan>;
   /** Opens the plan's count now. Also needs `inventory.manage`. */
   runCountPlan(planId: string): AsyncResult<CountPlan>;
   /** Opens the count of every plan that is due; for a daily job. */
@@ -660,6 +728,33 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
     rowOf: listOf,
   });
 
+  const waves = entityList({
+    entity: "pick_wave",
+    surface: pickWaveListSurface,
+    call,
+    tenant,
+    fn: "page_pick_waves",
+    rowOf: waveOf,
+  });
+
+  const rules = entityList({
+    entity: "putaway_rule",
+    surface: putawayRuleListSurface,
+    call,
+    tenant,
+    fn: "list_putaway_rules",
+    rowOf: ruleOf,
+  });
+
+  const countPlans = entityList({
+    entity: "count_plan",
+    surface: countPlanListSurface,
+    call,
+    tenant,
+    fn: "page_count_plans",
+    rowOf: planOf,
+  });
+
   const client: Warehouse = {
     createPickWave: (input) =>
       tenant().andThen((organizationId) =>
@@ -713,6 +808,16 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
     pickListPage: pickLists.page,
     pickListFacets: pickLists.facets,
     pickListCount: pickLists.count,
+    pickWavePage: waves.page,
+    pickWaveFacets: waves.facets,
+    pickWaveCount: waves.count,
+    getPickWave: (waveId) =>
+      foundRow(
+        call("get_pick_wave", { wave_id: waveId }, (value) => value),
+        "pick wave not found",
+        (row) => waveOf(row, "get_pick_wave"),
+      ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listPickWaves: () =>
       tenant().andThen((organizationId) =>
         call("list_pick_waves", { tenant: organizationId }, (value) =>
@@ -735,6 +840,16 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
         { rule_id: ruleId },
         (value) => value === true,
       ),
+    putawayRulePage: rules.page,
+    putawayRuleFacets: rules.facets,
+    putawayRuleCount: rules.count,
+    getPutawayRule: (ruleId) =>
+      foundRow(
+        call("get_putaway_rule", { rule_id: ruleId }, (value) => value),
+        "putaway rule not found",
+        (row) => ruleOf(row, "get_putaway_rule"),
+      ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listPutawayRules: (filters = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -851,6 +966,16 @@ export function createWarehouse(options: WarehouseOptions): Warehouse {
           plan("create_count_plan"),
         ),
       ),
+    countPlanPage: countPlans.page,
+    countPlanFacets: countPlans.facets,
+    countPlanCount: countPlans.count,
+    getCountPlan: (planId) =>
+      foundRow(
+        call("get_count_plan", { plan_id: planId }, (value) => value),
+        "count plan not found",
+        (row) => planOf(row, "get_count_plan"),
+      ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listCountPlans: () =>
       tenant().andThen((organizationId) =>
         call("list_count_plans", { tenant: organizationId }, (value) =>

@@ -257,3 +257,7 @@ const total = await maintenance
 ```
 
 A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.
+
+### Paging meters
+
+`listMeters` is deprecated in favor of `meterPage` (ADR 1077). `meterPage` pages meters by `name` (the default) or `readAt`. Filters are `unit` and `assetId`, and facets are `unit` and `assetId`. `q` searches the meter name. `meterFacets` and `meterCount` read under the same options, and `getMeter(id)` returns one meter or a `not_found` error. `planPage` takes `q` over the plan title, and `calibrationPage` takes `q` over the reference and the instrument. The SQL functions are `page_maintenance_meters` and `get_maintenance_meter`.

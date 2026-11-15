@@ -4,7 +4,7 @@ import type { LimsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { limsEvents } from "./events.ts";
 import { createLims } from "./lims.ts";
-import { limsSampleListSurface } from "./lists.ts";
+import { limsMethodListSurface, limsSampleListSurface } from "./lists.ts";
 import { limsSqlOptions } from "./options.ts";
 import { limsMethodInputSchema, limsSampleInputSchema } from "./schemas.ts";
 
@@ -25,6 +25,7 @@ export const limsBlock: BlockOf<"lims", typeof createLims, LimsEvents> =
     entities: {
       lims_sample: { ...limsSampleListSurface, mutability: "state-machine" },
       lims_method: {
+        ...limsMethodListSurface,
         mutability: "editable",
         emits: { create: true, update: true },
       },

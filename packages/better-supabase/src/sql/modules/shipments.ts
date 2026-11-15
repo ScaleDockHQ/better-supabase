@@ -19,6 +19,7 @@ import {
   filterFirst,
   listBody,
   listDeclare,
+  searchPattern,
 } from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
@@ -551,6 +552,7 @@ function functions(
         ? `(not v_filters ? 'subjectType' or (x.${h("subjectType")} = v_filters ->> 'subjectType' and x.${h("subjectId")} = v_filters ->> 'subjectId'))`
         : `(not v_filters ? 'subjectType')`,
       `(${filterFirst("before")} is null or x.${h("createdAt")} < ${filterFirst("before")}::timestamptz)`,
+      `(v_search is null or x.${h("reference")} ilike v_search or coalesce(x.${h("trackingNumber")}, '') ilike v_search)`,
     ],
     keys: shipmentKeys("createdAt", "desc"),
     sorts: {
@@ -696,6 +698,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_shipments.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(shipmentList)}
 begin
   if not ${allowed("list_shipments.tenant", read)} then

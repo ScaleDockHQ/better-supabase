@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated array method until 0.70 (ADR 1077). 1 finding. */
 import { describe, expect, it } from "vitest";
 
 import {
@@ -103,7 +104,10 @@ describe("createTills", () => {
         },
       ],
       ["update_till", { till_id: "t1", input: { archived: true } }],
-      ["list_tills", { tenant: "org-1", filters: { archived: true } }],
+      [
+        "list_tills",
+        { tenant: "org-1", filters: { archived: true, limit: 200 } },
+      ],
     ]);
   });
 
