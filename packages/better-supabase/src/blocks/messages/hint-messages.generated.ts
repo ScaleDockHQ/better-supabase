@@ -544,6 +544,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "DECISION_SUPPORT_ALERT_STATUS": "This alert has already been decided or resolved.",
   "DECISION_SUPPORT_ALERT_SUBJECT_INVALID": "Evaluating needs a record of the organization.",
   "DECISION_SUPPORT_ENGINE_FAILED": "Decision support engine failed.",
+  "DECISION_SUPPORT_RULE_ARCHIVED": "The rule is archived; restore it first.",
   "DECISION_SUPPORT_RULE_NOT_FOUND": "No such rule.",
   "DELIVERY_PREFERENCE_INVALID": "Prefs is an array of at most 100 { documentType, channel, copies, email } with a unique documentType and channel.",
   "DISPATCH_ASSETS_MISSING": "Install the assets block to link work orders to it.",

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_170_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:d0e3dae7ce4d339ad83de3a5c01f5664f23f70754e4253a5a75c0ec8cd5e8de5
+-- @bsb-hash sha256:1249dd34700929a8f783b3146557c78f5663f2716b178b0eed74f60429279c41
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,6 +28,7 @@ create table "better_supabase"."care_rules" (
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
+  "archived_at" timestamptz,
   constraint bsb_care_rules_check check (
     ("kind" = 'dose_range' and cardinality("medication_ids") = 1 and ("min_dose" is not null or "max_dose" is not null or "max_per_day" is not null))
     or ("kind" = 'interaction' and cardinality("medication_ids") = 2)
@@ -199,7 +200,7 @@ begin
         'message', coalesce(r."message", format('%s: a dose of %s %s is below the minimum of %s', d.name, d.dose, d.unit, r."min_dose")),
         'details', jsonb_build_object('medicationId', d.medication_id, 'limit', 'min', 'value', d.dose, 'unit', d.unit, 'bound', r."min_dose"))
       from active d join "better_supabase"."care_rules" r on r."medication_ids"[1] = d.medication_id
-      where r."tenant_id" = evaluate_care_rules.tenant and r."active" and r."kind" = 'dose_range' and r."min_dose" is not null and d.dose < r."min_dose"
+      where r."tenant_id" = evaluate_care_rules.tenant and r."active" and r."archived_at" is null and r."kind" = 'dose_range' and r."min_dose" is not null and d.dose < r."min_dose"
     union all 
       select jsonb_build_object(
         'kind', 'dose_range', 'severity', r."severity", 'ruleId', r."id",
@@ -208,7 +209,7 @@ begin
         'message', coalesce(r."message", format('%s: a dose of %s %s is above the maximum of %s', d.name, d.dose, d.unit, r."max_dose")),
         'details', jsonb_build_object('medicationId', d.medication_id, 'limit', 'max', 'value', d.dose, 'unit', d.unit, 'bound', r."max_dose"))
       from active d join "better_supabase"."care_rules" r on r."medication_ids"[1] = d.medication_id
-      where r."tenant_id" = evaluate_care_rules.tenant and r."active" and r."kind" = 'dose_range' and r."max_dose" is not null and d.dose > r."max_dose"
+      where r."tenant_id" = evaluate_care_rules.tenant and r."active" and r."archived_at" is null and r."kind" = 'dose_range' and r."max_dose" is not null and d.dose > r."max_dose"
     union all 
       select jsonb_build_object(
         'kind', 'dose_range', 'severity', r."severity", 'ruleId', r."id",
@@ -217,7 +218,7 @@ begin
         'message', coalesce(r."message", format('%s: %s %s a day is above the maximum of %s', d.name, d.per_day, d.unit, r."max_per_day")),
         'details', jsonb_build_object('medicationId', d.medication_id, 'limit', 'day', 'value', d.per_day, 'unit', d.unit, 'bound', r."max_per_day"))
       from active d join "better_supabase"."care_rules" r on r."medication_ids"[1] = d.medication_id
-      where r."tenant_id" = evaluate_care_rules.tenant and r."active" and r."kind" = 'dose_range' and r."max_per_day" is not null and d.per_day > r."max_per_day"
+      where r."tenant_id" = evaluate_care_rules.tenant and r."active" and r."archived_at" is null and r."kind" = 'dose_range' and r."max_per_day" is not null and d.per_day > r."max_per_day"
     union all
       select jsonb_build_object(
         'kind', 'duplicate_therapy', 'severity', 'warning',
@@ -234,7 +235,7 @@ begin
         'message', coalesce(r."message", format('%s are in the same therapy group', string_agg(distinct d.name, ', '))),
         'details', jsonb_build_object('medicationIds', to_jsonb(array_agg(distinct d.medication_id))))
       from "better_supabase"."care_rules" r join active d on d.medication_id = any(r."medication_ids")
-      where r."tenant_id" = evaluate_care_rules.tenant and r."active" and r."kind" = 'duplicate_therapy'
+      where r."tenant_id" = evaluate_care_rules.tenant and r."active" and r."archived_at" is null and r."kind" = 'duplicate_therapy'
       group by r."id" having count(distinct d.medication_id) > 1
     union all
       select jsonb_build_object(
@@ -244,7 +245,7 @@ begin
         'message', coalesce(r."message", format('%s interact', (select string_agg(distinct d.name, ' and ') from active d where d.medication_id = any(r."medication_ids")))),
         'details', jsonb_build_object('medicationIds', to_jsonb(r."medication_ids")))
       from "better_supabase"."care_rules" r
-      where r."tenant_id" = evaluate_care_rules.tenant and r."active" and r."kind" = 'interaction'
+      where r."tenant_id" = evaluate_care_rules.tenant and r."active" and r."archived_at" is null and r."kind" = 'interaction'
         and (select count(distinct d.medication_id) from active d where d.medication_id = any(r."medication_ids")) = 2
   )
   select coalesce(jsonb_agg(raised.alert), '[]'::jsonb) into v_alerts from raised;
@@ -428,6 +429,10 @@ begin
       returning * into v_row;
       v_created := true;
     else
+      perform 1 from "better_supabase"."care_rules" x where x."id" = v_id and x."tenant_id" = save_care_rule.tenant and x."archived_at" is not null;
+      if found then
+        raise exception 'the rule is archived; restore it first' using errcode = '55000', hint = 'DECISION_SUPPORT_RULE_ARCHIVED';
+      end if;
       update "better_supabase"."care_rules" x set "kind" = v_kind, "medication_ids" = v_ids, "min_dose" = v_min, "max_dose" = v_max,
         "max_per_day" = v_day, "severity" = v_severity, "message" = v_message, "active" = v_active, "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_care_rule.tenant
@@ -444,15 +449,14 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'medicationIds', to_jsonb(v_row."medication_ids"), 'minDose', v_row."min_dose", 'maxDose', v_row."max_dose", 'maxPerDay', v_row."max_per_day", 'severity', v_row."severity", 'message', v_row."message", 'active', v_row."active", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'medicationIds', to_jsonb(v_row."medication_ids"), 'minDose', v_row."min_dose", 'maxDose', v_row."max_dose", 'maxPerDay', v_row."max_per_day", 'severity', v_row."severity", 'message', v_row."message", 'active', v_row."active", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_care_rule"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_care_rule"(uuid, jsonb) to authenticated, service_role;
 
--- Deletes a rule. Alerts it raised stay until the next evaluation resolves
--- them. Needs clinical_decision_support.manage.
-create or replace function "better_supabase"."delete_care_rule"(rule_id uuid)
+-- Archives a rule: it leaves the list and the evaluation, and it can't be saved until it is restored. Alerts it raised stay until the next evaluation resolves them. Needs clinical_decision_support.manage; archiving an archived rule returns it unchanged.
+create or replace function "better_supabase"."archive_care_rule"(rule_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -465,23 +469,96 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."care_rules" x where x."id" = delete_care_rule.rule_id for update;
+  select * into v_row from "better_supabase"."care_rules" x where x."id" = archive_care_rule.rule_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'clinical_decision_support.read'), false))) then
     raise exception 'no such rule' using errcode = 'P0002', hint = 'DECISION_SUPPORT_RULE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'clinical_decision_support.manage'), false))) then
     raise exception 'not allowed to change care rules' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
   end if;
-  delete from "better_supabase"."care_rules" x where x."id" = v_row."id";
+  if (v_row."archived_at" is not null) = true then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'medicationIds', to_jsonb(v_row."medication_ids"), 'minDose', v_row."min_dose", 'maxDose', v_row."max_dose", 'maxPerDay', v_row."max_per_day", 'severity', v_row."severity", 'message', v_row."message", 'active', v_row."active", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
+  end if;
+  update "better_supabase"."care_rules" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'medicationIds', to_jsonb(v_row."medication_ids"), 'minDose', v_row."min_dose", 'maxDose', v_row."max_dose", 'maxPerDay', v_row."max_per_day", 'severity', v_row."severity", 'message', v_row."message", 'active', v_row."active", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'medicationIds', to_jsonb(v_row."medication_ids"), 'minDose', v_row."min_dose", 'maxDose', v_row."max_dose", 'maxPerDay', v_row."max_per_day", 'severity', v_row."severity", 'message', v_row."message", 'active', v_row."active", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
 end;
 $$;
-revoke execute on function "better_supabase"."delete_care_rule"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_care_rule"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."archive_care_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_care_rule"(uuid) to authenticated, service_role;
 
--- The organization's rules, by kind. Needs clinical_decision_support.read.
-create or replace function "better_supabase"."list_care_rules"(tenant uuid)
+-- Restores an archived rule; it keeps its active flag and takes part in the next evaluation. Needs clinical_decision_support.manage; restoring one that is not archived returns it unchanged.
+create or replace function "better_supabase"."restore_care_rule"(rule_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."care_rules";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."care_rules" x where x."id" = restore_care_rule.rule_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'clinical_decision_support.read'), false))) then
+    raise exception 'no such rule' using errcode = 'P0002', hint = 'DECISION_SUPPORT_RULE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'clinical_decision_support.manage'), false))) then
+    raise exception 'not allowed to change care rules' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
+  end if;
+  if (v_row."archived_at" is not null) = false then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'medicationIds', to_jsonb(v_row."medication_ids"), 'minDose', v_row."min_dose", 'maxDose', v_row."max_dose", 'maxPerDay', v_row."max_per_day", 'severity', v_row."severity", 'message', v_row."message", 'active', v_row."active", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
+  end if;
+  update "better_supabase"."care_rules" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'medicationIds', to_jsonb(v_row."medication_ids"), 'minDose', v_row."min_dose", 'maxDose', v_row."max_dose", 'maxPerDay', v_row."max_per_day", 'severity', v_row."severity", 'message', v_row."message", 'active', v_row."active", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_care_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_care_rule"(uuid) to authenticated, service_role;
+
+-- Deletes a rule for good. Archive keeps it. Alerts it raised stay until the
+-- next evaluation resolves them. Needs clinical_decision_support.purge, which
+-- falls back to manage.
+
+create or replace function "better_supabase"."purge_care_rule"(rule_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."care_rules";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."care_rules" x where x."id" = purge_care_rule.rule_id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'clinical_decision_support.read'), false))) then
+    raise exception 'no such rule' using errcode = 'P0002', hint = 'DECISION_SUPPORT_RULE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", '''clinical_decision_support.manage'''), false))) then
+    raise exception 'not allowed to purge care rules' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."care_rules" x where x."id" = v_row."id";
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'kind', v_row."kind", 'medicationIds', to_jsonb(v_row."medication_ids"), 'minDose', v_row."min_dose", 'maxDose', v_row."max_dose", 'maxPerDay', v_row."max_per_day", 'severity', v_row."severity", 'message', v_row."message", 'active', v_row."active", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."purge_care_rule"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_care_rule"(uuid) to authenticated, service_role;
+
+-- The organization's rules, by kind. Archived rules stay out unless
+-- include_archived is true. Needs clinical_decision_support.read.
+
+create or replace function "better_supabase"."list_care_rules"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -494,14 +571,15 @@ begin
     raise exception 'not allowed to read care rules' using errcode = '42501', hint = 'DECISION_SUPPORT_ALERT_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'kind', y."kind", 'medicationIds', to_jsonb(y."medication_ids"), 'minDose', y."min_dose", 'maxDose', y."max_dose", 'maxPerDay', y."max_per_day", 'severity', y."severity", 'message', y."message", 'active', y."active", 'createdAt', y."created_at", 'updatedAt', y."updated_at") order by y."kind", y."created_at", y."id")
+    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'kind', y."kind", 'medicationIds', to_jsonb(y."medication_ids"), 'minDose', y."min_dose", 'maxDose', y."max_dose", 'maxPerDay', y."max_per_day", 'severity', y."severity", 'message', y."message", 'active', y."active", 'createdAt', y."created_at", 'updatedAt', y."updated_at", 'archivedAt', y."archived_at") order by y."kind", y."created_at", y."id")
     from "better_supabase"."care_rules" y
     where y."tenant_id" = list_care_rules.tenant
+      and (coalesce(list_care_rules.include_archived, false) or y."archived_at" is null)
   ), '[]'::jsonb);
 end;
 $$;
-revoke execute on function "better_supabase"."list_care_rules"(uuid) from public, anon;
-grant execute on function "better_supabase"."list_care_rules"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_care_rules"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_care_rules"(uuid, boolean) to authenticated, service_role;
 
 -- Acknowledges or overrides an open alert. Overriding, and any decision on a
 -- critical alert, needs a reason. The decision is audited and stays on the

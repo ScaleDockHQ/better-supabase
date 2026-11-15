@@ -61,6 +61,8 @@ export interface CareRule {
   readonly active: boolean;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** When the rule was archived; archived rules are not evaluated. */
+  readonly archivedAt?: Temporal.Instant;
 }
 
 export interface CareRuleInput {
@@ -230,8 +232,23 @@ export interface ClinicalDecisionSupportClient {
    * `clinical_decision_support.manage`.
    */
   saveRule(input: CareRuleInput): AsyncResultType<CareRule>;
-  deleteRule(ruleId: string): AsyncResultType<CareRule>;
-  rules(): AsyncResultType<readonly CareRule[]>;
+  /**
+   * Archives a rule: it leaves `rules()` and the evaluation, and `saveRule`
+   * refuses it until `restoreRule`. Archiving an archived rule changes
+   * nothing.
+   */
+  archiveRule(ruleId: string): AsyncResultType<CareRule>;
+  /** Brings an archived rule back; it keeps its `active` flag. */
+  restoreRule(ruleId: string): AsyncResultType<CareRule>;
+  /**
+   * Deletes a rule for good (`permissions.purge`, falling back to `manage`).
+   * Alerts it raised stay until the next evaluation resolves them.
+   */
+  purgeRule(ruleId: string): AsyncResultType<CareRule>;
+  /** The organization's rules; archived ones only with `includeArchived`. */
+  rules(options?: {
+    readonly includeArchived?: boolean;
+  }): AsyncResultType<readonly CareRule[]>;
   /**
    * Runs the built-in rules over the record's active medication orders, then
    * each configured engine over the record's context, and returns the record's
@@ -314,6 +331,7 @@ function ruleOf(value: unknown, fn: string): CareRule {
     active: row["active"] === true,
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
+    ...optional("archivedAt", optionalInstant(row["archivedAt"])),
     ...optional("minDose", numberOf(row["minDose"])),
     ...optional("maxDose", numberOf(row["maxDose"])),
     ...optional("maxPerDay", numberOf(row["maxPerDay"])),
@@ -476,16 +494,30 @@ export function createClinicalDecisionSupport(
           (value) => ruleOf(value, "save_care_rule"),
         ),
       ),
-    deleteRule: (ruleId) =>
-      call("delete_care_rule", { rule_id: ruleId }, (value) =>
-        ruleOf(value, "delete_care_rule"),
+    archiveRule: (ruleId) =>
+      call("archive_care_rule", { rule_id: ruleId }, (value) =>
+        ruleOf(value, "archive_care_rule"),
       ),
-    rules: () =>
+    restoreRule: (ruleId) =>
+      call("restore_care_rule", { rule_id: ruleId }, (value) =>
+        ruleOf(value, "restore_care_rule"),
+      ),
+    purgeRule: (ruleId) =>
+      call("purge_care_rule", { rule_id: ruleId }, (value) =>
+        ruleOf(value, "purge_care_rule"),
+      ),
+    rules: (options) =>
       tenant().andThen((organizationId) =>
-        call("list_care_rules", { tenant: organizationId }, (value) =>
-          recordsOf(value, "list_care_rules").map((row) =>
-            ruleOf(row, "list_care_rules"),
-          ),
+        call(
+          "list_care_rules",
+          {
+            tenant: organizationId,
+            include_archived: options?.includeArchived ?? false,
+          },
+          (value) =>
+            recordsOf(value, "list_care_rules").map((row) =>
+              ruleOf(row, "list_care_rules"),
+            ),
         ),
       ),
     evaluate: ({ subject, ...run }) =>

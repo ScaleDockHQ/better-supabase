@@ -30,6 +30,9 @@ describe("clinical-decision-support module", () => {
 
     expect(sql).toContain("care_rules");
     expect(sql).toContain("care_alerts");
+    expect(sql).toContain("archive_care_rule");
+    expect(sql).toContain("purge_care_rule");
+    expect(sql).not.toContain("delete_care_rule(rule_id");
     expect(sql).toContain("'dose_range', 'duplicate_therapy', 'interaction'");
     expect(sql).toContain("'info', 'warning', 'critical'");
     expect(sql).toContain("'open', 'acknowledged', 'overridden', 'resolved'");

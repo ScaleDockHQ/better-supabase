@@ -35,7 +35,9 @@ export type ClinicalDecisionSupportEvents = {
   readonly "care_alert.resolved": CareAlertEventData;
   readonly "care_rule.created": CareRuleEventData;
   readonly "care_rule.updated": CareRuleEventData;
-  readonly "care_rule.deleted": CareRuleEventData;
+  readonly "care_rule.archived": CareRuleEventData;
+  readonly "care_rule.restored": CareRuleEventData;
+  readonly "care_rule.purged": CareRuleEventData;
 };
 
 /**
@@ -49,5 +51,7 @@ export const clinicalDecisionSupportEvents: Events<ClinicalDecisionSupportEvents
     "care_alert.resolved": event<CareAlertEventData>(),
     "care_rule.created": event<CareRuleEventData>(),
     "care_rule.updated": event<CareRuleEventData>(),
-    "care_rule.deleted": event<CareRuleEventData>(),
+    "care_rule.archived": event<CareRuleEventData>(),
+    "care_rule.restored": event<CareRuleEventData>(),
+    "care_rule.purged": event<CareRuleEventData>(),
   });
