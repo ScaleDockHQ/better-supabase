@@ -236,14 +236,14 @@ export interface BlockNameRegistry {
   };
   readonly "announcements": {
     readonly tables: {
-      readonly "announcements": "id" | "title" | "body" | "severity" | "href" | "audience" | "targets" | "startsAt" | "endsAt" | "dismissible" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "announcements": "id" | "title" | "body" | "severity" | "href" | "audience" | "targets" | "startsAt" | "endsAt" | "dismissible" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "dismissals": "announcement" | "user" | "dismissedAt";
     };
-    readonly functions: "active_announcements" | "broadcast_announcement" | "delete_announcement" | "dismiss_announcement" | "list_announcements" | "save_announcement";
+    readonly functions: "active_announcements" | "archive_announcement" | "broadcast_announcement" | "dismiss_announcement" | "list_announcements" | "purge_announcement" | "restore_announcement" | "save_announcement";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "announcement": "id" | "title" | "body" | "severity" | "href" | "audience" | "targets" | "starts_at" | "ends_at" | "dismissible" | "created_by" | "created_at" | "updated_at";
+      readonly "announcement": "id" | "title" | "body" | "severity" | "href" | "audience" | "targets" | "starts_at" | "ends_at" | "dismissible" | "archived_at" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "announcement";
   };

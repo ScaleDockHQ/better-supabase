@@ -363,4 +363,57 @@ describe("createCustomFields", () => {
       .orThrow();
     expect(fake.calls[0]?.[1]["sensitive"]).toBe(false);
   });
+
+  it("bulkSet reports per field key and keeps going after a failure", async () => {
+    const calls: string[] = [];
+
+    const transport = {
+      call(
+        _schema: string,
+        _fn: string,
+        args: Readonly<Record<string, unknown>>,
+      ) {
+        const key = String(args["key"]);
+
+        calls.push(key);
+
+        if (key === "bad") {
+          return Promise.reject(new Error("refused"));
+        }
+
+        return Promise.resolve({
+          id: `v-${key}`,
+          subjectType: "employees",
+          subjectId: "e1",
+          key,
+          label: key,
+          type: "number",
+          value: 1,
+          rank: null,
+          createdAt: "2026-01-01T00:00:00Z",
+          updatedAt: null,
+        });
+      },
+    };
+
+    const fields = createCustomFields({ transport, tenant: "org-1" });
+
+    const input = (key: string) => ({
+      key,
+      label: key,
+      type: "number" as const,
+      value: 1,
+    });
+
+    const report = await fields
+      .bulkSet({
+        subject: EMPLOYEE,
+        inputs: [input("badge"), input("bad"), input("grade")],
+      })
+      .orThrow();
+
+    expect(calls).toEqual(["badge", "bad", "grade"]);
+    expect(report.succeeded).toEqual(["badge", "grade"]);
+    expect(report.failed.map((f) => f.id)).toEqual(["bad"]);
+  });
 });

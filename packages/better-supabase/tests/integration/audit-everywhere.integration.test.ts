@@ -51,7 +51,8 @@ const RECORDED = [
   "incoming_webhook.deleted",
   "webhook_endpoint.secret_rotated",
   "announcement.created",
-  "announcement.deleted",
+  "announcement.archived",
+  "announcement.purged",
   "api_key.created",
   "api_key.revoked",
   "invitation.created",
@@ -159,7 +160,8 @@ async function actions(s: BlockSession): Promise<string> {
     'better_supabase.save_announcement(null, \'{"title": "Hi", "body": "Hello"}\')',
   );
 
-  await s.value("better_supabase.delete_announcement($1)", [announcement.id]);
+  await s.value("better_supabase.archive_announcement($1)", [announcement.id]);
+  await s.value("better_supabase.purge_announcement($1)", [announcement.id]);
 
   const apiKey = await s.value<{ id: string }>(
     "better_supabase.create_api_key('CI', $1, encode(sha256('secret'::bytea), 'hex'), $2)",

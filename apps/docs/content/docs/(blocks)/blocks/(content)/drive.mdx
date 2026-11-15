@@ -583,7 +583,7 @@ const view = await db.drive.folder({ organizationId, nodeId }).orThrow();
 
 `view.access` comes from the SQL function `drive_node_access`, so the flags (`role`, `read`, `comment`, `download`, `upload`, `write`, `share`) follow your configured roles. `drive.can(id)` returns the same flags for one node. `drive.search({ organizationId, query })` finds nodes by name or extracted text, and treats `%` and `_` as plain characters.
 
-`drive.put` uploads a file from the server: it creates the pending node, stores the bytes and commits it, and deletes the node when the upload fails. `drive.shareMany({ ids, grants })` gives every grant on every node and stops at the first failure.
+`drive.put` uploads a file from the server: it creates the pending node, stores the bytes and commits it, and deletes the node when the upload fails. `drive.bulkShare(items)` gives each node its own grants (`{ id, grants }`) and returns `{ succeeded, failed }` named by node id, so one refused node does not stop the others (ADR 1075). `drive.shareMany({ ids, grants })` gives every grant on every node and stops at the first failure; it is deprecated and removed in 0.70.
 
 The block stores no member names, so `drive.grantsWithNames({ id, names })` takes a `names(principal)` function that you answer from your own users table. It is called once for each distinct principal.
 

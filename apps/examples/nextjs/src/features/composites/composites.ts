@@ -43,7 +43,7 @@ export function crmOf(db: AppDb) {
 
 /**
  * The `filespace` composite's helpers over the drive, attachments, versions,
- * share-links, search and trash clients: `put`, `shareMany` and `publicLink`.
+ * share-links, search and trash clients: `put`, `bulkShare` and `publicLink`.
  */
 export function filespaceOf(db: AppDb, drive: ReturnType<typeof driveOf>) {
   const { $blocks: blocks } = db;

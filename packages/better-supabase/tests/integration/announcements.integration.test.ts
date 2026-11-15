@@ -160,8 +160,25 @@ describe.skipIf(!live)("announcements", () => {
       ).toBe("ANNOUNCEMENT_NOT_FOUND");
       const all = await announcements.list().orThrow();
       expect(all.map((a) => a.id)).toContain(ended.id);
-      expect(await announcements.remove(ended.id).orThrow()).toBe(true);
-      expect(await announcements.remove(ended.id).orThrow()).toBe(false);
+
+      const archived = await announcements.archive(ended.id).orThrow();
+      expect(archived.archivedAt).toBeDefined();
+      expect(
+        (await announcements.list().orThrow()).map((a) => a.id),
+      ).not.toContain(ended.id);
+      expect(
+        (await announcements.list({ includeArchived: true }).orThrow()).map(
+          (a) => a.id,
+        ),
+      ).toContain(ended.id);
+      expect(
+        (await announcements.restore(ended.id).orThrow()).archivedAt,
+      ).toBeUndefined();
+      expect((await announcements.list().orThrow()).map((a) => a.id)).toContain(
+        ended.id,
+      );
+      expect(await announcements.purge(ended.id).orThrow()).toBe(true);
+      expect(await announcements.purge(ended.id).orThrow()).toBe(false);
 
       await s.as(member);
       expect(
