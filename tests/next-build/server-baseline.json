@@ -65,72 +65,72 @@
     "brotli": 786918
   },
   "/[locale]/(app)/assistant/[id]/page": {
-    "raw": 3660514,
+    "raw": 3661070,
     "gzip": 1097820,
     "brotli": 912147
   },
   "/[locale]/(app)/assistant/activity/page": {
-    "raw": 5284519,
+    "raw": 5285104,
     "gzip": 1589265,
-    "brotli": 1319814
+    "brotli": 1323143
   },
   "/[locale]/(app)/assistant/agents/[id]/page": {
-    "raw": 5294772,
+    "raw": 5295394,
     "gzip": 1592485,
-    "brotli": 1322582
+    "brotli": 1326012
   },
   "/[locale]/(app)/assistant/agents/approvals/page": {
-    "raw": 5287944,
+    "raw": 5288566,
     "gzip": 1590090,
-    "brotli": 1320514
+    "brotli": 1323952
   },
   "/[locale]/(app)/assistant/agents/memory/page": {
-    "raw": 5282850,
+    "raw": 5283472,
     "gzip": 1587903,
-    "brotli": 1318576
+    "brotli": 1322006
   },
   "/[locale]/(app)/assistant/agents/page": {
-    "raw": 5289153,
+    "raw": 5289775,
     "gzip": 1590502,
-    "brotli": 1320875
+    "brotli": 1324306
   },
   "/[locale]/(app)/assistant/agents/runs/[id]/page": {
-    "raw": 5294845,
+    "raw": 5295467,
     "gzip": 1591581,
-    "brotli": 1321867
+    "brotli": 1325306
   },
   "/[locale]/(app)/assistant/agents/runs/page": {
-    "raw": 3670202,
+    "raw": 3670806,
     "gzip": 1101335,
     "brotli": 915141
   },
   "/[locale]/(app)/assistant/agents/tools/page": {
-    "raw": 5284869,
+    "raw": 5285491,
     "gzip": 1588602,
-    "brotli": 1319198
+    "brotli": 1322628
   },
   "/[locale]/(app)/assistant/evals/[name]/page": {
-    "raw": 3610727,
+    "raw": 3611505,
     "gzip": 1075088,
     "brotli": 894671
   },
   "/[locale]/(app)/assistant/evals/page": {
-    "raw": 3105062,
-    "gzip": 942279,
+    "raw": 3105814,
+    "gzip": 944715,
     "brotli": 783981
   },
   "/[locale]/(app)/assistant/guardrails/page": {
-    "raw": 3106342,
+    "raw": 3106962,
     "gzip": 942829,
     "brotli": 784470
   },
   "/[locale]/(app)/assistant/page": {
-    "raw": 3663052,
+    "raw": 3663608,
     "gzip": 1098838,
     "brotli": 913003
   },
   "/[locale]/(app)/assistant/prompts/[name]/page": {
-    "raw": 3100120,
+    "raw": 3100752,
     "gzip": 940309,
     "brotli": 782238
   },
@@ -145,12 +145,12 @@
     "brotli": 781596
   },
   "/[locale]/(app)/assistant/tour/page": {
-    "raw": 3651622,
+    "raw": 3652170,
     "gzip": 1093867,
     "brotli": 908629
   },
   "/[locale]/(app)/assistant/usage/page": {
-    "raw": 3663099,
+    "raw": 3663709,
     "gzip": 1098004,
     "brotli": 912232
   },
@@ -227,7 +227,7 @@
   "/[locale]/(app)/chat/page": {
     "raw": 3626957,
     "gzip": 1080713,
-    "brotli": 898512
+    "brotli": 900770
   },
   "/[locale]/(app)/community/page": {
     "raw": 3113543,
@@ -437,7 +437,7 @@
   "/[locale]/(app)/documents/register/page": {
     "raw": 3611964,
     "gzip": 1076711,
-    "brotli": 895080
+    "brotli": 897353
   },
   "/[locale]/(app)/documents/templates/[id]/page": {
     "raw": 3110211,
@@ -452,12 +452,12 @@
   "/[locale]/(app)/drive/[folderId]/page": {
     "raw": 3631245,
     "gzip": 1082343,
-    "brotli": 899762
+    "brotli": 902191
   },
   "/[locale]/(app)/drive/page": {
     "raw": 3637370,
     "gzip": 1084106,
-    "brotli": 901424
+    "brotli": 903698
   },
   "/[locale]/(app)/field/day/page": {
     "raw": 3121547,
@@ -827,12 +827,12 @@
   "/[locale]/(app)/risks/[id]/page": {
     "raw": 3121468,
     "gzip": 948386,
-    "brotli": 788750
+    "brotli": 790751
   },
   "/[locale]/(app)/risks/page": {
     "raw": 3126803,
     "gzip": 949614,
-    "brotli": 789820
+    "brotli": 791837
   },
   "/[locale]/(app)/rules/[rule]/page": {
     "raw": 3096593,
@@ -897,7 +897,7 @@
   "/[locale]/(app)/settings/domains/page": {
     "raw": 3108484,
     "gzip": 944723,
-    "brotli": 784878
+    "brotli": 786903
   },
   "/[locale]/(app)/settings/flags/page": {
     "raw": 3103946,
@@ -1042,7 +1042,7 @@
   "/[locale]/(app)/settings/support/page": {
     "raw": 3111535,
     "gzip": 945137,
-    "brotli": 785053
+    "brotli": 787054
   },
   "/[locale]/(app)/settings/teams/[teamId]/page": {
     "raw": 3115565,
@@ -1181,7 +1181,7 @@
   },
   "/[locale]/(app)/templates/page": {
     "raw": 3112522,
-    "gzip": 944657,
+    "gzip": 947041,
     "brotli": 786086
   },
   "/[locale]/(app)/tills/[id]/page": {
