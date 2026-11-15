@@ -1192,4 +1192,36 @@ describe("typed notification data and hooks", () => {
     expect(before).toHaveBeenCalledTimes(2);
     expect(calls.map((call) => call.fn)).toEqual(["send_notification"]);
   });
+
+  it("runs bulk(ids, action) over the read, unread and dismiss calls", async () => {
+    const { transport, calls } = fakeTransport({
+      mark_notifications_read: () => ({ count: 1, items: [row()] }),
+      mark_notifications_unread: () => ({ count: 1, items: [row()] }),
+      dismiss_notifications: () => ({ count: 0, items: [] }),
+    });
+
+    const notifications = createNotifications({ types, transport });
+    const read = await notifications.bulk(["r1", "r2", "r1"], "read").orThrow();
+
+    expect(read.succeeded).toEqual(["r1"]);
+    expect(read.failed).toMatchObject([
+      { id: "r2", error: { kind: "not_found" } },
+    ]);
+
+    await notifications.bulk(["r1"], "unread", { tenant: "t1" }).orThrow();
+    await notifications.bulk(["r1"], "dismiss").orThrow();
+    expect(await notifications.bulk([], "read").orThrow()).toEqual({
+      succeeded: [],
+      failed: [],
+    });
+    expect(calls.map((call) => [call.fn, call.args])).toEqual([
+      ["mark_notifications_read", { ids: ["r1", "r2"], tenant: null }],
+      ["mark_notifications_unread", { ids: ["r1"], tenant: "t1" }],
+      ["dismiss_notifications", { ids: ["r1"] }],
+    ]);
+
+    const tooMany = await notifications.bulk(["a", "b"], "read", { limit: 1 });
+
+    expect(!tooMany.ok && tooMany.error.hint).toBe("BULK_TOO_MANY");
+  });
 });

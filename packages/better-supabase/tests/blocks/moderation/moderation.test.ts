@@ -376,3 +376,35 @@ describe("moderationBinding", () => {
     expect(moderationEvents.types).toContain("moderation_ban.lifted");
   });
 });
+
+describe("moderation.bulk", () => {
+  it("applies one decision to each distinct item and reports the refused ones", async () => {
+    const calls: Record<string, unknown>[] = [];
+
+    const moderation = createModeration({
+      tenant: "org-1",
+      transport: {
+        call(_schema, _fn, args) {
+          calls.push({ ...args });
+
+          return args["item_id"] === "i2"
+            ? Promise.reject(new Error("refused"))
+            : Promise.resolve({ ...ITEM, status: "hidden" });
+        },
+      },
+    });
+
+    const report = await moderation.bulk(["i1", "i2", "i1"], "hide").orThrow();
+
+    expect(report.succeeded).toEqual(["i1"]);
+    expect(report.failed).toMatchObject([{ id: "i2" }]);
+    expect(calls).toEqual([
+      { item_id: "i1", action: "hide", reason: null },
+      { item_id: "i2", action: "hide", reason: null },
+    ]);
+
+    const tooMany = await moderation.bulk(["a", "b"], "hide", { limit: 1 });
+
+    expect(!tooMany.ok && tooMany.error.hint).toBe("BULK_TOO_MANY");
+  });
+});

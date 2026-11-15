@@ -58,6 +58,7 @@ import {
   nullableText,
   optionalText,
 } from "../shared.ts";
+import { notificationsBulk } from "./bulk.ts";
 import { contactItem, deliverToContacts, splitRecipients } from "./contacts.ts";
 import {
   byLocale,
@@ -862,6 +863,14 @@ export function createNotifications<
     },
     dismiss(ids) {
       return run("dismiss_notifications", { ids }, updateOf);
+    },
+    bulk(ids, action, bulkOptions) {
+      return notificationsBulk(
+        (fn, args) => run(fn, args, updateOf),
+        ids,
+        action,
+        bulkOptions,
+      );
     },
     resolve(input) {
       return run(
