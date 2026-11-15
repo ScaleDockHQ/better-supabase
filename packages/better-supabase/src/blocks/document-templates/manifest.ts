@@ -4,6 +4,7 @@ import type { DocumentTemplatesEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDocumentTemplates } from "./document-templates.ts";
 import { documentTemplatesEvents } from "./events.ts";
+import { documentTemplateListSurface } from "./lists.ts";
 import { documentTemplatesSqlOptions } from "./options.ts";
 
 /** The `document-templates` block's manifest (ADR 0029, ADR 0145). */
@@ -21,6 +22,7 @@ export const documentTemplatesBlock: BlockOf<
   importTarget: ["document_template", "document_text_block"],
   entities: {
     document_template: {
+      ...documentTemplateListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
     },

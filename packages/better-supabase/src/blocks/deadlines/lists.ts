@@ -19,4 +19,5 @@ export const deadlineListSurface: EntityListSurface = {
     "provisional",
     "dueBefore",
   ],
+  search: ["kind", "jurisdiction", "subjectId", "groupKey"],
 };

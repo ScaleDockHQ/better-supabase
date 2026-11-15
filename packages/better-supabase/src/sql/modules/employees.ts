@@ -703,6 +703,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "date", "text"],
       returns: "jsonb",
     },
+    { name: "page_employees", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_employee", args: ["uuid"], returns: "jsonb" },
     { name: "org_chart", args: ["{id}", "uuid"], returns: "jsonb" },
     { name: "reports_of", args: ["uuid", "boolean"], returns: "jsonb" },
     ...fromApplication,

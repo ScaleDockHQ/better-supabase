@@ -7,6 +7,7 @@ import { cacheTag } from "next/cache";
 import type { Loaded } from "@/features/people/people-queries";
 
 import { settle } from "@/features/people/people-queries";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type { LeaveRow } from "./leave-list";
@@ -27,17 +28,23 @@ export async function readLeaveRows(
   readonly rows: readonly LeaveRow[];
   readonly types: readonly LeaveType[];
 }> {
+  const readRequests = (filters: Record<string, readonly string[]>) =>
+    readAllPages((page) =>
+      db.leave.requestPage({ organizationId, filters, ...page }),
+    );
+
   const [types, all, chart] = await Promise.all([
     db.leave.types({ organizationId }),
-    db.leave.list({ organizationId, everyone: true, pageSize: 500 }),
+    readRequests({ everyone: ["true"] }).then(
+      (rows) => rows,
+      () => null,
+    ),
     db.employees.orgChart({ organizationId }),
   ]);
 
-  const requests = all.ok
-    ? all
-    : await db.leave.list({ organizationId, pageSize: 500 });
+  const requests = all ?? (await readRequests({}));
 
-  if (!types.ok || !requests.ok) {
+  if (!types.ok) {
     throw new Error("The leave requests did not load");
   }
 
@@ -57,7 +64,7 @@ export async function readLeaveRows(
 
   return {
     types: types.data,
-    rows: requests.data.map((request): LeaveRow => {
+    rows: requests.map((request): LeaveRow => {
       const type = typeById.get(request.typeId);
 
       return {

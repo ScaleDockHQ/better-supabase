@@ -12,9 +12,11 @@ import { coursesBlock } from "../../src/blocks/courses/manifest.ts";
 import { damBlock } from "../../src/blocks/dam/manifest.ts";
 import { deadlinesBlock } from "../../src/blocks/deadlines/manifest.ts";
 import { dispatchBlock } from "../../src/blocks/dispatch/manifest.ts";
+import { documentTemplatesBlock } from "../../src/blocks/document-templates/manifest.ts";
 import { domainsBlock } from "../../src/blocks/domains/manifest.ts";
 import { donationsBlock } from "../../src/blocks/donations/manifest.ts";
 import { ePrescribingBlock } from "../../src/blocks/e-prescribing/manifest.ts";
+import { employeesBlock } from "../../src/blocks/employees/manifest.ts";
 import { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts";
 import { formsBlock } from "../../src/blocks/forms/manifest.ts";
 import { guestsBlock } from "../../src/blocks/guests/manifest.ts";
@@ -22,6 +24,7 @@ import { importsBlock } from "../../src/blocks/imports/manifest.ts";
 import { incidentsBlock } from "../../src/blocks/incidents/manifest.ts";
 import { inspectionsBlock } from "../../src/blocks/inspections/manifest.ts";
 import { leasesBlock } from "../../src/blocks/leases/manifest.ts";
+import { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import { legalEntitiesBlock } from "../../src/blocks/legal-entities/manifest.ts";
 import { limsBlock } from "../../src/blocks/lims/manifest.ts";
 import { maintenanceBlock } from "../../src/blocks/maintenance/manifest.ts";
@@ -47,6 +50,9 @@ const BLOCKS = [
   assetsBlock,
   casesBlock,
   deadlinesBlock,
+  documentTemplatesBlock,
+  employeesBlock,
+  leaveBlock,
   dispatchBlock,
   guestsBlock,
   incidentsBlock,
@@ -139,6 +145,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(45);
+    expect(CASES).toHaveLength(48);
   });
 });

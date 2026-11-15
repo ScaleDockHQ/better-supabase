@@ -3,6 +3,7 @@ import {
   filterFirst,
   listBody,
   listDeclare,
+  searchPattern,
 } from "../list-template.ts";
 import { fail, userGrant } from "../shared.ts";
 
@@ -46,6 +47,7 @@ export function deadlinePageSql(kit: DeadlinePageKit): string {
       filterAny("result", `z.${d("result")}::text`),
       filterAny("provisional", `z.${d("provisional")}::text`),
       `(v_before is null or z.${d("dueOn")} < v_before)`,
+      `(v_search is null or z.${d("kind")} ilike v_search or z.${d("jurisdiction")} ilike v_search or z.${d("subjectId")} ilike v_search or z.${d("groupKey")} ilike v_search)`,
     ],
     keys: dueKeys,
     sorts: {
@@ -68,7 +70,7 @@ export function deadlinePageSql(kit: DeadlinePageKit): string {
   return `-- An organization's deadlines as a keyset page (ADR 0749, 0949), soonest first.
 -- Security invoker, as list_deadlines is. filters is { subjectType, subjectId,
 -- groupKey, period, state, result, provisional (each a value or a list of
--- them), dueBefore (a date), sort, direction, facet, count, limit, after,
+-- them), dueBefore (a date), search (kind, jurisdiction, subject id, group), sort, direction, facet, count, limit, after,
 -- offset, paged, total, totalCap }.
 create or replace function ${fn("page_deadlines")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
@@ -81,6 +83,7 @@ as $$
 declare
   v_filters jsonb := coalesce(page_deadlines.filters, '{}'::jsonb);
   v_before date;
+  v_search text := ${searchPattern()};
   ${listDeclare(pageList)}
 begin
   if not ${allowed("page_deadlines.tenant")} then

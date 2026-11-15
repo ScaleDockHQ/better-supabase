@@ -318,6 +318,10 @@ const total = await deadlines.count({ filters: { result: ["due"] } }).orThrow();
 
 A cursor belongs to the sort it came from.
 
+## Searching deadlines
+
+`list` is deprecated in favor of `page`. `page` now takes `q`, which searches the kind, jurisdiction, subject id and group key (ADR 1077), next to the sorts, filters and facets it already had.
+
 ## Upgrading from version 1
 
 `better-supabase upgrade` converts version 1 rules (`anchor`, `offset`,

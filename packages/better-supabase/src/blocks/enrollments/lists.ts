@@ -9,4 +9,5 @@ export const enrollmentListSurface: EntityListSurface = {
   sorts: ["updatedAt", "enrolledAt"],
   facets: ["status", "program"],
   filters: ["status", "program", "subjectType", "subjectId"],
+  search: ["program", "subjectId"],
 };
