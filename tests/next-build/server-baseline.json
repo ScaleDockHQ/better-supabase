@@ -1500,7 +1500,7 @@
     "brotli": 671723
   },
   "/api/customers/overview/route": {
-    "raw": 1088627,
+    "raw": 1089153,
     "gzip": 345242,
     "brotli": 300884
   },
