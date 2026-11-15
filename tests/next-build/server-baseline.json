@@ -1181,7 +1181,7 @@
   },
   "/[locale]/(app)/templates/page": {
     "raw": 3113067,
-    "gzip": 944657,
+    "gzip": 947060,
     "brotli": 786086
   },
   "/[locale]/(app)/tills/[id]/page": {
