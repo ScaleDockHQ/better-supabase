@@ -99,6 +99,7 @@ function meetingFunctionsSql(ctx: BlockSqlContext, q: MeetingsSql): string {
     ctx.config.permissions["purge"] === undefined
       ? undefined
       : sqlString(ctx.config.permissions["purge"]);
+
   const idType = ctx.idType;
   const has = (column: string): boolean => ctx.has("meetings", column);
 
