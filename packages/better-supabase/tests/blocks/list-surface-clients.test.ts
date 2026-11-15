@@ -3,16 +3,16 @@ import { describe, expect, it } from "vitest";
 import type { BlockTransport } from "../../src/core/block-transport.ts";
 import type { EntityList } from "../../src/core/entity-list.ts";
 
-import { createAttachments } from "../../src/blocks/attachments/index.ts";
 import { createAgentCheckout } from "../../src/blocks/agent-checkout/index.ts";
+import { createAttachments } from "../../src/blocks/attachments/index.ts";
 import { createDocumentTemplates } from "../../src/blocks/document-templates/index.ts";
 import { createDrive } from "../../src/blocks/drive/index.ts";
 import { createEPrescribing } from "../../src/blocks/e-prescribing/index.ts";
 import { createEmployees } from "../../src/blocks/employees/index.ts";
 import { createEnrollments } from "../../src/blocks/enrollments/index.ts";
 import { createForms } from "../../src/blocks/forms/index.ts";
-import { createInventory } from "../../src/blocks/inventory/index.ts";
 import { createGuests } from "../../src/blocks/guests/index.ts";
+import { createInventory } from "../../src/blocks/inventory/index.ts";
 import { createLeases } from "../../src/blocks/leases/index.ts";
 import { createLeave } from "../../src/blocks/leave/index.ts";
 import { createPasses } from "../../src/blocks/passes/index.ts";
