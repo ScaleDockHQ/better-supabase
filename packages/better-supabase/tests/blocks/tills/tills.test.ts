@@ -277,4 +277,14 @@ describe("createTills", () => {
     ).toBeDefined();
     expect(tillsBlock.name).toBe("tills");
   });
+
+  it("returns one till", async () => {
+    const t = fieldsTransport({ get_till: () => TILL });
+
+    const client = createTills({ transport: t, tenant: "org-1" });
+
+    const getTillRow = await client.getTill("t1").orThrow();
+
+    expect(getTillRow.id).toBe(TILL.id);
+  });
 });
