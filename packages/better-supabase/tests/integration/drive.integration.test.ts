@@ -879,7 +879,43 @@ describe.skipIf(!live)("drive", () => {
       );
 
       expect(
-        await s.value<boolean>("drive_it.drive_delete_drive($1)", [
+        await s.hint("select drive_it.drive_purge_drive($1)", [temporary.id]),
+      ).toBe("DRIVE_NOT_ARCHIVED");
+
+      const archived = await s.value<DriveRow & { archivedAt: string }>(
+        "drive_it.drive_archive_drive($1)",
+        [temporary.id],
+      );
+
+      expect(archived.archivedAt).toBeTruthy();
+      expect(
+        (
+          await s.value<DriveRow[]>("drive_it.drive_list_drives($1)", [tenant])
+        ).map((row) => row.id),
+      ).not.toContain(temporary.id);
+      expect(
+        (
+          await s.value<DriveRow[]>(
+            "drive_it.drive_list_drives($1, 100, 0, true)",
+            [tenant],
+          )
+        ).map((row) => row.id),
+      ).toContain(temporary.id);
+      expect(
+        await s.hint("select drive_it.drive_rename_drive($1, 'Nope')", [
+          temporary.id,
+        ]),
+      ).toBe("DRIVE_ARCHIVED");
+
+      const restored = await s.value<DriveRow & { archivedAt: unknown }>(
+        "drive_it.drive_restore_drive($1)",
+        [temporary.id],
+      );
+
+      expect(restored.archivedAt).toBeNull();
+      await s.value("drive_it.drive_archive_drive($1)", [temporary.id]);
+      expect(
+        await s.value<boolean>("drive_it.drive_purge_drive($1)", [
           temporary.id,
         ]),
       ).toBe(true);
@@ -938,7 +974,7 @@ describe.skipIf(!live)("drive", () => {
         ]),
       ).toBe("DRIVE_FORBIDDEN");
       expect(
-        await s.hint("select drive_it.drive_delete_drive($1)", [team.id]),
+        await s.hint("select drive_it.drive_purge_drive($1)", [team.id]),
       ).toBe("DRIVE_FORBIDDEN");
       expect(
         await s.hint(
@@ -1027,7 +1063,10 @@ describe.skipIf(!live)("drive", () => {
         "DRIVE_HELD",
       );
       expect(
-        await s.hint("select drive_it.drive_delete_drive($1)", [team.id]),
+        await s.hint(
+          "select drive_it.drive_archive_drive($1), drive_it.drive_purge_drive($1)",
+          [team.id],
+        ),
       ).toBe("DRIVE_HELD");
 
       const released = await s.value<DriveNodeRow>(
@@ -1282,11 +1321,13 @@ describe.skipIf(!live)("drive", () => {
       );
 
       expect(events.map((event) => event.type)).toEqual([
+        "drive.archived",
         "drive.connection_created",
         "drive.connection_removed",
         "drive.created",
-        "drive.deleted",
+        "drive.purged",
         "drive.renamed",
+        "drive.restored",
         "drive.shared",
         "drive.unshared",
         "drive_node.created",

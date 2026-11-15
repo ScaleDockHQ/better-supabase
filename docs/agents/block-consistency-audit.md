@@ -252,7 +252,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | automation    | 11     | 11       | 3        | 2           | 1             | 5         |
 | collaboration | 13     | 21       | 7        | 5           | 8             | 1         |
 | commerce      | 30     | 86       | 30       | 9           | 30            | 17        |
-| content       | 10     | 15       | 6        | 2           | 5             | 2         |
+| content       | 10     | 16       | 7        | 2           | 5             | 2         |
 | crm           | 14     | 18       | 11       | 5           | 1             | 1         |
 | database      | 13     | 13       | 0        | 2           | 5             | 6         |
 | developer     | 9      | 11       | 6        | 0           | 5             | 0         |
@@ -423,6 +423,7 @@ Generated from the `entities` of every block manifest. `Emits` lists the methods
 | documents                 | content       | document                   | state-machine | create                                  | -                      | -                                        | -                              | -                                       | -        | -       | -         |
 | documents                 | content       | document_suggestion        | read-only     | -                                       | -                      | -                                        | -                              | -                                       | -        | -       | -         |
 | drive                     | content       | drive_node                 | state-machine | create                                  | -                      | -                                        | -                              | -                                       | -        | -       | -         |
+| drive                     | content       | drive                      | editable      | create, archive, restore, purge         | -                      | -                                        | -                              | -                                       | -        | -       | -         |
 | filespace                 | content       | filespace                  | append-only   | -                                       | create                 | -                                        | -                              | -                                       | -        | -       | -         |
 | forms                     | content       | form                       | editable      | create                                  | update                 | createdAt, title, key                    | status                         | -                                       | -        | -       | -         |
 | signatures                | content       | signature_request          | state-machine | -                                       | create                 | -                                        | -                              | -                                       | -        | -       | -         |

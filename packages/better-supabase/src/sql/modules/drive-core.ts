@@ -76,6 +76,14 @@ export function driveCoreSql(kit: DriveKit): string {
     driveColumn,
   } = kit;
 
+  const driveArchivedGuard = (drive: string, indent: string): string =>
+    drives && ctx.has("drives", "archivedAt")
+      ? `${indent}if exists (select 1 from ${D} d where d.${d("id")} = ${drive} and d.${d("archivedAt")} is not null) then
+${indent}  ${fail("DRIVE_ARCHIVED", "drive is archived; restore it first", "55000")}
+${indent}end if;
+`
+      : "";
+
   const tables = driveTablesSql(kit);
 
   // With attachments the node JSON carries the file, so drive-files declares
@@ -538,7 +546,7 @@ begin
     if not ${fn("drive_drive_can")}(drive_check_parent.drive, ${sqlString(roles.write)}) then
       ${forbidden("add items to this drive")}
     end if;
-    if exists (select 1 from ${D} d where d.${d("id")} = drive_check_parent.drive and d.${d("connection")} is not null) then
+${driveArchivedGuard("drive_check_parent.drive", "    ")}    if exists (select 1 from ${D} d where d.${d("id")} = drive_check_parent.drive and d.${d("connection")} is not null) then
       ${fail("DRIVE_READ_ONLY", "this drive mirrors an external account and is read-only", "42501")}
     end if;`
         : ""
@@ -553,7 +561,7 @@ begin
   if not ${canWrite(`v_parent.${n("id")}`)} then
     ${forbidden("add items to this folder")}
   end if;
-  if v_parent.${n("kind")} <> 'folder' then
+${driveArchivedGuard(`v_parent.${n("drive")}`, "  ")}  if v_parent.${n("kind")} <> 'folder' then
     ${fail("DRIVE_PARENT_NOT_FOLDER", "a file can't hold other items", "22023")}
   end if;
   if ${readOnly("v_parent")} then

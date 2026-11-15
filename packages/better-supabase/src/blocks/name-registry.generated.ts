@@ -913,7 +913,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "nodes": "id" | "tenant" | "drive" | "parent" | "kind" | "name" | "attachment" | "path" | "rank" | "deletedAt" | "source" | "externalId" | "externalMetadata" | "legalHoldUntil" | "lockedBy" | "lockedUntil" | "lockNote" | "downloadBlocked" | "previewPages" | "documentNumber" | "documentType" | "documentStatus" | "documentOwner" | "effectiveVersion" | "effectiveFrom" | "reviewIntervalMonths" | "nextReviewOn" | "reviewNotifiedFor" | "createdBy" | "createdAt" | "updatedAt";
       readonly "grants": "id" | "tenant" | "node" | "principalType" | "principalId" | "user" | "team" | "role" | "expiresAt" | "accessRequest" | "createdBy" | "createdAt";
-      readonly "drives": "id" | "tenant" | "name" | "kind" | "owner" | "connection" | "downloadBlocked" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "drives": "id" | "tenant" | "name" | "kind" | "owner" | "connection" | "downloadBlocked" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "driveGrants": "id" | "tenant" | "drive" | "principalType" | "principalId" | "user" | "team" | "role" | "expiresAt" | "createdBy" | "createdAt";
       readonly "connections": "id" | "tenant" | "user" | "provider" | "name" | "status" | "syncCursor" | "syncClaimedAt" | "lastSyncedAt" | "lastSyncError" | "createdBy" | "createdAt" | "updatedAt";
       readonly "texts": "node" | "tenant" | "attachment" | "extractor" | "content" | "extractedAt";

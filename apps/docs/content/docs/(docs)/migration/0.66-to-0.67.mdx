@@ -249,6 +249,9 @@ the `archived_at` column and replaces the delete function with `purge`.
 | `custom-fields`             | `deleteDefinition(id)`, `delete_field_definition()`       | `purgeDefinition(id)`, `purge_field_definition()` (ADR 1083)                                      |
 | `custom-fields`             | event `field_definition.deleted`                          | `field_definition.purged`, plus `archived` and `restored`                                         |
 | `custom-fields`             | `listDefinitions(entity)` shows every field               | hides archived fields; `listDefinitions({ entity, includeArchived: true })` adds them             |
+| `drive`                     | `deleteDrive(id)`, `drive_delete_drive()`                 | `purgeDrive(id)` after `archiveDrive(id)`, `drive_purge_drive()` (ADR 1084)                       |
+| `drive`                     | event `drive.deleted`                                     | `drive.purged`, plus `archived` and `restored`                                                    |
+| `drive`                     | `drives()` shows every drive                              | hides archived drives; `drives({ options: { includeArchived: true } })` adds them                 |
 
 ## Team purge
 

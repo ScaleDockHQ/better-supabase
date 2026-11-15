@@ -26,6 +26,10 @@ export const driveBlock: BlockOf<
   category: "content",
   entities: {
     drive_node: { mutability: "state-machine", emits: { create: true } },
+    drive: {
+      mutability: "editable",
+      emits: { create: true, archive: true, restore: true, purge: true },
+    },
   },
   concerns: ["lifecycle"],
   description:

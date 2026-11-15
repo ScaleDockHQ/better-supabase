@@ -298,7 +298,7 @@ await db.drive.shareDrive({
 });
 ```
 
-`drives(organizationId)` lists the drives the caller can read, `drive(id)` reads one, and `renameDrive`, `deleteDrive`, `shareDrive`, `unshareDrive` and `driveGrants` manage them. `deleteDrive` fails while any node in the drive is under a legal hold.
+`drives(organizationId)` lists the drives the caller can read, `drive(id)` reads one, and `renameDrive`, `archiveDrive`, `restoreDrive`, `purgeDrive`, `shareDrive`, `unshareDrive` and `driveGrants` manage them. An archived drive leaves `drives()` unless you pass `includeArchived: true`, and it refuses new items, a rename and a share with `DRIVE_ARCHIVED`; its content stays readable. `purgeDrive` removes an archived drive and everything in it, needs `permissions.purge` (it falls back to `drive.manage`) and fails with `DRIVE_HELD` while any node in the drive is under a legal hold.
 
 A connection is the caller's link to an external account: `connect(organizationId, provider, name)` records one and `connections(organizationId)` lists the caller's own. `createDrive(organizationId, { name, connectionId })` creates a drive that mirrors that account, owned by the connection's user. Mirrored nodes have a `source` other than `internal`, an `externalId` and `externalMetadata`, and the nodes are read-only: only the service role's `drive_sync_batch` changes them. Renaming, moving, sharing, uploading and trashing them fails with `DRIVE_READ_ONLY`.
 
@@ -723,7 +723,7 @@ with the hint `DRIVE_FORBIDDEN`, and the upload stays uncommitted.
 
 ## Events and hooks
 
-The drive records `drive_node.created`, `drive_node.renamed`, `drive_node.moved`, `drive_node.shared`, `drive_node.unshared`, `drive_node.purged`, `drive_node.hold_placed`, `drive_node.hold_released`, `drive_node.locked`, `drive_node.unlocked`, `drive_node.download_blocked_changed` and `drive_node.ownership_transferred`; with `drives` on it also records `drive.created`, `drive.renamed`, `drive.deleted`, `drive.shared`, `drive.unshared`, `drive.download_blocked_changed`, `drive.ownership_transferred`, `drive.connection_created` and `drive.connection_removed`. The [events page](/docs/extending/events) lists their payloads. Sharing, unsharing, download blocks and ownership transfers also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.
+The drive records `drive_node.created`, `drive_node.renamed`, `drive_node.moved`, `drive_node.shared`, `drive_node.unshared`, `drive_node.purged`, `drive_node.hold_placed`, `drive_node.hold_released`, `drive_node.locked`, `drive_node.unlocked`, `drive_node.download_blocked_changed` and `drive_node.ownership_transferred`; with `drives` on it also records `drive.created`, `drive.renamed`, `drive.archived`, `drive.restored`, `drive.purged`, `drive.shared`, `drive.unshared`, `drive.download_blocked_changed`, `drive.ownership_transferred`, `drive.connection_created` and `drive.connection_removed`. The [events page](/docs/extending/events) lists their payloads. Sharing, unsharing, download blocks and ownership transfers also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.
 
 ## Without the client
 

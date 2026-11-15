@@ -25,7 +25,9 @@ export type DriveEvents = {
   readonly "drive.download_blocked_changed": DriveEventData;
   readonly "drive.created": DriveEventData;
   readonly "drive.renamed": DriveEventData;
-  readonly "drive.deleted": DriveEventData;
+  readonly "drive.archived": DriveEventData;
+  readonly "drive.restored": DriveEventData;
+  readonly "drive.purged": DriveEventData;
   readonly "drive.shared": DriveEventData;
   readonly "drive.unshared": DriveEventData;
   readonly "drive_node.ownership_transferred": DriveEventData;
@@ -56,7 +58,9 @@ export const driveEvents: Events<DriveEvents> = defineEvents({
   "drive.download_blocked_changed": event<DriveEventData>(),
   "drive.created": event<DriveEventData>(),
   "drive.renamed": event<DriveEventData>(),
-  "drive.deleted": event<DriveEventData>(),
+  "drive.archived": event<DriveEventData>(),
+  "drive.restored": event<DriveEventData>(),
+  "drive.purged": event<DriveEventData>(),
   "drive.shared": event<DriveEventData>(),
   "drive.unshared": event<DriveEventData>(),
   "drive_node.ownership_transferred": event<DriveEventData>(),

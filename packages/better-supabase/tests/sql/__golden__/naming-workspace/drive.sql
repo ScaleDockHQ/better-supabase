@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:2f07011533219786624f8317bf769a52e454099b5fb5ca0025cebef9b8061c4d
+-- @bsb-hash sha256:293e1612f8b2680f8e121afccd2d083b568010baabeb0186b2bd9d6fdd6038e0
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -504,6 +504,7 @@ begin
   if not "better_supabase"."drive_can"(v_parent."id", 'editor') then
     raise exception 'not allowed to add items to this folder' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
   end if;
+  
   if v_parent."kind" <> 'folder' then
     raise exception 'a file can''t hold other items' using errcode = '22023', hint = 'DRIVE_PARENT_NOT_FOLDER';
   end if;
