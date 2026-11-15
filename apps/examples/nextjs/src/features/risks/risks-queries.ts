@@ -12,6 +12,7 @@ import { bsb } from "@/lib/supabase/server";
 import type { BandTone, RiskRow } from "./risk-rows";
 
 import { riskList, riskPageOptions } from "./risk-list";
+import { riskReads } from "./risk-reads";
 import { tonesOf, toRiskRows } from "./risk-rows";
 
 export type { BandTone, RiskRow };
@@ -42,22 +43,27 @@ const PAGE_SIZE = 50;
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
 /**
- * One keyset page of risks for a list query, with the matrices that name the
- * bands. The cursor travels in the URL as JSON.
+ * One page of risks for a list query, ordered by every sort term. The cursor is
+ * the offset of the next row, and travels in the URL as JSON.
  */
 export async function readRiskPage(
   db: Db,
   query: RecordListUrlQuery,
 ): Promise<RecordListPage<RiskRow>> {
-  const [page, matrices] = await Promise.all([
-    db.risks.page(riskPageOptions(query, PAGE_SIZE)).orThrow(),
-    db.risks.matrices().orThrow(),
-  ]);
+  const page = await riskReads(db).page({
+    ...riskPageOptions(query, PAGE_SIZE),
+  });
+
+  if (!page.ok) {
+    throw new Error(page.error.message);
+  }
 
   return {
-    items: toRiskRows(page.items, matrices),
+    items: page.data.items,
     nextCursor:
-      page.nextCursor === null ? null : JSON.stringify(page.nextCursor),
+      page.data.nextCursor === null
+        ? null
+        : JSON.stringify(page.data.nextCursor),
   };
 }
 

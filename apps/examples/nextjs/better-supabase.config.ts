@@ -116,7 +116,8 @@ export default defineConfig({
           sections: ["overview", "assessments"],
           area: "quality",
           // The register sorts by score, then number (ADR 0896): `gen` writes the composite index
-          // and BS636 asks for it. The risks block still orders by the first term only.
+          // and BS636 asks for it. The block orders by the first term only, so the register reads its rows
+          // through `features/risks/risk-reads.ts`, which orders by every term (ADR 0895).
           sortLists: [["residualScore", "number"]],
         }),
         // The dispatch board: the block's input schema asks only for a title, so the page
@@ -157,15 +158,18 @@ export default defineConfig({
           methods: { page: "invitationsPage", facets: "invitationsFacets" },
           columns: ["email", "role", "expiresAt"],
           area: "team",
+          seed: { demo: 3, tiers: ["demo"] },
         }),
         // The incident log (EX-001): every incidents call takes `organizationId`, which the
-        // generated routes read from the route's `tenant` (ADR 0890).
+        // generated routes read from the route's `tenant` (ADR 0890). The block's input schema
+        // asks for a title, so the page seeds three demo incidents through `open_incident`.
         defineEntityPage({
           entity: "incidents.incident",
           route: "/incidents",
           tenantOption: "organizationId",
           columns: ["title", "severity", "status", "startedAt"],
           area: "operations",
+          seed: { demo: 3, tiers: ["demo"] },
         }),
         // The customers overview (EX-014, EX-001): an app table, so the entity is named
         // `app.customers` and its reads module answers `page` and `facets` over
@@ -197,6 +201,7 @@ export default defineConfig({
               module: "@/features/customers-list/customers-reads",
               export: "customersReads",
             },
+            blocks: ["subjects", "saved-views", "search"],
           },
         }),
         // The inbox queue (EX-410): `conversations.list` declares no list surface, so the
@@ -232,6 +237,7 @@ export default defineConfig({
               module: "@/features/inbox/inbox-reads",
               export: "inboxReads",
             },
+            blocks: ["inbox", "sla", "mail-sync"],
           },
         }),
         // The array lists of the CRM (EX-607): each block returns its rows as an array, so an
@@ -265,6 +271,7 @@ export default defineConfig({
               module: "@/features/sales/list-reads/deals-reads",
               export: "dealsReads",
             },
+            blocks: ["pipelines", "deals"],
           },
         }),
         defineEntityPage({
@@ -286,6 +293,7 @@ export default defineConfig({
               module: "@/features/sales/list-reads/pipelines-reads",
               export: "pipelinesReads",
             },
+            blocks: ["pipelines"],
           },
         }),
         defineEntityPage({
@@ -315,6 +323,7 @@ export default defineConfig({
               module: "@/features/sales/list-reads/segments-reads",
               export: "segmentsReads",
             },
+            blocks: ["segments"],
           },
         }),
         defineEntityPage({
@@ -340,6 +349,7 @@ export default defineConfig({
               module: "@/features/sales/list-reads/queues-reads",
               export: "queuesReads",
             },
+            blocks: ["assignment"],
           },
         }),
         defineEntityPage({
@@ -371,6 +381,7 @@ export default defineConfig({
               module: "@/features/sales/list-reads/scores-reads",
               export: "scoreModelsReads",
             },
+            blocks: ["scores"],
           },
         }),
         defineEntityPage({
@@ -401,6 +412,7 @@ export default defineConfig({
               module: "@/features/sales/list-reads/contracts-reads",
               export: "contractsReads",
             },
+            blocks: ["contracts"],
           },
         }),
       ],

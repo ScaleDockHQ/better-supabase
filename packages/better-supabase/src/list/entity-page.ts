@@ -49,6 +49,12 @@ export interface EntityAppSource {
    * `db.<reads>.<page>`.
    */
   readonly reads: { readonly module: string; readonly export: string };
+  /**
+   * The blocks whose screen this page is (`["deals", "pipelines"]`). The
+   * generated `pageCoverage` lists the route under each, so the app's coverage
+   * map does not repeat it.
+   */
+  readonly blocks?: readonly string[];
 }
 
 /** One entity's page: what the app writes, and what every generator reads. */
@@ -161,6 +167,12 @@ export function defineEntityPage(input: EntityPageInput): EntityPage {
   if (input.app !== undefined && !input.entity.startsWith("app.")) {
     throw new TypeError(
       `defineEntityPage: entity "${input.entity}" sets \`app\`, so it must be named "app.<entity>".`,
+    );
+  }
+
+  if (input.app?.blocks?.some((block) => block.trim() === "")) {
+    throw new TypeError(
+      `defineEntityPage: entity "${input.entity}" lists a block with no name in \`app.blocks\`.`,
     );
   }
 

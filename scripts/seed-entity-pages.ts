@@ -13,6 +13,7 @@ import { Client } from "pg";
 
 import type { EntitySeed } from "../packages/better-supabase/src/list/entity-ui.ts";
 
+import { incidentsSeed } from "../apps/examples/nextjs/src/lib/supabase/pages/incidents.seed.ts";
 import { workOrdersSeed } from "../apps/examples/nextjs/src/lib/supabase/pages/work-orders.seed.ts";
 
 const ACME = "00000000-0000-4000-8000-000000000001";
@@ -30,6 +31,10 @@ export const TARGETS: readonly SeedTarget[] = [
   {
     seed: workOrdersSeed,
     sql: "select better_supabase.create_work_order(tenant => $1::uuid, title => $2::jsonb ->> 'title')",
+  },
+  {
+    seed: incidentsSeed,
+    sql: "select better_supabase.open_incident(tenant => $1::uuid, attrs => $2::jsonb)",
   },
 ];
 

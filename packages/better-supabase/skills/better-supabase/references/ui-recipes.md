@@ -28111,20 +28111,26 @@ npx shadcn add badge @reui/data-grid
 ```tsx title="apps/examples/nextjs/src/features/risks/components/risk-record-list.tsx"
 "use client";
 
-import type { CellContext } from "@tanstack/react-table";
+import type { CellContext, HeaderContext } from "@tanstack/react-table";
 
+import { MAX_PAGE_SORTS } from "better-supabase/blocks";
 import { ShieldAlertIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 
-import type { RecordListColumns } from "@/components/record-list/record-list-grid";
+import type {
+  RecordListColumns,
+  RecordListSorting,
+} from "@/components/record-list/record-list-grid";
 import type { RecordListPage } from "@/components/record-list/record-list-types";
 import type { ReadOnlyGridFeatures } from "@/components/reui/data-grid/data-grid";
 
+import { RecordListSortHeader } from "@/components/record-list/record-list-sort-header";
 import { RecordListView } from "@/components/record-list/record-list-view";
 import { Link } from "@/i18n/navigation";
 
 import type { RiskRow } from "../risk-rows";
 
+import { sortFromSorting, sortingOf } from "../risk-sort";
 import { useRiskListState } from "../use-risk-list-state";
 import { RiskBandBadge } from "./risk-band-badge";
 import { RiskStatusBadge, useRiskStatusLabel } from "./risk-status-badge";
@@ -28147,6 +28153,14 @@ const capitalized = (value: string): string =>
   value.charAt(0).toUpperCase() + value.slice(1);
 
 type RiskCell = CellContext<ReadOnlyGridFeatures, RiskRow>;
+
+type SortHeaderContext = HeaderContext<ReadOnlyGridFeatures, RiskRow>;
+
+function sortHeader(title: string) {
+  return function RiskSortHeader(context: SortHeaderContext) {
+    return <RecordListSortHeader {...context} title={title} />;
+  };
+}
 
 function NumberCell({ row }: RiskCell) {
   return (
@@ -28209,18 +28223,56 @@ export function RiskRecordList({
   const list = useRiskListState();
 
   const columns: RecordListColumns<RiskRow> = [
-    { accessorKey: "number", header: t("Number"), cell: NumberCell, size: 100 },
-    { accessorKey: "title", header: t("Risk"), cell: TitleCell, size: 280 },
-    { accessorKey: "category", header: t("Category"), size: 140 },
-    { accessorKey: "band", header: t("Residual"), cell: BandCell, size: 150 },
-    { accessorKey: "status", header: t("Status"), cell: StatusCell, size: 120 },
+    {
+      accessorKey: "number",
+      header: sortHeader(t("Number")),
+      cell: NumberCell,
+      size: 100,
+    },
+    {
+      accessorKey: "title",
+      header: t("Risk"),
+      cell: TitleCell,
+      size: 280,
+      enableSorting: false,
+    },
+    {
+      accessorKey: "category",
+      header: t("Category"),
+      size: 140,
+      enableSorting: false,
+    },
+    {
+      // The band column sorts by the score behind it.
+      id: "residualScore",
+      accessorKey: "band",
+      header: sortHeader(t("Residual")),
+      cell: BandCell,
+      size: 150,
+      sortDescFirst: true,
+    },
+    {
+      accessorKey: "status",
+      header: t("Status"),
+      cell: StatusCell,
+      size: 120,
+      enableSorting: false,
+    },
     {
       accessorKey: "nextReviewOn",
-      header: t("Next review"),
+      header: sortHeader(t("Next review")),
       cell: ReviewCell,
       size: 140,
     },
   ];
+
+  const sorting: RecordListSorting = {
+    state: sortingOf(list.query.sort),
+    max: MAX_PAGE_SORTS,
+    onChange: (next) => {
+      list.set({ sort: sortFromSorting(next) });
+    },
+  };
 
   return (
     <RecordListView
@@ -28228,6 +28280,7 @@ export function RiskRecordList({
       endpoint="/api/risks/register"
       initial={initial}
       columns={columns}
+      sorting={sorting}
       facets={[
         {
           key: "status",

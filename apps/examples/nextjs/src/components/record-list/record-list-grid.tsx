@@ -1,8 +1,13 @@
 "use client";
 
-import type { ColumnDef, RowData } from "@tanstack/react-table";
+import type {
+  ColumnDef,
+  RowData,
+  SortingState,
+  Updater,
+} from "@tanstack/react-table";
 
-import { useTable } from "@tanstack/react-table";
+import { functionalUpdate, useTable } from "@tanstack/react-table";
 import { TriangleAlertIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 
@@ -37,6 +42,36 @@ export type RecordListColumns<Row extends RowData> = ColumnDef<
 >[];
 
 /**
+ * A header sort the URL owns: the grid shows the terms, and a click reports the
+ * next ones. The server orders the rows, so the grid never sorts them itself.
+ */
+export interface RecordListSorting {
+  readonly state: SortingState;
+  readonly onChange: (next: SortingState) => void;
+  /** The most terms a shift-click adds. */
+  readonly max: number;
+}
+
+/**
+ * The table options that hand the sort to the URL, or none without header
+ * sorting.
+ */
+function sortOptions(sorting: RecordListSorting | undefined) {
+  if (sorting === undefined) {
+    return {};
+  }
+
+  return {
+    manualSorting: true,
+    maxMultiSortColCount: sorting.max,
+    state: { sorting: sorting.state },
+    onSortingChange: (updater: Updater<SortingState>) => {
+      sorting.onChange(functionalUpdate(updater, sorting.state));
+    },
+  };
+}
+
+/**
  * The rows of a list in a read-only data grid. The server sorts, filters and
  * pages, so the grid registers no sorted, filtered or paginated row model. A
  * failed read shows an inline error with Retry; an empty result shows the
@@ -51,6 +86,7 @@ export function RecordListGrid<Row extends RowData & { readonly id: string }>({
   emptyTitle,
   emptyDescription,
   emptyAction,
+  sorting,
   onRetry,
 }: {
   rows: readonly Row[];
@@ -62,6 +98,8 @@ export function RecordListGrid<Row extends RowData & { readonly id: string }>({
   emptyDescription: string;
   /** The action of the empty state: reset the filters or create a record. */
   emptyAction: React.ReactNode;
+  /** Omit it for a list without header sorting. */
+  sorting?: RecordListSorting | undefined;
   onRetry: () => void;
 }) {
   const t = useExtracted("recordList");
@@ -71,6 +109,7 @@ export function RecordListGrid<Row extends RowData & { readonly id: string }>({
     columns,
     data: [...rows],
     getRowId: (row) => row.id,
+    ...sortOptions(sorting),
   });
 
   if (failed) {

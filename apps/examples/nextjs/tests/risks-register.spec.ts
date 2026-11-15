@@ -40,6 +40,40 @@ test("the register sorts by a declared sort and writes it to the URL", async ({
   await expect(page).not.toHaveURL(/[?&]sort=number/);
 });
 
+test("the register headers sort by one column and add more with shift-click", async ({
+  page,
+}) => {
+  await signIn(page);
+  await page.goto("/risks");
+  await expect(register(page)).toBeVisible();
+
+  // No generated seed creates risks (EX-1265), so an empty register has no headers.
+  test.skip(
+    (await register(page).getByRole("columnheader").count()) === 0,
+    "The register has no risks.",
+  );
+
+  const header = (name: string) =>
+    register(page).getByRole("columnheader").getByRole("button", { name });
+
+  await header("Number").click();
+  await expect(page).toHaveURL(/[?&]sort=number:asc(&|$)/);
+  await expect(
+    register(page).getByRole("columnheader", { name: /Number/ }),
+  ).toHaveAttribute("aria-sort", "ascending");
+
+  await header("Next review").click({ modifiers: ["Shift"] });
+  await expect(page).toHaveURL(
+    /[?&]sort=number:asc(,|%2C)nextReviewOn:asc(&|$)/,
+  );
+  await expect(
+    register(page).getByRole("columnheader", { name: /Next review/ }),
+  ).toHaveAttribute("aria-sort", "ascending");
+
+  await header("Number").click();
+  await expect(page).toHaveURL(/[?&]sort=number:desc(&|$)/);
+});
+
 test("an unfinished filter rule stays in the chips while the URL changes", async ({
   page,
 }) => {

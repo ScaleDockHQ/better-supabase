@@ -616,8 +616,9 @@ defineEntityPage({
 
 The `reads` export is a function that takes the route's `db` and returns `{ page, facets }`
 (`EntityListReads`). The generated list and export routes call it in place of `db.<reads>.page`.
-An app entity has no input schema, so it writes no form or seed file, and it writes no coverage entry
-because it belongs to no block.
+An app entity has no input schema, so it writes no form or seed file. It belongs to no block, so it
+writes a coverage entry only when `app.blocks` names the blocks whose screen the page is (`blocks: ["deals", "pipelines"]`):
+`pageCoverage` then lists its route under each.
 
 ### Columns, detail and forms
 

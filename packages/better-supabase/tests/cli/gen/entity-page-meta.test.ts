@@ -321,11 +321,33 @@ describe("app entity pages", () => {
     ).toBe(true);
   });
 
-  it("writes no coverage entry for an app entity", () => {
+  it("writes no coverage entry for an app entity that names no block", () => {
     const coverage = files.get("src/lib/supabase/pages/coverage.ts") ?? "";
 
     expect(coverage).toContain('"risks": ["/risks"],');
     expect(coverage).not.toContain("customers");
+  });
+
+  it("lists an app entity's route under each block it names", () => {
+    const { app } = customers;
+
+    if (app === undefined) {
+      throw new Error("customers is an app entity");
+    }
+
+    const named = defineEntityPage({
+      ...customers,
+      app: { ...app, blocks: ["subjects", "search"] },
+    });
+
+    const coverage =
+      emit([risks, named]).get("src/lib/supabase/pages/coverage.ts") ?? "";
+
+    expect(coverage).toContain('"search": ["/customers"],');
+    expect(coverage).toContain('"subjects": ["/customers"],');
+    expect(() =>
+      defineEntityPage({ ...customers, app: { ...app, blocks: [" "] } }),
+    ).toThrow(/no name in `app.blocks`/);
   });
 
   it("refuses an app entity without `app` and the reverse", () => {
