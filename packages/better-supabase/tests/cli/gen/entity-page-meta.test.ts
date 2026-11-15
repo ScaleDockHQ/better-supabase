@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  declaredSeedValue,
   entityPageMessageKeys,
   entityPageSeedRows,
   seedValue,
@@ -102,6 +103,142 @@ describe("seed output", () => {
     });
 
     expect(() => emit([empty])).toThrow(/seed/);
+  });
+});
+
+describe("seed.fields", () => {
+  const withFields = (
+    fields: NonNullable<NonNullable<typeof risks.seed>["fields"]>,
+  ) =>
+    defineEntityPage({
+      entity: "risks.risk",
+      route: "/risks",
+      seed: { demo: 4, fields },
+    });
+
+  const rowsOf = (page: ReturnType<typeof withFields>) =>
+    entityPageSeedRows(resolveEntityPage(config([page]), page));
+
+  it("sets an optional field and cycles a list by row", () => {
+    const rows = rowsOf(withFields({ category: ["a", "b", "c"] }));
+
+    expect(rows.map((row) => row["category"])).toStrictEqual([
+      "a",
+      "b",
+      "c",
+      "a",
+    ]);
+
+    expect(rows[0]?.["title"]).toBe("Title 1");
+  });
+
+  it("sets a scalar on every row, and seeds an optional field it names", () => {
+    const rows = rowsOf(
+      withFields({ category: "safety", description: "Seeded" }),
+    );
+
+    expect(rows.every((row) => row["category"] === "safety")).toBe(true);
+    expect(rows.every((row) => row["description"] === "Seeded")).toBe(true);
+  });
+
+  it("keeps an unnamed optional field out of the rows", () => {
+    expect(
+      Object.keys(rowsOf(withFields({ category: "x" }))[0] ?? {}),
+    ).toStrictEqual(["title", "category"]);
+  });
+
+  it("refuses a field the input schema or the table does not have", () => {
+    expect(() => rowsOf(withFields({ nope: 1 }))).toThrow(/seed\.fields\.nope/);
+    expect(() => rowsOf(withFields({ fields: "x" }))).toThrow(
+      /seed\.fields\.fields/,
+    );
+  });
+
+  it("refuses an empty list", () => {
+    expect(() => rowsOf(withFields({ category: [] }))).toThrow(/empty list/);
+  });
+
+  it("reads a list by index modulo its length", () => {
+    expect(declaredSeedValue([1, 2], 5)).toBe(2);
+    expect(declaredSeedValue("x", 5)).toBe("x");
+  });
+});
+
+describe("seed.rows, seed.table and seed.tenant", () => {
+  const rows = [{ title: "A" }, { title: "B" }];
+
+  it("writes the rows as declared, ignoring the input schema", () => {
+    const page = defineEntityPage({
+      entity: "risks.risk",
+      route: "/risks",
+      seed: { rows },
+    });
+
+    expect(entityPageSeedRows(resolveEntityPage(config([page]), page))).toBe(
+      rows,
+    );
+  });
+
+  it("refuses rows next to demo or fields", () => {
+    const page = defineEntityPage({
+      entity: "risks.risk",
+      route: "/risks",
+      seed: { rows, demo: 2 },
+    });
+
+    expect(() => emit([page])).toThrow(/seed\.rows replaces/);
+  });
+
+  it("stops when the block declares no table and the page names none", () => {
+    const page = defineEntityPage({
+      entity: "organizations.invitation",
+      route: "/invitations",
+      reads: "$blocks.organizations",
+      seed: { rows },
+    });
+
+    expect(() =>
+      emitEntityPages(
+        resolveConfig(
+          {
+            blocks: { organizations: {}, memberships: {}, permissions: {} },
+            gen: { entityPages: { pages: [page] } },
+          },
+          "/project",
+        ),
+        "better-supabase",
+      ),
+    ).toThrow(/seed\.table/);
+  });
+
+  it("names the table and tenant column when the block declares none", () => {
+    const page = defineEntityPage({
+      entity: "risks.risk",
+      route: "/risks",
+      seed: { rows, table: "audit.items", tenant: "org_id" },
+    });
+
+    const file = [...emit([page])].find(([path]) =>
+      path.endsWith("risks.seed.ts"),
+    )?.[1];
+
+    expect(file).toContain('table: "audit.items",');
+    expect(file).toContain('tenant: "org_id",');
+  });
+
+  it("puts a table without a schema in public and keeps the entity's tenant", () => {
+    const page = defineEntityPage({
+      entity: "risks.risk",
+      route: "/risks",
+      seed: { rows, table: "items" },
+    });
+
+    const file = [...emit([page])].find(([path]) =>
+      path.endsWith("risks.seed.ts"),
+    )?.[1];
+
+    expect(file).toContain('table: "public.items",');
+    expect(file).toContain('tenant: "tenant_id",');
   });
 });
 

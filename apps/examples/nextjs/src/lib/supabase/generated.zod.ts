@@ -1387,6 +1387,12 @@ export const tillInput: z.ZodType<{ name: string; currency: string; accountId?: 
   location: z.string().max(200).nullable().exactOptional(),
 }).meta({ title: "TillInput" });
 
+export const periodInput: z.ZodType<{ kind: string; startsOn: Temporal.PlainDate; endsOn: Temporal.PlainDate }> = z.object({
+  kind: z.string().min(1).meta({ description: "What the range is for, such as `fiscal_month`." }),
+  startsOn: z.custom<Temporal.PlainDate>(isPlainDate),
+  endsOn: z.custom<Temporal.PlainDate>(isPlainDate).meta({ description: "The last day of the range, inclusive." }),
+}).meta({ title: "CreatePeriodInput" });
+
 export const checkoutSessionInput: z.ZodType<{ cartId: string; protocol: "acp" | "ucp"; idempotencyKey: string }> = z.object({
   cartId: z.string().min(1),
   protocol: z.enum(["acp", "ucp"]),

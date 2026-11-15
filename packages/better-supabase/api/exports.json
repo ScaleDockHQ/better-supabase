@@ -11754,6 +11754,7 @@
       "createPeriods",
       "dbTransport",
       "extendBlock",
+      "periodInputSchema",
       "periodsBlock",
       "periodsEvents",
       "rpcTransport",

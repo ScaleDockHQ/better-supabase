@@ -100,15 +100,41 @@ export default defineConfig({
           // Columns and detail sections: gen writes `periods.columns.ts` and `periods.detail.ts`.
           columns: ["kind", "status", "startsOn", "endsOn"],
           sections: ["overview", "entries"],
-          // Nav area: gen writes `periods.navigation.ts` and `routes.manifest.ts`. The periods block
-          // exports no input schema, so the page sets no `seed`.
+          // Nav area: gen writes `periods.navigation.ts` and `routes.manifest.ts`.
           area: "finance",
+          // Six fiscal months from the periods block's input schema. `kind` is a value no
+          // generator can guess and the ranges may not overlap, so `seed.fields` declares
+          // them (ADR 1032); `pnpm db:seed:pages` creates them through `create_period`.
+          seed: {
+            demo: 6,
+            tiers: ["demo"],
+            fields: {
+              kind: "fiscal_month",
+              startsOn: [
+                "2026-06-01",
+                "2026-07-01",
+                "2026-08-01",
+                "2026-09-01",
+                "2026-10-01",
+                "2026-11-01",
+              ],
+              endsOn: [
+                "2026-06-30",
+                "2026-07-31",
+                "2026-08-31",
+                "2026-09-30",
+                "2026-10-31",
+                "2026-11-30",
+              ],
+            },
+          },
           // CSV download: gen writes `/api/periods/export` and lists it in `routes.manifest.ts` (ADR 0880).
           export: { filename: "periods.csv" },
         }),
         // The risk register (EX-1001). The block's `category` field takes one of the
-        // block's configured categories, which a generated demo value cannot know, so the
-        // page sets no `seed`.
+        // block's configured categories, which a generated demo value cannot know, so
+        // `seed.fields` lists the block's default categories and row `i` takes the one at `i`
+        // (ADR 1032).
         defineEntityPage({
           entity: "risks.risk",
           route: "/risks",
@@ -119,6 +145,22 @@ export default defineConfig({
           // and BS636 asks for it. The block orders by the first term only, so the register reads its rows
           // through `features/risks/risk-reads.ts`, which orders by every term (ADR 0895).
           sortLists: [["residualScore", "number"]],
+          seed: {
+            demo: 8,
+            tiers: ["demo"],
+            fields: {
+              category: [
+                "quality",
+                "safety",
+                "environment",
+                "security",
+                "compliance",
+                "operational",
+                "financial",
+                "strategic",
+              ],
+            },
+          },
         }),
         // The dispatch board: the block's input schema asks only for a title, so the page
         // seeds five demo work orders (`work-orders.seed.ts`, applied by `pnpm db:seed:pages`).
@@ -130,8 +172,10 @@ export default defineConfig({
           area: "operations",
           seed: { demo: 5, tiers: ["demo"] },
         }),
-        // The sales overviews of phase 6 (EX-607). Their blocks export no input schema,
-        // so neither page sets `seed`.
+        // The sales overviews of phase 6 (EX-607). Their blocks export no input schema that
+        // fits (an accrual takes `source: { type, id }` and an attribution a code), so each page
+        // declares its rows in `seed.rows` (ADR 1032). The commission plans and the referral
+        // code stay in `example.sql`: the accruals and the attribution need them.
         defineEntityPage({
           entity: "commissions.commission",
           route: "/crm/commissions",
@@ -139,6 +183,27 @@ export default defineConfig({
           methods: { page: "commissionPage", facets: "commissionFacets" },
           columns: ["status", "seller", "amount", "occurredOn"],
           area: "sales",
+          seed: {
+            tiers: ["demo"],
+            rows: [
+              {
+                seller_id: "00000000-0000-4000-8000-0000000000a1",
+                source_type: "deal",
+                source_id: "00000000-0000-4000-8000-0000000d0005",
+                basis: 450_000,
+                currency: "EUR",
+                occurred_on: "2026-11-09",
+              },
+              {
+                seller_id: "00000000-0000-4000-8000-0000000000a2",
+                source_type: "deal",
+                source_id: "00000000-0000-4000-8000-0000000d0003",
+                basis: 300_000,
+                currency: "EUR",
+                occurred_on: "2026-11-12",
+              },
+            ],
+          },
         }),
         defineEntityPage({
           entity: "referrals.referral",
@@ -147,6 +212,12 @@ export default defineConfig({
           methods: { page: "referralPage", facets: "referralFacets" },
           columns: ["status", "referrer", "createdAt"],
           area: "sales",
+          seed: {
+            tiers: ["demo"],
+            rows: [
+              { code: "ACMEFRIENDS", referred_email: "friend@initech.test" },
+            ],
+          },
         }),
         // The open invitations of an organization (ADR 0923, 0924): the organizations block
         // names its list reads per entity, and the members page is the nav area.
@@ -158,7 +229,18 @@ export default defineConfig({
           methods: { page: "invitationsPage", facets: "invitationsFacets" },
           columns: ["email", "role", "expiresAt"],
           area: "team",
-          seed: { demo: 3, tiers: ["demo"] },
+          // The organizations block declares no table for its invitations, so the page names
+          // it. The open invitation with a known token stays in `seed.sql` (`/invite/seed-invitation-acme`).
+          seed: {
+            tiers: ["demo"],
+            table: "better_supabase.invitations",
+            tenant: "tenant_id",
+            rows: [
+              { email: "dana@acme.test", role: "member" },
+              { email: "sam@acme.test", role: "member" },
+              { email: "lee@acme.test", role: "admin" },
+            ],
+          },
         }),
         // The incident log (EX-001): every incidents call takes `organizationId`, which the
         // generated routes read from the route's `tenant` (ADR 0890). The block's input schema

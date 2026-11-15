@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { createPeriods } from "../../../src/blocks/periods/index.ts";
+import {
+  createPeriods,
+  periodInputSchema,
+  periodsBlock,
+} from "../../../src/blocks/periods/index.ts";
 import { temporal } from "../../../src/core/temporal-required.ts";
 import { fieldsTransport } from "../fields-transport.ts";
 
@@ -167,5 +171,31 @@ describe("createPeriods", () => {
 
     expect(result.ok).toBe(false);
     expect(t.calls).toHaveLength(0);
+  });
+});
+
+describe("periodInputSchema", () => {
+  it("is the input of the period entity", () => {
+    expect(periodsBlock.schemas["period"]?.input).toBe(periodInputSchema);
+  });
+
+  it("takes a kind and two dates", async () => {
+    const { PlainDate } = temporal();
+
+    const ok = await periodInputSchema["~standard"].validate({
+      kind: "fiscal_month",
+      startsOn: PlainDate.from("2026-06-01"),
+      endsOn: PlainDate.from("2026-06-30"),
+    });
+
+    const bad = await periodInputSchema["~standard"].validate({
+      kind: "",
+      startsOn: "2026-06-01",
+    });
+
+    expect(ok.issues).toBeUndefined();
+    expect(bad.issues?.map((issue) => issue.path?.[0])).toEqual(
+      expect.arrayContaining(["kind", "startsOn", "endsOn"]),
+    );
   });
 });
