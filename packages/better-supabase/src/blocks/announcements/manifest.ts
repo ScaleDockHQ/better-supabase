@@ -4,6 +4,7 @@ import type { AnnouncementsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createAnnouncements } from "./announcements.ts";
 import { announcementsEvents } from "./events.ts";
+import { announcementListSurface } from "./lists.ts";
 import { announcementsSqlOptions } from "./options.ts";
 
 /** The `announcements` block's manifest (ADR 0029). */
@@ -21,6 +22,7 @@ export const announcementsBlock: BlockOf<
   category: "growth",
   entities: {
     announcement: {
+      ...announcementListSurface,
       mutability: "editable",
       emits: {
         create: true,

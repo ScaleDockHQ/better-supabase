@@ -3,6 +3,7 @@ import type { TagsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { tagsEvents } from "./events.ts";
+import { tagListSurface } from "./lists.ts";
 import { tagsSqlOptions } from "./options.ts";
 import { tagsBinding } from "./record-binding.ts";
 import { createTags } from "./tags.ts";
@@ -25,6 +26,7 @@ export const tagsBlock: BlockOf<
   category: "work",
   entities: {
     tag: {
+      ...tagListSurface,
       mutability: "editable",
       emits: { create: true, update: true, delete: true },
     },

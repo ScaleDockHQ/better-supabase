@@ -3,6 +3,7 @@ import type { RemindersEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { remindersEvents } from "./events.ts";
+import { reminderListSurface } from "./lists.ts";
 import { remindersSqlOptions } from "./options.ts";
 import { createReminders } from "./reminders.ts";
 
@@ -31,6 +32,7 @@ export const remindersBlock: BlockOf<
   category: "scheduling",
   entities: {
     reminder: {
+      ...reminderListSurface,
       mutability: "editable",
       emits: { update: false, delete: false },
     },

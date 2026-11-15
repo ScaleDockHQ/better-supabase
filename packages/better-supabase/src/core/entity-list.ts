@@ -116,7 +116,7 @@ export interface EntityListSpec<Item> {
    * one. A block with a `tenant` option passes `() => requireTenant(...)`; a
    * block that takes the organization per call passes `tenantOrOption`.
    */
-  readonly tenant: (organizationId?: string) => AsyncResult<string>;
+  readonly tenant: (organizationId?: string) => AsyncResult<string | undefined>;
   /** The block's SQL list function. */
   readonly fn: string;
   readonly rowOf: (row: Record<string, unknown>, fn: string) => Item;
@@ -136,6 +136,24 @@ export function tenantOrOption(
     organizationId === undefined
       ? requireTenant(tenant)
       : AsyncResult.ok(organizationId);
+}
+
+/**
+ * The `tenant` of a list that has no organization (ADR 1077): a platform list
+ * such as announcements, whose SQL list function takes only `filters`.
+ */
+export function noTenant(): AsyncResult<undefined> {
+  return AsyncResult.ok(undefined);
+}
+
+/**
+ * The `tenant` of a list whose rows may belong to an organization or to the
+ * whole system (prompts): the call's `organizationId`, or none.
+ */
+export function optionalTenant(
+  organizationId?: string,
+): AsyncResult<string | undefined> {
+  return AsyncResult.ok(organizationId);
 }
 
 /**

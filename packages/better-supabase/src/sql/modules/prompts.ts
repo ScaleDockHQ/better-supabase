@@ -2,7 +2,20 @@ import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { lockTable, raise, schemaPreamble, serviceGrant } from "../shared.ts";
+import {
+  filterAny,
+  filterSet,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
+import {
+  fail,
+  lockTable,
+  raise,
+  schemaPreamble,
+  serviceGrant,
+} from "../shared.ts";
 
 const VERSIONS = {
   id: "id",
@@ -78,6 +91,53 @@ function build(ctx: BlockSqlContext): string {
 
   const nameCheck = `^[a-z0-9][a-z0-9_.:/-]{0,127}$`;
   const labelCheck = `^[a-z0-9][a-z0-9_-]{0,63}$`;
+
+  const promptGroups = `(
+    select g.${v("name")} as name,
+      max(g.${v("version")}) as latest_version,
+      count(*) as version_count,
+      ${hasCreated ? `max(g.${v("createdAt")})` : "null::timestamptz"} as updated_at,
+      coalesce((
+        select jsonb_object_agg(y.${l("label")}, y.${l("version")}) from ${labels} y
+        where ${key("y", l("tenant"))} = coalesce(page_prompts.tenant::text, '') and y.${l("name")} = g.${v("name")}
+      ), '{}'::jsonb) as labels
+    from ${versions} g
+    where ${key("g", v("tenant"))} = coalesce(page_prompts.tenant::text, '')
+    group by g.${v("name")}
+  )`;
+
+  const promptName = { expr: "x.name", dir: "asc", type: "text" } as const;
+
+  const promptPage = {
+    name: "page_prompts",
+    from: promptGroups,
+    alias: "x",
+    where: [
+      filterAny("name", "x.name"),
+      `(not ${filterSet("label")} or x.labels ?| (case when jsonb_typeof(v_filters -> 'label') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'label')) else array[v_filters ->> 'label'] end))`,
+      "(v_search is null or x.name ilike v_search)",
+    ],
+    keys: [promptName],
+    sorts: {
+      name: [promptName],
+      updatedAt: [
+        {
+          expr: "coalesce(x.updated_at, 'epoch'::timestamptz)",
+          dir: "desc",
+          type: "timestamptz",
+        },
+        promptName,
+      ],
+      versionCount: [
+        { expr: "x.version_count", dir: "desc", type: "bigint" },
+        promptName,
+      ],
+    },
+    rowJson: `jsonb_build_object('name', x.name, 'tenant_id', page_prompts.tenant, 'latest_version', x.latest_version, 'version_count', x.version_count, 'updated_at', x.updated_at, 'labels', x.labels)`,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("PROMPT_INVALID", message, "22023"),
+  } as const;
 
   return `${schemaPreamble(ctx)}
 -- Prompt templates the application versions by name, per tenant or for the
@@ -274,7 +334,30 @@ begin
   );
 end;
 $$;
-${serviceGrant(`${fn("list_prompts")}(${id}, text, integer)`)}`;
+${serviceGrant(`${fn("list_prompts")}(${id}, text, integer)`)}
+
+-- The prompt names of a tenant (the system when tenant is null) as a keyset
+-- page (ADR 1077), with the same items as list_prompts. filters is { name,
+-- label (each a value or a list), search (name), sort (name, updatedAt,
+-- versionCount), direction, count, limit, after, offset, paged, total,
+-- totalCap }. Service role only, and it reads no template.
+create or replace function ${fn("page_prompts")}(tenant ${id} default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_prompts.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(promptPage)}
+begin
+  ${listBody(promptPage)}
+end;
+$$;
+${serviceGrant(`${fn("page_prompts")}(${id}, jsonb)`)}`;
 }
 
 export const PROMPTS: BlockSqlDefinition = {

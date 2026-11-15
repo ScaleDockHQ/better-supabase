@@ -1,6 +1,13 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -13,6 +20,11 @@ import {
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  noTenant,
+} from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   blockCall,
@@ -26,6 +38,7 @@ import {
   toInstant,
   applyTemporal,
 } from "../shared.ts";
+import { announcementListSurface } from "./lists.ts";
 
 export type AnnouncementSeverity = "info" | "success" | "warning" | "critical";
 
@@ -111,10 +124,26 @@ export interface Announcements<F extends object = Record<never, never>> {
   /**
    * Every announcement that is not archived; needs `announcements.manage` on
    * the platform. `includeArchived` adds the archived ones.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes sorts, array
+   * filters, `q` and a count (ADR 1077).
    */
   list(input?: {
     readonly includeArchived?: boolean;
   }): AsyncResult<readonly (ManagedAnnouncement & F)[]>;
+  /**
+   * One keyset page of announcements for staff, newest start first. Needs
+   * `announcements.manage`. `filters` takes `severity`, `audience` and
+   * `archived` (`["true"]` adds the archived ones); `q` searches the title and
+   * body.
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<ManagedAnnouncement & F>>;
+  /** The values of each facet (`severity`, `audience`) and their counts. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many announcements match the page's `q` and filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
+  /** One announcement for staff, or a `not_found` error. */
+  get(announcementId: string): AsyncResult<ManagedAnnouncement & F>;
   /** Keys besides the input's own are the announcement's extra columns. */
   publish(
     input: AnnouncementInput & Partial<F>,
@@ -320,6 +349,15 @@ export function createAnnouncements<
       withFields(fields, value, managedOf(value)),
     );
 
+  const announcements = entityList<readonly [unknown, ManagedAnnouncement]>({
+    entity: "announcement",
+    surface: announcementListSurface,
+    call,
+    tenant: noTenant,
+    fn: "page_announcements",
+    rowOf: (raw) => [raw, managedOf(raw)] as const,
+  });
+
   const client: Announcements<F> = {
     listActive: (organizationId) =>
       call(
@@ -336,6 +374,23 @@ export function createAnnouncements<
         { id: announcementId },
         (value) => value === true,
       ),
+    page: (pageOptions) =>
+      announcements
+        .page(pageOptions)
+        .andThen((page) =>
+          AsyncResult.from(() => allWithFields(fields, page.items)).map(
+            (items) => ({ ...page, items }),
+          ),
+        ),
+    facets: (facetOptions) => announcements.facets(facetOptions),
+    count: (countOptions) => announcements.count(countOptions),
+    get: (announcementId) =>
+      call("get_announcement", { id: announcementId }, (value) => value)
+        .andThen((value) =>
+          foundOrNotFound("announcement", value, announcementId),
+        )
+        .andThen((value) => withFields(fields, value, managedOf(value))),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (input) =>
       call(
         "list_announcements",

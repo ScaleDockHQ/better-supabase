@@ -1,6 +1,16 @@
-import type { ListPage } from "../../core/block-helpers.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AiAccess } from "../ai-access.ts";
@@ -8,6 +18,11 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { pageRowsOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  optionalTenant,
+} from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { accessDenied } from "../ai-access.ts";
 import {
@@ -18,6 +33,7 @@ import {
   recordOf,
   textOf,
 } from "../shared.ts";
+import { promptListSurface } from "./lists.ts";
 
 /** One prompt name with what its versions say, from `Prompts.list`. */
 export interface PromptSummary {
@@ -108,12 +124,43 @@ export interface Prompts {
    * in name order, with the latest version, the version count and the labels.
    * Templates are not read: use `get` or `versions` for one name. `limit`
    * defaults to 50 and is capped at 200; pass `nextCursor` as `after`.
+   *
+   * @deprecated Use `page`, which also takes sorts, array filters, `q` and a
+   * count (ADR 1077).
    */
   list(options?: {
     readonly organizationId?: string;
     readonly limit?: number;
     readonly after?: readonly string[];
   }): AsyncResult<ListPage<PromptSummary>>;
+  /**
+   * One keyset page of the prompt names of an organization (the system's
+   * without one). `filters` takes `name` and `label` as lists, `q` searches the
+   * name, and `sort` is `name`, `updatedAt` or `versionCount`.
+   */
+  page(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<PromptSummary>>;
+  /**
+   * The facets of a prompt name: a name has no single-valued column to count,
+   * so the result is empty and `count` is the way to size a filter.
+   */
+  facets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many prompt names match the page's `q` and filters. */
+  count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /**
+   * `get` that answers a missing prompt with a `not_found` error. A prompt is
+   * keyed by name, so this takes the name and not an id.
+   */
+  getPrompt(
+    input: { name: string } & {
+      readonly label?: string;
+      readonly version?: number;
+      readonly organizationId?: string;
+    },
+  ): AsyncResult<Prompt>;
   /** Points `label` at an existing version, to promote or roll back. */
   setLabel(
     input: { name: string; label: string; version: number } & {
@@ -224,6 +271,15 @@ export function createPrompts(options: PromptOptions): Prompts {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const names = entityList<PromptSummary, TenantOption>({
+    entity: "prompt",
+    surface: promptListSurface,
+    call,
+    tenant: optionalTenant,
+    fn: "page_prompts",
+    rowOf: (row) => summaryOf(row),
+  });
+
   const client: Prompts = {
     create: ({ name, template, ...saveOptions }) =>
       call(
@@ -259,6 +315,14 @@ export function createPrompts(options: PromptOptions): Prompts {
           };
         },
       ),
+    page: names.page,
+    facets: names.facets,
+    count: names.count,
+    getPrompt: (input) =>
+      client
+        .get(input)
+        .andThen((prompt) => foundOrNotFound("prompt", prompt, input.name)),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (listOptions = {}) =>
       call(
         "list_prompts",
@@ -300,10 +364,32 @@ export function createPrompts(options: PromptOptions): Prompts {
 
       return denied ? AsyncResult.err(denied) : client.get(input);
     },
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (listOptions) => {
       const denied = accessDenied(access, [listOptions?.organizationId]);
 
+      // oxlint-disable-next-line typescript/no-deprecated -- same alias
       return denied ? AsyncResult.err(denied) : client.list(listOptions);
+    },
+    page: (pageOptions) => {
+      const denied = accessDenied(access, [pageOptions?.organizationId]);
+
+      return denied ? AsyncResult.err(denied) : client.page(pageOptions);
+    },
+    facets: (facetOptions) => {
+      const denied = accessDenied(access, [facetOptions?.organizationId]);
+
+      return denied ? AsyncResult.err(denied) : client.facets(facetOptions);
+    },
+    count: (countOptions) => {
+      const denied = accessDenied(access, [countOptions?.organizationId]);
+
+      return denied ? AsyncResult.err(denied) : client.count(countOptions);
+    },
+    getPrompt: (input) => {
+      const denied = accessDenied(access, [input.organizationId]);
+
+      return denied ? AsyncResult.err(denied) : client.getPrompt(input);
     },
     setLabel: (input) => {
       const denied = accessDenied(access, [input.organizationId]);

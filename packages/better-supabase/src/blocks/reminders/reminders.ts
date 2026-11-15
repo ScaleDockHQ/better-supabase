@@ -3,6 +3,12 @@ import type {
   FieldsOf,
   RowFields,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
@@ -10,6 +16,11 @@ import type {
   AuthorizationHooks,
   SubscriberPolicy,
 } from "../../core/contracts/authorization-hooks.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -31,6 +42,11 @@ import {
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { dbError, isDbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { subjectReaders } from "../../core/subject-readers.ts";
@@ -46,6 +62,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { reminderListSurface } from "./lists.ts";
 import { planReminderDeliveries } from "./schedule.ts";
 
 /** Sends `notification` through `notifier` for a delivered reminder. */
@@ -225,6 +242,9 @@ export interface Reminders<F extends object = Record<never, never>> {
   /**
    * The caller's reminders on `subject`, the earliest before the occurrence
    * first.
+   *
+   * @deprecated Use `page` with `filters: { subjectType, subjectId }`, which
+   * pages by keyset and takes sorts and a count (ADR 1077).
    */
   list(
     subject: RecordRef,
@@ -233,10 +253,29 @@ export interface Reminders<F extends object = Record<never, never>> {
   /**
    * Every reminder the caller set in the tenant, on any subject, the earliest
    * before the occurrence first.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes sorts, array
+   * filters and a count (ADR 1077).
    */
   listForCaller(options?: {
     readonly limit?: number;
   }): AsyncResult<readonly CallerReminderEntry[]>;
+  /**
+   * One keyset page of the caller's reminders in the tenant, the earliest
+   * before the occurrence first. `filters` takes `subjectType`, `subjectId` and
+   * `method` as lists; a reminder has no text, so `q` is refused.
+   */
+  page(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<CallerReminderEntry>>;
+  /** The values of each facet (`method`, `subjectType`) and their counts. */
+  facets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many of the caller's reminders match the page's filters. */
+  count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One of the caller's reminders, or a `not_found` error. */
+  get(reminderId: string): AsyncResult<CallerReminderEntry>;
   /** Removes one of the caller's reminders; `false` when there was none. */
   remove(reminderId: string): AsyncResult<boolean>;
   /**
@@ -273,6 +312,20 @@ interface ScheduleRow {
   readonly organizationId: string;
   readonly subject: RecordRef | undefined;
   readonly userId: string | undefined;
+}
+
+function callerEntryOf(
+  row: Readonly<Record<string, unknown>>,
+): CallerReminderEntry {
+  return {
+    id: textOf(row["id"]),
+    subject: { type: textOf(row["subjectType"]), id: textOf(row["subjectId"]) },
+    method: textOf(row["method"]),
+    offsetMinutes: Number(row["offsetMinutes"]),
+    ...(row["remindAt"] === undefined || row["remindAt"] === null
+      ? {}
+      : { remindAt: instantOf(row["remindAt"]) }),
+  };
 }
 
 function scheduleRowOf(row: Readonly<Record<string, unknown>>): ScheduleRow {
@@ -398,6 +451,15 @@ export function createReminders<
   const fields: BlockFields<F> = blockFields(options.fields, "reminder fields");
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
   const notifyDelivery = options.notifyDelivery ?? notifyThrough(options);
+
+  const reminders = entityList<CallerReminderEntry, TenantOption>({
+    entity: "reminder",
+    surface: reminderListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_my_reminders",
+    rowOf: (row) => callerEntryOf(row),
+  });
 
   const audience =
     options.audience ??
@@ -571,6 +633,16 @@ export function createReminders<
           ),
         ).andThen((saved) => readFields(fields, saved)),
       ),
+    page: reminders.page,
+    facets: reminders.facets,
+    count: reminders.count,
+    get: (reminderId) =>
+      call("get_my_reminder", { reminder: reminderId }, (value) =>
+        value === null || value === undefined
+          ? undefined
+          : callerEntryOf(recordOf(value, "get_my_reminder")),
+      ).andThen((row) => foundOrNotFound("reminder", row, reminderId)),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (subject, options) =>
       tenant().andThen((organizationId) =>
         call(
@@ -593,6 +665,7 @@ export function createReminders<
           options?.limit === undefined ? rows : rows.slice(0, options.limit),
         ),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listForCaller: (options) =>
       tenant().andThen((organizationId) =>
         call("list_my_reminders", { tenant: organizationId }, (value) =>
