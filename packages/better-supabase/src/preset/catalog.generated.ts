@@ -27534,6 +27534,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "FundingClaim"
         },
         {
+          "name": "FundingClaimArchivedEventData"
+        },
+        {
           "name": "FundingClaimChannel"
         },
         {
@@ -27541,9 +27544,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "FundingClaimCreatedEventData"
-        },
-        {
-          "name": "FundingClaimDeletedEventData"
         },
         {
           "name": "FundingClaimDelivery"
@@ -27558,10 +27558,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "FundingClaimLineStatus"
         },
         {
+          "name": "FundingClaimPurgedEventData"
+        },
+        {
           "name": "FundingClaimRespondedEventData"
         },
         {
           "name": "FundingClaimResponse"
+        },
+        {
+          "name": "FundingClaimRestoredEventData"
         },
         {
           "name": "FundingClaimSentEventData"

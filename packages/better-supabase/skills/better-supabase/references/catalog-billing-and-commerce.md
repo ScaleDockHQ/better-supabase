@@ -282,7 +282,7 @@ Products a funder pays for, awards of units per period to a record from a funder
 - Entities: `funding_product`, `funding_award`, `funding_delivery`, `funding_claim`, `funding_claim_line`
 - Tables: `funding_products`, `funding_awards`, `funding_deliveries`, `funding_claims`, `funding_claim_lines`
 - Permission keys: `funding.read`, `funding.write`, `funding.register`, `funding.approve`, `funding.claim`, `funding.manage`
-- Events (`FundingEvents`): `funding_award.created`, `funding_award.ended`, `funding_award.exceeded`, `funding_award.updated`, `funding_claim.created`, `funding_claim.deleted`, `funding_claim.responded`, `funding_claim.sent`, `funding_delivery.registered`
+- Events (`FundingEvents`): `funding_award.created`, `funding_award.ended`, `funding_award.exceeded`, `funding_award.updated`, `funding_claim.archived`, `funding_claim.created`, `funding_claim.purged`, `funding_claim.responded`, `funding_claim.restored`, `funding_claim.sent`, `funding_delivery.registered`
 
 ## tax
 

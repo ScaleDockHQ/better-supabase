@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   BULK_LIMIT,
   bulk,
+  bulkItems,
   bulkOfSet,
   bulkReportOf,
   checkBulkLimit,
@@ -114,5 +115,74 @@ describe("bulkOfSet", () => {
     );
 
     expect(!result.ok && result.error.kind).toBe("timeout");
+  });
+});
+
+describe("bulkItems", () => {
+  it("runs each item with its own value and names it by id", async () => {
+    const seen: string[] = [];
+
+    const result = await bulkItems(
+      [
+        { id: "a", role: "viewer" },
+        { id: "b", role: "editor" },
+      ],
+      (item) => {
+        seen.push(`${item.id}:${item.role}`);
+
+        return Promise.resolve(
+          item.id === "b" ? err(dbError("forbidden", "No")) : ok(true),
+        );
+      },
+    );
+
+    expect(seen).toEqual(["a:viewer", "b:editor"]);
+    expect(result.ok && result.data.succeeded).toEqual(["a"]);
+    expect(result.ok && result.data.failed.map((f) => f.id)).toEqual(["b"]);
+  });
+
+  it("turns a throw into a failed item and keeps going", async () => {
+    const result = await bulkItems([{ id: "a" }, { id: "b" }], (item) => {
+      if (item.id === "a") {
+        throw new Error("boom");
+      }
+
+      return Promise.resolve(ok(true));
+    });
+
+    expect(result.ok && result.data.succeeded).toEqual(["b"]);
+    expect(result.ok && result.data.failed.map((f) => f.id)).toEqual(["a"]);
+  });
+
+  it("fails a repeated id without running it", async () => {
+    let calls = 0;
+
+    const result = await bulkItems([{ id: "a" }, { id: "a" }], () => {
+      calls += 1;
+
+      return Promise.resolve(ok(true));
+    });
+
+    expect(calls).toBe(1);
+    expect(result.ok && result.data.failed[0]?.error.hint).toBe(
+      "BULK_DUPLICATE_ID",
+    );
+  });
+
+  it("rejects more items than the limit without running any", async () => {
+    let calls = 0;
+
+    const result = await bulkItems(
+      [{ id: "a" }, { id: "b" }],
+      () => {
+        calls += 1;
+
+        return Promise.resolve(ok(true));
+      },
+      { limit: 1 },
+    );
+
+    expect(calls).toBe(0);
+    expect(!result.ok && result.error.hint).toBe("BULK_TOO_MANY");
   });
 });

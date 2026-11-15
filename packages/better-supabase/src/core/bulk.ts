@@ -93,6 +93,69 @@ export function bulk<Action extends string>(
   });
 }
 
+/** One row of `bulkItems`: the id the report names, plus that row's own value. */
+export interface BulkItem {
+  readonly id: string;
+}
+
+/**
+ * `bulk` for a value per row (ADR 1075): runs `apply` once per item, in order,
+ * and collects the outcome. The report names each item by its `id`. A second
+ * item with an id already seen fails with `BULK_DUPLICATE_ID` and never runs; a
+ * thrown or failed item lands in `failed` and never stops the others. The limit
+ * counts items.
+ */
+export function bulkItems<Item extends BulkItem>(
+  items: readonly Item[],
+  apply: (item: Item) => PromiseLike<Result<unknown>>,
+  options: BulkCallOptions = {},
+): AsyncResult<BulkReport> {
+  return AsyncResult.from(async (): Promise<Result<BulkReport>> => {
+    const rejected = checkBulkLimit(
+      items.map((item) => item.id),
+      options.limit,
+    );
+
+    if (rejected) {
+      return err(rejected);
+    }
+
+    const seen = new Set<string>();
+    const succeeded: string[] = [];
+    const failed: BulkItemError[] = [];
+
+    for (const item of items) {
+      if (seen.has(item.id)) {
+        failed.push({
+          id: item.id,
+          error: dbError(
+            "invalid_input",
+            `The id ${item.id} appears more than once in the call`,
+            { hint: "BULK_DUPLICATE_ID" },
+          ),
+        });
+        continue;
+      }
+
+      seen.add(item.id);
+
+      try {
+        const result = await apply(item);
+
+        if (result.ok) {
+          succeeded.push(item.id);
+        } else {
+          failed.push({ id: item.id, error: result.error });
+        }
+      } catch (error) {
+        failed.push({ id: item.id, error: toDbError(error) });
+      }
+    }
+
+    return ok({ succeeded, failed });
+  });
+}
+
 /**
  * The `BulkReport` of a set function that returns the ids it changed and the
  * ids it skipped (`TaskSetResult`): one call for the whole list, a skipped id
