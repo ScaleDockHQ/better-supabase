@@ -29,6 +29,7 @@ the
 | [Workflow 5.5](#workflow-55)                  | Upgrade the `workflow-sdk` SQL module, then deploy             |
 | [Team purge](#team-purge)                     | Rename `teams.delete`, `team.deleted` and `permissions.delete` |
 | [Submission purge](#submission-purge)         | Rename `forms.deleteSubmission` and `form_submission.deleted`  |
+| [Score model purge](#score-model-purge)       | Rename `scores.deleteModel` and `score_model.deleted`          |
 
 ## Supabase peers
 
@@ -231,6 +232,28 @@ Run `better-supabase upgrade` and apply the migration, which adds the
 permission until you set `permissions.purge`. Sinks and workflows that match
 `form_submission.deleted` need the new type, and a `hooks.deleteSubmission`
 entry moves to `hooks.purgeSubmission`.
+
+## Score model purge
+
+A score model can now be archived and restored, so its hard delete is `purge`
+(ADR 1053). Archive keeps the model, its versions and every score, hides the
+model from `models`, `list` and `top`, and makes `compute` and `saveModel`
+refuse it until `restoreModel` brings it back.
+
+| Before                                 | After                                                  |
+| -------------------------------------- | ------------------------------------------------------ |
+| `scores.deleteModel(id)`               | `scores.purgeModel(id)`                                |
+| SQL function `delete_score_model`      | `purge_score_model(model_id)`                          |
+| Event `score_model.deleted`            | `score_model.purged`                                   |
+| `list_score_models(...)` two arguments | a third argument, `include_archived` (default `false`) |
+| no archive                             | `archiveModel`, `restoreModel`, `archivedAt`           |
+
+Run `better-supabase upgrade` and apply the migration, which adds the
+`archived_at` column, drops `delete_score_model` and the two-argument
+`list_score_models`, and adds the new functions. Purging needs `scores.manage`
+until you set `permissions.purge`. Sinks and workflows that match
+`score_model.deleted` need the new type, and a `hooks.deleteModel` entry moves
+to `hooks.purgeModel`.
 
 ## eve 1.0
 

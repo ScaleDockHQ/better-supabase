@@ -3,6 +3,7 @@ import type { BlockSqlContext } from "../context.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { archiveFunctions } from "./scores-archive.ts";
 
 const MAX_BANDS = 10;
 
@@ -32,6 +33,7 @@ export function scoresFunctions(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", permissions.read);
   const manage = ctx.permission("manage", permissions.manage);
   const compute = ctx.permission("compute", permissions.compute);
+  const purge = ctx.permission("purge", permissions.manage);
   const rules = ctx.of("automations");
   const maxRules = limitOf(ctx, "maxRules", 100);
   const maxMetrics = limitOf(ctx, "maxMetrics", 50);
@@ -62,9 +64,14 @@ export function scoresFunctions(ctx: BlockSqlContext): string {
 
   const hasDescription = ctx.has("models", "description");
   const hasBreakdown = ctx.has("scores", "breakdown");
+  const archivable = ctx.has("models", "archivedAt");
+
+  // Archived models stay out of the current reads; their rows and scores stay.
+  const live = (row: string): string =>
+    archivable ? `\n      and ${row}.${m("archivedAt")} is null` : "";
 
   const modelJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${m("id")}, 'organizationId', ${row}.${m("tenant")}, 'key', ${row}.${m("key")}, 'name', ${row}.${m("name")}, 'description', ${field("models", row, "description")}, 'subjectType', ${row}.${m("subjectType")}, 'rules', ${row}.${m("rules")}, 'metrics', ${row}.${m("metrics")}, 'bands', ${row}.${m("bands")}, 'enabled', ${row}.${m("enabled")}, 'version', ${row}.${m("version")}, 'createdBy', ${field("models", row, "createdBy")}, 'createdAt', ${field("models", row, "createdAt")}, 'updatedAt', ${field("models", row, "updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${m("id")}, 'organizationId', ${row}.${m("tenant")}, 'key', ${row}.${m("key")}, 'name', ${row}.${m("name")}, 'description', ${field("models", row, "description")}, 'subjectType', ${row}.${m("subjectType")}, 'rules', ${row}.${m("rules")}, 'metrics', ${row}.${m("metrics")}, 'bands', ${row}.${m("bands")}, 'enabled', ${row}.${m("enabled")}, 'version', ${row}.${m("version")}, 'createdBy', ${field("models", row, "createdBy")}, 'createdAt', ${field("models", row, "createdAt")}, 'updatedAt', ${field("models", row, "updatedAt")}, 'archivedAt', ${field("models", row, "archivedAt")})`;
 
   const scoreJson = (row: string, key: string): string =>
     `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'modelId', ${row}.${s("model")}, 'modelKey', ${key}, 'modelVersion', ${row}.${s("modelVersion")}, 'subjectType', ${row}.${s("subjectType")}, 'subjectId', ${row}.${s("subjectId")}, 'score', ${row}.${s("score")}, 'band', ${row}.${s("band")}, 'breakdown', ${field("scores", row, "breakdown")}, 'current', ${row}.${s("current")}, 'computedAt', ${row}.${s("computedAt")})`;
@@ -169,7 +176,14 @@ begin
     if v_old.${m("id")} is null then
       ${modelMissing}
     end if;
-    if model ? 'version' and (model ->> 'version')::integer is distinct from v_old.${m("version")} then
+${
+  archivable
+    ? `    if v_old.${m("archivedAt")} is not null then
+      ${fail("SCORES_MODEL_ARCHIVED", "the score model is archived; restore it first", "55000")}
+    end if;
+`
+    : ""
+}    if model ? 'version' and (model ->> 'version')::integer is distinct from v_old.${m("version")} then
       ${fail("SCORES_MODEL_CONFLICT", "the score model changed since it was read", "40001")}
     end if;
     if model ? 'subjectType' and model ->> 'subjectType' is distinct from v_old.${m("subjectType")} then
@@ -278,7 +292,13 @@ $$;
 ${userGrant(`${fn("save_score_model")}(${idType}, jsonb)`)}
 
 -- An organization's score models, by key, for one subject type when given.
-create or replace function ${fn("list_score_models")}(tenant ${idType}, subject_type text default null)
+-- Archived models stay out unless include_archived is true.${
+    archivable
+      ? `
+drop function if exists ${fn("list_score_models")}(${idType}, text);`
+      : ""
+  }
+create or replace function ${fn("list_score_models")}(tenant ${idType}, subject_type text default null${archivable ? ", include_archived boolean default false" : ""})
 returns jsonb
 language plpgsql
 stable
@@ -293,11 +313,16 @@ begin
     select jsonb_agg(${modelJson("x")} order by x.${m("key")})
     from ${models} x
     where x.${m("tenant")} = list_score_models.tenant
-      and (list_score_models.subject_type is null or x.${m("subjectType")} = list_score_models.subject_type)
+      and (list_score_models.subject_type is null or x.${m("subjectType")} = list_score_models.subject_type)${
+        archivable
+          ? `
+      and (coalesce(list_score_models.include_archived, false) or x.${m("archivedAt")} is null)`
+          : ""
+      }
   ), '[]'::jsonb);
 end;
 $$;
-${userGrant(`${fn("list_score_models")}(${idType}, text)`)}
+${userGrant(`${fn("list_score_models")}(${idType}, text${archivable ? ", boolean" : ""})`)}
 
 -- One score model with its saved versions, or null when the caller can't read it.
 create or replace function ${fn("get_score_model")}(model_id uuid)
@@ -322,8 +347,12 @@ end;
 $$;
 ${userGrant(`${fn("get_score_model")}(uuid)`)}
 
--- Removes a score model with its versions and scores; false when there is none.
-create or replace function ${fn("delete_score_model")}(model_id uuid)
+${archiveFunctions(ctx, { models, m, fn, manage, modelJson, modelRecord, modelMissing, forbidden })}
+-- Removes a score model with its versions and scores for good; false when
+-- there is none. Archive keeps them. permissions.purge gates it, falling back
+-- to manage.
+drop function if exists ${fn("delete_score_model")}(uuid);
+create or replace function ${fn("purge_score_model")}(model_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -332,19 +361,19 @@ as $$
 declare
   v_row ${models};
 begin
-  select * into v_row from ${models} x where x.${m("id")} = delete_score_model.model_id for update;
+  select * into v_row from ${models} x where x.${m("id")} = purge_score_model.model_id for update;
   if not found then
     return false;
   end if;
-  if not ${allowed(`v_row.${m("tenant")}`, manage)} then
-    ${forbidden("not allowed to manage score models")}
+  if not ${allowed(`v_row.${m("tenant")}`, purge)} then
+    ${forbidden("not allowed to purge score models")}
   end if;
   delete from ${models} x where x.${m("id")} = v_row.${m("id")};
-  ${modelRecord("score_model.deleted", "v_row", "deleted score model")}
+  ${modelRecord("score_model.purged", "v_row", "purged score model")}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_score_model")}(uuid)`)}
+${userGrant(`${fn("purge_score_model")}(uuid)`)}
 
 -- Scores a subject with an enabled model. subject holds the record's fields
 -- the way rule_evaluate reads them. Rules add their points when their tree
@@ -383,7 +412,14 @@ begin
   if not found then
     ${modelMissing}
   end if;
-  if not v_model.${m("enabled")} then
+${
+  archivable
+    ? `  if v_model.${m("archivedAt")} is not null then
+    ${fail("SCORES_MODEL_ARCHIVED", "the score model is archived; restore it first", "55000")}
+  end if;
+`
+    : ""
+}  if not v_model.${m("enabled")} then
     ${fail("SCORES_MODEL_DISABLED", "the score model is turned off", "55000")}
   end if;
   if compute_score.subject_type is distinct from v_model.${m("subjectType")} then
@@ -459,7 +495,7 @@ begin
     select jsonb_agg(${scoreJson("x", `y.${m("key")}`)} || jsonb_build_object('modelName', y.${m("name")}) order by y.${m("key")})
     from ${scores} x join ${models} y on y.${m("id")} = x.${s("model")}
     where x.${s("tenant")} = subject_scores.tenant and x.${s("subjectType")} = subject_scores.subject_type
-      and x.${s("subjectId")} = subject_scores.subject_id and x.${s("current")}
+      and x.${s("subjectId")} = subject_scores.subject_id and x.${s("current")}${live("y")}
   ), '[]'::jsonb);
 end;
 $$;
@@ -510,7 +546,7 @@ begin
     from (
       select x.*
       from ${scores} x join ${models} y on y.${m("id")} = x.${s("model")}
-      where x.${s("tenant")} = top_scores.tenant and y.${m("key")} = top_scores.model_key and x.${s("current")}
+      where x.${s("tenant")} = top_scores.tenant and y.${m("key")} = top_scores.model_key and x.${s("current")}${live("y")}
         and (top_scores.band is null or x.${s("band")} = top_scores.band)
         and (top_scores.min_score is null or x.${s("score")} >= top_scores.min_score)
       order by x.${s("score")} desc, x.${s("computedAt")} desc

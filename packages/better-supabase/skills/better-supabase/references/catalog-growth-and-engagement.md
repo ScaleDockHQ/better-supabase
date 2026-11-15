@@ -73,4 +73,4 @@ Tenant-editable scoring models: rules (a filter tree over the rules field catalo
 - Entities: `score_model`
 - Tables: `score_models`
 - Permission keys: `scores.read`, `scores.manage`, `scores.compute`
-- Events (`ScoresEvents`): `score.changed`, `score_model.created`, `score_model.deleted`, `score_model.updated`
+- Events (`ScoresEvents`): `score.changed`, `score_model.archived`, `score_model.created`, `score_model.purged`, `score_model.restored`, `score_model.updated`
