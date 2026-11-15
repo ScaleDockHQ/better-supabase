@@ -52,6 +52,8 @@ const config: OxfmtConfig = defineConfig({
     // `recipes:check` compares it with the example sources, whose Tailwind
     // classes sort against the app's stylesheet, which this path can't see.
     "packages/better-supabase/skills/better-supabase/references/ui-recipes.md",
+    // `skill-references:check` compares them with the generator's output.
+    "packages/better-supabase/skills/better-supabase/references/catalog-*.md",
     "packages/better-supabase/api/**",
     "packages/better-supabase/tests/standards/schemas/**",
     "packages/better-supabase/src/cli/spec/schemas/**",
