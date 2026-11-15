@@ -1,6 +1,7 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { BulkCallOptions, BulkReport } from "../../core/bulk.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -9,6 +10,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { bulk as bulkOf } from "../../core/bulk.ts";
 import {
   applyTemporal,
   blockCall,
@@ -324,6 +326,17 @@ export interface Moderation {
     },
   ): AsyncResult<ModerationItem>;
   /**
+   * Applies one decision to many items as the common `bulk(ids, decision)` (ADR
+   * 0854): each item runs through `decide`, so a refused one lands in `failed`
+   * with its error and never stops the others. More ids than the limit (500)
+   * fail with `BULK_TOO_MANY`.
+   */
+  bulk(
+    ids: readonly string[],
+    decision: ModerationDecision,
+    options?: BulkCallOptions,
+  ): AsyncResult<BulkReport>;
+  /**
    * The statuses of the subjects that are not visible, by id, for filtering a
    * list. Visible and unmoderated subjects are left out. At most 500 ids.
    */
@@ -595,6 +608,13 @@ export function createModeration(options: ModerationOptions): Moderation {
         "moderate",
         { item_id: itemId, action: decision, reason: decide.reason ?? null },
         (value) => itemOf(value, "moderate"),
+      ),
+    bulk: (ids, decision, bulkOptions) =>
+      bulkOf(
+        ids,
+        decision,
+        (itemId, action) => client.decide({ itemId, decision: action }),
+        bulkOptions,
       ),
     statuses: ({ subjectType, ids }) =>
       tenant().andThen((organizationId) =>
