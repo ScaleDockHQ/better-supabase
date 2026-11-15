@@ -1,6 +1,8 @@
 import type {
   EntityOffline,
   EntityOfflineCondition,
+  EntityOfflineJoin,
+  EntityOfflineJoinTable,
 } from "../../blocks/index.ts";
 import type { BlockSqlFile } from "../../sql/index.ts";
 import type { Projection } from "./projection.ts";
@@ -304,6 +306,52 @@ function assertScope(
   }
 }
 
+/** The declared joins of `kind` for `instance` (ADR 1031). */
+function joinsOf<Kind extends EntityOfflineJoin["kind"]>(
+  instance: PowerSyncInstance,
+  kind: Kind,
+): readonly Extract<EntityOfflineJoin, { readonly kind: Kind }>[] {
+  return (offlineOf(instance.block).join ?? []).filter(
+    (join): join is Extract<EntityOfflineJoin, { readonly kind: Kind }> =>
+      join.kind === kind,
+  );
+}
+
+/**
+ * The table a join names, as `schema.table` with its columns. Undefined when
+ * the join is `optional` and no table matches; otherwise a missing table
+ * fails.
+ */
+function joinTable(
+  input: PowerSyncInput,
+  instance: PowerSyncInstance,
+  join: {
+    readonly stream: string;
+    readonly table: EntityOfflineJoinTable;
+    readonly optional?: boolean;
+  },
+): readonly [string, ReadonlyMap<string, string>] | undefined {
+  const { table } = join;
+  const key = table.block ?? instance.key;
+
+  const found =
+    table.roleSet === true
+      ? roleSetTable(input, key)
+      : [...tablesOf(input, key)].find(
+          ([, declared]) =>
+            (table.columns ?? []).every((column) => declared.has(column)) &&
+            (table.without ?? []).every((column) => !declared.has(column)),
+        );
+
+  if (found === undefined && join.optional !== true) {
+    throw new Error(
+      `gen.powersync: found no ${key} table for the ${join.stream} stream`,
+    );
+  }
+
+  return found;
+}
+
 function notificationTables(
   input: PowerSyncInput,
   instance: PowerSyncInstance,
@@ -316,20 +364,39 @@ function notificationTables(
     `${instance.key} recipients`,
   );
 
-  const [events, eventColumns] = tableWith(
-    tables,
-    ["type", "idempotency_key", "summary"],
-    `${instance.key} events`,
-  );
-
   const mine = `${qualifiedIdent(recipients)} WHERE user_id = auth.user_id()`;
 
-  const preferences = [...tables].find(
-    ([, declared]) =>
-      declared.has("user_id") &&
-      declared.has("channel") &&
-      declared.has("enabled"),
-  );
+  const joined = joinsOf(instance, "referenced").flatMap((join) => {
+    const found = joinTable(input, instance, join);
+
+    return found === undefined
+      ? []
+      : [
+          {
+            qualified: found[0],
+            name: baseName(found[0]),
+            stream: `${instance.key}_${join.stream}`,
+            query: `SELECT * FROM ${qualifiedIdent(found[0])} WHERE ${ident(join.column)} IN (SELECT ${ident(join.parentColumn)} FROM ${mine})`,
+            columns: found[1],
+          },
+        ];
+  });
+
+  const owned = joinsOf(instance, "owned").flatMap((join) => {
+    const found = joinTable(input, instance, join);
+
+    return found === undefined
+      ? []
+      : [
+          {
+            qualified: found[0],
+            name: baseName(found[0]),
+            stream: `${instance.key}_${join.stream}`,
+            query: `SELECT * FROM ${qualifiedIdent(found[0])} WHERE user_id = auth.user_id()`,
+            columns: found[1],
+          },
+        ];
+  });
 
   return [
     {
@@ -339,24 +406,8 @@ function notificationTables(
       query: `SELECT * FROM ${mine}`,
       columns: recipientColumns,
     },
-    {
-      qualified: events,
-      name: baseName(events),
-      stream: `${instance.key}_events`,
-      query: `SELECT * FROM ${qualifiedIdent(events)} WHERE id IN (SELECT event_id FROM ${mine})`,
-      columns: eventColumns,
-    },
-    ...(preferences === undefined
-      ? []
-      : [
-          {
-            qualified: preferences[0],
-            name: baseName(preferences[0]),
-            stream: `${instance.key}_preferences`,
-            query: `SELECT * FROM ${qualifiedIdent(preferences[0])} WHERE user_id = auth.user_id()`,
-            columns: preferences[1],
-          },
-        ]),
+    ...joined,
+    ...owned,
   ];
 }
 
@@ -468,15 +519,19 @@ function membershipTables(
     },
   ];
 
-  const roleSet = roleSetTable(input, instance.key);
+  for (const join of joinsOf(instance, "member-set")) {
+    const found = joinTable(input, instance, join);
 
-  if (roleSet !== undefined) {
-    const [table, roleColumns] = roleSet;
+    if (found === undefined) {
+      continue;
+    }
+
+    const [table, roleColumns] = found;
 
     synced.push({
       qualified: table,
       name: baseName(table),
-      stream: `${instance.key}_roles`,
+      stream: `${instance.key}_${join.stream}`,
       with: {
         member_orgs: `SELECT ${ident(tenant)} FROM ${qualifiedIdent(memberships)} WHERE user_id = auth.user_id()`,
       },
@@ -485,22 +540,20 @@ function membershipTables(
     });
   }
 
-  const organizations = [...tablesOf(input, "organizations")].find(
-    ([, declared]) =>
-      declared.has("id") && declared.has("name") && !declared.has("user_id"),
-  );
+  for (const join of joinsOf(instance, "member-organizations")) {
+    const found = joinTable(input, instance, join);
 
-  if (organizations !== undefined) {
-    const [table, declared] = organizations;
+    if (found === undefined) {
+      continue;
+    }
 
-    const selected = ["id", "name", "slug", "disabled_at", "deleted_at"].filter(
-      (column) => declared.has(column),
-    );
+    const [table, declared] = found;
+    const selected = join.select.filter((column) => declared.has(column));
 
     synced.push({
       qualified: table,
       name: baseName(table),
-      stream: `${instance.key}_organizations`,
+      stream: `${instance.key}_${join.stream}`,
       query: `SELECT ${selected.map(ident).join(", ")} FROM ${qualifiedIdent(table)} WHERE id IN (${mine})`,
       columns: only(declared, selected),
     });
@@ -616,8 +669,17 @@ function attachmentTables(
     );
   }
 
-  const readers = readerOrganizations(input, instance.key, orgs.tenant);
-  const subject = attachmentSubjects(input, attachments, columns);
+  const readers =
+    joinsOf(instance, "readers").length === 0
+      ? undefined
+      : readerOrganizations(input, instance.key, orgs.tenant);
+
+  const [subjectJoin] = joinsOf(instance, "subject");
+
+  const subject =
+    subjectJoin === undefined
+      ? undefined
+      : attachmentSubjects(input, attachments, columns, subjectJoin);
 
   return [
     {
@@ -634,19 +696,20 @@ function attachmentTables(
   ];
 }
 
-const SUBJECT_EQUALS = /\bsubject_type\s*=\s*'((?:[^']|'')+)'/g;
-const SUBJECT_IN = /\bsubject_type\s+in\s*\(([^)]*)\)/gi;
 const QUOTED = /'((?:[^']|'')+)'/g;
 
-/** The subject types a view's `where` names, in order, without repeats. */
-function subjectTypesOf(where: string): string[] {
+/** The subject types a view's `where` names in `typeColumn`, without repeats. */
+function subjectTypesOf(where: string, typeColumn: string): string[] {
+  const column = ident(typeColumn);
+  const equals = new RegExp(`\\b${column}\\s*=\\s*'((?:[^']|'')+)'`, "g");
+  const within = new RegExp(`\\b${column}\\s+in\\s*\\(([^)]*)\\)`, "gi");
   const found: { at: number; type: string }[] = [];
 
-  for (const match of where.matchAll(SUBJECT_EQUALS)) {
+  for (const match of where.matchAll(equals)) {
     found.push({ at: match.index, type: match[1]! });
   }
 
-  for (const list of where.matchAll(SUBJECT_IN)) {
+  for (const list of where.matchAll(within)) {
     for (const item of list[1]!.matchAll(QUOTED)) {
       found.push({ at: list.index + item.index, type: item[1]! });
     }
@@ -673,14 +736,16 @@ function attachmentSubjects(
   input: PowerSyncInput,
   attachments: string,
   columns: ReadonlyMap<string, string>,
+  join: { readonly typeColumn: string; readonly idColumn: string },
 ): string | undefined {
   const where = input.projections?.get(attachments)?.where;
 
-  if (where === undefined || !columns.has("subject_id")) {
+  if (where === undefined || !columns.has(join.idColumn)) {
     return undefined;
   }
 
-  const types = subjectTypesOf(where);
+  const types = subjectTypesOf(where, join.typeColumn);
+  const idColumn = ident(join.idColumn);
 
   const subjects = types.map((type) => {
     const subject = input.subjects?.get(type);
@@ -695,15 +760,15 @@ function attachmentSubjects(
   const [only] = subjects;
 
   if (subjects.length === 1 && only?.subject !== undefined) {
-    return `subject_id IN (${parentRows(only.subject, true)})`;
+    return `${idColumn} IN (${parentRows(only.subject, true)})`;
   }
 
   const branches = subjects.map(({ type, subject }) => {
-    const named = `subject_type = '${type.replaceAll("'", "''")}'`;
+    const named = `${ident(join.typeColumn)} = '${type.replaceAll("'", "''")}'`;
 
     return subject === undefined
       ? named
-      : `${named} AND subject_id IN (${parentRows(subject, true)})`;
+      : `${named} AND ${idColumn} IN (${parentRows(subject, true)})`;
   });
 
   return `(${branches.join(" OR ")})`;
