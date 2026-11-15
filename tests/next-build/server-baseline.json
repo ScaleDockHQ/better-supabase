@@ -782,7 +782,7 @@
   "/[locale]/(app)/production/page": {
     "raw": 3112892,
     "gzip": 945947,
-    "brotli": 785811
+    "brotli": 788179
   },
   "/[locale]/(app)/projects/[id]/page": {
     "raw": 3124353,
@@ -1261,7 +1261,7 @@
   },
   "/[locale]/(auth)/book/[token]/page": {
     "raw": 2935763,
-    "gzip": 888991,
+    "gzip": 891669,
     "brotli": 740096
   },
   "/[locale]/(auth)/forgot-password/page": {
@@ -1316,7 +1316,7 @@
   },
   "/[locale]/(auth)/waitlist/page": {
     "raw": 2854087,
-    "gzip": 863403,
+    "gzip": 865998,
     "brotli": 717593
   },
   "/[locale]/(public)/portal/page": {
@@ -1341,7 +1341,7 @@
   },
   "/[locale]/(public)/store/[org]/page": {
     "raw": 2939587,
-    "gzip": 889966,
+    "gzip": 892649,
     "brotli": 741028
   },
   "/[locale]/[...rest]/page": {
