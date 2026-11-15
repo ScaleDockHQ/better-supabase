@@ -138,11 +138,13 @@ export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CustomFi
 export const blockEvents: Events<BlockEvents> = {
   types: [
     "activity.amended",
+    "activity.archived",
     "activity.completed",
-    "activity.deleted",
     "activity.error_marked",
     "activity.logged",
+    "activity.purged",
     "activity.recorded",
+    "activity.restored",
     "activity.summarized",
     "activity.transcribed",
     "activity.updated",
@@ -306,11 +308,13 @@ export const blockEvents: Events<BlockEvents> = {
  */
 export const blockEventSchemas = {
   "activity.amended": true,
+  "activity.archived": true,
   "activity.completed": true,
-  "activity.deleted": true,
   "activity.error_marked": true,
   "activity.logged": true,
+  "activity.purged": true,
   "activity.recorded": true,
+  "activity.restored": true,
   "activity.summarized": true,
   "activity.transcribed": true,
   "activity.updated": true,
