@@ -590,7 +590,7 @@ export interface BlockNameRegistry {
       readonly "favorites": "user" | "tenant" | "subjectType" | "subjectId" | "rank" | "createdAt";
       readonly "savedItems": "id" | "user" | "tenant" | "subjectType" | "subjectId" | "note" | "remindAt" | "remindedAt" | "completedAt" | "createdAt";
     };
-    readonly functions: "add_collection_entries" | "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "complete_saved_item" | "create_collection" | "get_collection" | "list_collections" | "list_saved_items" | "page_collections" | "rank_collection_entry" | "rank_star" | "remind_due_saved_items" | "remove_collection_entries" | "remove_saved_item" | "rename_collection" | "save_for_later" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject";
+    readonly functions: "add_collection_entries" | "archive_collection" | "collection_entries" | "collection_subject_ids" | "collections_of" | "complete_saved_item" | "create_collection" | "list_collections" | "list_saved_items" | "rank_collection_entry" | "rank_star" | "remind_due_saved_items" | "remove_collection_entries" | "remove_saved_item" | "rename_collection" | "save_for_later" | "star_subject" | "starred_subjects" | "subject_collection_entries" | "unstar_subject";
     readonly actions: "read" | "write" | "share";
     readonly hooks: "before_collection_create" | "after_collection_create" | "before_collection_add" | "after_collection_add";
     readonly entities: {
@@ -2061,7 +2061,7 @@ export interface BlockNameRegistry {
       readonly "reviews": "id" | "tenant" | "subjectType" | "subjectId" | "author" | "authorName" | "rating" | "title" | "body" | "status" | "verified" | "rejectionReason" | "reply" | "repliedBy" | "repliedAt" | "publishedAt" | "createdAt" | "updatedAt";
       readonly "stats": "tenant" | "subjectType" | "subjectId" | "count" | "total" | "histogram" | "updatedAt";
     };
-    readonly functions: "delete_review" | "get_review" | "list_reviews" | "my_review" | "page_reviews" | "publish_review" | "reject_review" | "reply_to_review" | "review_moderation_item" | "review_queue" | "review_stats_refresh" | "review_subject_readable" | "review_summary" | "reviews_changed" | "reviews_moderated" | "submit_review";
+    readonly functions: "delete_review" | "list_reviews" | "my_review" | "publish_review" | "reject_review" | "reply_to_review" | "review_moderation_item" | "review_queue" | "review_stats_refresh" | "review_subject_readable" | "review_summary" | "reviews_changed" | "reviews_moderated" | "submit_review";
     readonly actions: "manage";
     readonly hooks: "before_review_submit" | "after_review_submit";
     readonly entities: {
