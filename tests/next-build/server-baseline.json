@@ -432,7 +432,7 @@
   "/[locale]/(app)/documents/register/[id]/page": {
     "raw": 3637693,
     "gzip": 1084774,
-    "brotli": 901423
+    "brotli": 903793
   },
   "/[locale]/(app)/documents/register/page": {
     "raw": 3627188,
@@ -806,7 +806,7 @@
   },
   "/[locale]/(app)/qualifications/[id]/page": {
     "raw": 3129425,
-    "gzip": 949641,
+    "gzip": 951376,
     "brotli": 790312
   },
   "/[locale]/(app)/qualifications/page": {

@@ -6,7 +6,7 @@ import type { BlockList } from "@/lib/block-list-url";
 
 export { defineBlockList } from "@/lib/block-list-url";
 
-export type { BlockList, BlockListConfig } from "@/lib/block-list-url";
+export type { BlockList } from "@/lib/block-list-url";
 
 export interface BlockListSpec<Row> {
   /** The text a search matches, lower-cased by the caller or not. */

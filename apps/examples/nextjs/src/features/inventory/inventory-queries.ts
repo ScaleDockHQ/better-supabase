@@ -76,7 +76,7 @@ export interface StockData {
  * block's `levels` read has no titles, so the shop's SQL read supplies them;
  * the list kit searches, filters and sorts the rows on the server.
  */
-export async function readStockRows(
+async function readStockRows(
   db: Db,
   organizationId: string,
 ): Promise<StockData> {
@@ -215,7 +215,7 @@ function movementRowOf(
 }
 
 /** The newest ledger movements of one variant, named by product and location. */
-export async function readMovementRows(
+async function readMovementRows(
   db: Db,
   organizationId: string,
   filter: { readonly variantId?: string } = {},
