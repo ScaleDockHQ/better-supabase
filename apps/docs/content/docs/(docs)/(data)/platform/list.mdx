@@ -616,7 +616,7 @@ defineEntityPage({
 
 The `reads` export is a function that takes the route's `db` and returns `{ page, facets }`
 (`EntityListReads`). The generated list and export routes call it in place of `db.<reads>.page`.
-An app entity has no input schema, so it writes no form or seed file. It belongs to no block, so it
+An app entity has no input schema, so it writes no form file, and it writes a seed file only when `seed.rows` declares its rows. It belongs to no block, so it
 writes a coverage entry only when `app.blocks` names the blocks whose screen the page is (`blocks: ["deals", "pipelines"]`):
 `pageCoverage` then lists its route under each.
 
@@ -683,6 +683,29 @@ Three more keys of `seed` cover what a generated value cannot know (ADR 1032):
 - `table` (`schema.table`) and `tenant` name the table when the block declares none for the entity, as
   the organizations block does for its invitations. A `seed` with no table stops `gen`.
 
+A value in `rows` can be nested JSON (a `jsonb` argument such as a segment's `conditions`), and two
+helpers from `better-supabase/list` cover what a static file cannot hold (ADR 1035):
+
+- `seedRef(entity, name)` is the id of a row that another page seeds, found by its name (the first identity
+  column the runner names for that page). `gen` lists the entity in the seed's `dependsOn`, and stops with
+  `config_invalid` when that page has no `seed` or a row refers to its own page. A runner inserts the page
+  first: `orderSeeds(seeds)` sorts by `dependsOn` and throws on a cycle, and `resolveSeedValue(value, resolver)`
+  replaces the markers once the runner has the ids.
+- `seedDate(days)` is a day counted from the day the seed runs, so a deal's close date or a contract's end
+  date does not age. `resolveSeedValue` writes it as `YYYY-MM-DD`.
+
+```ts
+seed: {
+  rows: [
+    {
+      name: "Hooli pilot",
+      pipelineId: seedRef("app.pipelines", "Sales"),
+      closeOn: seedDate(40),
+    },
+  ],
+},
+```
+
 `area` writes `<name>Nav`: the `area`, a `label`, the list `href`, `recordHref` (the generated
 `<name>Detail.href`, when the page has `sections`) and `titleKey` (the first entry of `<name>Columns`).
 `pages/routes.manifest.ts` holds `entityRoutes`, one entry per page with its list route, its API route,
@@ -718,13 +741,17 @@ cursor-paged CSV, and the data export) keeps its own method.
 
 The Next.js example declares periods, risks, commissions, referrals and work orders, each with an `area`,
 so their `<name>.navigation.ts` files and `routes.manifest.ts` are generated output (the periods page also sets `export`, which writes `api/periods/export/route.ts`), and its side
-navigation reads `href` and `area` from them. Seven pages set `seed`, and `pnpm db:seed:pages` inserts
+navigation reads `href` and `area` from them. Thirteen pages set `seed`, and `pnpm db:seed:pages` inserts
 their rows through the block's own functions, once per row: work orders, incidents, risks (with `fields`),
-periods (with `fields`, from the periods block's input schema), commissions, referrals and invitations
-(with `rows`). The page names the identity columns of each call, so a second run adds nothing.
+periods (with `fields`, from the periods block's input schema), commissions, referrals, invitations,
+pipelines, deals, segments, assignment queues, scores and contracts (with `rows`). Commissions refer to
+their deals and deals to their pipeline with `seedRef`, so the script inserts pipelines first. `pnpm
+supabase:reset` runs it after the reset (ADR 1033). The page names the identity columns of each call, so
+a second run adds nothing.
 `gen` stops with `config_invalid` when a page sets `seed` and its block exports no input schema that fits
-the table and the page sets no `rows`. The `app.*` pages set no `seed`: their rows are hand-written in
-`supabase/seeds/example.sql` because they are linked by generated ids.
+the table and the page sets no `rows`. Two `app.*` pages keep hand-written rows: customers
+(`public.customers` is the fixture table of the pgTAP suite, so `seed.sql` holds its fixed ids) and the
+inbox (its conversations come from `record_inbound` and one is backdated after the call).
 
 The example checks the manifest in two places. `pnpm check:example-coverage` fails when a declared page's
 route is missing under its block in the coverage map, and `pnpm check:empty-translations` fails on an empty

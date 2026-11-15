@@ -7,8 +7,9 @@ export const commissionsSeed = {
   table: "better_supabase.commissions",
   tenant: "tenant_id",
   tiers: ["demo"],
+  dependsOn: ["app.deals"],
   rows: [
-    { seller_id: "00000000-0000-4000-8000-0000000000a1", source_type: "deal", source_id: "00000000-0000-4000-8000-0000000d0005", basis: 450000, currency: "EUR", occurred_on: "2026-11-09" },
-    { seller_id: "00000000-0000-4000-8000-0000000000a2", source_type: "deal", source_id: "00000000-0000-4000-8000-0000000d0003", basis: 300000, currency: "EUR", occurred_on: "2026-11-12" },
+    { seller_id: "00000000-0000-4000-8000-0000000000a1", source_type: "deal", source_id: { $seedRef: { entity: "app.deals", name: "Globex add-on" } }, basis: 450000, currency: "EUR", occurred_on: "2026-11-09" },
+    { seller_id: "00000000-0000-4000-8000-0000000000a2", source_type: "deal", source_id: { $seedRef: { entity: "app.deals", name: "Hooli pilot" } }, basis: 300000, currency: "EUR", occurred_on: "2026-11-12" },
   ],
 } as const satisfies EntitySeed;

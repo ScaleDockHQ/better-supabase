@@ -62,6 +62,20 @@ export {
 
 export { defineEntityForm } from "./entity-ui.ts";
 
+export {
+  orderSeeds,
+  resolveSeedValue,
+  seedDate,
+  seedRef,
+  seedRefs,
+} from "./entity-seed.ts";
+
+export type {
+  EntitySeedDate,
+  EntitySeedRef,
+  SeedResolver,
+} from "./entity-seed.ts";
+
 export type {
   EntityColumn,
   EntityDetail,
@@ -73,6 +87,7 @@ export type {
   EntityNavItem,
   EntityRouteEntry,
   EntitySeed,
+  EntitySeedJson,
   EntitySeedValue,
 } from "./entity-ui.ts";
 
