@@ -196,7 +196,7 @@
   },
   "/[locale]/(app)/calendar/page": {
     "raw": 3122376,
-    "gzip": 948104,
+    "gzip": 950488,
     "brotli": 792374
   },
   "/[locale]/(app)/care-alerts/page": {
@@ -791,7 +791,7 @@
   },
   "/[locale]/(app)/projects/page": {
     "raw": 3137537,
-    "gzip": 952600,
+    "gzip": 954993,
     "brotli": 793652
   },
   "/[locale]/(app)/property/leases/[id]/page": {
