@@ -3,8 +3,18 @@ import { defineConfig } from "better-supabase/config";
 import { factories } from "better-supabase/generators/factories";
 import { nuqs } from "better-supabase/generators/nuqs";
 import { zod } from "better-supabase/generators/zod";
-import { defineEntityPage } from "better-supabase/list";
+import { defineEntityPage, seedRef } from "better-supabase/list";
 
+import {
+  contractsSeed,
+  customersSeed,
+  inboxSeed,
+  dealsSeed,
+  pipelinesSeed,
+  queuesSeed,
+  scoresSeed,
+  segmentsSeed,
+} from "./crm-seeds.ts";
 import { gettingStarted } from "./src/features/onboarding/checklist.ts";
 import { metrics } from "./src/metrics.ts";
 
@@ -189,7 +199,7 @@ export default defineConfig({
               {
                 seller_id: "00000000-0000-4000-8000-0000000000a1",
                 source_type: "deal",
-                source_id: "00000000-0000-4000-8000-0000000d0005",
+                source_id: seedRef("app.deals", "Globex add-on"),
                 basis: 450_000,
                 currency: "EUR",
                 occurred_on: "2026-11-09",
@@ -197,7 +207,7 @@ export default defineConfig({
               {
                 seller_id: "00000000-0000-4000-8000-0000000000a2",
                 source_type: "deal",
-                source_id: "00000000-0000-4000-8000-0000000d0003",
+                source_id: seedRef("app.deals", "Hooli pilot"),
                 basis: 300_000,
                 currency: "EUR",
                 occurred_on: "2026-11-12",
@@ -263,6 +273,7 @@ export default defineConfig({
           name: "customers",
           columns: ["name", "status", "createdAt"],
           area: "sales",
+          seed: customersSeed,
           app: {
             surface: {
               sorts: ["name", "newest"],
@@ -296,6 +307,7 @@ export default defineConfig({
           tenantOption: "tenant",
           columns: ["subject", "status", "lastMessageAt"],
           area: "messaging",
+          seed: inboxSeed,
           app: {
             surface: {
               sorts: ["lastMessageAt"],
@@ -332,6 +344,7 @@ export default defineConfig({
           tenantOption: "tenant",
           columns: ["name", "stage", "closing"],
           area: "sales",
+          seed: dealsSeed,
           app: {
             surface: {
               sorts: ["closing", "amount", "stale", "name"],
@@ -363,6 +376,7 @@ export default defineConfig({
           tenantOption: "tenant",
           columns: ["name", "key"],
           area: "sales",
+          seed: pipelinesSeed,
           app: {
             surface: { sorts: ["name"], search: ["name"] },
             table: {
@@ -385,6 +399,7 @@ export default defineConfig({
           tenantOption: "tenant",
           columns: ["name", "subjectType", "members"],
           area: "sales",
+          seed: segmentsSeed,
           app: {
             surface: {
               sorts: ["name", "members"],
@@ -415,6 +430,7 @@ export default defineConfig({
           tenantOption: "tenant",
           columns: ["name", "strategy", "rank"],
           area: "sales",
+          seed: queuesSeed,
           app: {
             surface: {
               sorts: ["rank", "name", "assigned"],
@@ -441,6 +457,7 @@ export default defineConfig({
           tenantOption: "tenant",
           columns: ["name", "key", "subjectType"],
           area: "sales",
+          seed: scoresSeed,
           app: {
             surface: {
               sorts: ["name"],
@@ -473,6 +490,7 @@ export default defineConfig({
           tenantOption: "tenant",
           columns: ["title", "status", "endsOn"],
           area: "sales",
+          seed: contractsSeed,
           app: {
             surface: {
               sorts: ["ending", "notice", "title"],

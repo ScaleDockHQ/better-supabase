@@ -225,7 +225,19 @@ describe("configIssues", () => {
       expect.stringMatching(/seed\.fields\.category/),
     ]);
 
-    expect(page({ rows: [{ a: [1] }] })).toEqual([
+    expect(
+      page({
+        rows: [
+          {
+            members: [{ userId: "u", weight: 1 }],
+            deal: { $seedRef: { entity: "app.deals", name: "x" } },
+            on: { $seedDate: 3 },
+          },
+        ],
+      }),
+    ).toEqual([]);
+
+    expect(page({ rows: [{ a: () => 1 }] })).toEqual([
       expect.stringMatching(/seed\.rows\.0\.a/),
     ]);
   });

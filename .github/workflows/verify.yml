@@ -63,7 +63,7 @@ jobs:
               pnpm exec turbo run
               lint lint:root typecheck:tooling check:prose check:skills check:adrs check:agent-docs check:app-architecture check:empty-translations
               check:example-coverage check:example-findings check:migration-order check:naming
-              check:no-permdock recipes:check test:scripts catalog:check docs:drift knip gen:check doctor typecheck:matrix
+              check:no-permdock recipes:check skill-references:check test:scripts catalog:check docs:drift knip gen:check doctor typecheck:matrix
               $AFFECTED --log-file
           - name: Format
             run: pnpm run format:check
