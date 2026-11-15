@@ -292,6 +292,8 @@ export interface DriveDrive {
   readonly createdBy: string | undefined;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant | undefined;
+  /** When the drive was archived; undefined while it is active. */
+  readonly archivedAt: Temporal.Instant | undefined;
   readonly role: string | undefined;
   /** A connected drive, which only the sync may change. */
   readonly readOnly: boolean;
@@ -551,7 +553,13 @@ export interface Drive<F extends object = Record<never, never>>
   /** The drives of an organization the caller can read. */
   drives(input: {
     organizationId: string;
-    options?: (DrivePage & { readonly skip?: number }) | undefined;
+    options?:
+      | (DrivePage & {
+          readonly skip?: number;
+          /** Also return archived drives. Default false. */
+          readonly includeArchived?: boolean;
+        })
+      | undefined;
   }): AsyncResult<readonly DriveDrive[]>;
   drive(id: string): AsyncResult<DriveDrive>;
   createDrive(input: {
@@ -559,8 +567,17 @@ export interface Drive<F extends object = Record<never, never>>
     drive: NewDrive;
   }): AsyncResult<DriveDrive>;
   renameDrive(input: { id: string; name: string }): AsyncResult<DriveDrive>;
-  /** Deletes the drive and every node in it; fails under a legal hold. */
-  deleteDrive(id: string): AsyncResult<boolean>;
+  /**
+   * Archives the drive: it leaves `drives()` and refuses new items until
+   * restored. Its nodes and grants stay.
+   */
+  archiveDrive(id: string): AsyncResult<DriveDrive>;
+  restoreDrive(id: string): AsyncResult<DriveDrive>;
+  /**
+   * Deletes an archived drive and every node in it for good; needs the
+   * `drive.purge` permission and fails under a legal hold.
+   */
+  purgeDrive(id: string): AsyncResult<boolean>;
   shareDrive(
     input: { id: string; principal: DrivePrincipal; role: string } & {
       readonly expiresAt?: Temporal.Instant;
@@ -994,6 +1011,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           tenant: organizationId,
           page_size: list.pageSize ?? null,
           skip: list.skip ?? null,
+          include_archived: list.includeArchived ?? false,
         },
         (value) => drivesOf(value, "drive_list_drives"),
       ),
@@ -1017,8 +1035,16 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       call("drive_rename_drive", { drive: id, name }, (value) =>
         driveOf(value, "drive_rename_drive"),
       ),
-    deleteDrive: (id) =>
-      call("drive_delete_drive", { drive: id }, (value) => value === true),
+    archiveDrive: (id) =>
+      call("drive_archive_drive", { drive: id }, (value) =>
+        driveOf(value, "drive_archive_drive"),
+      ),
+    restoreDrive: (id) =>
+      call("drive_restore_drive", { drive: id }, (value) =>
+        driveOf(value, "drive_restore_drive"),
+      ),
+    purgeDrive: (id) =>
+      call("drive_purge_drive", { drive: id }, (value) => value === true),
     shareDrive: ({ id, principal, role, ...share }) =>
       call(
         "drive_share_drive",

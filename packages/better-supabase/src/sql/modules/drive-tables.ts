@@ -89,7 +89,7 @@ create unique index if not exists ${sqlIdent(`${ctx.tableName("drives").name}_na
 create index if not exists ${sqlIdent(`${ctx.tableName("drives").name}_kind_idx`)} on ${D} (${d("tenant")}, ${d("kind")});
 create index if not exists ${sqlIdent(`${ctx.tableName("drives").name}_owner_idx`)} on ${D} (${d("owner")}) where ${d("owner")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("drives").name}_connection_idx`)} on ${D} (${d("connection")}) where ${d("connection")} is not null;
-${driveDownloadColumn ? `alter table ${D} add column if not exists ${d("downloadBlocked")} boolean not null default false;\n` : ""}${lockTable(D, { read: true })}
+${driveDownloadColumn ? `alter table ${D} add column if not exists ${d("downloadBlocked")} boolean not null default false;\n` : ""}${ctx.has("drives", "archivedAt") ? `alter table ${D} add column if not exists ${d("archivedAt")} timestamptz;\n` : ""}${lockTable(D, { read: true })}
 `
       : "";
 

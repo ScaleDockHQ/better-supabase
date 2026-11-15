@@ -89,7 +89,9 @@ describe("drive drives and connections", () => {
         connectionId: (args as { connection: string | null }).connection,
       }),
       drive_rename_drive: () => ({ ...DRIVE, name: "Archive" }),
-      drive_delete_drive: () => true,
+      drive_archive_drive: () => DRIVE,
+      drive_restore_drive: () => DRIVE,
+      drive_purge_drive: () => true,
       drive_share_drive: () => DRIVE_GRANT,
       drive_unshare_drive: () => true,
       drive_grants_for_drive: () => [DRIVE_GRANT],
@@ -128,7 +130,13 @@ describe("drive drives and connections", () => {
     expect(
       (await drive.renameDrive({ id: "d1", name: "Archive" }).orThrow()).name,
     ).toBe("Archive");
-    expect(await drive.deleteDrive("d1").orThrow()).toBe(true);
+    expect(await drive.archiveDrive("d1").orThrow()).toMatchObject({
+      id: "d1",
+    });
+    expect(await drive.restoreDrive("d1").orThrow()).toMatchObject({
+      id: "d1",
+    });
+    expect(await drive.purgeDrive("d1").orThrow()).toBe(true);
 
     const shared = await drive
       .shareDrive({
@@ -154,7 +162,10 @@ describe("drive drives and connections", () => {
     expect(grant?.role).toBe("editor");
 
     expect(fake.calls.map(([, fn, args]) => [fn, args])).toEqual([
-      ["drive_list_drives", { tenant: "o", page_size: 5, skip: 5 }],
+      [
+        "drive_list_drives",
+        { tenant: "o", page_size: 5, skip: 5, include_archived: false },
+      ],
       ["drive_get_drive", { drive: "d1" }],
       [
         "drive_create_drive",
@@ -177,7 +188,9 @@ describe("drive drives and connections", () => {
         },
       ],
       ["drive_rename_drive", { drive: "d1", name: "Archive" }],
-      ["drive_delete_drive", { drive: "d1" }],
+      ["drive_archive_drive", { drive: "d1" }],
+      ["drive_restore_drive", { drive: "d1" }],
+      ["drive_purge_drive", { drive: "d1" }],
       [
         "drive_share_drive",
         {

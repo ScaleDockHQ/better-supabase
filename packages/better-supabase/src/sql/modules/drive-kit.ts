@@ -552,7 +552,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
       : "false";
 
   const driveJson = (drive: string): string =>
-    `jsonb_build_object('id', ${drive}.${d("id")}, 'organizationId', ${drive}.${d("tenant")}, 'name', ${drive}.${d("name")}, 'kind', ${drive}.${d("kind")}, 'ownerId', ${drive}.${d("owner")}, 'connectionId', ${drive}.${d("connection")}, 'downloadBlocked', ${driveDownloadColumn ? `${drive}.${d("downloadBlocked")}` : "false"}, 'createdBy', ${drive}.${d("createdBy")}, 'createdAt', ${drive}.${d("createdAt")}, 'updatedAt', ${drive}.${d("updatedAt")})`;
+    `jsonb_build_object('id', ${drive}.${d("id")}, 'organizationId', ${drive}.${d("tenant")}, 'name', ${drive}.${d("name")}, 'kind', ${drive}.${d("kind")}, 'ownerId', ${drive}.${d("owner")}, 'connectionId', ${drive}.${d("connection")}, 'downloadBlocked', ${driveDownloadColumn ? `${drive}.${d("downloadBlocked")}` : "false"}, 'archivedAt', ${ctx.has("drives", "archivedAt") ? `${drive}.${d("archivedAt")}` : "null"}, 'createdBy', ${drive}.${d("createdBy")}, 'createdAt', ${drive}.${d("createdAt")}, 'updatedAt', ${drive}.${d("updatedAt")})`;
 
   const connectionJson = (connection: string): string =>
     `jsonb_build_object('id', ${connection}.${c("id")}, 'organizationId', ${connection}.${c("tenant")}, 'userId', ${connection}.${c("user")}, 'provider', ${connection}.${c("provider")}, 'name', ${connection}.${c("name")}, 'status', ${connection}.${c("status")}, 'syncCursor', ${connection}.${c("syncCursor")}, 'lastSyncedAt', ${connection}.${c("lastSyncedAt")}, 'lastSyncError', ${connection}.${c("lastSyncError")}, 'createdAt', ${connection}.${c("createdAt")}, 'updatedAt', ${connection}.${c("updatedAt")})`;

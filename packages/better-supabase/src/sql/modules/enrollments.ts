@@ -39,7 +39,15 @@ const EVENTS: BlockSqlEvents<EnrollmentsEvents> = {
     subject: "enrollment-programs",
     payload: PROGRAM_PAYLOAD,
   },
-  "enrollment_program.deleted": {
+  "enrollment_program.archived": {
+    subject: "enrollment-programs",
+    payload: PROGRAM_PAYLOAD,
+  },
+  "enrollment_program.restored": {
+    subject: "enrollment-programs",
+    payload: PROGRAM_PAYLOAD,
+  },
+  "enrollment_program.purged": {
     subject: "enrollment-programs",
     payload: PROGRAM_PAYLOAD,
   },
@@ -79,7 +87,13 @@ const NAMES: BlockSqlNames = {
       name: "enrollment_programs",
       app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
-      optional: ["description", "createdBy", "createdAt", "updatedAt"],
+      optional: [
+        "description",
+        "archivedAt",
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+      ],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -89,6 +103,7 @@ const NAMES: BlockSqlNames = {
         subjectTypes: "subject_types",
         steps: "steps",
         enabled: "enabled",
+        archivedAt: "archived_at",
         version: "version",
         createdBy: "created_by",
         createdAt: "created_at",
@@ -235,7 +250,7 @@ export function enrollmentTables(ctx: BlockSqlContext): string {
   -- [{ id, title, description }], in order.
   ${p("steps")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${p("steps")}) = 'array'),
   ${p("enabled")} boolean not null default true,
-  ${p("version")} integer not null default 1,${optional("programs", "createdBy", (c) => `${c} uuid`)}${optional("programs", "createdAt", (c) => `${c} timestamptz not null default now()`)}${optional("programs", "updatedAt", (c) => `${c} timestamptz not null default now()`)}
+  ${p("version")} integer not null default 1,${optional("programs", "archivedAt", (c) => `${c} timestamptz`)}${optional("programs", "createdBy", (c) => `${c} uuid`)}${optional("programs", "createdAt", (c) => `${c} timestamptz not null default now()`)}${optional("programs", "updatedAt", (c) => `${c} timestamptz not null default now()`)}
   unique (${p("tenant")}, ${p("key")})
 );${key("programs", "key_key", `(${p("tenant")}, ${p("key")})`)}
 

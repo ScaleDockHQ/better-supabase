@@ -85,7 +85,7 @@ an optional `title` and `description`.
 Changing the steps raises the program's `version`. Pass the `version` you read
 to fail with `ENROLLMENTS_PROGRAM_CONFLICT` when someone else changed it
 first. Turn a program off with `enabled: false` to stop new enrollments; its
-enrollments stay. `deleteProgram(id)` deletes a program with its enrollments.
+enrollments stay. `archiveProgram(id)` takes a program out of `programs()` (pass `{ includeArchived: true }` to list it) and refuses new enrollments and edits with `ENROLLMENTS_PROGRAM_ARCHIVED`; its enrollments stay, and `restoreProgram(id)` brings it back. `purgeProgram(id)` deletes an archived program with its enrollments, needs `permissions.purge` (it falls back to `enrollments.manage`) and fails with `ENROLLMENTS_PROGRAM_NOT_ARCHIVED` on an active one.
 
 ## Enrolling
 
@@ -239,20 +239,21 @@ A cursor belongs to the sort it came from; start again from the first page when 
 
 ## Functions
 
-| Function                                                                       | Granted to                      | Does                                       |
-| ------------------------------------------------------------------------------ | ------------------------------- | ------------------------------------------ |
-| `save_enrollment_program(tenant, program)`                                     | `authenticated`, `service_role` | Creates or changes a program               |
-| `enrollment_programs(tenant)`                                                  | `authenticated`, `service_role` | The organization's programs by key         |
-| `delete_enrollment_program(program_id)`                                        | `authenticated`, `service_role` | Deletes a program with its enrollments     |
-| `enroll(tenant, program, subject_type, subject_id)`                            | `authenticated`, `service_role` | Enrolls a subject                          |
-| `enrollment(tenant, program, subject_type, subject_id)`                        | `authenticated`, `service_role` | A subject's enrollment, or null            |
-| `list_enrollments(tenant, program, subject_type, subject_id, status, ...)`     | `authenticated`, `service_role` | The organization's enrollments             |
-| `page_enrollments(tenant, filters)`, `get_enrollment(enrollment_id)`           | `authenticated`, `service_role` | A keyset page with facets and a count, one |
-| `complete_enrollment_step(enrollment_id, step)`, `reset_enrollment_step(...)`  | `authenticated`, `service_role` | Marks a step done or not done              |
-| `cancel_enrollment(enrollment_id)`                                             | `authenticated`, `service_role` | Cancels an active enrollment               |
-| `pause_enrollment(enrollment_id)`, `resume_enrollment(enrollment_id)`          | `authenticated`, `service_role` | Holds or releases an active enrollment     |
-| `set_enrollment_dates(enrollment_id, dates)`                                   | `authenticated`, `service_role` | Sets the dates and renders due dates again |
-| `open_enrollment_steps(tenant, assignee_role, assignee_user, due_before, ...)` | `authenticated`, `service_role` | Open steps with an assignee or a due date  |
+| Function                                                                           | Granted to                      | Does                                             |
+| ---------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------ |
+| `save_enrollment_program(tenant, program)`                                         | `authenticated`, `service_role` | Creates or changes a program                     |
+| `enrollment_programs(tenant, include_archived)`                                    | `authenticated`, `service_role` | The organization's programs by key               |
+| `archive_enrollment_program(program_id)`, `restore_enrollment_program(program_id)` | `authenticated`, `service_role` | Archives or restores a program                   |
+| `purge_enrollment_program(program_id)`                                             | `authenticated`, `service_role` | Deletes an archived program with its enrollments |
+| `enroll(tenant, program, subject_type, subject_id)`                                | `authenticated`, `service_role` | Enrolls a subject                                |
+| `enrollment(tenant, program, subject_type, subject_id)`                            | `authenticated`, `service_role` | A subject's enrollment, or null                  |
+| `list_enrollments(tenant, program, subject_type, subject_id, status, ...)`         | `authenticated`, `service_role` | The organization's enrollments                   |
+| `page_enrollments(tenant, filters)`, `get_enrollment(enrollment_id)`               | `authenticated`, `service_role` | A keyset page with facets and a count, one       |
+| `complete_enrollment_step(enrollment_id, step)`, `reset_enrollment_step(...)`      | `authenticated`, `service_role` | Marks a step done or not done                    |
+| `cancel_enrollment(enrollment_id)`                                                 | `authenticated`, `service_role` | Cancels an active enrollment                     |
+| `pause_enrollment(enrollment_id)`, `resume_enrollment(enrollment_id)`              | `authenticated`, `service_role` | Holds or releases an active enrollment           |
+| `set_enrollment_dates(enrollment_id, dates)`                                       | `authenticated`, `service_role` | Sets the dates and renders due dates again       |
+| `open_enrollment_steps(tenant, assignee_role, assignee_user, due_before, ...)`     | `authenticated`, `service_role` | Open steps with an assignee or a due date        |
 
 ## Errors
 
@@ -267,11 +268,11 @@ A cursor belongs to the sort it came from; start again from the first page when 
 
 ## Events
 
-| Event                                                                                             | Data                                                                                                            |
-| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `enrollment_program.created`, `enrollment_program.updated`, `enrollment_program.deleted`          | `organizationId`, `id`, `key`, `version`                                                                        |
-| `enrollment.created`, `enrollment.step_completed`, `enrollment.completed`, `enrollment.cancelled` | `organizationId`, `id`, `program`, `subjectType`, `subjectId`, `status`, `step`, `completedSteps`, `totalSteps` |
-| `enrollment.paused`, `enrollment.resumed`                                                         | the same data                                                                                                   |
+| Event                                                                                                                                                 | Data                                                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `enrollment_program.created`, `enrollment_program.updated`, `enrollment_program.archived`, `enrollment_program.restored`, `enrollment_program.purged` | `organizationId`, `id`, `key`, `version`                                                                        |
+| `enrollment.created`, `enrollment.step_completed`, `enrollment.completed`, `enrollment.cancelled`                                                     | `organizationId`, `id`, `program`, `subjectType`, `subjectId`, `status`, `step`, `completedSteps`, `totalSteps` |
+| `enrollment.paused`, `enrollment.resumed`                                                                                                             | the same data                                                                                                   |
 
 `step` is set for `enrollment.step_completed`, and `reason` for an
 `enrollment.cancelled` that has one. Only enrollments in an

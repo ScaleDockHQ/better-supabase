@@ -10,6 +10,7 @@ import {
 } from "../shared.ts";
 import { READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
 import { syncBatchSql } from "./drive-sync.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 /** The drives, their sharing and their external connections. */
 export function driveDrivesSql(kit: DriveKit): string {
@@ -54,6 +55,54 @@ export function driveDrivesSql(kit: DriveKit): string {
     rank,
     forbidden,
   } = kit;
+
+  const archivable = drives && ctx.has("drives", "archivedAt");
+  const purge = ctx.permission("purge", OPERATIONS["drive.manage"]);
+
+  const archivedError = fail(
+    "DRIVE_ARCHIVED",
+    "drive is archived; restore it first",
+    "55000",
+  );
+
+  const archiveFunctions = (): string =>
+    ["archive", "restore"]
+      .map((verb) => {
+        const name = `drive_${verb}_drive`;
+        const archiving = verb === "archive";
+
+        return `create or replace function ${fn(name)}(drive uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_drive ${D}%rowtype;
+begin
+  select * into v_drive from ${D} d where d.${d("id")} = ${name}.drive for update;
+  if not found or not (${SERVICE_CALLER} or ${fn("drive_drive_can")}(${name}.drive, ${sqlString(roles.read)})) then
+    ${fail("DRIVE_NOT_FOUND", "drive not found", "P0002")}
+  end if;
+  if not (${SERVICE_CALLER} or ${fn("drive_drive_can")}(${name}.drive, ${sqlString(roles.share)})) then
+    ${forbidden(`${verb} this drive`)}
+  end if;
+  ${READ_ONLY_GUARD}
+  if v_drive.${d("archivedAt")} is ${archiving ? "not null" : "null"} then
+    return ${withDriveRole("v_drive")};
+  end if;
+  update ${D} d set ${d("archivedAt")} = ${archiving ? "now()" : "null"}${ctx.has("drives", "updatedAt") ? `, ${d("updatedAt")} = now()` : ""}
+  where d.${d("id")} = v_drive.${d("id")}
+  returning * into v_drive;
+  ${recordDrive(`drive.${verb}d`, "v_drive", "", driveAudit("v_drive", `${verb}d`))}
+  return ${withDriveRole("v_drive")};
+end;
+$$;
+${userGrant(`${fn(name)}(uuid)`)}
+`;
+      })
+      .join("\n");
 
   const teamExistsDrive =
     !drives || teams === undefined
@@ -166,7 +215,7 @@ end;
 $$;
 ${userGrant(`${fn("drive_get_drive")}(uuid)`)}
 
-create or replace function ${fn("drive_list_drives")}(tenant ${ctx.idType}, page_size integer default 100, skip integer default 0)
+${archivable ? `drop function if exists ${fn("drive_list_drives")}(${ctx.idType}, integer, integer);\n` : ""}create or replace function ${fn("drive_list_drives")}(tenant ${ctx.idType}, page_size integer default 100, skip integer default 0${archivable ? ", include_archived boolean default false" : ""})
 returns jsonb
 language plpgsql
 stable
@@ -182,7 +231,7 @@ begin
     with page as (
       select dd.* from ${D} dd
       where dd.${d("tenant")} = drive_list_drives.tenant
-        and (${SERVICE_CALLER} or dd.${d("id")} in (select ${fn("drive_drive_readable_ids")}()))
+        and (${SERVICE_CALLER} or dd.${d("id")} in (select ${fn("drive_drive_readable_ids")}()))${archivable ? `\n        and (coalesce(drive_list_drives.include_archived, false) or dd.${d("archivedAt")} is null)` : ""}
       order by lower(dd.${d("name")}), dd.${d("id")}
       limit ${pageSize("drive_list_drives.page_size", 100, 500)}
       offset greatest(coalesce(drive_list_drives.skip, 0), 0)
@@ -192,7 +241,7 @@ begin
   );
 end;
 $$;
-${userGrant(`${fn("drive_list_drives")}(${ctx.idType}, integer, integer)`)}
+${userGrant(`${fn("drive_list_drives")}(${ctx.idType}, integer, integer${archivable ? ", boolean" : ""})`)}
 
 create or replace function ${fn("drive_rename_drive")}(drive uuid, name text)
 returns jsonb
@@ -213,7 +262,7 @@ begin
   if not (${SERVICE_CALLER} or ${fn("drive_drive_can")}(drive_rename_drive.drive, ${sqlString(roles.share)})) then
     ${forbidden("rename this drive")}
   end if;
-  ${READ_ONLY_GUARD}
+  ${READ_ONLY_GUARD}${archivable ? `\n  if v_drive.${d("archivedAt")} is not null then\n    ${archivedError}\n  end if;` : ""}
   if v_name = v_drive.${d("name")} then
     return ${withDriveRole("v_drive")};
   end if;
@@ -235,7 +284,10 @@ end;
 $$;
 ${userGrant(`${fn("drive_rename_drive")}(uuid, text)`)}
 
-create or replace function ${fn("drive_delete_drive")}(drive uuid)
+${archivable ? archiveFunctions() : ""}
+-- Removes the drive and every node in it for good${archivable ? ", once it is archived" : ""}. A legal hold on any item blocks it.
+drop function if exists ${fn("drive_delete_drive")}(uuid);
+create or replace function ${fn("drive_purge_drive")}(drive uuid)
 returns boolean
 language plpgsql
 security definer
@@ -245,23 +297,30 @@ as $$
 declare
   v_drive ${D}%rowtype;
 begin
-  select * into v_drive from ${D} d where d.${d("id")} = drive_delete_drive.drive for update;
-  if not found or not (${SERVICE_CALLER} or ${fn("drive_drive_can")}(drive_delete_drive.drive, ${sqlString(roles.read)})) then
+  select * into v_drive from ${D} d where d.${d("id")} = drive_purge_drive.drive for update;
+  if not found or not (${SERVICE_CALLER} or ${fn("drive_drive_can")}(drive_purge_drive.drive, ${sqlString(roles.read)})) then
     ${fail("DRIVE_NOT_FOUND", "drive not found", "P0002")}
   end if;
-  if not (${SERVICE_CALLER} or ${fn("drive_drive_can")}(drive_delete_drive.drive, ${sqlString(roles.share)})) then
-    ${forbidden("delete this drive")}
+  if not (${SERVICE_CALLER} or (${fn("drive_drive_can")}(drive_purge_drive.drive, ${sqlString(roles.share)}) and ${ctx.can("tenant", `v_drive.${d("tenant")}`, purge)})) then
+    ${forbidden("purge this drive")}
   end if;
-  ${READ_ONLY_GUARD}
+  ${READ_ONLY_GUARD}${
+    archivable
+      ? `
+  if v_drive.${d("archivedAt")} is null then
+    ${fail("DRIVE_NOT_ARCHIVED", "archive the drive before purging it", "55000")}
+  end if;`
+      : ""
+  }
   if ${driveHeld("v_drive")} then
     ${fail("DRIVE_HELD", "this drive holds an item under a legal hold", "42501")}
   end if;
-  ${recordDrive("drive.deleted", "v_drive", "", driveAudit("v_drive", "deleted"))}
+  ${recordDrive("drive.purged", "v_drive", "", driveAudit("v_drive", "purged"))}
   delete from ${D} d where d.${d("id")} = v_drive.${d("id")};
   return true;
 end;
 $$;
-${userGrant(`${fn("drive_delete_drive")}(uuid)`)}
+${userGrant(`${fn("drive_purge_drive")}(uuid)`)}
 
 create or replace function ${fn("drive_share_drive")}(drive uuid, principal_type text, principal_id text, role text, expires_at timestamptz default null)
 returns jsonb
@@ -282,7 +341,7 @@ begin
   if not (${SERVICE_CALLER} or (${fn("drive_drive_can")}(drive_share_drive.drive, ${sqlString(roles.share)}) and ${rank("drive_share_drive.role")} <= ${rank(`${fn("drive_drive_role")}(drive_share_drive.drive)`)})) then
     ${forbidden("share this drive with that role")}
   end if;
-  ${READ_ONLY_GUARD}
+  ${READ_ONLY_GUARD}${archivable ? `\n  if v_drive.${d("archivedAt")} is not null then\n    ${archivedError}\n  end if;` : ""}
   if ${rank("drive_share_drive.role")} = 0 then
     ${fail("DRIVE_ROLE_UNKNOWN", `role must be one of ${roles.all.join(", ")}`, "22023")}
   end if;

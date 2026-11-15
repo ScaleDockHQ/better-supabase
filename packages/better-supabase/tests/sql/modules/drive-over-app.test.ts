@@ -148,6 +148,7 @@ const BLOCKS: AnyBlocksConfig = {
         kind: "drive_type",
         owner: "owner_id",
         downloadBlocked: null,
+        archivedAt: null,
       },
       connections: { tenant: "organization_id" },
     },

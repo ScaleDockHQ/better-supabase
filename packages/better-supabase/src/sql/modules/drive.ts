@@ -97,7 +97,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           { name: "drive_get_drive", args: ["uuid"], returns: "jsonb" },
           {
             name: "drive_list_drives",
-            args: ["{id}", "integer", "integer"],
+            args: ["{id}", "integer", "integer", "boolean"],
             returns: "jsonb",
           },
           {
@@ -105,7 +105,9 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
             args: ["uuid", "text"],
             returns: "jsonb",
           },
-          { name: "drive_delete_drive", args: ["uuid"], returns: "boolean" },
+          { name: "drive_archive_drive", args: ["uuid"], returns: "jsonb" },
+          { name: "drive_restore_drive", args: ["uuid"], returns: "jsonb" },
+          { name: "drive_purge_drive", args: ["uuid"], returns: "boolean" },
           {
             name: "drive_share_drive",
             args: ["uuid", "text", "text", "text", "timestamptz"],

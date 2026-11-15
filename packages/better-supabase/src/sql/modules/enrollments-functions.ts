@@ -14,6 +14,7 @@ import {
   SERVICE_CALLER,
   userGrant,
 } from "../shared.ts";
+import { programLifecycleFunctions } from "./enrollments-archive.ts";
 import {
   assigneeJson,
   scheduleFunctions,
@@ -53,6 +54,8 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", permissions.read);
   const enroll = ctx.permission("enroll", permissions.enroll);
   const manage = ctx.permission("manage", permissions.manage);
+  const purge = ctx.permission("purge", permissions.manage);
+  const archivable = ctx.has("programs", "archivedAt");
   const maxSteps = maxStepsOf(ctx);
 
   const allowed = (tenant: string, permission: string): string =>
@@ -68,6 +71,12 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
     "ENROLLMENTS_PROGRAM_NOT_FOUND",
     "enrollment program not found",
     "P0002",
+  );
+
+  const archivedError = fail(
+    "ENROLLMENTS_PROGRAM_ARCHIVED",
+    "program is archived; restore it first",
+    "55000",
   );
 
   const enrollmentMissing = fail(
@@ -156,7 +165,7 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
   } as const;
 
   const programJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'key', ${row}.${p("key")}, 'name', ${row}.${p("name")}, 'description', ${field("programs", row, "description")}, 'subjectTypes', to_jsonb(${row}.${p("subjectTypes")}), 'steps', ${row}.${p("steps")}, 'enabled', ${row}.${p("enabled")}, 'version', ${row}.${p("version")}, 'createdBy', ${field("programs", row, "createdBy")}, 'createdAt', ${field("programs", row, "createdAt")}, 'updatedAt', ${field("programs", row, "updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'key', ${row}.${p("key")}, 'name', ${row}.${p("name")}, 'description', ${field("programs", row, "description")}, 'subjectTypes', to_jsonb(${row}.${p("subjectTypes")}), 'steps', ${row}.${p("steps")}, 'enabled', ${row}.${p("enabled")}, 'archivedAt', ${field("programs", row, "archivedAt")}, 'version', ${row}.${p("version")}, 'createdBy', ${field("programs", row, "createdBy")}, 'createdAt', ${field("programs", row, "createdAt")}, 'updatedAt', ${field("programs", row, "updatedAt")})`;
 
   const programRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -536,7 +545,7 @@ begin
     if v_old.${p("id")} is null then
       ${programMissing}
     end if;
-    if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old.${p("version")} then
+${archivable ? `    if v_old.${p("archivedAt")} is not null then\n      ${archivedError}\n    end if;\n` : ""}    if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old.${p("version")} then
       ${fail("ENROLLMENTS_PROGRAM_CONFLICT", "the program changed since you read it", "40001")}
     end if;
   end if;
@@ -620,50 +629,17 @@ end;
 $$;
 ${userGrant(`${fn("save_enrollment_program")}(${idType}, jsonb)`)}
 
--- The organization's programs by key.
-create or replace function ${fn("enrollment_programs")}(tenant ${idType})
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  if not ${allowed("enrollment_programs.tenant", read)} then
-    ${forbidden("not allowed to read enrollment programs")}
-  end if;
-  return coalesce((
-    select jsonb_agg(${programJson("x")} order by x.${p("key")})
-    from ${programs} x where x.${p("tenant")} = enrollment_programs.tenant
-  ), '[]'::jsonb);
-end;
-$$;
-${userGrant(`${fn("enrollment_programs")}(${idType})`)}
-
--- Deletes a program with its enrollments; false when it was already gone.
-create or replace function ${fn("delete_enrollment_program")}(program_id uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_row ${programs};
-begin
-  select * into v_row from ${programs} x where x.${p("id")} = delete_enrollment_program.program_id for update;
-  if v_row.${p("id")} is null then
-    return false;
-  end if;
-  if not ${allowed(`v_row.${p("tenant")}`, manage)} then
-    ${forbidden("not allowed to manage enrollment programs")}
-  end if;
-  delete from ${enrollments} x where x.${e("tenant")} = v_row.${p("tenant")} and x.${e("program")} = v_row.${p("key")};
-  delete from ${programs} x where x.${p("id")} = v_row.${p("id")};
-  ${programRecord("enrollment_program.deleted", "v_row", "deleted an enrollment program")}
-  return true;
-end;
-$$;
-${userGrant(`${fn("delete_enrollment_program")}(uuid)`)}
+${programLifecycleFunctions(ctx, {
+  allowed,
+  archivable,
+  forbidden,
+  manage,
+  programJson,
+  programMissing,
+  programRecord,
+  purge,
+  read,
+})}
 
 -- Enrolls a subject in a program; returns the enrollment. Enrolling an
 -- enrolled subject returns its enrollment, and enrolling a cancelled one
@@ -689,7 +665,7 @@ begin
   if v_program.${p("id")} is null then
     ${programMissing}
   end if;
-  if not v_program.${p("enabled")} then
+${archivable ? `  if v_program.${p("archivedAt")} is not null then\n    ${archivedError}\n  end if;\n` : ""}  if not v_program.${p("enabled")} then
     ${invalid("this program is turned off")}
   end if;
   if enroll.subject_type is null or enroll.subject_type !~ '${TYPE}' or enroll.subject_id is null or length(enroll.subject_id) not between 1 and 200 then

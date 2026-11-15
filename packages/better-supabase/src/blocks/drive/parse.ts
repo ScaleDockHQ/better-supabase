@@ -176,6 +176,7 @@ export function driveOf(value: unknown, fn: string): DriveDrive {
     createdBy: optionalText(row["createdBy"]),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: optionalInstant(row["updatedAt"]),
+    archivedAt: optionalInstant(row["archivedAt"]),
     role: optionalText(row["role"]),
     readOnly: row["readOnly"] === true,
     downloadBlocked: row["downloadBlocked"] === true,
