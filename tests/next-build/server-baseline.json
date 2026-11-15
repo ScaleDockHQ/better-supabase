@@ -1301,7 +1301,7 @@
   },
   "/[locale]/(auth)/send/[token]/page": {
     "raw": 3431266,
-    "gzip": 1017016,
+    "gzip": 1019758,
     "brotli": 844092
   },
   "/[locale]/(auth)/share/[token]/page": {
@@ -1482,7 +1482,7 @@
   "/api/customers/[id]/fhir/route": {
     "raw": 2597452,
     "gzip": 784909,
-    "brotli": 666322
+    "brotli": 668159
   },
   "/api/customers/[id]/reads/route": {
     "raw": 2589821,
@@ -1612,12 +1612,12 @@
   "/api/invoices/[id]/send/route": {
     "raw": 2597933,
     "gzip": 785664,
-    "brotli": 667043
+    "brotli": 668930
   },
   "/api/invoices/[id]/ubl/route": {
     "raw": 2597960,
     "gzip": 785701,
-    "brotli": 667052
+    "brotli": 668935
   },
   "/api/jobs/drain/route": {
     "raw": 4734413,
