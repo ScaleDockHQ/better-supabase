@@ -9,7 +9,7 @@ export type CalendarEvents = {
   readonly "calendar.updated": SchedulingEventData;
   readonly "calendar_event.created": SchedulingEventData;
   readonly "calendar_event.updated": SchedulingEventData;
-  readonly "calendar_event.deleted": SchedulingEventData;
+  readonly "calendar_event.purged": SchedulingEventData;
 };
 
 /** The `calendar` block's event types, for its manifest and `onBlockEvent`. */
@@ -18,5 +18,5 @@ export const calendarEvents: Events<CalendarEvents> = defineEvents({
   "calendar.updated": event<SchedulingEventData>(),
   "calendar_event.created": event<SchedulingEventData>(),
   "calendar_event.updated": event<SchedulingEventData>(),
-  "calendar_event.deleted": event<SchedulingEventData>(),
+  "calendar_event.purged": event<SchedulingEventData>(),
 });

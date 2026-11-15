@@ -33,7 +33,7 @@ Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence ove
 - Entities: `calendar_event`, `calendar`
 - Tables: `calendar_events`, `calendars`
 - Permission keys: `calendar.manage`, `calendar.write`, `calendar.read`
-- Events (`CalendarEvents`): `calendar.created`, `calendar_event.created`, `calendar_event.deleted`, `calendar_event.updated`
+- Events (`CalendarEvents`): `calendar.created`, `calendar_event.created`, `calendar_event.purged`, `calendar_event.updated`
 
 ## bookings
 

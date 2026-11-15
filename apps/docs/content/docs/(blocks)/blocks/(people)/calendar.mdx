@@ -87,17 +87,17 @@ the daylight saving change, so its UTC time moves. Each occurrence has a
 stable `key` (the series id and its original start), its `start` and `end`,
 and the `event` row that applies, which is the override when there is one.
 
-| Method                                | Does                                                                                                                      |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `upsert(calendarId, input)`           | Inserts an event, or updates the one with `input.id`; keys left out keep their value                                      |
-| `events(calendarIds, range)`          | The rows that can fall in the range: single events, series and overrides                                                  |
-| `occurrences(calendarIds, range)`     | The occurrences in the range, with EXDATEs removed and overrides applied                                                  |
-| `editOccurrence(occurrence, changes)` | Changes one occurrence: an override for a series, an update for a single event                                            |
-| `editFollowing(occurrence, changes)`  | Changes this occurrence and every later one, splitting the series unless it is the first                                  |
-| `cancelOccurrence(occurrence)`        | Adds an `EXDATE` and drops the occurrence's override, or deletes a single event. Also takes `{ seriesId, originalStart }` |
-| `delete(eventId)`                     | Deletes an event with its overrides                                                                                       |
-| `setAttendee`, `removeAttendee`       | Invites or removes an attendee by email                                                                                   |
-| `respond(eventId, response)`          | The signed-in user answers: `accepted`, `declined`, `tentative` or `needs-action`                                         |
+| Method                                | Does                                                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `upsert(calendarId, input)`           | Inserts an event, or updates the one with `input.id`; keys left out keep their value                                     |
+| `events(calendarIds, range)`          | The rows that can fall in the range: single events, series and overrides                                                 |
+| `occurrences(calendarIds, range)`     | The occurrences in the range, with EXDATEs removed and overrides applied                                                 |
+| `editOccurrence(occurrence, changes)` | Changes one occurrence: an override for a series, an update for a single event                                           |
+| `editFollowing(occurrence, changes)`  | Changes this occurrence and every later one, splitting the series unless it is the first                                 |
+| `cancelOccurrence(occurrence)`        | Adds an `EXDATE` and drops the occurrence's override, or purges a single event. Also takes `{ seriesId, originalStart }` |
+| `purge(eventId)`                      | Removes an event for good, with its overrides. Set `status` to `cancelled` to keep it                                    |
+| `setAttendee`, `removeAttendee`       | Invites or removes an attendee by email                                                                                  |
+| `respond(eventId, response)`          | The signed-in user answers: `accepted`, `declined`, `tentative` or `needs-action`                                        |
 
 A new event's `created_by` (and its `owner_id` with per-calendar access) is
 the signed-in user. A server that saves on a member's behalf, such as a sync
@@ -403,11 +403,12 @@ const ics = toIcs(data.events, {
 
 Three event actions take their own key when you set one, on top of
 `calendar.write`: `permissions.create` gates new events and overrides,
-`permissions.update` gates changes to an event, and `permissions.delete` gates
-deleting an event and cancelling an occurrence. Importing goes through the same
+`permissions.update` gates changes to an event, `permissions.purge` gates
+purging an event (it falls back to `permissions.delete` when unset), and
+`permissions.delete` gates cancelling an occurrence. Importing goes through the same
 checks. `options.readOnly` names a column of the events table and the values
 that lock an event, such as events a sync owns. A locked event can't be
-changed, deleted, cancelled or split, and no override can be added to it,
+changed, purged, cancelled or split, and no override can be added to it,
 except by the service role (`CALENDAR_EVENT_READ_ONLY`):
 
 ```ts title="better-supabase.config.ts"
