@@ -349,6 +349,14 @@
         "packages/better-supabase/skills/better-supabase/references/ui-recipes.md"
       ]
     },
+    "//#skill-references:check": {
+      "inputs": [
+        "scripts/build-skill-references.ts",
+        "packages/better-supabase/src/preset/**",
+        "packages/better-supabase/api/naming.json",
+        "packages/better-supabase/skills/better-supabase/references/catalog-*.md"
+      ]
+    },
     "//#knip": {
       "dependsOn": ["//#catalog", "//#recipes"],
       "inputs": [
