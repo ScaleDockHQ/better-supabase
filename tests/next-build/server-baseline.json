@@ -222,7 +222,7 @@
   "/[locale]/(app)/cases/page": {
     "raw": 3104296,
     "gzip": 945736,
-    "brotli": 783821
+    "brotli": 785785
   },
   "/[locale]/(app)/chat/page": {
     "raw": 3616382,
@@ -447,7 +447,7 @@
   "/[locale]/(app)/documents/templates/page": {
     "raw": 3098231,
     "gzip": 944424,
-    "brotli": 782631
+    "brotli": 784593
   },
   "/[locale]/(app)/drive/[folderId]/page": {
     "raw": 3620670,
@@ -742,7 +742,7 @@
   "/[locale]/(app)/people/encryption/page": {
     "raw": 3104970,
     "gzip": 945743,
-    "brotli": 783674
+    "brotli": 785644
   },
   "/[locale]/(app)/people/hiring/page": {
     "raw": 3110154,
@@ -817,20 +817,20 @@
   "/[locale]/(app)/rfqs/[id]/page": {
     "raw": 3140181,
     "gzip": 959624,
-    "brotli": 795576
+    "brotli": 797584
   },
   "/[locale]/(app)/rfqs/page": {
     "raw": 3118534,
     "gzip": 951782,
-    "brotli": 788777
+    "brotli": 790779
   },
   "/[locale]/(app)/risks/[id]/page": {
-    "raw": 3109190,
+    "raw": 3110890,
     "gzip": 945950,
     "brotli": 786668
   },
   "/[locale]/(app)/risks/page": {
-    "raw": 3114525,
+    "raw": 3116225,
     "gzip": 947164,
     "brotli": 787677
   },
@@ -1750,7 +1750,7 @@
     "brotli": 665826
   },
   "/api/risks/register/route": {
-    "raw": 2708749,
+    "raw": 2710425,
     "gzip": 818144,
     "brotli": 695671
   },

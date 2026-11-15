@@ -49,3 +49,6 @@ register holds. Past it the oldest rows by score are the ones sorted. EX-033 is 
 register; other lists still sort by their first term until their block's SQL list function reads
 the list. The generated `/api/risks/list` still orders by the first term and reports the rest in
 `sorted.ignored`.
+
+The Next.js example's first-load baselines rise by about 1 KB raw on 117 routes and the server
+baselines of eight entries by a few bytes to 1.2 KB; the values are the ones CI measured.
