@@ -4117,7 +4117,8 @@ begin
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."body"::text, s."outcome"::text), ''), null, '{}'::jsonb
         into v_tenant, v_title, v_body, v_url, v_facets
         from "better_supabase"."activities" s
-        where s."id" = (search_refresh.subject_id)::uuid;
+        where s."id" = (search_refresh.subject_id)::uuid
+        and s."archived_at" is null;
       v_found := found;
     when 'quote' then
       select s."tenant_id", s."title"::text, null, '/crm/quotes/' || s."id"::text, '{}'::jsonb
