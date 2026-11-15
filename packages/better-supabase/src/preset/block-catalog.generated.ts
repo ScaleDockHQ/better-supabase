@@ -3657,10 +3657,12 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
+        "course.archived",
         "course.completed",
         "course.created",
-        "course.deleted",
         "course.enrolled",
+        "course.purged",
+        "course.restored",
         "course.unenrolled",
         "course.updated",
         "course_certificate.issued",
@@ -4584,10 +4586,12 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
+        "meeting.archived",
         "meeting.cancelled",
         "meeting.concluded",
         "meeting.created",
-        "meeting.deleted",
+        "meeting.purged",
+        "meeting.restored",
         "meeting.started",
         "meeting.updated",
         "meeting_action_item.created",

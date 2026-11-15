@@ -29,7 +29,13 @@ export const coursesBlock: BlockOf<
     course: {
       ...courseListSurface,
       mutability: "editable",
-      emits: { create: true, update: true, delete: true },
+      emits: {
+        create: true,
+        update: true,
+        archive: true,
+        restore: true,
+        purge: true,
+      },
     },
     course_module: {
       mutability: "editable",

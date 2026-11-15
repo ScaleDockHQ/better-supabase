@@ -1,6 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { MeetingsSql } from "./meetings-sql.ts";
 
+import { sqlString } from "../../core/template.ts";
+import { archiveRestoreFunctions } from "../archive-sql.ts";
 import {
   fail,
   insertExtraColumns,
@@ -92,6 +94,11 @@ ${serviceGrant(`${fn("meeting_set_attendees")}(uuid, ${ctx.idType}, jsonb)`)}
 /** Create, update and the status changes. */
 function meetingFunctionsSql(ctx: BlockSqlContext, q: MeetingsSql): string {
   const { fn, m, g, meetings, agenda, meetingJson } = q;
+
+  const purgeKey =
+    ctx.config.permissions["purge"] === undefined
+      ? undefined
+      : sqlString(ctx.config.permissions["purge"]);
   const idType = ctx.idType;
   const has = (column: string): boolean => ctx.has("meetings", column);
 
@@ -227,7 +234,7 @@ begin
   end if;
   if v_row.${m("status")} = 'cancelled' then
     ${q.invalid("a cancelled meeting takes no changes")}
-  end if;
+  end if;${ctx.has("meetings", "archivedAt") ? `\n  if v_row.${m("archivedAt")} is not null then\n    ${q.invalid("an archived meeting takes no changes; restore it first")}\n  end if;` : ""}
   if jsonb_typeof(update_meeting.changes) is distinct from 'object' then
     ${q.invalid("changes must be an object")}
   end if;
@@ -348,9 +355,42 @@ end;
 $$;
 ${userGrant(`${fn("cancel_meeting")}(uuid, text)`)}
 
--- Deletes a meeting that is planned or cancelled, with its agenda and
--- decisions. Tasks opened from it stay in the tasks block.
-create or replace function ${fn("delete_meeting")}(meeting_id uuid)
+${
+  ctx.has("meetings", "archivedAt")
+    ? archiveRestoreFunctions(ctx, {
+        entity: "meeting",
+        arg: "meeting_id",
+        rowType: meetings,
+        table: meetings,
+        id: m("id"),
+        archivedAt: m("archivedAt"),
+        updatedAt: m("updatedAt"),
+        json: meetingJson("v_row"),
+        archiveNote:
+          "Archives a held or cancelled meeting: it leaves list_meetings and keeps its agenda, decisions and tasks.",
+        restoreNote: "Brings an archived meeting back to list_meetings.",
+        load: (name) => `${load(q, name, "meeting_id")}
+  if not ${q.runs("v_row")} then
+    ${q.forbidden("not allowed to change this meeting")}
+  end if;`,
+        beforeArchive: `
+  if v_row.${m("status")} not in ('held', 'cancelled') then
+    ${q.invalid("only a held or cancelled meeting is archived")}
+  end if;`,
+        record: (type) =>
+          q.record(
+            type,
+            "v_row",
+            `meeting ${type.endsWith("archived") ? "archived" : "restored"}`,
+          ),
+      })
+    : ""
+}
+-- Removes a planned or cancelled meeting for good, with its agenda and
+-- decisions. Tasks opened from it stay in the tasks block. Needs
+-- permissions.purge, which falls back to the meeting's creator, chair or
+-- secretary and meetings.manage.
+create or replace function ${fn("purge_meeting")}(meeting_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -360,19 +400,19 @@ as $$
 declare
   v_row ${meetings};
 begin
-  ${load(q, "delete_meeting", "meeting_id")}
-  if not ${q.runs("v_row")} then
-    ${q.forbidden("not allowed to delete this meeting")}
+  ${load(q, "purge_meeting", "meeting_id")}
+  if not ${purgeKey === undefined ? q.runs("v_row") : q.allowed(`v_row.${m("tenant")}`, purgeKey)} then
+    ${q.forbidden("not allowed to purge this meeting")}
   end if;
   if v_row.${m("status")} not in ('planned', 'cancelled') then
-    ${q.invalid("only a planned or cancelled meeting can be deleted")}
+    ${q.invalid("only a planned or cancelled meeting can be purged")}
   end if;
   delete from ${meetings} x where x.${m("id")} = v_row.${m("id")};
-  ${q.record("meeting.deleted", "v_row", "meeting deleted")}
+  ${q.record("meeting.purged", "v_row", "meeting purged")}
   return ${meetingJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("delete_meeting")}(uuid)`)}
+${userGrant(`${fn("purge_meeting")}(uuid)`)}
 `;
 }
 

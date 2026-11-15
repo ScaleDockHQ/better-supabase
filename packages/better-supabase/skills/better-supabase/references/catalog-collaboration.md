@@ -179,4 +179,4 @@ Meetings with an agenda, attendees and roles, minutes per agenda item, decisions
 - Entities: `meeting`, `meeting_attendee`, `meeting_agenda_item`, `meeting_decision`, `meeting_action_item`
 - Tables: `meetings`, `meeting_attendees`, `meeting_agenda_items`, `meeting_decisions`, `meeting_action_items`
 - Permission keys: `meetings.read`, `meetings.write`, `meetings.manage`
-- Events (`MeetingsEvents`): `meeting.cancelled`, `meeting.concluded`, `meeting.created`, `meeting.deleted`, `meeting.started`, `meeting.updated`, `meeting_action_item.created`, `meeting_decision.decided`, `meeting_decision.recorded`
+- Events (`MeetingsEvents`): `meeting.archived`, `meeting.cancelled`, `meeting.concluded`, `meeting.created`, `meeting.purged`, `meeting.restored`, `meeting.started`, `meeting.updated`, `meeting_action_item.created`, `meeting_decision.decided`, `meeting_decision.recorded`

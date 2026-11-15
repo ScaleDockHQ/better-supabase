@@ -86,7 +86,7 @@ there move down. `deleteAgendaItem` removes one and closes the gap.
 
 A meeting goes from `planned` to `in_progress` with `start`, and to `held` with
 `hold`, which takes the summary. `cancel` stops a planned meeting and keeps the
-reason in the `meeting.cancelled` event. `delete` removes a meeting nobody held.
+reason in the `meeting.cancelled` event. `purge` removes a meeting nobody held. `archive` hides a held or cancelled meeting from `list` and `restore` brings it back; `list({ archived: true })` shows only the archived ones, and an archived meeting takes no changes. `permissions.purge` gates `purge`; without it the creator, chair, secretary or `meetings.manage` may.
 
 ```ts
 await db.meetings.start(meeting.id).orThrow();
@@ -215,11 +215,11 @@ goes on the linked tasks and documents.
 
 ## Events
 
-| Event                                                                                                                | Data                                                   |
-| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `meeting.created`, `meeting.updated`, `meeting.started`, `meeting.concluded`, `meeting.cancelled`, `meeting.deleted` | `organizationId`, `id`, `kind`, `title`, `status`      |
-| `meeting_decision.recorded`, `meeting_decision.decided`                                                              | `organizationId`, `id`, `meetingId`, `title`, `status` |
-| `meeting_action_item.created`                                                                                        | `organizationId`, `meetingId`, `taskId`, `title`       |
+| Event                                                                                                                                                       | Data                                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `meeting.created`, `meeting.updated`, `meeting.started`, `meeting.concluded`, `meeting.cancelled`, `meeting.archived`, `meeting.restored`, `meeting.purged` | `organizationId`, `id`, `kind`, `title`, `status`      |
+| `meeting_decision.recorded`, `meeting_decision.decided`                                                                                                     | `organizationId`, `id`, `meetingId`, `title`, `status` |
+| `meeting_action_item.created`                                                                                                                               | `organizationId`, `meetingId`, `taskId`, `title`       |
 
 The hooks are `before_meeting_create`, `after_meeting_create`,
 `before_meeting_hold`, `after_meeting_hold` and `after_meeting_decision`.

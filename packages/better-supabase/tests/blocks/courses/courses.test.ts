@@ -124,7 +124,7 @@ describe("createCourses", () => {
         COURSE,
         { ...COURSE, id: "c2", summary: "Intro", createdBy: null },
       ],
-      delete_course: true,
+      purge_course: true,
     });
 
     const courses = createCourses({
@@ -157,7 +157,7 @@ describe("createCourses", () => {
     expect(list[1]).toMatchObject({ summary: "Intro" });
     expect(list[1]).not.toHaveProperty("createdBy");
     await courses.list().orThrow();
-    expect(await courses.delete("c2").orThrow()).toBe(true);
+    expect(await courses.purge("c2").orThrow()).toBe(true);
 
     expect(fake.calls).toEqual([
       [
@@ -174,7 +174,7 @@ describe("createCourses", () => {
       ],
       ["list_courses", { tenant: "org-1", filters: { status: "published" } }],
       ["list_courses", { tenant: "org-1", filters: {} }],
-      ["delete_course", { course_id: "c2" }],
+      ["purge_course", { course_id: "c2" }],
     ]);
   });
 

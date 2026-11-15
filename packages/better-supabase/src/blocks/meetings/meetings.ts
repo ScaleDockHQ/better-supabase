@@ -69,6 +69,8 @@ export interface Meeting<F extends object = Record<never, never>> {
   readonly status: MeetingStatus;
   readonly startedAt?: Temporal.Instant;
   readonly heldAt?: Temporal.Instant;
+  /** Set while the meeting is archived. */
+  readonly archivedAt?: Temporal.Instant;
   readonly summary?: string;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
@@ -213,6 +215,11 @@ export interface MeetingListOptions {
   /** Starting on or before. */
   readonly to?: Temporal.Instant;
   readonly attendeeId?: string;
+  /**
+   * `true` lists only the archived meetings; archived ones are hidden
+   * otherwise.
+   */
+  readonly archived?: boolean;
   /** Matches the title, location or summary. */
   readonly search?: string;
   /** 1 to 200. Default 50. */
@@ -241,8 +248,18 @@ export interface Meetings<F extends object = Record<never, never>> {
     meetingId: string;
     reason?: string | undefined;
   }): AsyncResult<Meeting<F>>;
-  /** Deletes a planned or cancelled meeting. */
-  delete(meetingId: string): AsyncResult<Meeting<F>>;
+  /**
+   * Archives a held or cancelled meeting; it leaves `list` unless `archived` is
+   * set. Records `meeting.archived`.
+   */
+  archive(meetingId: string): AsyncResult<Meeting<F>>;
+  /** Brings an archived meeting back; records `meeting.restored`. */
+  restore(meetingId: string): AsyncResult<Meeting<F>>;
+  /**
+   * Removes a planned or cancelled meeting for good. `permissions.purge` gates
+   * this; without it the creator, chair, secretary or `manage` may.
+   */
+  purge(meetingId: string): AsyncResult<Meeting<F>>;
   /** Invites a user or changes their role or attendance. */
   setAttendee(input: {
     meetingId: string;
@@ -362,6 +379,7 @@ function meetingOf(value: unknown, fn: string): Meeting {
     ...optional("endsAt", optionalInstant(row["endsAt"])),
     ...optional("startedAt", optionalInstant(row["startedAt"])),
     ...optional("heldAt", optionalInstant(row["heldAt"])),
+    ...optional("archivedAt", optionalInstant(row["archivedAt"])),
     ...optional("summary", optionalText(row["summary"])),
     ...optional("createdBy", optionalText(row["createdBy"])),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
@@ -554,11 +572,23 @@ export function createMeetings<
         { meeting_id: meetingId, reason: reason ?? null },
         one("cancel_meeting"),
       ).andThen(fields.row),
-    delete: (meetingId) =>
+    archive: (meetingId) =>
       call(
-        "delete_meeting",
+        "archive_meeting",
         { meeting_id: meetingId },
-        one("delete_meeting"),
+        one("archive_meeting"),
+      ).andThen(fields.row),
+    restore: (meetingId) =>
+      call(
+        "restore_meeting",
+        { meeting_id: meetingId },
+        one("restore_meeting"),
+      ).andThen(fields.row),
+    purge: (meetingId) =>
+      call(
+        "purge_meeting",
+        { meeting_id: meetingId },
+        one("purge_meeting"),
       ).andThen(fields.row),
     setAttendee: ({ meetingId, userId, attendee: change = {} }) =>
       call(
@@ -629,6 +659,7 @@ export function createMeetings<
               from: instantArg(list.from),
               to: instantArg(list.to),
               attendeeId: list.attendeeId,
+              archived: list.archived,
               search: list.search,
               limit: list.limit,
               offset: list.offset,

@@ -103,8 +103,10 @@ left out keep their value, and a course's `key` (lower-case letters, digits
 and `-`) can't repeat in the organization. A new course is a `draft`: only
 members with `courses.manage` see it until its `status` is `published`.
 `archived` hides it from learners again. `certificate: false` turns
-certificates off for the course. `delete(courseId)` deletes a course with its
-modules, lessons, enrollments, progress and certificates.
+certificates off for the course. `archive(courseId)` sets that status and records `course.archived`, and
+`restore(courseId)` brings the course back as a draft. `purge(courseId)` removes a
+course with its modules, lessons, enrollments, progress and certificates; set
+`permissions.purge` to gate it, otherwise `courses.manage` may.
 
 `saveModule(courseId, module)` and `saveLesson(courseId, lesson)` create or
 change a module and a lesson. A new item without a `rank` goes last; pass a
@@ -199,19 +201,19 @@ const check = await db.courses.verifyCertificate(code).orThrow();
 
 ## Functions
 
-| Function                                                                       | Granted to                              | Does                                        |
-| ------------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------- |
-| `save_course(tenant, course)`, `delete_course(course_id)`                      | `authenticated`, `service_role`         | Creates, changes or deletes a course        |
-| `list_courses(tenant, status)`                                                 | `authenticated`, `service_role`         | The organization's courses by title         |
-| `save_course_module(course_id, module)`, `delete_course_module(module_id)`     | `authenticated`, `service_role`         | Creates, changes or deletes a module        |
-| `save_course_lesson(course_id, lesson)`, `delete_course_lesson(lesson_id)`     | `authenticated`, `service_role`         | Creates, changes or deletes a lesson        |
-| `course_outline(course_id)`, `course_lesson(lesson_id)`                        | `authenticated`, `service_role`         | A course's outline, or one lesson to play   |
-| `enroll_in_course(course_id, user_id)`, `unenroll_from_course(course_id, ...)` | `authenticated`, `service_role`         | Enrolls a learner or cancels the enrollment |
-| `start_course_lesson(lesson_id)`, `complete_course_lesson(lesson_id, done)`    | `authenticated`, `service_role`         | Records a lesson opened, done or not done   |
-| `submit_course_quiz(lesson_id, answers)`                                       | `authenticated`, `service_role`         | Submits and grades a quiz                   |
-| `course_progress(course_id, user_id)`, `list_course_learners(course_id, ...)`  | `authenticated`, `service_role`         | One learner's progress, or all of them      |
-| `verify_course_certificate(code)`                                              | `anon`, `authenticated`, `service_role` | Checks a certificate by its code            |
-| `revoke_course_certificate(certificate_id)`                                    | `authenticated`, `service_role`         | Revokes a certificate                       |
+| Function                                                                                                           | Granted to                              | Does                                                    |
+| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------- |
+| `save_course(tenant, course)`, `archive_course(course_id)`, `restore_course(course_id)`, `purge_course(course_id)` | `authenticated`, `service_role`         | Creates, changes, archives, restores or purges a course |
+| `list_courses(tenant, status)`                                                                                     | `authenticated`, `service_role`         | The organization's courses by title                     |
+| `save_course_module(course_id, module)`, `delete_course_module(module_id)`                                         | `authenticated`, `service_role`         | Creates, changes or deletes a module                    |
+| `save_course_lesson(course_id, lesson)`, `delete_course_lesson(lesson_id)`                                         | `authenticated`, `service_role`         | Creates, changes or deletes a lesson                    |
+| `course_outline(course_id)`, `course_lesson(lesson_id)`                                                            | `authenticated`, `service_role`         | A course's outline, or one lesson to play               |
+| `enroll_in_course(course_id, user_id)`, `unenroll_from_course(course_id, ...)`                                     | `authenticated`, `service_role`         | Enrolls a learner or cancels the enrollment             |
+| `start_course_lesson(lesson_id)`, `complete_course_lesson(lesson_id, done)`                                        | `authenticated`, `service_role`         | Records a lesson opened, done or not done               |
+| `submit_course_quiz(lesson_id, answers)`                                                                           | `authenticated`, `service_role`         | Submits and grades a quiz                               |
+| `course_progress(course_id, user_id)`, `list_course_learners(course_id, ...)`                                      | `authenticated`, `service_role`         | One learner's progress, or all of them                  |
+| `verify_course_certificate(code)`                                                                                  | `anon`, `authenticated`, `service_role` | Checks a certificate by its code                        |
+| `revoke_course_certificate(certificate_id)`                                                                        | `authenticated`, `service_role`         | Revokes a certificate                                   |
 
 ## Errors
 
@@ -230,12 +232,12 @@ const check = await db.courses.verifyCertificate(code).orThrow();
 
 ## Events
 
-| Event                                                      | Data                                                                                     |
-| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `course.created`, `course.updated`, `course.deleted`       | `organizationId`, `id`, `key`, `status`                                                  |
-| `course.enrolled`, `course.unenrolled`, `course.completed` | `organizationId`, `id`, `userId`, `enrollmentId`                                         |
-| `course_lesson.completed`                                  | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId`                             |
-| `course_certificate.issued`, `course_certificate.revoked`  | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId`, `expiresAt` (for `issued`) |
+| Event                                                                                     | Data                                                                                     |
+| ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `course.created`, `course.updated`, `course.archived`, `course.restored`, `course.purged` | `organizationId`, `id`, `key`, `status`                                                  |
+| `course.enrolled`, `course.unenrolled`, `course.completed`                                | `organizationId`, `id`, `userId`, `enrollmentId`                                         |
+| `course_lesson.completed`                                                                 | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId`                             |
+| `course_certificate.issued`, `course_certificate.revoked`                                 | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId`, `expiresAt` (for `issued`) |
 
 The underlying enrollment emits its own `enrollment.*` events as well. A rule
 on `course.completed` can notify a learner's manager, and a sink on

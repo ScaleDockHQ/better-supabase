@@ -214,6 +214,11 @@ the `archived_at` column and replaces the delete function with `purge`.
 | `funding`       | `funding.deleteClaim(id)`, `delete_funding_claim()`       | `funding.purgeClaim(id)`, `purge_funding_claim()`, plus `archiveClaim` and `restoreClaim`         |
 | `funding`       | event `funding_claim.deleted`                             | `funding_claim.purged`, plus `archived` and `restored`                                            |
 | `funding`       | `funding.claims()` shows every claim                      | hides archived claims; `claims({ includeArchived: true })` adds them                              |
+| `meetings`      | `meetings.delete(id)`, `delete_meeting()`                 | `meetings.purge(id)`, `purge_meeting()`, plus `archive` and `restore`                             |
+| `meetings`      | event `meeting.deleted`                                   | `meeting.purged`, plus `archived` and `restored`                                                  |
+| `meetings`      | `meetings.list()` shows every meeting                     | hides archived meetings; `list({ archived: true })` lists only them                               |
+| `courses`       | `courses.delete(id)`, `delete_course()`                   | `courses.purge(id)`, `purge_course()`, plus `archive` and `restore`                               |
+| `courses`       | event `course.deleted`                                    | `course.purged`, plus `archived` and `restored`                                                   |
 
 ## Team purge
 

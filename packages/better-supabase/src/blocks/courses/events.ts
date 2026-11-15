@@ -2,7 +2,10 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `course.created`, `course.updated` and `course.deleted`. */
+/**
+ * `course.created`, `course.updated`, `course.archived`, `course.restored` and
+ * `course.purged`.
+ */
 export interface CourseEventData {
   readonly organizationId: string;
   /** The course. */
@@ -50,7 +53,9 @@ export interface CourseCertificateIssuedEventData extends CourseCertificateEvent
 export type CoursesEvents = {
   readonly "course.created": CourseEventData;
   readonly "course.updated": CourseEventData;
-  readonly "course.deleted": CourseEventData;
+  readonly "course.archived": CourseEventData;
+  readonly "course.restored": CourseEventData;
+  readonly "course.purged": CourseEventData;
   readonly "course.enrolled": CourseLearnerEventData;
   readonly "course.unenrolled": CourseLearnerEventData;
   readonly "course.completed": CourseLearnerEventData;
@@ -63,7 +68,9 @@ export type CoursesEvents = {
 export const coursesEvents: Events<CoursesEvents> = defineEvents({
   "course.created": event<CourseEventData>(),
   "course.updated": event<CourseEventData>(),
-  "course.deleted": event<CourseEventData>(),
+  "course.archived": event<CourseEventData>(),
+  "course.restored": event<CourseEventData>(),
+  "course.purged": event<CourseEventData>(),
   "course.enrolled": event<CourseLearnerEventData>(),
   "course.unenrolled": event<CourseLearnerEventData>(),
   "course.completed": event<CourseLearnerEventData>(),
