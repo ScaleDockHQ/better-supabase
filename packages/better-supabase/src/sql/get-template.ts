@@ -3,8 +3,10 @@ export interface GetTemplateOptions {
   readonly name: string;
   /** The bare function name, for the qualified argument. */
   readonly bare: string;
-  /** The name of the uuid argument. */
+  /** The name of the id argument. */
   readonly arg: string;
+  /** The SQL type of the id argument. Default uuid. */
+  readonly argType?: string;
   /** The table expression, aliased as `x`. */
   readonly from: string;
   readonly idColumn: string;
@@ -30,7 +32,7 @@ export interface GetTemplateOptions {
 export function getFunction(options: GetTemplateOptions): string {
   const { bare, arg } = options;
 
-  return `create or replace function ${options.name}(${arg} uuid)
+  return `create or replace function ${options.name}(${arg} ${options.argType ?? "uuid"})
 returns jsonb
 language plpgsql
 stable

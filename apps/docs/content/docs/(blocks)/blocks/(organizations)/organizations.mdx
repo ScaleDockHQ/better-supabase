@@ -37,6 +37,7 @@ provider or your own functions.
 | `switch_organization(organization)`                                              | makes it the caller's active organization (see [Switching](#switching-organizations))                                                                                   |
 | `list_my_organizations()`                                                        | organizations the caller belongs to (`id`, `name`, `slug`, `role`, and `disabled_at` with a membership `disabledAt` column)                                             |
 | `list_members(organization)`                                                     | members the caller may read (`members.read`, or what `blocks.organizations.permissions.listMembers` sets), with `disabled_at` when the memberships table has the column |
+| `page_organization_members(organization, filters)`                               | one keyset page of members, with the same permission as `list_members`; sorts `role` and `userId`, filter and facet `role`                                              |
 | `list_organization_invitations(organization)`                                    | open invitations, when the invitations module is installed (`members.invite`)                                                                                           |
 | `mark_used(organization)`                                                        | sets `last_used_at` on the caller's membership                                                                                                                          |
 | `invite_member(tenant, invitee_email, invitee_role)`                             | creates an invitation and returns it with its token (`invite`)                                                                                                          |
@@ -145,6 +146,9 @@ without validating them and logs a warning.
 `mine()`, `members(organizationId)` and `invitations(organizationId)` list
 the caller's organizations, an organization's members and its open
 invitations.
+`membersPage`, `membersFacets` and `membersCount` read the members by keyset,
+sorted by `role` (the default) or `userId`, with `filters: { role: ["admin"] }`
+and the `role` facet.
 `sqlTransport` uses a Postgres connection with the user's claims, and works
 whatever schema the modules are in:
 

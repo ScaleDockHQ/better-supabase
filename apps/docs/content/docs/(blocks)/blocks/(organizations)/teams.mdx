@@ -72,6 +72,19 @@ const rows = await db.teams.list(organizationId).orThrow();
 user ids on the team, so a page can show who is on a team or hide archived
 teams without reading `team_members`. `update` returns the stored row.
 
+`list` is deprecated in favor of `teamPage` (ADR 1077). `teamPage` pages teams
+by name (the default) or `createdAt`, takes the `status` filter as a list, and
+`q` searches the name, the slug and the description. Pass `organizationId` on
+each call. `teamFacets` and `teamCount` read under the same options, and
+`getTeam(id)` returns one team or a `not_found` error. The SQL functions are
+`list_teams` (a page) and `get_team`.
+
+```ts
+const page = await db.teams
+  .teamPage({ organizationId, q: "sales", filters: { status: ["active"] } })
+  .orThrow();
+```
+
 ```tsx title="src/features/teams/list.tsx"
 "use client";
 

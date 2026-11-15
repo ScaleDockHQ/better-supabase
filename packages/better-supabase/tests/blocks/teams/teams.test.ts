@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated teams.list until 0.70 (ADR 1077). 2 findings. */
 import { describe, expect, it } from "vitest";
 
 import { createTeams } from "../../../src/blocks/teams/teams.ts";
@@ -95,9 +96,9 @@ describe("teams.setMembers and setArchived", () => {
       removedEmployees: ["e1"],
     });
     expect(calls).toEqual([
-      ["list_teams", { tenant: "o" }],
+      ["list_teams", { tenant: "o", filters: { limit: 200 } }],
       ["remove_team_member", { team: "t1", member: "u1" }],
-      ["list_teams", { tenant: "o" }],
+      ["list_teams", { tenant: "o", filters: { limit: 200 } }],
       ["add_team_member", { team: "t1", employee: "e2" }],
       ["add_team_member", { team: "t1", employee: "e3" }],
       ["remove_team_member", { team: "t1", employee: "e1" }],

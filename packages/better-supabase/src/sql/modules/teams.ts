@@ -8,6 +8,13 @@ import type {
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { getFunction } from "../get-template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   extraFieldsArg,
@@ -160,6 +167,103 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       : " generated always as identity";
 
   const employees = employeeMembers(ctx);
+
+  const listRow = (alias: string): string => `jsonb_build_object(
+    'id', ${alias}.${id},
+    'name', ${alias}.${name},
+    'slug', ${alias}.${slug},
+    'description', ${alias}.${description},
+    'status', ${alias}.${status},
+    'member_ids', coalesce((
+      select jsonb_agg(m.${memberUser} order by m.${memberCreated})${employees ? ` filter (where m.${memberUser} is not null)` : ""}
+      from ${members} m
+      where m.${memberTeam} = ${alias}.${id}
+    ), '[]'::jsonb)${
+      employees
+        ? `,
+    'member_employee_ids', coalesce((
+      select jsonb_agg(m.${ctx.col("members", "employee")} order by m.${memberCreated}) filter (where m.${ctx.col("members", "employee")} is not null)
+      from ${members} m
+      where m.${memberTeam} = ${alias}.${id}
+    ), '[]'::jsonb)`
+        : ""
+    }${extraFieldsJson(alias, extras)}
+  )`;
+
+  const teamKeys = (
+    first: "name" | "createdAt",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => [
+    first === "name"
+      ? { expr: `lower(x.${name})`, dir: "asc", type: "text" }
+      : { expr: `x.${createdAt}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${id}`, dir: "asc", type: idType },
+  ];
+
+  const teamList = {
+    name: "list_teams",
+    from: teams,
+    alias: "x",
+    where: [
+      `x.${tenant} = list_teams.tenant`,
+      filterAny("status", `x.${status}`),
+      `(v_search is null or x.${name} ilike v_search or x.${slug} ilike v_search or coalesce(x.${description}, '') ilike v_search)`,
+    ],
+    keys: teamKeys("name"),
+    sorts: { name: teamKeys("name"), createdAt: teamKeys("createdAt") },
+    facets: { status: `x.${status}` },
+    rowJson: listRow("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("TEAM_INVALID", message, "22023"),
+  } as const;
+
+  const listTeams =
+    (): string => `drop function if exists ${fn("list_teams")}(${ctx.idType});
+-- Teams as a keyset page, by name unless sort says otherwise (ADR 1077).
+-- filters may hold status (a value or a list), search, sort (name,
+-- createdAt), direction, facet, count, limit and after. Without paged it
+-- returns the plain array, at most 200.
+create or replace function ${fn("list_teams")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(list_teams.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(teamList)}
+begin
+  if not (${service(ctx)} or ${ctx.scope.can("list_teams.tenant", read)}) then
+    ${fail("TEAM_FORBIDDEN", "not allowed to read teams")}
+  end if;
+  ${listBody(teamList)}
+end;
+$$;
+${userGrant(`${fn("list_teams")}(${ctx.idType}, jsonb)`)}
+
+-- One team the caller may read, or null.
+${getFunction({
+  name: fn("get_team"),
+  bare: "get_team",
+  arg: "team",
+  argType: idType,
+  from: teams,
+  idColumn: id,
+  tenantColumn: tenant,
+  tenantType: ctx.idType,
+  rowJson: listRow("x"),
+  allowed: (tenant) => `(${service(ctx)} or ${ctx.scope.can(tenant, read)})`,
+  forbidden: fail("TEAM_FORBIDDEN", "not allowed to read teams"),
+  grant: userGrant(`${fn("get_team")}(${idType})`),
+})}
+`;
 
   const tables = ctx.manages
     ? `create table if not exists ${teams} (
@@ -450,42 +554,7 @@ $$;
 ${userGrant(`${fn("remove_team_member")}(${idType}, uuid)`)}
 
 `
-}create or replace function ${fn("list_teams")}(tenant ${ctx.idType})
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'id', t.${id},
-    'name', t.${name},
-    'slug', t.${slug},
-    'description', t.${description},
-    'status', t.${status},
-    'member_ids', coalesce((
-      select jsonb_agg(m.${memberUser} order by m.${memberCreated})${employees ? ` filter (where m.${memberUser} is not null)` : ""}
-      from ${members} m
-      where m.${memberTeam} = t.${id}
-    ), '[]'::jsonb)${
-      employees
-        ? `,
-    'member_employee_ids', coalesce((
-      select jsonb_agg(m.${ctx.col("members", "employee")} order by m.${memberCreated}) filter (where m.${ctx.col("members", "employee")} is not null)
-      from ${members} m
-      where m.${memberTeam} = t.${id}
-    ), '[]'::jsonb)`
-        : ""
-    }${extraFieldsJson("t", extras)}
-  ) order by t.${name}), '[]'::jsonb)
-  from ${teams} t
-  where t.${tenant} = list_teams.tenant
-    and (
-      ${service(ctx)}
-      or ${ctx.scope.can("list_teams.tenant", read)}
-    )
-$$;
-${userGrant(`${fn("list_teams")}(${ctx.idType})`)}
+}${listTeams()}
 `;
 }
 
@@ -915,7 +984,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: employeeMembers(ctx) ? [id, "uuid", "uuid"] : [id, "uuid"],
       returns: "boolean",
     })),
-    { name: "list_teams", args: ["{id}"], returns: "jsonb" },
+    { name: "list_teams", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_team", args: [id], returns: "jsonb" },
     { name: "team_ids_of", args: ["uuid"], returns: `setof ${id}` },
   ];
 }
