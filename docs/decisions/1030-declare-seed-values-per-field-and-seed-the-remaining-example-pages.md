@@ -65,3 +65,7 @@ database column does not carry that. EX-1264 stays deferred for them.
 The periods page now has an input schema, so `gen` writes `periods.form.ts` and
 the example's `generated.zod.ts` gains `periodInput`. The messages for the
 form fields join the `.po` files when the example builds.
+
+The `./blocks/periods` bundle grows from 31,002 to 35,844 bytes gzip (the value
+CI measured), because the entity schema brings the table schema validator into
+the block. `schemas/config-v1.json` lists the new `seed` keys.
