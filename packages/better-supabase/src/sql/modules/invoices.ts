@@ -111,6 +111,8 @@ const EVENTS: BlockSqlEvents<InvoicesEvents> = {
   "invoice.created": { subject: "invoices", payload: [...INVOICE] },
   "invoice.updated": { subject: "invoices", payload: [...INVOICE] },
   "invoice.deleted": { subject: "invoices", payload: [...INVOICE] },
+  "invoice.archived": { subject: "invoices", payload: [...INVOICE] },
+  "invoice.restored": { subject: "invoices", payload: [...INVOICE] },
   "invoice.issued": {
     subject: "invoices",
     payload: [...INVOICE, "total", "currency", "dueOn"],
@@ -715,6 +717,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "clone_invoice", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "update_invoice", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "delete_invoice", args: ["uuid"], returns: "boolean" },
+    { name: "archive_invoice", args: ["uuid"], returns: "boolean" },
+    { name: "restore_invoice", args: ["uuid"], returns: "boolean" },
     { name: "set_invoice_lines", args: ["uuid", "jsonb"], returns: "jsonb" },
     {
       name: "issue_invoice",

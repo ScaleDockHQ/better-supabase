@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:8c0808463d50d7a9d61698df9d550e3e07982986976ca4f263086ad266f2f11d
+-- @bsb-hash sha256:746a0a0d93e8dd708e2ce060ae30551b061d013b6b54002a45e7f404040f2985
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -65,6 +65,7 @@ create table "better_supabase"."invoices" (
   constraint bsb_invoices_check2 check ("status" in ('draft', 'void') or "number" is not null),
   constraint bsb_invoices_check3 check (("company_type" is null) = ("company_id" is null))
 );
+alter table "better_supabase"."invoices" add column "archived_at" timestamptz;
 alter table "better_supabase"."invoices" add column "deposit_amount" bigint constraint bsb_invoices_deposit_amount_check check ("deposit_amount" > 0);
 alter table "better_supabase"."invoices" add column "discount_bps" integer not null default 0 constraint bsb_invoices_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000);
 alter table "better_supabase"."invoices" add column "discount_amount" bigint not null default 0 constraint bsb_invoices_discount_amount_check check ("discount_amount" >= 0);
@@ -793,6 +794,64 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
+-- Archives an invoice of any status. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."archive_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = archive_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can archive' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."archived_at" is not null then
+    return true;
+  end if;
+  update "better_supabase"."invoices" x set "archived_at" = now(), "updated_at" = now() where x."id" = v_row."id";
+  perform "better_supabase".emit_event('invoice.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."archive_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_invoice"(uuid) to authenticated, service_role;
+-- Restores an archived invoice. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."restore_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."invoices" x where x."id" = restore_invoice.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", case when x."direction" = 'purchase' then 'invoices.purchase' else 'invoices.write' end), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such invoice you can restore' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  if v_row."archived_at" is null then
+    return true;
+  end if;
+  update "better_supabase"."invoices" x set "archived_at" = null, "updated_at" = now() where x."id" = v_row."id";
+  perform "better_supabase".emit_event('invoice.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."restore_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_invoice"(uuid) to authenticated, service_role;
 create table "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -1933,7 +1992,7 @@ begin
   if invoice_from_quote.deposit_bps is null and invoice_from_quote.deposit_amount is null then
     select * into v_row from "better_supabase"."invoices" x
     where x."origin_type" = 'quote' and x."origin_id"::text = v_quote."id"::text
-      and x."deposit_bps" is null and x."deposit_amount" is null and x."status" <> 'void' and x."kind" = 'invoice' and not (x."total" > 0 and x."credited_total" >= x."total")
+      and x."deposit_bps" is null and x."deposit_amount" is null and x."status" <> 'void' and x."kind" = 'invoice' and x."archived_at" is null and not (x."total" > 0 and x."credited_total" >= x."total")
     limit 1;
     if v_row."id" is not null then
       return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'deposit_amount', v_row."deposit_amount"::text, 'discount_amount', v_row."discount_amount"::text, 'discount_amount_early', v_row."discount_amount_early"::text) || jsonb_build_object(
@@ -1952,7 +2011,7 @@ begin
         'product', case when x."product_type" is null then null else jsonb_build_object('type', x."product_type", 'id', x."product_id") end
       ) order by x."position"), '[]'::jsonb) into v_lines
     from "better_supabase"."quote_lines" x where x."parent_id" = v_quote."id" and (not x."optional" or x."selected");
-    if not exists (select 1 from "better_supabase"."invoices" d where d."origin_type" = 'quote' and d."origin_id"::text = v_quote."id"::text and (d."deposit_bps" is not null or d."deposit_amount" is not null) and d."status" not in ('draft', 'void') and not (d."total" > 0 and d."credited_total" >= d."total")) then
+    if not exists (select 1 from "better_supabase"."invoices" d where d."origin_type" = 'quote' and d."origin_id"::text = v_quote."id"::text and (d."deposit_bps" is not null or d."deposit_amount" is not null) and d."status" not in ('draft', 'void') and d."archived_at" is null and not (d."total" > 0 and d."credited_total" >= d."total")) then
       v_header := jsonb_build_object('discountBps', v_quote."discount_bps", 'discountAmount', v_quote."discount_amount"::text);
     else
       select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Discount', 'quantity', 1, 'unitAmount', (-x."discount")::text,
@@ -1969,7 +2028,7 @@ begin
       from "better_supabase"."invoice_lines" dl where dl."parent_id" = d."id" and true
       group by 1
     ) y
-    where d."origin_type" = 'quote' and d."origin_id"::text = v_quote."id"::text and (d."deposit_bps" is not null or d."deposit_amount" is not null) and d."status" not in ('draft', 'void') and not (d."total" > 0 and d."credited_total" >= d."total") and y.amount <> 0;
+    where d."origin_type" = 'quote' and d."origin_id"::text = v_quote."id"::text and (d."deposit_bps" is not null or d."deposit_amount" is not null) and d."status" not in ('draft', 'void') and d."archived_at" is null and not (d."total" > 0 and d."credited_total" >= d."total") and y.amount <> 0;
   elsif invoice_from_quote.deposit_amount is not null then
     v_lines := jsonb_build_array(jsonb_build_object(
       'description', 'Deposit of ' || v_quote."identifier",
@@ -5338,6 +5397,24 @@ set search_path = ''
 as $$ select "better_supabase"."delete_invoice"($1) $$;
 revoke execute on function "api"."delete_invoice"(uuid) from public, anon;
 grant execute on function "api"."delete_invoice"(uuid) to authenticated, service_role;
+
+create or replace function "api"."archive_invoice"(invoice uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_invoice"($1) $$;
+revoke execute on function "api"."archive_invoice"(uuid) from public, anon;
+grant execute on function "api"."archive_invoice"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_invoice"(invoice uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_invoice"($1) $$;
+revoke execute on function "api"."restore_invoice"(uuid) from public, anon;
+grant execute on function "api"."restore_invoice"(uuid) to authenticated, service_role;
 
 create or replace function "api"."set_invoice_lines"(parent uuid, lines jsonb)
 returns jsonb

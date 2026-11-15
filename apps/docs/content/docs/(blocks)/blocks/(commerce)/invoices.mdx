@@ -102,6 +102,20 @@ The SQL functions are `update_invoice(invoice, attrs jsonb)` and `delete_invoice
 
 An imported invoice without a title gets `options.titleTemplate` (default `Invoice {number}`, with `draft` for a number not yet given), and an imported opening balance gets `options.openingTitleTemplate` (default `Opening balance {number}`) as its title and line description. Set them in the tenant's language.
 
+## Archive and restore
+
+An issued invoice cannot be deleted, so `archive` hides one of any status
+without losing its number, lines or payments. It needs the opt-in
+`archivedAt` column and the delete permission (`invoices.delete`), records
+`invoice.archived`, and does nothing when the invoice is already archived.
+`restore` clears the mark and records `invoice.restored`. Without the column
+both fail with `INVOICE_ARCHIVE_UNSUPPORTED`.
+
+```ts
+await invoices.archive(invoiceId).orThrow();
+await invoices.restore(invoiceId).orThrow();
+```
+
 ## Issue and number
 
 A draft has no number. `issue(invoiceId, issuedOn?)` gives it the next number of its kind (`INV-1`, credit notes `CN-1`, or the formats of `invoice` and `credit_note` entities in [numbering](/docs/blocks/numbering)), sets the issue date (today by default) and a due date `termsDays` later (`options.termsDays`, default 30), and freezes its lines. `issue(invoiceId, issuedOn, { dueOn })` sets the due date itself, on or after the issue date (`INVOICE_DUE_INVALID`), and an invoice created with `termsDays: null` (over your own table with a nullable terms column) has no due date. The number is taken in the same transaction that issues the invoice, so an issue that fails takes none. Numbers are taken only on issue, so a voided draft leaves no gap. An issued invoice voided by mistake keeps its number.
@@ -715,6 +729,7 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 | `INVOICE_ATTRS_INVALID`              | a missing title or a field with a bad value                                                           |
 | `INVOICE_NOT_FOUND`                  | no invoice the caller can edit (or manage, for void)                                                  |
 | `INVOICE_NOT_DRAFT`                  | the invoice was already issued, so it no longer changes and isn't deleted                             |
+| `INVOICE_ARCHIVE_UNSUPPORTED`        | `archive` or `restore` on an invoices table without the `archivedAt` column                           |
 | `INVOICE_EMPTY`                      | an invoice without lines can't be issued                                                              |
 | `INVOICE_NOT_PAYABLE`                | only an issued invoice takes payments, or a written-off one with `paymentsAfterWriteOff`              |
 | `INVOICE_PAYMENT_INVALID`            | a payment needs an amount                                                                             |

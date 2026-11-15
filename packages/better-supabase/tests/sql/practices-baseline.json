@@ -85,7 +85,7 @@
     "security-definer-functions": 120
   },
   "bookings": {
-    "security-definer-functions": 88
+    "security-definer-functions": 100
   },
   "bulk-actions": {
     "security-definer-functions": 6
@@ -268,7 +268,7 @@
     "row-triggers": 6
   },
   "invoices": {
-    "security-definer-functions": 357,
+    "security-definer-functions": 369,
     "row-triggers": 6
   },
   "knowledge": {
@@ -452,7 +452,7 @@
     "security-definer-functions": 78
   },
   "risks": {
-    "security-definer-functions": 85
+    "security-definer-functions": 97
   },
   "saved-views": {
     "security-definer-functions": 36
@@ -502,7 +502,7 @@
     "security-definer-functions": 97
   },
   "shipments": {
-    "security-definer-functions": 75,
+    "security-definer-functions": 87,
     "row-triggers": 6
   },
   "signatures": {

@@ -8,6 +8,8 @@ export type InvoicesEvents = {
   readonly "invoice.created": InvoiceEventData;
   readonly "invoice.updated": InvoiceEventData;
   readonly "invoice.deleted": InvoiceEventData;
+  readonly "invoice.archived": InvoiceEventData;
+  readonly "invoice.restored": InvoiceEventData;
   readonly "invoice.issued": InvoiceEventData;
   readonly "invoice.payment_recorded": InvoiceEventData;
   readonly "invoice.paid": InvoiceEventData;
@@ -38,6 +40,8 @@ export const invoicesEvents: Events<InvoicesEvents> = defineEvents({
   "invoice.created": event<InvoiceEventData>({ public: true }),
   "invoice.updated": event<InvoiceEventData>(),
   "invoice.deleted": event<InvoiceEventData>(),
+  "invoice.archived": event<InvoiceEventData>(),
+  "invoice.restored": event<InvoiceEventData>(),
   "invoice.issued": event<InvoiceEventData>({ public: true }),
   "invoice.payment_recorded": event<InvoiceEventData>({ public: true }),
   "invoice.paid": event<InvoiceEventData>({ public: true }),

@@ -23,7 +23,7 @@ client adds `dispatchJob` and `redeliverJob`, which return `{ jobId:
 `delivering` and `retrying` are `running`, `succeeded` is `completed` with the
 delivery as `result`, and `dead` and `canceled` are `failed` with the hints
 `WEBHOOK_DELIVERY_DEAD` and `WEBHOOK_DELIVERY_CANCELED`. The migrations are
-`20270119000007_y4_get_webhook_delivery.sql` and the module data migration after
+`20270119000008_y4_get_webhook_delivery.sql` and the module data migration after
 it.
 
 ## Alternatives considered

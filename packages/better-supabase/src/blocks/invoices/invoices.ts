@@ -316,6 +316,14 @@ export interface Invoices<F extends object = Record<never, never>>
     patch: InvoicePatch<F>;
   }): AsyncResult<Invoice<F>>;
   delete(invoiceId: string): AsyncResult<boolean>;
+  /**
+   * Needs the delete permission and the `archivedAt` column in
+   * `blocks.invoices.columns.invoices`. Archives an invoice of any status,
+   * keeps its number, lines and payments, and records `invoice.archived`.
+   */
+  archive(invoiceId: string): AsyncResult<boolean>;
+  /** Brings an archived invoice back and records `invoice.restored`. */
+  restore(invoiceId: string): AsyncResult<boolean>;
   setLines(input: {
     invoiceId: string;
     lines: readonly LineInput[];
@@ -792,6 +800,18 @@ export function createInvoices<
     },
     delete: (invoiceId) =>
       call("delete_invoice", { invoice: invoiceId }, (value) => value === true),
+    archive: (invoiceId) =>
+      call(
+        "archive_invoice",
+        { invoice: invoiceId },
+        (value) => value === true,
+      ),
+    restore: (invoiceId) =>
+      call(
+        "restore_invoice",
+        { invoice: invoiceId },
+        (value) => value === true,
+      ),
     setLines: ({ invoiceId, lines }) => {
       const invalid = amountsError(
         undefined,

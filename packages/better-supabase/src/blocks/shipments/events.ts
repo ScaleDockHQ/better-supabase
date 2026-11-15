@@ -45,6 +45,12 @@ export interface ShipmentCancelledEventData {
   readonly trackingNumber: string | null;
 }
 
+/** `shipment.archived` and `shipment.restored`. */
+export interface ShipmentArchivedEventData {
+  readonly organizationId: string;
+  readonly id: string;
+}
+
 /** `shipment.return_received`: stock came back on a shipment that left. */
 export interface ShipmentReturnReceivedEventData {
   readonly organizationId: string;
@@ -61,6 +67,8 @@ export type ShipmentsEvents = {
   readonly "shipment.labeled": ShipmentLabeledEventData;
   readonly "shipment.status_changed": ShipmentStatusChangedEventData;
   readonly "shipment.cancelled": ShipmentCancelledEventData;
+  readonly "shipment.archived": ShipmentArchivedEventData;
+  readonly "shipment.restored": ShipmentArchivedEventData;
   readonly "shipment.proof_recorded": ShipmentProofRecordedEventData;
   readonly "shipment.return_received": ShipmentReturnReceivedEventData;
 };
@@ -73,6 +81,8 @@ export const shipmentsEvents: Events<ShipmentsEvents> = defineEvents({
     public: true,
   }),
   "shipment.cancelled": event<ShipmentCancelledEventData>({ public: true }),
+  "shipment.archived": event<ShipmentArchivedEventData>(),
+  "shipment.restored": event<ShipmentArchivedEventData>(),
   "shipment.proof_recorded": event<ShipmentProofRecordedEventData>({
     public: true,
   }),
