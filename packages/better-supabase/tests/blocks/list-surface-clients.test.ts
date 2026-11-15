@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { BlockTransport } from "../../src/core/block-transport.ts";
 import type { EntityList } from "../../src/core/entity-list.ts";
 
+import { createAgentCheckout } from "../../src/blocks/agent-checkout/index.ts";
 import { createDocumentTemplates } from "../../src/blocks/document-templates/index.ts";
 import { createEPrescribing } from "../../src/blocks/e-prescribing/index.ts";
 import { createEmployees } from "../../src/blocks/employees/index.ts";
 import { createEnrollments } from "../../src/blocks/enrollments/index.ts";
+import { createGuests } from "../../src/blocks/guests/index.ts";
+import { createLeases } from "../../src/blocks/leases/index.ts";
 import { createLeave } from "../../src/blocks/leave/index.ts";
 import { createPasses } from "../../src/blocks/passes/index.ts";
 import { createPayrollExport } from "../../src/blocks/payroll-export/index.ts";
@@ -27,6 +30,74 @@ interface Case {
 const options = (transport: BlockTransport) => ({ transport, tenant: "org-1" });
 
 const CASES: readonly Case[] = [
+  {
+    label: "leases",
+    searchable: true,
+    fn: "list_leases",
+    sort: "endsOn",
+    filter: "unitId",
+    facet: "status",
+    list: (transport) => {
+      const client = createLeases(options(transport));
+
+      return {
+        page: (page) => client.leasePage(page),
+        facets: (facets) => client.leaseFacets(facets),
+        count: (count) => client.leaseCount(count),
+      };
+    },
+  },
+  {
+    label: "guests",
+    searchable: true,
+    fn: "page_guests",
+    sort: "email",
+    filter: "status",
+    facet: "status",
+    list: (transport) => {
+      const client = createGuests(options(transport));
+
+      return {
+        page: (page) => client.page(page),
+        facets: (facets) => client.facets(facets),
+        count: (count) => client.count(count),
+      };
+    },
+  },
+  {
+    label: "checkout sessions",
+    searchable: true,
+    fn: "list_checkout_sessions",
+    sort: "expiresAt",
+    filter: "protocol",
+    facet: "status",
+    list: (transport) => {
+      const client = createAgentCheckout(options(transport));
+
+      return {
+        page: (page) => client.sessionPage(page),
+        facets: (facets) => client.sessionFacets(facets),
+        count: (count) => client.sessionCount(count),
+      };
+    },
+  },
+  {
+    label: "agent mandates",
+    searchable: true,
+    fn: "list_agent_mandates",
+    sort: "expiresAt",
+    filter: "vct",
+    facet: "status",
+    list: (transport) => {
+      const client = createAgentCheckout(options(transport));
+
+      return {
+        page: (page) => client.mandatePage(page),
+        facets: (facets) => client.mandateFacets(facets),
+        count: (count) => client.mandateCount(count),
+      };
+    },
+  },
   {
     label: "sequences",
     fn: "page_sequences",
@@ -61,6 +132,7 @@ const CASES: readonly Case[] = [
   },
   {
     label: "passes",
+    searchable: true,
     fn: "page_passes",
     sort: "validUntil",
     filter: "holderUserId",

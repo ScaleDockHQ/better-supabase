@@ -96,7 +96,7 @@ name the asset.
 
 ## Page through assets
 
-`assets` is the capped convenience list. `page` is the full list contract
+`assets` is the capped convenience list, deprecated in favor of `page` (ADR 1077). `page` is the full list contract
 (ADR 0749, 0949) over the block tenant's assets the caller can read. It takes
 `sort`, `filters` whose values are lists, `q`, `after` and `limit`, and returns
 `{ items, hasMore, nextCursor }`. Sorts are `createdAt` (the default, newest

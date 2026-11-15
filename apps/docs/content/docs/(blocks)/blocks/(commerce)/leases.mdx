@@ -221,9 +221,9 @@ record.
 
 ## Paging a list
 
-`list` stays as the capped convenience list, with `pageSize` as its limit.
+`list` stays as the capped convenience list, with `pageSize` as its limit, and is deprecated in favor of `leasePage` (ADR 1077).
 
-`leasePage` pages leases (ADR 0749). Sorts are `startsOn`, `endsOn` and `createdAt`, and the default order is `startsOn`, latest first. Filters are `status`, `unitId`, `partyType` and `partyId`, and facets are `status` and `unitId`. Each filter takes a list of values and a row matches any of them. `leaseFacets` counts the values of each facet under the same filters, and `leaseCount` returns `{ value, exact }`.
+`leasePage` pages leases (ADR 0749). Sorts are `startsOn`, `endsOn` and `createdAt`, and the default order is `startsOn`, latest first. Filters are `status`, `unitId`, `partyType` and `partyId`, facets are `status` and `unitId`, and `q` searches the lease title. Each filter takes a list of values and a row matches any of them. `leaseFacets` counts the values of each facet under the same filters, and `leaseCount` returns `{ value, exact }`.
 
 ```ts
 const first = await leases

@@ -1,6 +1,5 @@
 import "server-only";
 import type { Result } from "better-supabase";
-import type { LeaseListOptions } from "better-supabase/blocks/leases";
 import type { MoneyJson } from "better-supabase/commerce";
 
 import { ok } from "better-supabase";
@@ -9,8 +8,9 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import type { BlockPage } from "@/lib/block-page";
-import type { BlockListQuery, Mutable } from "@/lib/block-status-list";
+import type { BlockListQuery } from "@/lib/block-status-list";
 
+import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
 import { bsb } from "@/lib/supabase/server";
 
 import type { LeaseRow } from "./lease-row";
@@ -24,52 +24,37 @@ const isStatus = (value: string): value is LeaseRow["status"] =>
   LEASE_STATUSES.some((status) => status === value);
 
 /**
- * The leases of the selected statuses, one block call per status in parallel,
- * newest start first. Shared by the page and `/api/leases/list`.
+ * One page of leases: the selected statuses go to the block as one list filter,
+ * `q` searches the title, and the keyset cursor `after` holds pages on. Shared
+ * by the page and `/api/leases/list`.
  */
 export async function loadLeasePage(
   db: Db,
   query: BlockListQuery<"newest">,
 ): Promise<Result<BlockPage<LeaseRow>>> {
-  const wanted = (query.facets["status"] ?? []).filter(isStatus);
-  const statuses = wanted.length > 0 ? wanted : [undefined];
+  const statuses = (query.facets["status"] ?? []).filter(isStatus);
 
-  const results = await Promise.all(
-    statuses.map((status) => {
-      const options: Mutable<LeaseListOptions> = { pageSize: LEASE_PAGE_SIZE };
-
-      if (status !== undefined) {
-        options.status = status;
-      }
-
-      return db.leases.list(options);
-    }),
+  const result = await db.leases.leasePage(
+    pageOptionsOf(query, LEASE_PAGE_SIZE, { status: statuses }),
   );
 
-  const rows: LeaseRow[] = [];
-
-  for (const result of results) {
-    if (!result.ok) {
-      return result;
-    }
-
-    for (const lease of result.data) {
-      rows.push({
-        id: lease.id,
-        title: lease.title,
-        status: lease.status,
-        startsOn: lease.startsOn.toString(),
-        endsOn: lease.endsOn?.toString() ?? null,
-        rent: moneyToJson(lease.rent),
-        frequency: lease.frequency,
-        balanceDue: moneyToJson(lease.balanceDue),
-      });
-    }
+  if (!result.ok) {
+    return result;
   }
 
-  rows.sort((a, b) => b.startsOn.localeCompare(a.startsOn));
-
-  return ok({ items: rows, nextCursor: null });
+  return ok({
+    items: result.data.items.map((lease): LeaseRow => ({
+      id: lease.id,
+      title: lease.title,
+      status: lease.status,
+      startsOn: lease.startsOn.toString(),
+      endsOn: lease.endsOn?.toString() ?? null,
+      rent: moneyToJson(lease.rent),
+      frequency: lease.frequency,
+      balanceDue: moneyToJson(lease.balanceDue),
+    })),
+    nextCursor: encodeCursor(result.data.nextCursor),
+  });
 }
 
 /** The first page of leases, for the instant shell. */
@@ -179,7 +164,7 @@ export async function getLeaseFormOptions(): Promise<LeaseFormOptions> {
   cacheTag(LEASES_TAG);
 
   const [units, parties] = await Promise.all([
-    db.assets.assets({ status: "active", pageSize: 100 }),
+    db.assets.page({ filters: { status: ["active"] }, limit: 100 }),
     db.customers.list({
       orderBy: { name: "asc" },
       limit: 100,
@@ -196,7 +181,10 @@ export async function getLeaseFormOptions(): Promise<LeaseFormOptions> {
   }
 
   return {
-    units: units.data.map((asset) => ({ id: asset.id, name: asset.name })),
+    units: units.data.items.map((asset) => ({
+      id: asset.id,
+      name: asset.name,
+    })),
     parties: parties.data.map((customer) => ({
       id: customer.id,
       name: customer.name,

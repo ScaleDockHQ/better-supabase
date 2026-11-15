@@ -1,17 +1,17 @@
 import "server-only";
 import type { Result } from "better-supabase";
-import type { AssetListOptions } from "better-supabase/blocks/assets";
+import type { Asset } from "better-supabase/blocks/assets";
 import type { MoneyJson } from "better-supabase/commerce";
 
+import { ok } from "better-supabase";
 import { moneyToJson } from "better-supabase/commerce";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
-import { Temporal } from "temporal-polyfill";
 
 import type { BlockPage } from "@/lib/block-page";
-import type { BlockListQuery, Mutable } from "@/lib/block-status-list";
+import type { BlockListQuery } from "@/lib/block-status-list";
 
-import { pageOverStatuses } from "@/lib/block-page";
+import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
 import { bsb } from "@/lib/supabase/server";
 
 import type { AssetRow } from "./asset-row";
@@ -28,49 +28,41 @@ const isStatus = (value: string): value is AssetRow["status"] =>
 
 /**
  * One page of the register, filtered in the database: the block matches the
- * search against the name, tag and serial number and pages back from the
- * `createdAt` the cursor holds. The page and `/api/assets/list` share it.
+ * search against the name, tag and serial number, takes the selected statuses
+ * as one list filter and pages by the keyset cursor `after` holds. The page and
+ * `/api/assets/list` share it.
  */
-export function loadAssetPage(
+export async function loadAssetPage(
   db: Db,
   query: AssetQuery,
 ): Promise<Result<BlockPage<AssetRow>>> {
-  const before =
-    query.after === undefined ? undefined : Temporal.Instant.from(query.after);
+  const statuses = (query.facets["status"] ?? []).filter(isStatus);
 
-  return pageOverStatuses({
-    statuses: query.facets["status"],
-    size: ASSET_PAGE_SIZE,
-    fetchPage: (status, take) => {
-      const options: Mutable<AssetListOptions> = { pageSize: take };
+  const result = await db.assets.page(
+    pageOptionsOf(query, ASSET_PAGE_SIZE, { status: statuses }),
+  );
 
-      if (query.q !== undefined) {
-        options.query = query.q;
-      }
+  if (!result.ok) {
+    return result;
+  }
 
-      if (status !== undefined && isStatus(status)) {
-        options.status = status;
-      }
-
-      if (before !== undefined) {
-        options.before = before;
-      }
-
-      return db.assets.assets(options);
-    },
-    map: (asset): AssetRow => ({
-      id: asset.id,
-      name: asset.name,
-      kind: asset.kind,
-      tag: asset.tag ?? null,
-      serialNumber: asset.serialNumber ?? null,
-      status: asset.status,
-      assigned: asset.assignee !== undefined,
-      cost: asset.acquisitionCost ? moneyToJson(asset.acquisitionCost) : null,
-      createdAt: asset.createdAt.toString(),
-    }),
+  return ok({
+    items: result.data.items.map(toRow),
+    nextCursor: encodeCursor(result.data.nextCursor),
   });
 }
+
+const toRow = (asset: Asset): AssetRow => ({
+  id: asset.id,
+  name: asset.name,
+  kind: asset.kind,
+  tag: asset.tag ?? null,
+  serialNumber: asset.serialNumber ?? null,
+  status: asset.status,
+  assigned: asset.assignee !== undefined,
+  cost: asset.acquisitionCost ? moneyToJson(asset.acquisitionCost) : null,
+  createdAt: asset.createdAt.toString(),
+});
 
 /**
  * The first page of the register. The page doesn't read `searchParams`, so it

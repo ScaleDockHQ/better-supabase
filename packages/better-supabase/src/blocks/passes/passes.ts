@@ -232,7 +232,12 @@ export interface Passes {
   revoke(passId: string): AsyncResult<Pass>;
   /** One pass with its nonce, for its holder or a manager; `null` otherwise. */
   get(passId: string): AsyncResult<IssuedPass | null>;
-  /** The tenant's passes, newest first. Needs `passes.read`. */
+  /**
+   * The tenant's passes, newest first. Needs `passes.read`.
+   *
+   * @deprecated Use `passPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   list(options?: PassListOptions): AsyncResult<readonly Pass[]>;
   /**
    * One keyset page of the tenant's passes, newest first (or in the order of
@@ -583,6 +588,7 @@ export function createPasses(options: PassesOptions): Passes {
       call("get_pass", { pass_id: passId }, (value) =>
         value === null ? null : issuedOf(value, "get_pass"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(

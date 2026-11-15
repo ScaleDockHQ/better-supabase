@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated array method until 0.70 (ADR 1077). 1 finding. */
 import { describe, expect, it } from "vitest";
 
 import type { Signer } from "../../../src/blocks/signing-keys/signing-keys.ts";
