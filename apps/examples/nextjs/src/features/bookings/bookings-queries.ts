@@ -55,7 +55,10 @@ export async function findBookingPage(
   tenant: string,
   userId: string,
 ): Promise<BookingPageRef | null> {
-  const calendars = await db.calendar.listCalendars(tenant).orThrow();
+  const calendars = await db.calendar
+    .pageCalendars({ organizationId: tenant, limit: 200 })
+    .map((page) => page.items)
+    .orThrow();
 
   for (const calendar of calendars) {
     const [owner, resourceId, serviceId] = (calendar.ownerId ?? "").split("/");

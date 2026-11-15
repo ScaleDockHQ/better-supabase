@@ -331,3 +331,11 @@ await incidents
 ## Resolve an incident
 
 `resolve({ incidentId, body })` posts a `resolved` update, which also sets the incident's `resolvedAt`.
+
+## Reading one incident
+
+`page`, `facets` and `count` already follow the block list contract. `getIncident(incidentId)` adds the `not_found` read; `get` keeps returning `undefined` for a missing incident. `list` is deprecated.
+
+```ts
+const incident = await incidents.getIncident(incidentId).orThrow();
+```

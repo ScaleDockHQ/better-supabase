@@ -30,7 +30,10 @@ async function loadFields(
     return null;
   }
 
-  const definitions = await db.customFields.listDefinitions(entity).orThrow();
+  const definitions = await db.customFields
+    .page({ filters: { entity: [entity] }, limit: 200 })
+    .map((page) => page.items)
+    .orThrow();
 
   return definitions.map((definition) => ({
     id: definition.id,

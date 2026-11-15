@@ -385,3 +385,13 @@ import { viewOf } from "better-supabase/blocks/saved-views";
 
 const views = payload.views.map(viewOf);
 ```
+
+## Paging saved views
+
+`page({ organizationId })` pages the views the caller can see. Sorts are `rank` (the default), `name` and `updatedAt`. Filters are `list`, `scope` and `kind`, facets are `scope` and `kind`, and `q` searches the name. `facets`, `count` and `get` return the facet counts, the total and one view or a `not_found` error. `list` is deprecated. The SQL functions are `page_saved_views` and `get_view`.
+
+```ts
+const page = await savedViews
+  .page({ organizationId, filters: { list: ["tasks"] } })
+  .orThrow();
+```

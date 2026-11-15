@@ -279,3 +279,13 @@ await announcements.update(notice.id, { body: "Moved to 23:00 UTC." });
 await announcements.list();
 await announcements.purge(notice.id);
 ```
+
+## Paging announcements
+
+`page` returns `{ items, hasMore, nextCursor }` for the announcements a manager can see. Sorts are `startsAt` (the default, newest first), `title` and `createdAt`. Filters are `severity`, `audience` and `archived` (lists of values, a row matches any of them; `archived: ["true"]` adds archived rows), facets are `severity` and `audience`, and `q` searches the title and the body. `facets` counts each facet under the same filters, `count` returns `{ value, exact }`, and `get(announcementId)` returns one announcement or a `not_found` error. The SQL functions are `page_announcements` and `get_announcement`.
+
+```ts
+const page = await announcements
+  .page({ filters: { severity: ["critical"] }, q: "maintenance", limit: 20 })
+  .orThrow();
+```

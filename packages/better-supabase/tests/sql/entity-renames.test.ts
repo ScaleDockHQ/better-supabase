@@ -81,7 +81,11 @@ describe("blocks.<name>.entities in the SQL", () => {
       .flatMap((file) => file.contents.split("\n"))
       .filter((line) => !line.trimStart().startsWith("--"))
       .map((line) =>
-        line.replaceAll(/'[^']*\s[^']*'/g, "").replaceAll(parameter, ""),
+        line
+          // The task page filters by keys the client sends (see CONTRACT below).
+          .replaceAll(/'(?:project|iteration)Id'/g, "")
+          .replaceAll(/'[^']*\s[^']*'/g, "")
+          .replaceAll(parameter, ""),
       )
       .filter((line) =>
         /work_?items?|workItem|\btasks?_|projects?(?:_id|Id)|iterations?(?:_id|Id)/.test(
@@ -96,6 +100,10 @@ describe("blocks.<name>.entities in the SQL", () => {
   // in rows, option defaults and columns another block owns keep their names.
   const CONTRACT: Readonly<Record<string, readonly string[]>> = {
     catalog: ["'productId'", "'variantId'"],
+    // The event and calendar pages filter by `calendarId`, a key the client sends.
+    calendar: ["'calendarId'"],
+    // The task page filters by `projectId` and `iterationId`, keys the client sends.
+    tasks: ["'projectId'", "'iterationId'"],
     // The obligation list filters by `contractId`, a key the client sends.
     contracts: ["'contractId'"],
     // The gift list filters by `pledgeId`, a key the client sends.

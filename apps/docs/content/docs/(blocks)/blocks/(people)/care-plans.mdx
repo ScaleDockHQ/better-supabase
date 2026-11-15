@@ -280,3 +280,13 @@ const plans = await carePlans.list("contact", clientId).orThrow();
 ## Create a whole plan
 
 `createTree({ plan, problems })` creates the plan, then each problem with its `goals` and their `actions`, and returns the plan as `get` reads it. It stops at the first failure and keeps what it saved.
+
+## Paging care plans
+
+`page` pages the plans the caller can read. Sorts are `createdAt` (the default), `title`, `version`, `startsOn` and `reviewOn`. Filters are `subjectType`, `subjectId`, `status` and `archived`, the facet is `status`, and `q` searches the title. `facets` and `count` read under the same filters, and `get` returns one plan or a `not_found` error. `list` is deprecated. The SQL function is `page_care_plans`; it checks each plan's subject with the read rule of the block.
+
+```ts
+const page = await plans
+  .page({ filters: { subjectType: ["client"], status: ["active"] } })
+  .orThrow();
+```

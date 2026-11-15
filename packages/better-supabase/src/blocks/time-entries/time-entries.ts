@@ -504,7 +504,7 @@ export function createTimeEntries<
       call,
       tenant: tenantOrOption(options.tenant),
       fn: "page_time_entries",
-      rowOf: (row, name) => entryOf(row, name),
+      rowOf: entryOf,
       ...(everyone ? { base: { everyone: "true" } } : {}),
     });
 

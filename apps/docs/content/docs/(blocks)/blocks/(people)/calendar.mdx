@@ -856,3 +856,15 @@ const week = await calendar
   })
   .orThrow();
 ```
+
+## Paging events and calendars
+
+`page` pages the stored events the caller can read, and `pageCalendars({ organizationId })` pages the calendars. The event page returns the stored rows: a series and its overrides stay unexpanded, so use `events` and `occurrences` when you need each occurrence. Event sorts are `startsAt`, `title` and `updatedAt`. Event filters are `calendarId`, `status`, `subjectType`, `subjectId`, `from` and `to` (an instant), facets are `status` and `calendarId`, and `q` searches the title and the location. Calendars sort by `name`, filter and facet by `ownerType`, and `q` searches the name. `facets`, `count` and `getEvent` serve events; `calendarFacets`, `countCalendars` and `getCalendar` serve calendars. Both gets return a `not_found` error for a missing row. `listCalendars` is deprecated.
+
+```ts
+const page = await calendar
+  .page({
+    filters: { calendarId: [calendarId], from: ["2027-01-01T00:00:00Z"] },
+  })
+  .orThrow();
+```

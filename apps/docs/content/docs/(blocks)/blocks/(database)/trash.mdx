@@ -186,3 +186,13 @@ const batch = await trash.trash(organizationId, "project", projectId).orThrow();
 const bin = await trash.list(organizationId).orThrow();
 await trash.restore(batch.id).orThrow();
 ```
+
+## Paging the trash
+
+`page({ organizationId })` pages the batches the caller can read. Sorts are `trashedAt` (the default), `subjectType` and `purgeAfter`. The filter and facet is `subjectType`, and `q` searches the title. `facets`, `count` and `get(itemId)` return the facet counts, the total and one batch or a `not_found` error. `list` is deprecated. The SQL functions are `page_trash` and `get_trash`; they check the same read rule as `list_trash`.
+
+```ts
+const page = await trash
+  .page({ organizationId, filters: { subjectType: ["project"] } })
+  .orThrow();
+```
