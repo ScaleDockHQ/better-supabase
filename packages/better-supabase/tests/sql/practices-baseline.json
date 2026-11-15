@@ -222,7 +222,7 @@
     "security-definer-functions": 24
   },
   "forms": {
-    "security-definer-functions": 86
+    "security-definer-functions": 98
   },
   "funding": {
     "security-definer-functions": 62
@@ -255,6 +255,10 @@
   },
   "incidents": {
     "security-definer-functions": 99
+  },
+  "incoming-webhooks": {
+    "security-definer-functions": 50,
+    "row-triggers": 9
   },
   "inspections": {
     "security-definer-functions": 127,
@@ -574,10 +578,6 @@
   "warranty": {
     "security-definer-functions": 30,
     "row-triggers": 6
-  },
-  "incoming-webhooks": {
-    "security-definer-functions": 50,
-    "row-triggers": 9
   },
   "webhooks": {
     "security-definer-functions": 90,

@@ -23,6 +23,7 @@ import {
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { DURATION } from "./approvals-policies.ts";
+import { archiveFunctions } from "./forms-archive.ts";
 import { formListFunction } from "./forms-list.ts";
 import { formNpsFunction } from "./forms-nps.ts";
 import { formSchemaFunctions, formScoringFunctions } from "./forms-schema.ts";
@@ -64,7 +65,15 @@ const EVENTS: BlockSqlEvents<FormsEvents> = {
     subject: "form-submissions",
     payload: [...SUBJECT_PAYLOAD, "id", "formId", "status"],
   },
-  "form_submission.deleted": {
+  "form_submission.archived": {
+    subject: "form-submissions",
+    payload: [...SUBJECT_PAYLOAD, "id", "formId"],
+  },
+  "form_submission.restored": {
+    subject: "form-submissions",
+    payload: [...SUBJECT_PAYLOAD, "id", "formId"],
+  },
+  "form_submission.purged": {
     subject: "form-submissions",
     payload: [...SUBJECT_PAYLOAD, "id", "formId"],
   },
@@ -143,6 +152,7 @@ const NAMES: BlockSqlNames = {
         source: "source",
         reviewedBy: "reviewed_by",
         reviewedAt: "reviewed_at",
+        archivedAt: "archived_at",
         createdAt: "created_at",
         submittedAt: "submitted_at",
         updatedAt: "updated_at",
@@ -150,7 +160,7 @@ const NAMES: BlockSqlNames = {
         maxScore: "max_score",
         passed: "passed",
       },
-      optional: ["score", "maxScore", "passed"],
+      optional: ["score", "maxScore", "passed", "archivedAt"],
       typed: ["status"],
     },
     answerKeys: {
@@ -281,6 +291,7 @@ function build(ctx: BlockSqlContext): string {
   const manage = ctx.permission("manage", OPERATIONS["forms.manage"]);
   const submit = ctx.permission("submit", OPERATIONS["forms.submit"]);
   const review = ctx.permission("review", OPERATIONS["forms.review"]);
+  const purge = ctx.permission("purge", OPERATIONS["forms.review"]);
   const subjects = subjectsOption(ctx);
   const handlers = handlersOf(ctx);
   const limit = publicLimitOf(ctx);
@@ -319,8 +330,13 @@ function build(ctx: BlockSqlContext): string {
       ? `, 'score', ${row}.${s("score")}, 'maxScore', ${row}.${s("maxScore")}, 'passed', ${row}.${s("passed")}`
       : "";
 
+  const archivable = ctx.has("submissions", "archivedAt");
+
+  const archived = (row: string): string =>
+    archivable ? `${row}.${s("archivedAt")}` : "null";
+
   const submissionJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'formId', ${row}.${s("form")}, 'versionId', ${row}.${s("version")}, 'subjectType', ${row}.${s("subjectType")}, 'subjectId', ${row}.${s("subjectId")}, 'respondentId', ${row}.${s("respondent")}, 'answers', ${row}.${s("answers")}, 'status', ${row}.${s("status")}, 'source', ${row}.${s("source")}, 'reviewedBy', ${row}.${s("reviewedBy")}, 'reviewedAt', ${row}.${s("reviewedAt")}, 'createdAt', ${row}.${s("createdAt")}, 'submittedAt', ${row}.${s("submittedAt")}, 'updatedAt', ${row}.${s("updatedAt")}${scoreJson(row)})`;
+    `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'formId', ${row}.${s("form")}, 'versionId', ${row}.${s("version")}, 'subjectType', ${row}.${s("subjectType")}, 'subjectId', ${row}.${s("subjectId")}, 'respondentId', ${row}.${s("respondent")}, 'answers', ${row}.${s("answers")}, 'status', ${row}.${s("status")}, 'source', ${row}.${s("source")}, 'reviewedBy', ${row}.${s("reviewedBy")}, 'reviewedAt', ${row}.${s("reviewedAt")}, 'archivedAt', ${archived(row)}, 'createdAt', ${row}.${s("createdAt")}, 'submittedAt', ${row}.${s("submittedAt")}, 'updatedAt', ${row}.${s("updatedAt")}${scoreJson(row)})`;
 
   const subjectOf = (row: string): string =>
     `'subjectType', coalesce(${row}.${s("subjectType")}, ${sqlString(FORM_SUBJECT)}), 'subjectId', coalesce(${row}.${s("subjectId")}, ${row}.${s("form")}::text)`;
@@ -447,7 +463,7 @@ create table if not exists ${submissions} (
   ${s("status")} text not null default 'submitted' check (${s("status")} in ('draft', 'submitted', 'accepted', 'rejected')),
   ${s("source")} text not null default 'member' check (${s("source")} in ('member', 'public', 'service')),
   ${s("reviewedBy")} uuid,
-  ${s("reviewedAt")} timestamptz,
+  ${s("reviewedAt")} timestamptz,${archivable ? `\n  ${s("archivedAt")} timestamptz,` : ""}
   ${s("createdAt")} timestamptz not null default now(),
   ${s("submittedAt")} timestamptz,
   ${s("updatedAt")} timestamptz not null default now(),
@@ -461,7 +477,7 @@ ${lockTable(submissions, { read: true })}
 ${renderPolicy(makePolicy({ table: submissions, name: ctx.naming.rename("form_submissions_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(s("tenant"), review)} or ${s("respondent")} = (select auth.uid())` }), { target: submissions })}
 alter table ${submissions} add column if not exists ${s("score")} numeric;
 alter table ${submissions} add column if not exists ${s("maxScore")} numeric;
-alter table ${submissions} add column if not exists ${s("passed")} boolean;
+alter table ${submissions} add column if not exists ${s("passed")} boolean;${archivable ? `\nalter table ${submissions} add column if not exists ${s("archivedAt")} timestamptz;` : ""}
 
 -- The correct answers of a scored version, which only definer functions read.
 create table if not exists ${keys} (
@@ -881,7 +897,13 @@ $$;
 ${userGrant(`${fn("get_form_submission")}(uuid)`)}
 
 -- Newest first. Reviewers see every submission; others see their own.
-create or replace function ${fn("list_form_submissions")}(form_id uuid, status text default null, page_size integer default 50, before timestamptz default null)
+-- Archived submissions stay out unless include_archived is true.${
+    archivable
+      ? `
+drop function if exists ${fn("list_form_submissions")}(uuid, text, integer, timestamptz);`
+      : ""
+  }
+create or replace function ${fn("list_form_submissions")}(form_id uuid, status text default null, page_size integer default 50, before timestamptz default null${archivable ? ", include_archived boolean default false" : ""})
 returns jsonb
 language plpgsql
 stable
@@ -904,14 +926,19 @@ begin
     where x.${s("form")} = list_form_submissions.form_id
       and (v_all or x.${s("respondent")} = auth.uid())
       and (list_form_submissions.status is null or x.${s("status")}::text = list_form_submissions.status)
-      and (list_form_submissions.before is null or x.${s("createdAt")} < list_form_submissions.before)
+      and (list_form_submissions.before is null or x.${s("createdAt")} < list_form_submissions.before)${
+        archivable
+          ? `
+      and (coalesce(list_form_submissions.include_archived, false) or x.${s("archivedAt")} is null)`
+          : ""
+      }
     order by x.${s("createdAt")} desc
     limit ${pageSize("list_form_submissions.page_size", 50, 200)}
   ) r;
   return v_rows;
 end;
 $$;
-${userGrant(`${fn("list_form_submissions")}(uuid, text, integer, timestamptz)`)}
+${userGrant(`${fn("list_form_submissions")}(uuid, text, integer, timestamptz${archivable ? ", boolean" : ""})`)}
 
 ${formNpsFunction(ctx)}
 
@@ -950,8 +977,12 @@ end;
 $$;
 ${userGrant(`${fn("review_form_submission")}(uuid, text)`)}
 
--- Reviewers delete any submission; a respondent deletes their own draft.
-create or replace function ${fn("delete_form_submission")}(submission_id uuid)
+${archiveFunctions(ctx, { submissions, s, fn, review, submissionJson, submissionRecord, submissionNotFound })}
+-- Removes a submission for good: a reviewer (or the key set as
+-- permissions.purge) any submission, a respondent their own draft. Archive
+-- keeps the row.
+drop function if exists ${fn("delete_form_submission")}(uuid);
+create or replace function ${fn("purge_form_submission")}(submission_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -960,20 +991,20 @@ as $$
 declare
   v_row ${submissions}%rowtype;
 begin
-  select * into v_row from ${submissions} x where x.${s("id")} = delete_form_submission.submission_id for update;
+  select * into v_row from ${submissions} x where x.${s("id")} = purge_form_submission.submission_id for update;
   if not found then
     ${submissionNotFound}
   end if;
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${s("tenant")}`, review)}
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${s("tenant")}`, purge)}
     or (coalesce(v_row.${s("respondent")} = auth.uid(), false) and v_row.${s("status")} = 'draft')) then
-    ${fail("FORM_FORBIDDEN", "not allowed to delete this submission")}
+    ${fail("FORM_FORBIDDEN", "not allowed to purge this submission")}
   end if;
-  delete from ${submissions} x where x.${s("id")} = delete_form_submission.submission_id;
-  ${submissionRecord("form_submission.deleted", "v_row", "", true)}
+  delete from ${submissions} x where x.${s("id")} = purge_form_submission.submission_id;
+  ${submissionRecord("form_submission.purged", "v_row", "", true)}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_form_submission")}(uuid)`)}
+${userGrant(`${fn("purge_form_submission")}(uuid)`)}
 `;
 }
 

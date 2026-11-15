@@ -81,7 +81,7 @@ begin
         x.${s("submittedAt")} as answered_at
       from ${submissions} x
       where x.${s("form")} = form_nps.form_id
-        and x.${s("status")} in ('submitted', 'accepted')
+        and x.${s("status")} in ('submitted', 'accepted')${ctx.has("submissions", "archivedAt") ? `\n        and x.${s("archivedAt")} is null` : ""}
         and (form_nps.since is null or x.${s("submittedAt")} >= form_nps.since)
         and (form_nps.until is null or x.${s("submittedAt")} < form_nps.until)
     ) r
