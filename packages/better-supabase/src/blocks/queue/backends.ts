@@ -78,7 +78,7 @@ const textOrNull = (value: unknown): string | null =>
  * The `QueueRun` of `get_job`'s jsonb; null for no message or a shape this
  * version does not know.
  */
-export function queueRunOf(value: unknown): QueueRun | null {
+function queueRunOf(value: unknown): QueueRun | null {
   if (!isRecord(value)) {
     return null;
   }
