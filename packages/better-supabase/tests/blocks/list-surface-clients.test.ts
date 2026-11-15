@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { BlockTransport } from "../../src/core/block-transport.ts";
 import type { EntityList } from "../../src/core/entity-list.ts";
 
+import { createDocumentTemplates } from "../../src/blocks/document-templates/index.ts";
+import { createEmployees } from "../../src/blocks/employees/index.ts";
+import { createLeave } from "../../src/blocks/leave/index.ts";
 import { createEPrescribing } from "../../src/blocks/e-prescribing/index.ts";
 import { createEnrollments } from "../../src/blocks/enrollments/index.ts";
 import { createPasses } from "../../src/blocks/passes/index.ts";
@@ -16,6 +19,8 @@ interface Case {
   readonly sort: string;
   readonly filter: string;
   readonly facet: string;
+  /** Whether the entity declares `search`, so `q` is accepted. */
+  readonly searchable?: boolean;
   readonly list: (transport: BlockTransport) => EntityList<unknown>;
 }
 
@@ -72,6 +77,7 @@ const CASES: readonly Case[] = [
   },
   {
     label: "enrollments",
+    searchable: true,
     fn: "page_enrollments",
     sort: "enrolledAt",
     filter: "program",
@@ -83,6 +89,58 @@ const CASES: readonly Case[] = [
         page: (page) => client.enrollmentPage(page),
         facets: (facets) => client.enrollmentFacets(facets),
         count: (count) => client.enrollmentCount(count),
+      };
+    },
+  },
+  {
+    label: "document-templates",
+    searchable: true,
+    fn: "page_document_templates",
+    sort: "updatedAt",
+    filter: "documentType",
+    facet: "active",
+    list: (transport) => {
+      const client = createDocumentTemplates(options(transport));
+
+      return {
+        page: (page) => client.templatePage(page),
+        facets: (facets) => client.templateFacets(facets),
+        count: (count) => client.templateCount(count),
+      };
+    },
+  },
+  {
+    label: "leave",
+    searchable: true,
+    fn: "page_leave_requests",
+    sort: "endsOn",
+    filter: "status",
+    facet: "typeId",
+    list: (transport) => {
+      const client = createLeave(options(transport));
+
+      return {
+        page: (page) => client.requestPage(page),
+        facets: (facets) => client.requestFacets(facets),
+        count: (count) => client.requestCount(count),
+      };
+    },
+  },
+  {
+    label: "employees",
+    searchable: true,
+    fn: "page_employees",
+    sort: "startDate",
+    filter: "status",
+    facet: "teamId",
+    list: (transport) => {
+      const client = createEmployees(options(transport));
+      const organizationId = "org-1";
+
+      return {
+        page: (page) => client.page({ ...page, organizationId }),
+        facets: (facets) => client.facets({ ...facets, organizationId }),
+        count: (count) => client.count({ ...count, organizationId }),
       };
     },
   },
@@ -176,6 +234,22 @@ describe.each(CASES)("list surface client of $label", (spec) => {
     ]);
   });
 
+  it("sends the text search of a searchable entity", async () => {
+    if (spec.searchable !== true) {
+      return;
+    }
+
+    const transport = fieldsTransport({
+      [spec.fn]: () => ({ items: [], hasMore: false }),
+    });
+
+    await spec.list(transport).page({ q: "text" }).orThrow();
+
+    expect(transport.calls[0]?.[1]).toMatchObject({
+      filters: { search: "text" },
+    });
+  });
+
   it("counts the rows that match", async () => {
     const transport = fieldsTransport({
       [spec.fn]: () => ({ value: 7, exact: false }),
@@ -203,8 +277,8 @@ describe.each(CASES)("list surface client of $label", (spec) => {
     const results = [
       await list.page({ sort: { by: "colour" } }),
       await list.page({ filters: { colour: ["red"] } }),
-      await list.page({ q: "text" }),
       await list.facets({ facets: ["colour"] }),
+      ...(spec.searchable === true ? [] : [await list.page({ q: "text" })]),
     ];
 
     for (const result of results) {

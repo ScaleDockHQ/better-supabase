@@ -187,6 +187,7 @@ export interface Deadlines {
     readonly deadlineId: string;
     readonly action?: string;
   }): AsyncResultType<Deadline>;
+  /** @deprecated Use `page`, which pages by keyset (ADR 1077). */
   list(options?: DeadlineListOptions): AsyncResultType<readonly Deadline[]>;
   /** One deadline by id, when the caller's read policy shows it. */
   get(deadlineId: string): AsyncResultType<Deadline>;

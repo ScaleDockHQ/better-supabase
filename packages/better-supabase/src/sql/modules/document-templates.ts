@@ -392,6 +392,11 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
+      name: "page_document_templates",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    {
       name: "save_document_text_block",
       args: ["{id}", "text", "text", "text", "uuid"],
       returns: "jsonb",

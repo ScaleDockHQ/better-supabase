@@ -10,6 +10,9 @@ import { commissionsBlock } from "../../src/blocks/commissions/manifest.ts";
 import { contentBlock } from "../../src/blocks/content/manifest.ts";
 import { coursesBlock } from "../../src/blocks/courses/manifest.ts";
 import { damBlock } from "../../src/blocks/dam/manifest.ts";
+import { documentTemplatesBlock } from "../../src/blocks/document-templates/manifest.ts";
+import { employeesBlock } from "../../src/blocks/employees/manifest.ts";
+import { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import { deadlinesBlock } from "../../src/blocks/deadlines/manifest.ts";
 import { dispatchBlock } from "../../src/blocks/dispatch/manifest.ts";
 import { domainsBlock } from "../../src/blocks/domains/manifest.ts";
@@ -47,6 +50,9 @@ const BLOCKS = [
   assetsBlock,
   casesBlock,
   deadlinesBlock,
+  documentTemplatesBlock,
+  employeesBlock,
+  leaveBlock,
   dispatchBlock,
   guestsBlock,
   incidentsBlock,
@@ -139,6 +145,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(45);
+    expect(CASES).toHaveLength(48);
   });
 });

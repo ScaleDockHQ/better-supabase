@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_164_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:c9c77a9ffae7233313f564ffaecf8dfe4235c9368e9fd80224f5f8a3944266b4
+-- @bsb-hash sha256:207e8de9d262d64200bcbccb4937c0f1f8c208805c252a9a22ca9f858e729572
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -622,6 +622,244 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_document_templates"(uuid, text, uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_document_templates"(uuid, text, uuid, boolean) to authenticated, service_role;
+
+-- The organization's templates as a keyset page, by name (ADR 1077). filters is
+-- { documentType, legalEntityId, language, active (each a value or a list),
+-- search, sort (name, updatedAt), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_document_templates"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_document_templates.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('documentType', 'active', 'language') then
+      raise exception 'facet is one of documentType, active, language' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'documentType' then (t."document_type")::text when 'active' then (t."active"::text)::text when 'language' then (t."language")::text end) as v
+      from "better_supabase"."document_templates" t
+      where t."tenant_id" = page_document_templates.tenant
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or t."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'legalEntityId' is not null and jsonb_typeof(v_filters -> 'legalEntityId') <> 'null' and not (jsonb_typeof(v_filters -> 'legalEntityId') = 'array' and jsonb_array_length(v_filters -> 'legalEntityId') = 0)) or t."legal_entity_id" = any((case when jsonb_typeof(v_filters -> 'legalEntityId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalEntityId')) else array[v_filters ->> 'legalEntityId'] end)::uuid[]))
+        and (not (v_filters -> 'language' is not null and jsonb_typeof(v_filters -> 'language') <> 'null' and not (jsonb_typeof(v_filters -> 'language') = 'array' and jsonb_array_length(v_filters -> 'language') = 0)) or coalesce(t."language", '') = any((case when jsonb_typeof(v_filters -> 'language') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'language')) else array[v_filters ->> 'language'] end)::text[]))
+        and (not (v_filters -> 'active' is not null and jsonb_typeof(v_filters -> 'active') <> 'null' and not (jsonb_typeof(v_filters -> 'active') = 'array' and jsonb_array_length(v_filters -> 'active') = 0)) or t."active"::text = any((case when jsonb_typeof(v_filters -> 'active') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'active')) else array[v_filters ->> 'active'] end)::text[]))
+        and (v_search is null or t."name" ilike v_search or t."document_type" ilike v_search or t."body" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."document_templates" t
+      where t."tenant_id" = page_document_templates.tenant
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or t."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'legalEntityId' is not null and jsonb_typeof(v_filters -> 'legalEntityId') <> 'null' and not (jsonb_typeof(v_filters -> 'legalEntityId') = 'array' and jsonb_array_length(v_filters -> 'legalEntityId') = 0)) or t."legal_entity_id" = any((case when jsonb_typeof(v_filters -> 'legalEntityId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalEntityId')) else array[v_filters ->> 'legalEntityId'] end)::uuid[]))
+        and (not (v_filters -> 'language' is not null and jsonb_typeof(v_filters -> 'language') <> 'null' and not (jsonb_typeof(v_filters -> 'language') = 'array' and jsonb_array_length(v_filters -> 'language') = 0)) or coalesce(t."language", '') = any((case when jsonb_typeof(v_filters -> 'language') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'language')) else array[v_filters ->> 'language'] end)::text[]))
+        and (not (v_filters -> 'active' is not null and jsonb_typeof(v_filters -> 'active') <> 'null' and not (jsonb_typeof(v_filters -> 'active') = 'array' and jsonb_array_length(v_filters -> 'active') = 0)) or t."active"::text = any((case when jsonb_typeof(v_filters -> 'active') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'active')) else array[v_filters ->> 'active'] end)::text[]))
+        and (v_search is null or t."name" ilike v_search or t."document_type" ilike v_search or t."body" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'updatedAt') then
+    raise exception 'sort is one of name, updatedAt' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', t."id", 'organizationId', t."tenant_id", 'legalEntityId', t."legal_entity_id", 'documentType', t."document_type", 'language', t."language", 'name', t."name", 'body', t."body", 'version', t."version", 'active', t."active", 'createdAt', t."created_at", 'updatedAt', t."updated_at") as j, jsonb_build_array((t."name")::text, (t."id")::text) as k
+    from (
+      select * from "better_supabase"."document_templates" t
+      where t."tenant_id" = page_document_templates.tenant
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or t."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'legalEntityId' is not null and jsonb_typeof(v_filters -> 'legalEntityId') <> 'null' and not (jsonb_typeof(v_filters -> 'legalEntityId') = 'array' and jsonb_array_length(v_filters -> 'legalEntityId') = 0)) or t."legal_entity_id" = any((case when jsonb_typeof(v_filters -> 'legalEntityId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalEntityId')) else array[v_filters ->> 'legalEntityId'] end)::uuid[]))
+        and (not (v_filters -> 'language' is not null and jsonb_typeof(v_filters -> 'language') <> 'null' and not (jsonb_typeof(v_filters -> 'language') = 'array' and jsonb_array_length(v_filters -> 'language') = 0)) or coalesce(t."language", '') = any((case when jsonb_typeof(v_filters -> 'language') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'language')) else array[v_filters ->> 'language'] end)::text[]))
+        and (not (v_filters -> 'active' is not null and jsonb_typeof(v_filters -> 'active') <> 'null' and not (jsonb_typeof(v_filters -> 'active') = 'array' and jsonb_array_length(v_filters -> 'active') = 0)) or t."active"::text = any((case when jsonb_typeof(v_filters -> 'active') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'active')) else array[v_filters ->> 'active'] end)::text[]))
+        and (v_search is null or t."name" ilike v_search or t."document_type" ilike v_search or t."body" ilike v_search)
+        and (v_after is null or (t."name", t."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by t."name" asc, t."id" asc
+      limit v_limit + 1 offset v_offset
+    ) t
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', t."id", 'organizationId', t."tenant_id", 'legalEntityId', t."legal_entity_id", 'documentType', t."document_type", 'language', t."language", 'name', t."name", 'body', t."body", 'version', t."version", 'active', t."active", 'createdAt', t."created_at", 'updatedAt', t."updated_at") as j, jsonb_build_array((t."name")::text, (t."id")::text) as k
+    from (
+      select * from "better_supabase"."document_templates" t
+      where t."tenant_id" = page_document_templates.tenant
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or t."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'legalEntityId' is not null and jsonb_typeof(v_filters -> 'legalEntityId') <> 'null' and not (jsonb_typeof(v_filters -> 'legalEntityId') = 'array' and jsonb_array_length(v_filters -> 'legalEntityId') = 0)) or t."legal_entity_id" = any((case when jsonb_typeof(v_filters -> 'legalEntityId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalEntityId')) else array[v_filters ->> 'legalEntityId'] end)::uuid[]))
+        and (not (v_filters -> 'language' is not null and jsonb_typeof(v_filters -> 'language') <> 'null' and not (jsonb_typeof(v_filters -> 'language') = 'array' and jsonb_array_length(v_filters -> 'language') = 0)) or coalesce(t."language", '') = any((case when jsonb_typeof(v_filters -> 'language') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'language')) else array[v_filters ->> 'language'] end)::text[]))
+        and (not (v_filters -> 'active' is not null and jsonb_typeof(v_filters -> 'active') <> 'null' and not (jsonb_typeof(v_filters -> 'active') = 'array' and jsonb_array_length(v_filters -> 'active') = 0)) or t."active"::text = any((case when jsonb_typeof(v_filters -> 'active') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'active')) else array[v_filters ->> 'active'] end)::text[]))
+        and (v_search is null or t."name" ilike v_search or t."document_type" ilike v_search or t."body" ilike v_search)
+        and (v_after is null or (t."name" <= (v_after ->> 0)::text and ((t."name" < (v_after ->> 0)::text) or (t."name" = (v_after ->> 0)::text and t."id" > (v_after ->> 1)::uuid))))
+      order by t."name" desc, t."id" asc
+      limit v_limit + 1 offset v_offset
+    ) t
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', t."id", 'organizationId', t."tenant_id", 'legalEntityId', t."legal_entity_id", 'documentType', t."document_type", 'language', t."language", 'name', t."name", 'body', t."body", 'version', t."version", 'active', t."active", 'createdAt', t."created_at", 'updatedAt', t."updated_at") as j, jsonb_build_array((t."name")::text, (t."id")::text) as k
+    from (
+      select * from "better_supabase"."document_templates" t
+      where t."tenant_id" = page_document_templates.tenant
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or t."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'legalEntityId' is not null and jsonb_typeof(v_filters -> 'legalEntityId') <> 'null' and not (jsonb_typeof(v_filters -> 'legalEntityId') = 'array' and jsonb_array_length(v_filters -> 'legalEntityId') = 0)) or t."legal_entity_id" = any((case when jsonb_typeof(v_filters -> 'legalEntityId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalEntityId')) else array[v_filters ->> 'legalEntityId'] end)::uuid[]))
+        and (not (v_filters -> 'language' is not null and jsonb_typeof(v_filters -> 'language') <> 'null' and not (jsonb_typeof(v_filters -> 'language') = 'array' and jsonb_array_length(v_filters -> 'language') = 0)) or coalesce(t."language", '') = any((case when jsonb_typeof(v_filters -> 'language') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'language')) else array[v_filters ->> 'language'] end)::text[]))
+        and (not (v_filters -> 'active' is not null and jsonb_typeof(v_filters -> 'active') <> 'null' and not (jsonb_typeof(v_filters -> 'active') = 'array' and jsonb_array_length(v_filters -> 'active') = 0)) or t."active"::text = any((case when jsonb_typeof(v_filters -> 'active') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'active')) else array[v_filters ->> 'active'] end)::text[]))
+        and (v_search is null or t."name" ilike v_search or t."document_type" ilike v_search or t."body" ilike v_search)
+        and (v_after is null or (t."name", t."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by t."name" asc, t."id" asc
+      limit v_limit + 1 offset v_offset
+    ) t
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', t."id", 'organizationId', t."tenant_id", 'legalEntityId', t."legal_entity_id", 'documentType', t."document_type", 'language', t."language", 'name', t."name", 'body', t."body", 'version', t."version", 'active', t."active", 'createdAt', t."created_at", 'updatedAt', t."updated_at") as j, jsonb_build_array((t."name")::text, (t."id")::text) as k
+    from (
+      select * from "better_supabase"."document_templates" t
+      where t."tenant_id" = page_document_templates.tenant
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or t."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'legalEntityId' is not null and jsonb_typeof(v_filters -> 'legalEntityId') <> 'null' and not (jsonb_typeof(v_filters -> 'legalEntityId') = 'array' and jsonb_array_length(v_filters -> 'legalEntityId') = 0)) or t."legal_entity_id" = any((case when jsonb_typeof(v_filters -> 'legalEntityId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalEntityId')) else array[v_filters ->> 'legalEntityId'] end)::uuid[]))
+        and (not (v_filters -> 'language' is not null and jsonb_typeof(v_filters -> 'language') <> 'null' and not (jsonb_typeof(v_filters -> 'language') = 'array' and jsonb_array_length(v_filters -> 'language') = 0)) or coalesce(t."language", '') = any((case when jsonb_typeof(v_filters -> 'language') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'language')) else array[v_filters ->> 'language'] end)::text[]))
+        and (not (v_filters -> 'active' is not null and jsonb_typeof(v_filters -> 'active') <> 'null' and not (jsonb_typeof(v_filters -> 'active') = 'array' and jsonb_array_length(v_filters -> 'active') = 0)) or t."active"::text = any((case when jsonb_typeof(v_filters -> 'active') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'active')) else array[v_filters ->> 'active'] end)::text[]))
+        and (v_search is null or t."name" ilike v_search or t."document_type" ilike v_search or t."body" ilike v_search)
+        and (v_after is null or (t."name" <= (v_after ->> 0)::text and ((t."name" < (v_after ->> 0)::text) or (t."name" = (v_after ->> 0)::text and t."id" > (v_after ->> 1)::uuid))))
+      order by t."name" desc, t."id" asc
+      limit v_limit + 1 offset v_offset
+    ) t
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', t."id", 'organizationId', t."tenant_id", 'legalEntityId', t."legal_entity_id", 'documentType', t."document_type", 'language', t."language", 'name', t."name", 'body', t."body", 'version', t."version", 'active', t."active", 'createdAt', t."created_at", 'updatedAt', t."updated_at") as j, jsonb_build_array((t."updated_at")::text, (t."id")::text) as k
+    from (
+      select * from "better_supabase"."document_templates" t
+      where t."tenant_id" = page_document_templates.tenant
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or t."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'legalEntityId' is not null and jsonb_typeof(v_filters -> 'legalEntityId') <> 'null' and not (jsonb_typeof(v_filters -> 'legalEntityId') = 'array' and jsonb_array_length(v_filters -> 'legalEntityId') = 0)) or t."legal_entity_id" = any((case when jsonb_typeof(v_filters -> 'legalEntityId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalEntityId')) else array[v_filters ->> 'legalEntityId'] end)::uuid[]))
+        and (not (v_filters -> 'language' is not null and jsonb_typeof(v_filters -> 'language') <> 'null' and not (jsonb_typeof(v_filters -> 'language') = 'array' and jsonb_array_length(v_filters -> 'language') = 0)) or coalesce(t."language", '') = any((case when jsonb_typeof(v_filters -> 'language') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'language')) else array[v_filters ->> 'language'] end)::text[]))
+        and (not (v_filters -> 'active' is not null and jsonb_typeof(v_filters -> 'active') <> 'null' and not (jsonb_typeof(v_filters -> 'active') = 'array' and jsonb_array_length(v_filters -> 'active') = 0)) or t."active"::text = any((case when jsonb_typeof(v_filters -> 'active') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'active')) else array[v_filters ->> 'active'] end)::text[]))
+        and (v_search is null or t."name" ilike v_search or t."document_type" ilike v_search or t."body" ilike v_search)
+        and (v_after is null or (t."updated_at", t."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by t."updated_at" asc, t."id" asc
+      limit v_limit + 1 offset v_offset
+    ) t
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'DOCUMENT_TEMPLATE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', t."id", 'organizationId', t."tenant_id", 'legalEntityId', t."legal_entity_id", 'documentType', t."document_type", 'language', t."language", 'name', t."name", 'body', t."body", 'version', t."version", 'active', t."active", 'createdAt', t."created_at", 'updatedAt', t."updated_at") as j, jsonb_build_array((t."updated_at")::text, (t."id")::text) as k
+    from (
+      select * from "better_supabase"."document_templates" t
+      where t."tenant_id" = page_document_templates.tenant
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or t."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'legalEntityId' is not null and jsonb_typeof(v_filters -> 'legalEntityId') <> 'null' and not (jsonb_typeof(v_filters -> 'legalEntityId') = 'array' and jsonb_array_length(v_filters -> 'legalEntityId') = 0)) or t."legal_entity_id" = any((case when jsonb_typeof(v_filters -> 'legalEntityId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalEntityId')) else array[v_filters ->> 'legalEntityId'] end)::uuid[]))
+        and (not (v_filters -> 'language' is not null and jsonb_typeof(v_filters -> 'language') <> 'null' and not (jsonb_typeof(v_filters -> 'language') = 'array' and jsonb_array_length(v_filters -> 'language') = 0)) or coalesce(t."language", '') = any((case when jsonb_typeof(v_filters -> 'language') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'language')) else array[v_filters ->> 'language'] end)::text[]))
+        and (not (v_filters -> 'active' is not null and jsonb_typeof(v_filters -> 'active') <> 'null' and not (jsonb_typeof(v_filters -> 'active') = 'array' and jsonb_array_length(v_filters -> 'active') = 0)) or t."active"::text = any((case when jsonb_typeof(v_filters -> 'active') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'active')) else array[v_filters ->> 'active'] end)::text[]))
+        and (v_search is null or t."name" ilike v_search or t."document_type" ilike v_search or t."body" ilike v_search)
+        and (v_after is null or (t."updated_at" <= (v_after ->> 0)::timestamptz and ((t."updated_at" < (v_after ->> 0)::timestamptz) or (t."updated_at" = (v_after ->> 0)::timestamptz and t."id" > (v_after ->> 1)::uuid))))
+      order by t."updated_at" desc, t."id" asc
+      limit v_limit + 1 offset v_offset
+    ) t
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."document_templates" t
+      where t."tenant_id" = page_document_templates.tenant
+        and (not (v_filters -> 'documentType' is not null and jsonb_typeof(v_filters -> 'documentType') <> 'null' and not (jsonb_typeof(v_filters -> 'documentType') = 'array' and jsonb_array_length(v_filters -> 'documentType') = 0)) or t."document_type" = any((case when jsonb_typeof(v_filters -> 'documentType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'documentType')) else array[v_filters ->> 'documentType'] end)::text[]))
+        and (not (v_filters -> 'legalEntityId' is not null and jsonb_typeof(v_filters -> 'legalEntityId') <> 'null' and not (jsonb_typeof(v_filters -> 'legalEntityId') = 'array' and jsonb_array_length(v_filters -> 'legalEntityId') = 0)) or t."legal_entity_id" = any((case when jsonb_typeof(v_filters -> 'legalEntityId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'legalEntityId')) else array[v_filters ->> 'legalEntityId'] end)::uuid[]))
+        and (not (v_filters -> 'language' is not null and jsonb_typeof(v_filters -> 'language') <> 'null' and not (jsonb_typeof(v_filters -> 'language') = 'array' and jsonb_array_length(v_filters -> 'language') = 0)) or coalesce(t."language", '') = any((case when jsonb_typeof(v_filters -> 'language') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'language')) else array[v_filters ->> 'language'] end)::text[]))
+        and (not (v_filters -> 'active' is not null and jsonb_typeof(v_filters -> 'active') <> 'null' and not (jsonb_typeof(v_filters -> 'active') = 'array' and jsonb_array_length(v_filters -> 'active') = 0)) or t."active"::text = any((case when jsonb_typeof(v_filters -> 'active') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'active')) else array[v_filters ->> 'active'] end)::text[]))
+        and (v_search is null or t."name" ilike v_search or t."document_type" ilike v_search or t."body" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_document_templates"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_document_templates"(uuid, jsonb) to authenticated, service_role;
 
 -- Saves a reusable text, read in a template as texts.<key>: a payment terms
 -- sentence, a dunning text, a footer, a legal line. The text may hold the same
