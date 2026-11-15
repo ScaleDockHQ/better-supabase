@@ -361,6 +361,24 @@ canceled and the outbox gets `webhook_endpoint.disabled`. Setting `enabled` back
 `redeliver(deliveryId)` queues a finished delivery again from its first
 attempt.
 
+`dispatchJob(input)` and `redeliverJob(deliveryId)` do the same and return
+`{ jobId: "webhook:<delivery id>" }`. `webhooks.jobs` is the `webhook` source of
+`createJobs`, so `jobs.get("webhook:<delivery id>")` returns the common
+`JobResult` (ADR 1032): a delivery that waits is `pending`, one that is being
+sent or retried is `running`, a succeeded one is `completed` with the delivery
+(`status`, `attempt`, `responseStatus`, `durationMs`) as its `result`, and a dead
+or canceled one is `failed` with the hint `WEBHOOK_DELIVERY_DEAD` or
+`WEBHOOK_DELIVERY_CANCELED`. A caller who may not read the endpoint's
+organization gets `WEBHOOK_FORBIDDEN`, and an unknown id is `not_found`.
+
+```ts
+const jobs = createJobs({ webhook: webhooks.jobs });
+const { jobId } = await webhooks
+  .dispatchJob({ endpointId, type: "invoice.paid" })
+  .orThrow();
+const job = await jobs.get(jobId).orThrow();
+```
+
 The log keeps the status, attempt, response status and body (the first
 2000 characters), duration and last error of every delivery, so you can show
 it in your settings page with a plain query.
@@ -582,6 +600,8 @@ wherever they are.
 | `WEBHOOK_ENDPOINT_DISABLED`    | Dispatching or redelivering to a disabled endpoint           |
 | `WEBHOOK_DELIVERY_NOT_FOUND`   | No delivery with that id                                     |
 | `WEBHOOK_DELIVERY_IN_PROGRESS` | Redelivering a delivery that hasn't finished                 |
+| `WEBHOOK_DELIVERY_DEAD`        | `jobs.get` on a delivery that ran out of attempts            |
+| `WEBHOOK_DELIVERY_CANCELED`    | `jobs.get` on a delivery that was canceled                   |
 | `WEBHOOK_STATUS_UNKNOWN`       | Completing a delivery with a status the block doesn't know   |
 | `WEBHOOK_ATTEMPT_REQUIRED`     | Completing a delivery without the attempt its claim returned |
 | `WEBHOOK_SECRET_TOO_SHORT`     | Importing a secret shorter than 16 characters                |
