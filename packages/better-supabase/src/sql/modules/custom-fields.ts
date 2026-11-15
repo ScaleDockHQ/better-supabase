@@ -26,6 +26,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { subjectActionCheck, subjectReadable } from "../subjects.ts";
+import { archiveFunctions } from "./custom-fields-archive.ts";
 import {
   checkSubjectColumns,
   fieldReadGate,
@@ -35,6 +36,7 @@ import {
   keyedOptions,
   recordReadSubjects,
 } from "./custom-fields-keyed.ts";
+import { listDefinitions } from "./custom-fields-list.ts";
 import {
   FIELD_VALUE_ENTITY_COLUMN,
   entityCheck,
@@ -297,6 +299,7 @@ ${keyedFields(
 
   const archivable = !inline && ctx.has("definitions", "archivedAt");
   const archivedAt = archivable ? ctx.col("definitions", "archivedAt") : "";
+
   const archivedError = fail(
     "CUSTOM_FIELD_ARCHIVED",
     "field is archived; restore it first",
@@ -535,13 +538,13 @@ begin
       ? ""
       : `
 ${
-        archivable
-          ? `  if exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and d.${archivedAt} is not null) then
+  archivable
+    ? `  if exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and d.${archivedAt} is not null) then
     ${archivedError}
   end if;
 `
-          : ""
-      }  if exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and not (${customFieldValueCheck(`d.${ctx.col("definitions", "type")}`, "set_field_value.value", ctx.schemaName)})) then
+    : ""
+}  if exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and not (${customFieldValueCheck(`d.${ctx.col("definitions", "type")}`, "set_field_value.value", ctx.schemaName)})) then
     ${fail("CUSTOM_FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
   end if;`
   }
@@ -660,87 +663,7 @@ end;
 $$;
 ${userGrant(`${ctx.fn("delete_field_value")}(uuid)`)}
 
-${
-  archivable
-    ? ["archive", "restore"]
-        .map((verb) => {
-          const name = `${verb}_field_definition`;
-          const past = verb === "archive" ? "archived" : "restored";
-
-          return `-- ${verb === "archive" ? "Archives a field: it leaves list_field_definitions and save_field_definition and set_field_value refuse it. Its values stay and stay readable." : "Restores an archived field."} Needs the manage key; ${verb === "archive" ? "archiving an archived field" : "restoring one that is not archived"} returns it unchanged.
-create or replace function ${ctx.fn(name)}(definition uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_tenant ${ctx.idType};
-  v_archived timestamptz;
-begin
-  select ${ctx.col("definitions", "tenant")}, ${archivedAt} into v_tenant, v_archived from ${definitions} where ${ctx.col("definitions", "id")} = ${name}.definition;
-  if not found then
-    ${fail("CUSTOM_FIELD_NOT_FOUND", "field not found", "P0002")}
-  end if;
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", manage)}) then
-    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to manage custom fields")}
-  end if;
-  if (v_archived is not null) = ${verb === "archive" ? "true" : "false"} then
-    return jsonb_build_object('id', ${name}.definition, 'archivedAt', v_archived);
-  end if;
-  update ${definitions} set ${archivedAt} = ${verb === "archive" ? "now()" : "null"} where ${ctx.col("definitions", "id")} = ${name}.definition
-  returning ${archivedAt} into v_archived;
-  ${ctx.record({
-    type: `field_definition.${past}`,
-    payload: `jsonb_build_object('organizationId', v_tenant, 'id', ${name}.definition)`,
-    subject: `'custom-fields/' || ${name}.definition::text`,
-    tenant: "v_tenant",
-    audit: false,
-  })}
-  return jsonb_build_object('id', ${name}.definition, 'archivedAt', v_archived);
-end;
-$$;
-${userGrant(`${ctx.fn(name)}(uuid)`)}
-
-`;
-        })
-        .join("")
-    : ""
-}-- Deletes a field for good with every value stored under it; archive keeps
--- them. Needs ${purge}, which falls back to the manage key.
-drop function if exists ${ctx.fn("delete_field_definition")}(uuid);
-create or replace function ${ctx.fn("purge_field_definition")}(definition uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_tenant ${ctx.idType};
-begin
-  ${
-    inline
-      ? fail("FIELD_INLINE", "inline fields have no definition row", "0A000")
-      : `select ${ctx.col("definitions", "tenant")} into v_tenant from ${definitions} where ${ctx.col("definitions", "id")} = purge_field_definition.definition;
-  if not found then
-    ${fail("CUSTOM_FIELD_NOT_FOUND", "field not found", "P0002")}
-  end if;
-  if not (auth.role() = 'service_role' or ${ctx.scope.can("v_tenant", purge)}) then
-    ${fail("CUSTOM_FIELD_FORBIDDEN", "not allowed to purge custom fields")}
-  end if;
-  delete from ${definitions} where ${ctx.col("definitions", "id")} = purge_field_definition.definition;`
-  }
-  ${ctx.record({
-    type: "field_definition.purged",
-    payload: `jsonb_build_object('organizationId', v_tenant, 'id', purge_field_definition.definition)`,
-    subject: `'custom-fields/' || purge_field_definition.definition::text`,
-    tenant: "v_tenant",
-    audit: false,
-  })}
-  return true;
-end;
-$$;
-${userGrant(`${ctx.fn("purge_field_definition")}(uuid)`)}
+${archiveFunctions(ctx, { archivable, archivedAt, definitions, inline, manage, purge })}
 ${inline ? "" : listDefinitions(ctx, definitions, rank, read)}${ranked ? rankDefinition(ctx, definitions, rank, manage) : ""}${encrypted === "" ? "" : encryptDefinition(ctx, definitions, values, manage)}${packsOn(ctx) ? installFieldPack(ctx, manage) : ""}${
     importsOn(ctx)
       ? importFieldValue(ctx, {
@@ -893,58 +816,6 @@ function typeCheck(ctx: BlockSqlContext, definitions: string): string {
 
   return `alter table ${definitions} drop constraint if exists ${sqlIdent(legacy)};
 ${ensureCheck(definitions, ctx.naming.rename("bsb_field_definitions_type"), `${sqlIdent(column)} in (${CUSTOM_FIELD_TYPES.map(sqlString).join(", ")})`)}`;
-}
-
-function listDefinitions(
-  ctx: BlockSqlContext,
-  definitions: string,
-  rank: string,
-  read: string,
-): string {
-  const archivable = ctx.has("definitions", "archivedAt");
-  const order =
-    rank === ""
-      ? `d.${ctx.col("definitions", "key")}`
-      : `d.${rank} collate "C", d.${ctx.col("definitions", "key")}`;
-
-  return `
--- The definitions of one entity in display order. Archived fields stay out
--- unless include_archived is true.${archivable ? `\ndrop function if exists ${ctx.fn("list_field_definitions")}(${ctx.idType}, text);` : ""}
-create or replace function ${ctx.fn("list_field_definitions")}(tenant ${ctx.idType}, entity text${archivable ? ", include_archived boolean default false" : ""})
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce(jsonb_agg(jsonb_build_object(
-    'id', d.${ctx.col("definitions", "id")},
-    'entity', d.${ctx.col("definitions", "entity")},
-    'key', d.${ctx.col("definitions", "key")},
-    'label', d.${ctx.col("definitions", "label")},
-    'type', d.${ctx.col("definitions", "type")},
-    'required', d.${ctx.col("definitions", "required")},
-    'sensitive', d.${ctx.col("definitions", "sensitive")},${
-      ctx.has("definitions", "encrypted")
-        ? `
-    'encrypted', d.${ctx.col("definitions", "encrypted")},`
-        : ""
-    }
-    ${
-      packsOn(ctx)
-        ? `'pack', d.${ctx.col("definitions", "pack")},
-    'packVersion', d.${ctx.col("definitions", "packVersion")},
-    `
-        : ""
-    }${archivable ? `'archivedAt', d.${ctx.col("definitions", "archivedAt")},\n    ` : ""}'rank', ${rank === "" ? "null" : `d.${rank}`}
-  ) order by ${order}), '[]'::jsonb)
-  from ${definitions} d
-  where d.${ctx.col("definitions", "tenant")} = list_field_definitions.tenant
-    and d.${ctx.col("definitions", "entity")} = list_field_definitions.entity${archivable ? `\n    and (coalesce(list_field_definitions.include_archived, false) or d.${ctx.col("definitions", "archivedAt")} is null)` : ""}
-    and (auth.role() = 'service_role' or ${ctx.scope.can("list_field_definitions.tenant", read)})
-$$;
-${userGrant(`${ctx.fn("list_field_definitions")}(${ctx.idType}, text${archivable ? ", boolean" : ""})`)}
-`;
 }
 
 function rankDefinition(

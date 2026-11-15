@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:01acb1c9cb9e304389d15245c17474faa57b6eca7518ecf28a68ee2096d6d04e
+-- @bsb-hash sha256:81a072aaf869e44a0d7fdc3917e5b93763552c36756300d5ebc25c2037016fa3
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -356,6 +356,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."purge_field_definition"(uuid) to authenticated, service_role;
+
 
 -- The definitions of one entity in display order. Archived fields stay out
 -- unless include_archived is true.

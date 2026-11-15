@@ -136,8 +136,8 @@ export interface CustomFields {
   }): AsyncResult<FieldDefinition>;
   /**
    * Archives a field: it leaves `listDefinitions`, and `saveDefinition` and
-   * `setValue` refuse it with `CUSTOM_FIELD_ARCHIVED`. Its values stay and
-   * stay readable. Needs `custom_fields.manage`.
+   * `setValue` refuse it with `CUSTOM_FIELD_ARCHIVED`. Its values stay and stay
+   * readable. Needs `custom_fields.manage`.
    */
   archiveDefinition(id: string): AsyncResult<FieldDefinition>;
   /** Brings an archived field back. Needs `custom_fields.manage`. */

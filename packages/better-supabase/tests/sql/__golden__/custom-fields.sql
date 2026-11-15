@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:fb85c13c784ee0377aa89a4f0fff3fb8c39e01de32d0f9ec6c7b137a3dbfcf7d
+-- @bsb-hash sha256:3dc93f787e4c9331086a74ceb3822934c68db610bcc977efeaa2948a876fec1b
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -357,6 +357,7 @@ $$;
 revoke execute on function "better_supabase"."purge_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."purge_field_definition"(uuid) to authenticated, service_role;
 
+
 -- The definitions of one entity in display order. Archived fields stay out
 -- unless include_archived is true.
 
@@ -585,7 +586,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:e197ba3a4ecd7193c5acbd17b723ba27892fb40c0587b63e35b657f23f67a7ed
+-- @bsb-hash sha256:2a4ec283c314c4519e084acc89504de20022fca6818595a4ffaba040d8616c00
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -948,6 +949,7 @@ $$;
 revoke execute on function "better_supabase"."purge_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."purge_field_definition"(uuid) to authenticated, service_role;
 
+
 -- The definitions of one entity in display order. Archived fields stay out
 -- unless include_archived is true.
 
@@ -1298,7 +1300,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:93a1ca1ed77618a707425fe799c50ec4128abf912ed167ac949900f212104926
+-- @bsb-hash sha256:f642101e8732cb18a5c9c2ab98330ad8f7761ddf99ab10ee8e6633e230a0306e
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1659,6 +1661,7 @@ $$;
 revoke execute on function "app_private"."purge_field_definition"(uuid) from public, anon;
 grant execute on function "app_private"."purge_field_definition"(uuid) to authenticated, service_role;
 
+
 -- The definitions of one entity in display order. Archived fields stay out
 -- unless include_archived is true.
 
@@ -1887,7 +1890,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:6db9bf05478d25eea3aeac27c3b57aed584206051c1e9c77a6973d6a64cd82c8
+-- @bsb-hash sha256:0954796602283200de0a1e0053aed0e58ac5fc2ea0e4d64a5cf848903fa039ff
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2243,6 +2246,7 @@ $$;
 revoke execute on function "better_supabase"."purge_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."purge_field_definition"(uuid) to authenticated, service_role;
 
+
 -- The definitions of one entity in display order. Archived fields stay out
 -- unless include_archived is true.
 
@@ -2596,7 +2600,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:5978f899673ad798d8061651b0b3e143dff6637e879aa42ccb9c4e8e500f0f17
+-- @bsb-hash sha256:fb366ac749910275aa0e1677e41633c5aee65091d2d471917c84262d0f2a264a
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2944,6 +2948,7 @@ $$;
 revoke execute on function "better_supabase"."purge_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."purge_field_definition"(uuid) to authenticated, service_role;
 
+
 -- The definitions of one entity in display order. Archived fields stay out
 -- unless include_archived is true.
 
@@ -3172,7 +3177,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:f57a1b4769a9ae4aefe7b5466feaf1a48dd602f65e5a9d2c4378b9798cfe0327
+-- @bsb-hash sha256:c517b879df65ad613fc502b37a20d280e4d08b5234c35ac4dfaef227cfd9bf76
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3527,6 +3532,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."purge_field_definition"(uuid) from public, anon;
 grant execute on function "better_supabase"."purge_field_definition"(uuid) to authenticated, service_role;
+
 
 -- The definitions of one entity in display order. Archived fields stay out
 -- unless include_archived is true.

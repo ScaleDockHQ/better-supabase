@@ -405,8 +405,8 @@ describe("saas block clients", () => {
       ...options({
         save_field_definition: { id: "d1" },
         purge_field_definition: true,
-      archive_field_definition: { id: "d1" },
-      restore_field_definition: { id: "d1" },
+        archive_field_definition: { id: "d1" },
+        restore_field_definition: { id: "d1" },
         read_field_values: [{ key: "tier" }],
         set_field_value: { id: "v1" },
       }),
