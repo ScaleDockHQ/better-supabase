@@ -29,7 +29,15 @@ const EVENTS: BlockSqlEvents<AnnouncementsEvents> = {
     subject: "announcements",
     payload: ["announcementId"],
   },
-  "announcement.deleted": {
+  "announcement.archived": {
+    subject: "announcements",
+    payload: ["announcementId"],
+  },
+  "announcement.restored": {
+    subject: "announcements",
+    payload: ["announcementId"],
+  },
+  "announcement.purged": {
     subject: "announcements",
     payload: ["announcementId"],
   },
@@ -49,7 +57,14 @@ const NAMES: BlockSqlNames = {
     announcements: {
       name: "announcements",
       app: {},
-      optional: ["body", "href", "createdBy", "createdAt", "updatedAt"],
+      optional: [
+        "body",
+        "href",
+        "archivedAt",
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+      ],
       typed: ["severity", "audience"],
       columns: {
         id: "id",
@@ -62,6 +77,7 @@ const NAMES: BlockSqlNames = {
         startsAt: "starts_at",
         endsAt: "ends_at",
         dismissible: "dismissible",
+        archivedAt: "archived_at",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -95,6 +111,7 @@ const COLUMNS = [
   "startsAt",
   "endsAt",
   "dismissible",
+  "archivedAt",
   "createdBy",
   "createdAt",
   "updatedAt",
@@ -165,7 +182,7 @@ function build(ctx: BlockSqlContext): string {
     .map(([c, value]) => `${raw(c)}, ${value}`)
     .join(",\n      ");
 
-  const fixed = ["id", "createdBy", "createdAt"]
+  const fixed = ["id", "archivedAt", "createdBy", "createdAt"]
     .filter(has)
     .map((c) => ` - ${raw(c)}`)
     .join("");
@@ -176,6 +193,15 @@ function build(ctx: BlockSqlContext): string {
 
   const manage = ctx.permission("manage", OPERATIONS["announcements.manage"]);
   const staff = ctx.staff(manage);
+
+  // Purging falls back to the manage key until the app names its own.
+  const purge = sqlString(
+    ctx.config.permissions["purge"] ??
+      ctx.permissionKey("manage", OPERATIONS["announcements.manage"]),
+  );
+
+  const purgeStaff = ctx.staff(purge);
+  const archivable = has("archivedAt");
 
   const announcementEvent = (type: string, id: string): string =>
     ctx.record({
@@ -219,7 +245,7 @@ create table if not exists ${a} (
   ${ca("targets")} text[] not null default '{}',
   ${ca("startsAt")} timestamptz not null default now(),
   ${ca("endsAt")} timestamptz,
-  ${ca("dismissible")} boolean not null default true,${column("createdBy", () => "uuid references auth.users (id) on delete set null default auth.uid()")}${column("createdAt", () => "timestamptz not null default now()")}${column("updatedAt", () => "timestamptz not null default now()")}
+  ${ca("dismissible")} boolean not null default true,${column("archivedAt", () => "timestamptz")}${column("createdBy", () => "uuid references auth.users (id) on delete set null default auth.uid()")}${column("createdAt", () => "timestamptz not null default now()")}${column("updatedAt", () => "timestamptz not null default now()")}
   check (${ca("endsAt")} is null or ${ca("endsAt")} > ${ca("startsAt")}),
   check ((${ca("audience")} = 'all') = (cardinality(${ca("targets")}) = 0))
 );
@@ -266,7 +292,7 @@ begin
   return (
     select coalesce(jsonb_agg(${withExtraFields(`to_jsonb(x) - ${raw("targets")}`, "x", extras)} order by x.${ca("startsAt")} desc), '[]'::jsonb)
     from ${a} x
-    where x.${ca("startsAt")} <= now()
+    where x.${ca("startsAt")} <= now()${archivable ? `\n      and x.${ca("archivedAt")} is null` : ""}
       and (x.${ca("endsAt")} is null or x.${ca("endsAt")} > now())
       and case x.${ca("audience")}
         when 'all' then true
@@ -311,8 +337,9 @@ begin
 end;
 $$;
 
--- Every announcement, for staff (announcements.manage on the platform).
-create or replace function ${fn("list_announcements")}()
+-- Every announcement, for staff (announcements.manage on the platform);
+-- archived ones only with include_archived.
+create or replace function ${fn("list_announcements")}(${archivable ? "include_archived boolean default false" : ""})
 returns jsonb
 language plpgsql
 stable
@@ -325,7 +352,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(${withExtraFields("to_jsonb(x)", "x", extras)} order by x.${ca("startsAt")} desc), '[]'::jsonb)
-    from ${a} x
+    from ${a} x${archivable ? `\n    where list_announcements.include_archived or x.${ca("archivedAt")} is null` : ""}
   );
 end;
 $$;
@@ -364,7 +391,46 @@ begin
 end;
 $$;
 
-create or replace function ${fn("delete_announcement")}(id uuid)
+${
+  archivable
+    ? ["archive", "restore"]
+        .map(
+          (
+            verb,
+          ) => `-- ${verb === "archive" ? "Archives an announcement: it stops showing and keeps its dismissals." : "Brings an archived announcement back, inside its window."}
+create or replace function ${fn(`${verb}_announcement`)}(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${a};
+begin
+  if not ${staff} then
+    ${fail("ANNOUNCEMENT_FORBIDDEN", "You may not manage announcements")}
+  end if;
+  select * into v_row from ${a} x where x.${ca("id")} = ${verb}_announcement.id for update;
+  if v_row.${ca("id")} is null then
+    ${raise("No announcement %", "P0002", "ANNOUNCEMENT_NOT_FOUND", `${verb}_announcement.id`)}
+  end if;
+  if v_row.${ca("archivedAt")} ${verb === "archive" ? "is not null" : "is null"} then
+    return ${withExtraFields("to_jsonb(v_row)", "v_row", extras)};
+  end if;
+  update ${a} x set ${ca("archivedAt")} = ${verb === "archive" ? "now()" : "null"}${touch ? `, ${ca("updatedAt")} = now()` : ""}
+  where x.${ca("id")} = v_row.${ca("id")}
+  returning * into v_row;
+  ${announcementEvent(`announcement.${verb === "archive" ? "archived" : "restored"}`, `v_row.${ca("id")}`)}
+  return ${withExtraFields("to_jsonb(v_row)", "v_row", extras)};
+end;
+$$;
+`,
+        )
+        .join("\n")
+    : ""
+}
+-- Removes an announcement and its dismissals for good. Archive keeps the row.
+create or replace function ${fn("purge_announcement")}(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -373,13 +439,13 @@ as $$
 declare
   v_count integer;
 begin
-  if not ${staff} then
+  if not ${purgeStaff} then
     ${fail("ANNOUNCEMENT_FORBIDDEN", "You may not manage announcements")}
   end if;
-  delete from ${a} x where x.${ca("id")} = delete_announcement.id;
+  delete from ${a} x where x.${ca("id")} = purge_announcement.id;
   get diagnostics v_count = row_count;
   if v_count > 0 then
-    ${announcementEvent("announcement.deleted", "delete_announcement.id")}
+    ${announcementEvent("announcement.purged", "purge_announcement.id")}
   end if;
   return v_count > 0;
 end;
@@ -419,23 +485,35 @@ $$;
 
 revoke execute on function ${fn("active_announcements")}(${id}) from public, anon;
 revoke execute on function ${fn("dismiss_announcement")}(uuid) from public, anon;
-revoke execute on function ${fn("list_announcements")}() from public, anon;
+revoke execute on function ${fn("list_announcements")}(${archivable ? "boolean" : ""}) from public, anon;
 revoke execute on function ${fn("save_announcement")}(uuid, jsonb) from public, anon;
-revoke execute on function ${fn("delete_announcement")}(uuid) from public, anon;
+${archivable ? `revoke execute on function ${fn("archive_announcement")}(uuid) from public, anon;\nrevoke execute on function ${fn("restore_announcement")}(uuid) from public, anon;\n` : ""}revoke execute on function ${fn("purge_announcement")}(uuid) from public, anon;
 grant execute on function ${fn("active_announcements")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("dismiss_announcement")}(uuid) to authenticated, service_role;
-grant execute on function ${fn("list_announcements")}() to authenticated, service_role;
+grant execute on function ${fn("list_announcements")}(${archivable ? "boolean" : ""}) to authenticated, service_role;
 grant execute on function ${fn("save_announcement")}(uuid, jsonb) to authenticated, service_role;
-grant execute on function ${fn("delete_announcement")}(uuid) to authenticated, service_role;`;
+${archivable ? `grant execute on function ${fn("archive_announcement")}(uuid) to authenticated, service_role;\ngrant execute on function ${fn("restore_announcement")}(uuid) to authenticated, service_role;\n` : ""}grant execute on function ${fn("purge_announcement")}(uuid) to authenticated, service_role;`;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+  const archivable = ctx.has("announcements", "archivedAt");
+
   return [
     { name: "active_announcements", args: ["{id}"], returns: "jsonb" },
     { name: "dismiss_announcement", args: ["uuid"], returns: "boolean" },
-    { name: "list_announcements", args: [], returns: "jsonb" },
+    {
+      name: "list_announcements",
+      args: archivable ? ["boolean"] : [],
+      returns: "jsonb",
+    },
     { name: "save_announcement", args: ["uuid", "jsonb"], returns: "jsonb" },
-    { name: "delete_announcement", args: ["uuid"], returns: "boolean" },
+    ...(archivable
+      ? [
+          { name: "archive_announcement", args: ["uuid"], returns: "jsonb" },
+          { name: "restore_announcement", args: ["uuid"], returns: "jsonb" },
+        ]
+      : []),
+    { name: "purge_announcement", args: ["uuid"], returns: "boolean" },
   ];
 }
 

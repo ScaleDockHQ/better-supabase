@@ -1047,6 +1047,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "startsAt": "starts_at",
               "endsAt": "ends_at",
               "dismissible": "dismissible",
+              "archivedAt": "archived_at",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -13822,7 +13823,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "announcement.created",
           "announcement.updated",
-          "announcement.deleted"
+          "announcement.archived",
+          "announcement.restored",
+          "announcement.purged"
         ]
       }
     },

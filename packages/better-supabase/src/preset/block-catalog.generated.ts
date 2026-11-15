@@ -938,8 +938,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
+        "announcement.archived",
         "announcement.created",
-        "announcement.deleted",
+        "announcement.purged",
+        "announcement.restored",
         "announcement.updated"
       ],
       "subpath": "better-supabase/blocks/announcements",
