@@ -147,7 +147,7 @@ export async function CustomerDetail({ id }: { id: string }) {
             className="rounded-xl"
           />
         ) : (
-          <span className="flex size-14 items-center justify-center rounded-xl bg-muted text-lg font-semibold text-muted-foreground">
+          <span className="flex size-14 items-center justify-center rounded-xl bg-muted text-lg font-semibold text-foreground">
             {initials(customer.name, null)}
           </span>
         )

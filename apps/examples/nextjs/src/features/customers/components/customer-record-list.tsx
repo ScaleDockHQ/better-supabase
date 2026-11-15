@@ -42,7 +42,7 @@ function NameCell({ row }: CustomerCell) {
           className="rounded-md"
         />
       ) : (
-        <span className="flex size-7 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
+        <span className="flex size-7 items-center justify-center rounded-md bg-muted text-xs font-semibold text-foreground">
           {initials(name, null)}
         </span>
       )}
