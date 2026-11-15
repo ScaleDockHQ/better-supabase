@@ -627,7 +627,7 @@
   "/[locale]/(app)/knowledge/page": {
     "raw": 3595921,
     "gzip": 1071383,
-    "brotli": 889231
+    "brotli": 891606
   },
   "/[locale]/(app)/legal-entities/[id]/page": {
     "raw": 3151011,
@@ -922,7 +922,7 @@
   "/[locale]/(app)/settings/jobs/runs/[queue]/[id]/page": {
     "raw": 3189422,
     "gzip": 973900,
-    "brotli": 810186
+    "brotli": 812490
   },
   "/[locale]/(app)/settings/jobs/runs/page": {
     "raw": 3178932,
@@ -1442,17 +1442,17 @@
   "/api/chat/durable/[id]/stop/route": {
     "raw": 3562055,
     "gzip": 1082546,
-    "brotli": 918650
+    "brotli": 921196
   },
   "/api/chat/durable/[id]/stream/route": {
     "raw": 3562203,
     "gzip": 1082621,
-    "brotli": 918712
+    "brotli": 921258
   },
   "/api/chat/durable/route": {
     "raw": 3562158,
     "gzip": 1082613,
-    "brotli": 918667
+    "brotli": 921214
   },
   "/api/chat/route": {
     "raw": 1910897,
