@@ -153,7 +153,9 @@ describe("createScores", () => {
           },
         ],
       },
-      delete_score_model: true,
+      archive_score_model: { ...MODEL, archivedAt: "2026-10-03T00:00:00Z" },
+      restore_score_model: MODEL,
+      purge_score_model: true,
     });
 
     const scores = createScores({ transport: fake.transport, tenant: "org-1" });
@@ -213,8 +215,15 @@ describe("createScores", () => {
     ]);
 
     await scores.models().orThrow();
+    await scores.models({ includeArchived: true }).orThrow();
 
-    expect(await scores.deleteModel("m1").orThrow()).toBe(true);
+    const archived = await scores.archiveModel("m1").orThrow();
+
+    expect(archived.archivedAt?.toString()).toBe("2026-10-03T00:00:00Z");
+    expect(
+      (await scores.restoreModel("m1").orThrow()).archivedAt,
+    ).toBeUndefined();
+    expect(await scores.purgeModel("m1").orThrow()).toBe(true);
     expect(fake.calls).toEqual([
       [
         "save_score_model",
@@ -223,10 +232,22 @@ describe("createScores", () => {
           model: { key: "lead", name: "Lead score", subjectType: "lead" },
         },
       ],
-      ["list_score_models", { tenant: "org-1", subject_type: "party" }],
+      [
+        "list_score_models",
+        { tenant: "org-1", subject_type: "party", include_archived: null },
+      ],
       ["get_score_model", { model_id: "m1" }],
-      ["list_score_models", { tenant: "org-1", subject_type: null }],
-      ["delete_score_model", { model_id: "m1" }],
+      [
+        "list_score_models",
+        { tenant: "org-1", subject_type: null, include_archived: null },
+      ],
+      [
+        "list_score_models",
+        { tenant: "org-1", subject_type: null, include_archived: true },
+      ],
+      ["archive_score_model", { model_id: "m1" }],
+      ["restore_score_model", { model_id: "m1" }],
+      ["purge_score_model", { model_id: "m1" }],
     ]);
   });
 

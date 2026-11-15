@@ -299,6 +299,7 @@
   "extending/add-an-sdk",
   "extending/authorization-providers",
   "extending/authorizers",
+  "extending/block-lists",
   "extending/blocks",
   "extending/composite-blocks",
   "extending/conformance",

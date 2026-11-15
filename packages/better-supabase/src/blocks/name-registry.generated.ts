@@ -2128,15 +2128,15 @@ export interface BlockNameRegistry {
   };
   readonly "scores": {
     readonly tables: {
-      readonly "models": "id" | "tenant" | "key" | "name" | "description" | "subjectType" | "rules" | "metrics" | "bands" | "enabled" | "version" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "models": "id" | "tenant" | "key" | "name" | "description" | "subjectType" | "rules" | "metrics" | "bands" | "enabled" | "version" | "createdBy" | "createdAt" | "updatedAt" | "archivedAt";
       readonly "versions": "model" | "version" | "tenant" | "rules" | "metrics" | "bands" | "savedBy" | "savedAt";
       readonly "scores": "id" | "tenant" | "model" | "modelVersion" | "subjectType" | "subjectId" | "score" | "band" | "breakdown" | "current" | "computedAt";
     };
-    readonly functions: "compute_score" | "delete_score_model" | "get_score_model" | "list_score_models" | "save_score_model" | "score_history" | "subject_scores" | "top_scores";
+    readonly functions: "archive_score_model" | "compute_score" | "delete_score_model" | "get_score_model" | "list_score_models" | "purge_score_model" | "restore_score_model" | "save_score_model" | "score_history" | "subject_scores" | "top_scores";
     readonly actions: "read" | "manage" | "compute";
     readonly hooks: never;
     readonly entities: {
-      readonly "score_model": "id" | "tenant_id" | "key" | "name" | "description" | "subject_type" | "rules" | "metrics" | "bands" | "enabled" | "version" | "created_by" | "created_at" | "updated_at";
+      readonly "score_model": "id" | "tenant_id" | "key" | "name" | "description" | "subject_type" | "rules" | "metrics" | "bands" | "enabled" | "version" | "created_by" | "created_at" | "updated_at" | "archived_at";
     };
     readonly primary: "score_model";
   };

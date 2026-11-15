@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:abd0d064d3c3748949c04f1289b80df982e271e5bc998b840d4b715e7f709403
+-- @bsb-hash sha256:a61b2a3979df4a3251d8c55e91525f5fb6a882355be575fd4db26ad003bb67db
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,6 +26,7 @@ create table "better_supabase"."score_models" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
+  "archived_at" timestamptz,
   unique ("tenant_id", "key")
 );
 create index "score_models_subject_idx" on "better_supabase"."score_models" ("tenant_id", "subject_type");
@@ -124,6 +125,9 @@ begin
     if v_old."id" is null then
       raise exception 'score model not found' using errcode = 'P0002', hint = 'SCORES_MODEL_NOT_FOUND';
     end if;
+    if v_old."archived_at" is not null then
+      raise exception 'the score model is archived; restore it first' using errcode = '55000', hint = 'SCORES_MODEL_ARCHIVED';
+    end if;
     if model ? 'version' and (model ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the score model changed since it was read' using errcode = '40001', hint = 'SCORES_MODEL_CONFLICT';
     end if;
@@ -201,7 +205,7 @@ begin
   elsif v_old."name" = v_name and v_old."description" is not distinct from v_description
     and v_old."rules" = v_rules and v_old."metrics" = v_metrics
     and v_old."bands" = v_bands and v_old."enabled" = v_enabled then
-    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."tenant_id", 'key', v_old."key", 'name', v_old."name", 'description', v_old."description", 'subjectType', v_old."subject_type", 'rules', v_old."rules", 'metrics', v_old."metrics", 'bands', v_old."bands", 'enabled', v_old."enabled", 'version', v_old."version", 'createdBy', v_old."created_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at");
+    return jsonb_build_object('id', v_old."id", 'organizationId', v_old."tenant_id", 'key', v_old."key", 'name', v_old."name", 'description', v_old."description", 'subjectType', v_old."subject_type", 'rules', v_old."rules", 'metrics', v_old."metrics", 'bands', v_old."bands", 'enabled', v_old."enabled", 'version', v_old."version", 'createdBy', v_old."created_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'archivedAt', v_old."archived_at");
   else
     update "better_supabase"."score_models" x set
       "name" = v_name,
@@ -223,14 +227,16 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_score_model"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_score_model"(uuid, jsonb) to authenticated, service_role;
 
 -- An organization's score models, by key, for one subject type when given.
-create or replace function "better_supabase"."list_score_models"(tenant uuid, subject_type text default null)
+-- Archived models stay out unless include_archived is true.
+
+create or replace function "better_supabase"."list_score_models"(tenant uuid, subject_type text default null, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -242,15 +248,16 @@ begin
     raise exception 'not allowed to read scores' using errcode = '42501', hint = 'SCORES_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectType', x."subject_type", 'rules', x."rules", 'metrics', x."metrics", 'bands', x."bands", 'enabled', x."enabled", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectType', x."subject_type", 'rules', x."rules", 'metrics', x."metrics", 'bands', x."bands", 'enabled', x."enabled", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'archivedAt', x."archived_at") order by x."key")
     from "better_supabase"."score_models" x
     where x."tenant_id" = list_score_models.tenant
       and (list_score_models.subject_type is null or x."subject_type" = list_score_models.subject_type)
+      and (coalesce(list_score_models.include_archived, false) or x."archived_at" is null)
   ), '[]'::jsonb);
 end;
 $$;
-revoke execute on function "better_supabase"."list_score_models"(uuid, text) from public, anon;
-grant execute on function "better_supabase"."list_score_models"(uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_score_models"(uuid, text, boolean) from public, anon;
+grant execute on function "better_supabase"."list_score_models"(uuid, text, boolean) to authenticated, service_role;
 
 -- One score model with its saved versions, or null when the caller can't read it.
 create or replace function "better_supabase"."get_score_model"(model_id uuid)
@@ -267,7 +274,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'scores.read'), false)) then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('versions', coalesce((
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at") || jsonb_build_object('versions', coalesce((
     select jsonb_agg(jsonb_build_object('version', y."version", 'rules', y."rules", 'metrics', y."metrics", 'bands', y."bands", 'savedBy', y."saved_by", 'savedAt', y."saved_at") order by y."version" desc)
     from "better_supabase"."score_model_versions" y where y."model_id" = v_row."id"
   ), '[]'::jsonb));
@@ -276,8 +283,78 @@ $$;
 revoke execute on function "better_supabase"."get_score_model"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_score_model"(uuid) to authenticated, service_role;
 
--- Removes a score model with its versions and scores; false when there is none.
-create or replace function "better_supabase"."delete_score_model"(model_id uuid)
+
+-- Archives a score model: it leaves the lists, subject_scores and top_scores, and compute_score refuses it. Its versions and scores stay. Needs scores.manage; archiving an archived model returns it unchanged.
+create or replace function "better_supabase"."archive_score_model"(model_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."score_models";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."score_models" x where x."id" = archive_score_model.model_id for update;
+  if not found then
+    raise exception 'score model not found' using errcode = 'P0002', hint = 'SCORES_MODEL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'scores.manage'), false)) then
+    raise exception 'not allowed to manage score models' using errcode = '42501', hint = 'SCORES_FORBIDDEN';
+  end if;
+  if (v_row."archived_at" is not null) = true then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
+  end if;
+  update "better_supabase"."score_models" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_score_model"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_score_model"(uuid) to authenticated, service_role;
+
+-- Restores an archived score model; it keeps its enabled flag. Needs scores.manage; restoring one that is not archived returns it unchanged.
+create or replace function "better_supabase"."restore_score_model"(model_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."score_models";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."score_models" x where x."id" = restore_score_model.model_id for update;
+  if not found then
+    raise exception 'score model not found' using errcode = 'P0002', hint = 'SCORES_MODEL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'scores.manage'), false)) then
+    raise exception 'not allowed to manage score models' using errcode = '42501', hint = 'SCORES_FORBIDDEN';
+  end if;
+  if (v_row."archived_at" is not null) = false then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
+  end if;
+  update "better_supabase"."score_models" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'archivedAt', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_score_model"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_score_model"(uuid) to authenticated, service_role;
+
+-- Removes a score model with its versions and scores for good; false when
+-- there is none. Archive keeps them. permissions.purge gates it, falling back
+-- to manage.
+
+create or replace function "better_supabase"."purge_score_model"(model_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -289,20 +366,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."score_models" x where x."id" = delete_score_model.model_id for update;
+  select * into v_row from "better_supabase"."score_models" x where x."id" = purge_score_model.model_id for update;
   if not found then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'scores.manage'), false)) then
-    raise exception 'not allowed to manage score models' using errcode = '42501', hint = 'SCORES_FORBIDDEN';
+    raise exception 'not allowed to purge score models' using errcode = '42501', hint = 'SCORES_FORBIDDEN';
   end if;
   delete from "better_supabase"."score_models" x where x."id" = v_row."id";
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_score_model"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_score_model"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_score_model"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_score_model"(uuid) to authenticated, service_role;
 
 -- Scores a subject with an enabled model. subject holds the record's fields
 -- the way rule_evaluate reads them. Rules add their points when their tree
@@ -343,6 +420,9 @@ begin
   select * into v_model from "better_supabase"."score_models" x where x."tenant_id" = compute_score.tenant and x."key" = compute_score.model_key;
   if not found then
     raise exception 'score model not found' using errcode = 'P0002', hint = 'SCORES_MODEL_NOT_FOUND';
+  end if;
+  if v_model."archived_at" is not null then
+    raise exception 'the score model is archived; restore it first' using errcode = '55000', hint = 'SCORES_MODEL_ARCHIVED';
   end if;
   if not v_model."enabled" then
     raise exception 'the score model is turned off' using errcode = '55000', hint = 'SCORES_MODEL_DISABLED';
@@ -417,6 +497,7 @@ begin
     from "better_supabase"."scores" x join "better_supabase"."score_models" y on y."id" = x."model_id"
     where x."tenant_id" = subject_scores.tenant and x."subject_type" = subject_scores.subject_type
       and x."subject_id" = subject_scores.subject_id and x."is_current"
+      and y."archived_at" is null
   ), '[]'::jsonb);
 end;
 $$;
@@ -470,6 +551,7 @@ begin
       select x.*
       from "better_supabase"."scores" x join "better_supabase"."score_models" y on y."id" = x."model_id"
       where x."tenant_id" = top_scores.tenant and y."key" = top_scores.model_key and x."is_current"
+      and y."archived_at" is null
         and (top_scores.band is null or x."band" = top_scores.band)
         and (top_scores.min_score is null or x."score" >= top_scores.min_score)
       order by x."score" desc, x."computed_at" desc

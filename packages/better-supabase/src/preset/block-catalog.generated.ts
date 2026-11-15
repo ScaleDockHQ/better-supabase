@@ -3236,8 +3236,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "events": [
         "score.changed",
+        "score_model.archived",
         "score_model.created",
-        "score_model.deleted",
+        "score_model.purged",
+        "score_model.restored",
         "score_model.updated"
       ],
       "subpath": "better-supabase/blocks/scores",

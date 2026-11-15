@@ -93,9 +93,14 @@ subject type can't change. Pass the `version` you read to fail with
 
 Changing rules, metrics or bands raises `version` and saves the definition, so
 `model(id)` returns every version with who saved it. Renaming or turning a
-model off keeps the version. `models()` lists models by key, `deleteModel(id)`
-removes a model with its versions and scores, and `enabled: false` stops new
-computations without losing the history.
+model off keeps the version. `models()` lists models by key and hides archived ones unless you
+pass `includeArchived`. `archiveModel(id)` takes a model out of `models()`,
+`list`, `top` and `compute`, keeps its versions and every score, and
+`restoreModel(id)` brings it back with its `enabled` flag. `purgeModel(id)`
+removes a model with its versions and scores for good, behind
+`permissions.purge` (it falls back to `manage`). `enabled: false` stops new
+computations without hiding the model. An archived model refuses `saveModel`
+with `SCORES_MODEL_ARCHIVED`; restore it first.
 
 | Option       | Default | What it limits                 |
 | ------------ | ------- | ------------------------------ |
@@ -140,10 +145,10 @@ lead is hot.
 
 ## Events
 
-| Event                                                               | Data                                                                                                                  |
-| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `score_model.created`, `score_model.updated`, `score_model.deleted` | `organizationId`, `id`, `key`, `subjectType`, `version`                                                               |
-| `score.changed`                                                     | `organizationId`, `modelId`, `modelKey`, `subjectType`, `subjectId`, `score`, `previousScore`, `band`, `previousBand` |
+| Event                                                                                                              | Data                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `score_model.created`, `score_model.updated`, `score_model.archived`, `score_model.restored`, `score_model.purged` | `organizationId`, `id`, `key`, `subjectType`, `version`                                                               |
+| `score.changed`                                                                                                    | `organizationId`, `modelId`, `modelKey`, `subjectType`, `subjectId`, `score`, `previousScore`, `band`, `previousBand` |
 
 A rule on `score.changed` can route a lead that turns hot, or notify an
 account owner when health drops a band.

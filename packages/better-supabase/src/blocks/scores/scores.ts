@@ -15,6 +15,7 @@ import {
   blockCall,
   isRecord,
   notFoundError,
+  optionalInstant,
   optionalText,
   recordOf,
   recordsOf,
@@ -87,6 +88,8 @@ export interface ScoreModel {
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** Set while the model is archived; `models` hides it. */
+  readonly archivedAt?: Temporal.Instant;
 }
 
 export interface ScoreModelVersion {
@@ -164,14 +167,31 @@ export interface ComputedScore extends Score {
 export interface Scores {
   /** Needs `scores.manage`. Saves a version when rules, metrics or bands change. */
   saveModel(input: ScoreModelInput): AsyncResult<ScoreModel>;
-  /** The block tenant's models, by key. */
+  /** The block tenant's models, by key. Archived models stay out by default. */
   models(options?: {
     readonly subjectType?: string;
+    /** Also list archived models. Default: hidden. */
+    readonly includeArchived?: boolean;
   }): AsyncResult<readonly ScoreModel[]>;
   /** One model with its versions; `not_found` when the caller can't read it. */
   model(modelId: string): AsyncResult<ScoreModelDetail>;
-  /** Needs `scores.manage`. False when there was no such model. */
-  deleteModel(modelId: string): AsyncResult<boolean>;
+  /**
+   * Needs `scores.manage`. Takes the model out of `models`, `list`, `top` and
+   * `compute`, and keeps its versions and every score. Archiving an archived
+   * model returns it unchanged.
+   */
+  archiveModel(modelId: string): AsyncResult<ScoreModel>;
+  /**
+   * Needs `scores.manage`. Brings an archived model back; it keeps its
+   * `enabled` flag.
+   */
+  restoreModel(modelId: string): AsyncResult<ScoreModel>;
+  /**
+   * Removes a model with its versions and scores for good (hard delete). False
+   * when there was no such model. `permissions.purge` gates this, falling back
+   * to `scores.manage`.
+   */
+  purgeModel(modelId: string): AsyncResult<boolean>;
   /**
    * Scores a record with the model `modelKey`. `fields` are the record's values
    * the way the rules block reads them (the same object `run` takes). Needs
@@ -282,6 +302,7 @@ function modelOf(value: unknown, fn: string): ScoreModel {
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("description", optionalText(row["description"])),
     ...optional("createdBy", optionalText(row["createdBy"])),
+    ...optional("archivedAt", optionalInstant(row["archivedAt"])),
   };
 }
 
@@ -368,7 +389,11 @@ export function createScores(options: ScoresOptions): Scores {
       tenant().andThen((organizationId) =>
         call(
           "list_score_models",
-          { tenant: organizationId, subject_type: filter.subjectType ?? null },
+          {
+            tenant: organizationId,
+            subject_type: filter.subjectType ?? null,
+            include_archived: filter.includeArchived ?? null,
+          },
           (value) =>
             recordsOf(value, "list_score_models").map((row) =>
               modelOf(row, "list_score_models"),
@@ -402,9 +427,17 @@ export function createScores(options: ScoresOptions): Scores {
           });
         },
       ),
-    deleteModel: (modelId) =>
+    archiveModel: (modelId) =>
+      call("archive_score_model", { model_id: modelId }, (value) =>
+        modelOf(value, "archive_score_model"),
+      ),
+    restoreModel: (modelId) =>
+      call("restore_score_model", { model_id: modelId }, (value) =>
+        modelOf(value, "restore_score_model"),
+      ),
+    purgeModel: (modelId) =>
       call(
-        "delete_score_model",
+        "purge_score_model",
         { model_id: modelId },
         (value) => value === true,
       ),
