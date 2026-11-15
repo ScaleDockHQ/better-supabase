@@ -421,7 +421,10 @@ export function createSavedViews<
       views
         .page(pageOptions)
         .andThen((page) =>
-          readAllFields(fields, page.items).map((items) => ({ ...page, items })),
+          readAllFields(fields, page.items).map((items) => ({
+            ...page,
+            items,
+          })),
         ),
     facets: views.facets,
     count: views.count,

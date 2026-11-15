@@ -10,14 +10,14 @@ import type {
   ListPage,
   PageOptions,
 } from "../../core/block-helpers.ts";
+import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { BlockTransport } from "../../core/block-transport.ts";
+import type { BulkCallOptions, BulkReport } from "../../core/bulk.ts";
 import type {
   CountOptions,
   FacetOptions,
   RequiredTenantOption,
 } from "../../core/entity-list.ts";
-import type { BlockHooks } from "../../core/block-hooks.ts";
-import type { BlockTransport } from "../../core/block-transport.ts";
-import type { BulkCallOptions, BulkReport } from "../../core/bulk.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { IdempotencyClaims } from "../../core/idempotent-write.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -411,14 +411,16 @@ export interface Tasks<F extends object = Record<never, never>> {
   /**
    * One keyset page of a tenant's items, newest number first. `filters` takes
    * `state`, `priority`, `teamId`, `projectId`, `iterationId`, `parentId`,
-   * `assigneeId` (each a value or a list) and `open`; `q` matches the title
-   * and identifier (ADR 1077).
+   * `assigneeId` (each a value or a list) and `open`; `q` matches the title and
+   * identifier (ADR 1077).
    */
   page(
     options: PageOptions & RequiredTenantOption,
   ): AsyncResult<ListPage<Task<F>>>;
   /** Counts per `state` or `priority` for the page's `q` and filters. */
-  facets(options: FacetOptions & RequiredTenantOption): AsyncResult<readonly FacetResult[]>;
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
   /** How many items match the page's `q` and filters. */
   count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
   /** One item, or a `not_found` error. `get` returns `undefined` instead. */
@@ -432,7 +434,9 @@ export interface Tasks<F extends object = Record<never, never>> {
     options: FacetOptions & RequiredTenantOption,
   ): AsyncResult<readonly FacetResult[]>;
   /** How many projects match the page's `q` and filters. */
-  countProjects(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  countProjects(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
   /** One project, or a `not_found` error. */
   getProject(projectId: string): AsyncResult<Project>;
   /** @deprecated Use `page` (ADR 1077). */
@@ -1090,6 +1094,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       call("get_project", { project: projectId }, (value) =>
         value === null || value === undefined ? undefined : projectOf(value),
       ).andThen((project) => foundOrNotFound("project", project, projectId)),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, ...list }) => {
       const { search, after, limit, ...filter } = list;
 

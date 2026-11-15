@@ -12,14 +12,6 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
-import {
-  filterAny,
-  filterFlag,
-  filterSet,
-  listBody,
-  listDeclare,
-  searchPattern,
-} from "../list-template.ts";
 import { watchSql } from "../watch-sql.ts";
 import { asText } from "./over-app.ts";
 import {
@@ -27,6 +19,7 @@ import {
   linkAttachmentsSql,
   taskExtraFunctions,
 } from "./tasks-extras.ts";
+import { taskPageSql } from "./tasks-pages.ts";
 
 export interface TaskNames {
   readonly fn: (name: string) => string;
@@ -322,126 +315,13 @@ export function taskFunctions(ctx: BlockSqlContext, n: TaskNames): string {
     ? ` || jsonb_build_object(${sqlString(ctx.colName("projects", "budgetAmount"))}, x.${p("budgetAmount")}::text)`
     : "";
 
+  const pages = taskPageSql(ctx, n, { w, a, p, has, row, budgetText, state });
+
   const dimensionSync = booksAccounting(ctx)
     ? `
   perform ${ctx.of("accounting").fn("accounting_sync_dimension_value")}(x.${p("tenant")}, 'project', 'Project', x.${p("id")}::text, x.${p("key")} || ' ' || x.${p("name")}, x.${p("archivedAt")} is not null)
   from ${t("projects")} x where x.${p("id")} = v_id;`
     : "";
-
-  const projectRow = (alias: string): string =>
-    `${ctx.rowJson("projects", alias)}${budgetText.replaceAll("x.", `${alias}.`)} || jsonb_build_object('progress', ${
-      has("project")
-        ? `(
-      select case when count(*) = 0 then null else round(100.0 * count(*) filter (where ${state(`y.${w("state")}`, ["completed"])}) / count(*) filter (where ${state(`y.${w("state")}`, ["canceled"], true)})) end
-      from ${t("items")} y where y.${w("project")} = ${alias}.${p("id")} and y.${w("archivedAt")} is null
-    )`
-        : "null"
-    })`;
-
-  const stateText = ctx.mapsValues("items", "state")
-    ? ctx.label("items", "state", `x.${w("state")}`)
-    : asText(ctx, "items", `x.${w("state")}`);
-
-  const taskId = { expr: `x.${w("number")}`, dir: "desc", type: "bigint" } as const;
-  const taskKey = { expr: `x.${w("id")}`, dir: "asc", type: "uuid" } as const;
-  const taskKeys = [taskId, taskKey] as const;
-
-  const taskPage = {
-    name: "page_tasks",
-    from: t("items"),
-    alias: "x",
-    where: [
-      `x.${w("tenant")} = page_tasks.tenant`,
-      `x.${w("archivedAt")} is null`,
-      n.templates
-        ? `(case coalesce(v_filters ->> 'templates', 'exclude') when 'include' then true when 'only' then x.${w("template")} is not null else x.${w("template")} is null end)`
-        : "true",
-      filterAny("state", stateText),
-      filterAny("priority", `x.${w("priority")}::text`),
-      filterAny("teamId", `x.${w("team")}`, "uuid"),
-      has("project")
-        ? filterAny("projectId", `x.${w("project")}`, "uuid")
-        : `(not ${filterSet("projectId")})`,
-      has("iteration")
-        ? filterAny("iterationId", `x.${w("iteration")}`, "uuid")
-        : `(not ${filterSet("iterationId")})`,
-      filterAny("parentId", `x.${w("parent")}`, "uuid"),
-      `(not ${filterSet("assigneeId")} or exists (select 1 from ${t("assignees")} y where y.${a("item")} = x.${w("id")} and ${filterAny("assigneeId", `y.${a("user")}`, "uuid")}))`,
-      `(not ${filterFlag("open")} or x.${w("closedAt")} is null)`,
-      `(v_search is null or x.${w("title")} ilike v_search or x.${w("identifier")} ilike v_search)`,
-    ],
-    keys: taskKeys,
-    sorts: {
-      number: taskKeys,
-      title: [
-        { expr: `lower(x.${w("title")})`, dir: "asc", type: "text" },
-        taskKey,
-      ],
-      dueAt: [
-        {
-          expr: has("dueAt")
-            ? `coalesce(x.${w("dueAt")}, 'infinity'::timestamptz)`
-            : `'infinity'::timestamptz`,
-          dir: "asc",
-          type: "timestamptz",
-        },
-        taskKey,
-      ],
-      createdAt: [
-        {
-          expr: has("createdAt")
-            ? `x.${w("createdAt")}`
-            : `'epoch'::timestamptz`,
-          dir: "desc",
-          type: "timestamptz",
-        },
-        taskKey,
-      ],
-    },
-    facets: {
-      state: stateText,
-      priority: `x.${w("priority")}::text`,
-    },
-    rowJson: row("x"),
-    defaultLimit: 50,
-    maxLimit: 200,
-    invalid: (message: string) => fail("TASK_INVALID", message, "22023"),
-  } as const;
-
-  const projectKey = { expr: `x.${p("id")}`, dir: "asc", type: "uuid" } as const;
-
-  const projectNameKeys = [
-    { expr: `lower(x.${p("name")})`, dir: "asc", type: "text" },
-    projectKey,
-  ] as const;
-
-  const projectPage = {
-    name: "page_projects",
-    from: t("projects"),
-    alias: "x",
-    where: [
-      `x.${p("tenant")} = page_projects.tenant`,
-      filterAny("status", `x.${p("status")}::text`),
-      filterAny("ownerId", ctx.has("projects", "owner") ? `x.${p("owner")}` : "null::uuid", "uuid"),
-      `(${filterFlag("archived")} or x.${p("archivedAt")} is null)`,
-      `(v_search is null or x.${p("name")} ilike v_search or x.${p("key")} ilike v_search)`,
-    ],
-    keys: projectNameKeys,
-    sorts: {
-      name: projectNameKeys,
-      key: [{ expr: `x.${p("key")}`, dir: "asc", type: "text" }, projectKey],
-      createdAt: [
-        { expr: `x.${p("createdAt")}`, dir: "desc", type: "timestamptz" },
-        projectKey,
-      ],
-    },
-    facets: { status: `x.${p("status")}::text` },
-    rowJson: projectRow("x"),
-    defaultLimit: 50,
-    maxLimit: 200,
-    invalid: (message: string) =>
-      fail("TASK_PROJECT_INVALID", message, "22023"),
-  } as const;
 
   const projects = ctx.hasTable("projects")
     ? `
@@ -551,39 +431,7 @@ end;
 $$;
 ${userGrant(`${fn("save_project")}(${ctx.idType}, uuid, jsonb)`)}
 
--- A tenant's projects as a keyset page, by name (ADR 1077). It runs as
--- invoker. filters is { status, ownerId (each a value or a list), archived
--- (true adds archived ones), search (name, key), sort (name, key, createdAt),
--- direction, facet, count, limit, after, offset, paged, total, totalCap }.
-create or replace function ${fn("page_projects")}(tenant ${ctx.idType}, filters jsonb default '{}')
-returns jsonb
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-#variable_conflict use_variable
-declare
-  v_filters jsonb := coalesce(page_projects.filters, '{}'::jsonb);
-  v_search text := ${searchPattern()};
-  ${listDeclare(projectPage)}
-begin
-  ${listBody(projectPage)}
-end;
-$$;
-${userGrant(`${fn("page_projects")}(${ctx.idType}, jsonb)`)}
-
--- One project the caller can read, or null.
-create or replace function ${fn("get_project")}(project uuid)
-returns jsonb
-language sql
-stable
-security invoker
-set search_path = ''
-as $$
-  select ${projectRow("x")} from ${t("projects")} x where x.${p("id")} = get_project.project
-$$;
-${userGrant(`${fn("get_project")}(uuid)`)}
+${pages.projects}
 `
     : "";
 
@@ -1087,30 +935,7 @@ as $$
 $$;
 ${userGrant(`${fn("list_tasks")}(${ctx.idType}, jsonb, text, uuid, integer)`)}
 
--- A tenant's active items as a keyset page, newest number first (ADR 1077). It
--- runs as invoker, so the read policy decides which items are visible. filters
--- is { state, priority, teamId, projectId, iterationId, parentId, assigneeId
--- (each a value or a list), open (true keeps unclosed items), templates
--- (include, only), search (title, identifier), sort (number, title, dueAt,
--- createdAt), direction, facet, count, limit, after, offset, paged, total,
--- totalCap }.
-create or replace function ${fn("page_tasks")}(tenant ${ctx.idType}, filters jsonb default '{}')
-returns jsonb
-language plpgsql
-stable
-security invoker
-set search_path = ''
-as $$
-#variable_conflict use_variable
-declare
-  v_filters jsonb := coalesce(page_tasks.filters, '{}'::jsonb);
-  v_search text := ${searchPattern()};
-  ${listDeclare(taskPage)}
-begin
-  ${listBody(taskPage)}
-end;
-$$;
-${userGrant(`${fn("page_tasks")}(${ctx.idType}, jsonb)`)}
+${pages.tasks}
 ${cloneTask(ctx, n, fn, t, w, a, row)}${taskExtraFunctions(ctx, n, row, record)}${projects}${iterations}`;
 }
 

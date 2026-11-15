@@ -11,8 +11,16 @@ import { createPrompts } from "../../src/blocks/prompts/index.ts";
 import { promptListSurface } from "../../src/blocks/prompts/lists.ts";
 import { createReminders } from "../../src/blocks/reminders/index.ts";
 import { reminderListSurface } from "../../src/blocks/reminders/lists.ts";
+import { createSavedViews } from "../../src/blocks/saved-views/index.ts";
+import { savedViewListSurface } from "../../src/blocks/saved-views/lists.ts";
 import { createTags } from "../../src/blocks/tags/index.ts";
 import { tagListSurface } from "../../src/blocks/tags/lists.ts";
+import { createTasks } from "../../src/blocks/tasks/index.ts";
+import {
+  projectListSurface,
+  taskListSurface,
+} from "../../src/blocks/tasks/lists.ts";
+import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { testBlockList } from "../../src/testing/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -220,6 +228,158 @@ describe.skipIf(!live)(
         expect(hint(await reminders.facets())).toBe("ok");
         expect(hint(await reminders.count())).toBe("ok");
         expect((await reminders.get(MISSING)).ok).toBe(false);
+      } finally {
+        await s.close();
+      }
+    });
+
+    it("pages saved views, tasks and projects", async () => {
+      const s = await BlockSession.open(pool);
+
+      try {
+        const owner = await s.user("f14-b-owner");
+
+        await s.install(
+          [
+            "organizations",
+            "outbox",
+            "notifications",
+            "subjects",
+            "rank",
+            "relations",
+            "pipelines",
+            "teams",
+            "saved-views",
+            "tasks",
+          ],
+          {
+            subjects: withBlockSubjects({}, ["tasks"], {}),
+            modules: {
+              tasks: {
+                tables: { projects: "work_projects" },
+                options: { maxAssignees: 0 },
+              },
+            },
+          },
+        );
+
+        const org = await s.organization(owner);
+        const transport = sqlTransport(s.sql);
+
+        await s.as(owner);
+
+        const views = createSavedViews({ transport });
+
+        for (const index of [0, 1, 2]) {
+          await views
+            .upsert({
+              organizationId: org,
+              list: "deals",
+              name: `${index < 2 ? "Holiday" : "Other"} view ${String(index)}`,
+              kind: index === 2 ? "board" : "table",
+              state: { query: { q: "x" } },
+            })
+            .orThrow();
+        }
+
+        await s.asRole(owner);
+
+        await testBlockList({
+          name: "saved views",
+          target: {
+            page: (options) => views.page({ ...options, organizationId: org }),
+            count: (options) =>
+              views.count({ ...options, organizationId: org }),
+            facets: (options) =>
+              views.facets({ ...options, organizationId: org }),
+            get: (id) => views.get(id),
+          },
+          rows: 3,
+          sorts: ["name"],
+          facets: { kind: { table: 2, board: 1 } },
+          arrayFilter: { column: "kind", values: ["table", "board"] },
+          search: "Holiday",
+        });
+
+        await everySort(savedViewListSurface, (options) =>
+          views.page({ ...options, organizationId: org }),
+        );
+
+        await s.service();
+        await s.as(owner);
+
+        const tasks = createTasks({ transport });
+        const team = crypto.randomUUID();
+
+        for (const [index, priority] of [1, 1, 2, 3, 3].entries()) {
+          await tasks
+            .create({
+              organizationId: org,
+              input: {
+                title: `${index < 2 ? "Holiday" : "Other"} task ${String(index)}`,
+                teamId: team,
+                priority,
+              },
+            })
+            .orThrow();
+        }
+
+        await testBlockList({
+          name: "tasks",
+          target: {
+            page: (options) => tasks.page({ ...options, organizationId: org }),
+            count: (options) =>
+              tasks.count({ ...options, organizationId: org }),
+            facets: (options) =>
+              tasks.facets({ ...options, organizationId: org }),
+            get: (id) => tasks.getTask(id),
+          },
+          rows: 5,
+          sorts: ["title", "number"],
+          facets: { priority: { "1": 2, "2": 1, "3": 2 } },
+          arrayFilter: { column: "priority", values: ["1", "3"] },
+          search: "Holiday",
+        });
+
+        await everySort(taskListSurface, (options) =>
+          tasks.page({ ...options, organizationId: org }),
+        );
+
+        for (const [key, status] of [
+          ["aaa", "active"],
+          ["bbb", "planned"],
+        ] as const) {
+          await tasks
+            .saveProject({
+              organizationId: org,
+              project: { key, name: `${key} project`, status },
+            })
+            .orThrow();
+        }
+
+        await testBlockList({
+          name: "projects",
+          target: {
+            page: (options) =>
+              tasks.pageProjects({ ...options, organizationId: org }),
+            count: (options) =>
+              tasks.countProjects({ ...options, organizationId: org }),
+            facets: (options) =>
+              tasks.projectFacets({ ...options, organizationId: org }),
+            get: (id) => tasks.getProject(id),
+          },
+          rows: 2,
+          sorts: ["name", "key"],
+          facets: { status: { active: 1, planned: 1 } },
+          arrayFilter: { column: "status", values: ["active", "planned"] },
+          search: "aaa",
+        });
+
+        await everySort(projectListSurface, (options) =>
+          tasks.pageProjects({ ...options, organizationId: org }),
+        );
+        expect((await tasks.getTask(MISSING)).ok).toBe(false);
+        expect((await tasks.getProject(MISSING)).ok).toBe(false);
       } finally {
         await s.close();
       }

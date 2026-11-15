@@ -295,8 +295,7 @@ ${lockTable(views, { read: true })}
     rowJson: viewJson("x"),
     defaultLimit: 50,
     maxLimit: 200,
-    invalid: (message: string) =>
-      fail("SAVED_VIEW_INVALID", message, "22023"),
+    invalid: (message: string) => fail("SAVED_VIEW_INVALID", message, "22023"),
   } as const;
 
   return `${schemaPreamble(ctx)}
