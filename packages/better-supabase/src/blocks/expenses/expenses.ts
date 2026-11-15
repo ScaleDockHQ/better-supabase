@@ -331,8 +331,12 @@ export interface Expenses<F extends object = Record<never, never>> {
   submitExpense(expenseId: string): AsyncResult<Expense<F>>;
   /** Moves a submitted expense back to draft. */
   withdrawExpense(expenseId: string): AsyncResult<Expense<F>>;
-  /** Deletes a draft expense. */
-  deleteExpense(expenseId: string): AsyncResult<boolean>;
+  /**
+   * Removes a draft expense for good (with `permissions.deleteSubmitted`, a
+   * submitted or approved one). Rejected and reimbursed expenses stay: their
+   * status is the archive. Records `expense.purged`.
+   */
+  purgeExpense(expenseId: string): AsyncResult<boolean>;
   decideExpense(input: {
     expenseId: string;
     decision: {
@@ -841,9 +845,9 @@ export function createExpenses<
         { expense_id: expenseId },
         expense("withdraw_expense"),
       ).andThen(fields.row),
-    deleteExpense: (expenseId) =>
+    purgeExpense: (expenseId) =>
       call(
-        "delete_expense",
+        "purge_expense",
         { expense_id: expenseId },
         (value) => value === true,
       ),

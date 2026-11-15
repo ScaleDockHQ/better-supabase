@@ -231,6 +231,9 @@ the `archived_at` column and replaces the delete function with `purge`.
 | `employees`                 | `employees.delete(id)`, `delete_employee()`               | `employees.purge(id)`, `purge_employee()`; offboarding stays the archive                          |
 | `employees`                 | event `employee.deleted`                                  | `employee.purged`                                                                                 |
 | `employees`                 | hooks `before_employee_delete`, `after_employee_delete`   | `before_employee_purge`, `after_employee_purge`                                                   |
+| `expenses`                  | `expenses.deleteExpense(id)`, `delete_expense()`          | `expenses.purgeExpense(id)`, `purge_expense()`; the status stays the archive                      |
+| `expenses`                  | event `expense.deleted`                                   | `expense.purged`                                                                                  |
+| `expenses`                  | `permissions.delete`                                      | `permissions.purge`; `delete` is still read when `purge` is unset                                 |
 | `scores`                    | `scores.deleteModel(id)`, `delete_score_model()`          | `scores.purgeModel(id)`, `purge_score_model()` (ADR 1053)                                         |
 | `scores`                    | event `score_model.deleted`                               | `score_model.purged`, plus `archived` and `restored`                                              |
 | `scores`                    | `models()` and `list_score_models()` show every row       | hide archived models; `models({ includeArchived: true })` adds them                               |
