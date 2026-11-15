@@ -1,5 +1,7 @@
+import type { RequiredTenantOption } from "../../core/entity-list.ts";
 import type { CredentialRef } from "../../credentials/provider.ts";
 import type {
+  AiBatch,
   AiProviderKey,
   AiKeys,
   AiKeysOptions,
@@ -7,6 +9,11 @@ import type {
 } from "./types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { revokeIfConfigured } from "../../credentials/compose.ts";
@@ -23,6 +30,7 @@ import {
   recordsOf,
   pageOf,
 } from "../shared.ts";
+import { batchListSurface, keyListSurface } from "./lists.ts";
 import { batchOf, itemOf, keyOf, refOf } from "./rows.ts";
 
 export type {
@@ -79,8 +87,34 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
       return ok(keys.length);
     });
 
+  const keyPages = entityList<AiProviderKey, RequiredTenantOption>({
+    entity: "ai_provider_key",
+    surface: keyListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_ai_provider_keys",
+    rowOf: (row) => keyOf(row),
+  });
+
+  const batchPages = entityList<AiBatch, RequiredTenantOption>({
+    entity: "ai_batch",
+    surface: batchListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_ai_batches",
+    rowOf: (row) => batchOf(row),
+  });
+
   const client: AiKeys = {
     keys: {
+      page: keyPages.page,
+      facets: keyPages.facets,
+      count: keyPages.count,
+      get: (keyId) =>
+        call("get_ai_provider_key", { id: keyId }, (value) =>
+          value === null || value === undefined ? undefined : keyOf(value),
+        ).andThen((row) => foundOrNotFound("ai_provider_key", row, keyId)),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: (organizationId, options) =>
         call("list_ai_provider_keys", { tenant: organizationId }, (value) => {
           const rows = recordsOf(value, "list_ai_provider_keys").map(keyOf);
@@ -219,10 +253,19 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
           },
           batchOf,
         ),
+      page: batchPages.page,
+      facets: batchPages.facets,
+      count: batchPages.count,
+      getBatch: (batchId) =>
+        call("get_ai_batch", { id: batchId }, (value) =>
+          value === null || value === undefined ? undefined : batchOf(value),
+        ).andThen((row) => foundOrNotFound("ai_batch", row, batchId)),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       get: (batchId) =>
         call("get_ai_batch", { id: batchId }, (value) =>
           value === null || value === undefined ? undefined : batchOf(value),
         ),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: ({ organizationId, ...listOptions }) =>
         call(
           "list_ai_batches",

@@ -23,6 +23,7 @@ import {
   PROVIDER_FILES,
   SUGGESTIONS,
 } from "./ai-files-names.ts";
+import { aiFilePageSql } from "./ai-files-pages.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { versionsTableDdl } from "./versions.ts";
@@ -598,6 +599,8 @@ as $$
   from ${files} x where x.${f.chat} = list_ai_files.chat_id
 $$;
 ${userGrant(`${fn("list_ai_files")}(uuid)`)}
+
+${aiFilePageSql(ctx, { id, f, files, fileJson })}
 
 -- Deletes the record; returns { bucket, path } for the Storage API to
 -- remove the object, or null when the caller may not delete it.

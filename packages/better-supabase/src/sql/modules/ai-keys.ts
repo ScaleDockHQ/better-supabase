@@ -9,8 +9,15 @@ import type { Columns } from "./module-columns.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
+  fail,
   raise,
   revokeTable,
   schemaPreamble,
@@ -229,6 +236,88 @@ function build(ctx: BlockSqlContext): string {
   const batchStatus = (row: string): string =>
     asText(ctx, "batches", `${row}.${b.status}`);
 
+  const keyIdKey = { expr: `x.${k.id}`, dir: "asc", type: "uuid" } as const;
+  const batchIdKey = { expr: `x.${b.id}`, dir: "asc", type: "uuid" } as const;
+  const never = "to_timestamp(0)";
+
+  const keyProviderKeys = [
+    { expr: `x.${k.provider}`, dir: "asc", type: "text" },
+    { expr: `lower(x.${k.name})`, dir: "asc", type: "text" },
+    keyIdKey,
+  ] as const;
+
+  const keyEnabled = key("enabled") ? `x.${k.enabled}::text` : "'true'";
+
+  const keyPage = {
+    name: "page_ai_provider_keys",
+    from: keys,
+    alias: "x",
+    where: [
+      `x.${k.tenant} = page_ai_provider_keys.tenant`,
+      filterAny("provider", `x.${k.provider}`),
+      filterAny("enabled", keyEnabled),
+      `(v_search is null or x.${k.provider} ilike v_search or x.${k.name} ilike v_search)`,
+    ],
+    keys: keyProviderKeys,
+    sorts: {
+      provider: [
+        { expr: `x.${k.provider}`, dir: "asc", type: "text" },
+        keyIdKey,
+      ],
+      name: [
+        { expr: `lower(x.${k.name})`, dir: "asc", type: "text" },
+        keyIdKey,
+      ],
+      createdAt: [
+        {
+          expr: key("createdAt") ? `x.${k.createdAt}` : never,
+          dir: "desc",
+          type: "timestamptz",
+        },
+        keyIdKey,
+      ],
+    },
+    facets: { provider: `x.${k.provider}`, enabled: keyEnabled },
+    rowJson: keyJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("AI_KEYS_INVALID", message, "22023"),
+  } as const;
+
+  const batchPage = {
+    name: "page_ai_batches",
+    from: batches,
+    alias: "x",
+    where: [
+      `x.${b.tenant} = page_ai_batches.tenant`,
+      filterAny("status", batchStatus("x")),
+      filterAny("provider", `x.${b.provider}`),
+    ],
+    keys: [
+      { expr: `x.${b.createdAt}`, dir: "desc", type: "timestamptz" },
+      batchIdKey,
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${b.createdAt}`, dir: "desc", type: "timestamptz" },
+        batchIdKey,
+      ],
+      provider: [
+        { expr: `x.${b.provider}`, dir: "asc", type: "text" },
+        batchIdKey,
+      ],
+      status: [
+        { expr: batchStatus("x"), dir: "asc", type: "text" },
+        batchIdKey,
+      ],
+    },
+    facets: { status: batchStatus("x"), provider: `x.${b.provider}` },
+    rowJson: batchJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("AI_BATCH_INVALID", message, "22023"),
+  } as const;
+
   const keyInsert: readonly (readonly [string, string])[] = [
     [k.tenant, "save_ai_provider_key.tenant"],
     [k.provider, "save_ai_provider_key.provider"],
@@ -403,6 +492,40 @@ as $$
   from ${keys} x where x.${k.tenant} = list_ai_provider_keys.tenant
 $$;
 ${userGrant(`${fn("list_ai_provider_keys")}(${id})`)}
+
+-- The tenant's provider keys as a keyset page (ADR 1077), by provider and
+-- name. filters is { provider, enabled (a value or a list), search (provider,
+-- name), sort (provider, name, createdAt), direction, facet, count, limit,
+-- after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_ai_provider_keys")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_ai_provider_keys.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(keyPage)}
+begin
+  ${listBody(keyPage)}
+end;
+$$;
+${userGrant(`${fn("page_ai_provider_keys")}(${id}, jsonb)`)}
+
+-- One provider key the caller can read, or null.
+create or replace function ${fn("get_ai_provider_key")}(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${keyJson("x")} from ${keys} x where x.${k.id} = get_ai_provider_key.id
+$$;
+${userGrant(`${fn("get_ai_provider_key")}(uuid)`)}
 
 -- Adds or replaces a tenant's key for a provider (${manage} or the service
 -- role). Returns the key and the credential_ref it replaced, which the caller
@@ -633,6 +756,27 @@ as $$
   ) x
 $$;
 ${userGrant(`${fn("list_ai_batches")}(${id}, text, integer)`)}
+
+-- The tenant's batches as a keyset page (ADR 1077), newest first. filters is
+-- { status, provider (a value or a list), sort (createdAt, provider, status),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+-- Batches have no text, so there is no search.
+create or replace function ${fn("page_ai_batches")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_ai_batches.filters, '{}'::jsonb);
+  ${listDeclare(batchPage)}
+begin
+  ${listBody(batchPage)}
+end;
+$$;
+${userGrant(`${fn("page_ai_batches")}(${id}, jsonb)`)}
 
 -- A page of a batch's results, after request_id after.
 create or replace function ${fn("list_ai_batch_items")}(id uuid, after text default null, max_rows integer default 100)

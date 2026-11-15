@@ -2,12 +2,13 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { createAgents } from "../../src/blocks/agents/index.ts";
-import { createKnowledge } from "../../src/blocks/knowledge/index.ts";
+import { createAiFiles } from "../../src/blocks/ai-files/index.ts";
+import { createAiKeys } from "../../src/blocks/ai-keys/index.ts";
+import { createAiSchedules } from "../../src/blocks/ai-schedules/index.ts";
 import { createKnowledge } from "../../src/blocks/knowledge/index.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { testBlockList } from "../../src/testing/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
-import { wordEmbedder } from "./word-embedder.ts";
 
 const live = await reachable();
 
@@ -234,104 +235,240 @@ describe.skipIf(!live)("the F11 block lists follow the list contract", () => {
     }
   });
 
-  it("pages knowledge documents and collections", async () => {
+  it("pages provider keys, batches and scheduled tasks", async () => {
     const s = await BlockSession.open(pool);
 
     try {
-      await s.install(["organizations", "ai-chat", "ai-files", "knowledge"]);
-      const owner = await s.user("knowledge-owner");
+      await s.install([
+        "organizations",
+        "credentials",
+        "ai-keys",
+        "ai-schedules",
+      ]);
+      const owner = await s.user("keys-owner");
       const org = await s.organization(owner);
       await s.asRole(owner);
 
-      const knowledge = createKnowledge({
-        transport: sqlTransport(s.sql),
-        embedder: wordEmbedder(),
-        chunking: { size: 60, overlap: 0 },
-      });
+      const transport = sqlTransport(s.sql);
+      const keys = createAiKeys({ transport });
+      const tasks = createAiSchedules({ transport });
 
-      const documents: string[] = [];
-
-      for (const title of [
-        "Alpha doc",
-        "Alpha notes",
-        "Beta doc",
-        "Beta notes",
-        "Gamma doc",
-      ]) {
-        const created = await knowledge.ingest
-          .text({
-            organizationId: org,
-            document: { title, text: `${title} body text` },
-          })
-          .orThrow();
-
-        documents.push(created.id);
-      }
-
-      await s.service();
-
-      for (const id of documents.slice(0, 2)) {
-        await knowledge.process({ documentId: id }).orThrow();
-      }
-
-      await s.asRole(owner);
-
-      await testBlockList({
-        name: "knowledge.documents",
-        target: {
-          page: (options) =>
-            knowledge.documents.page({ ...options, organizationId: org }),
-          count: (options) =>
-            knowledge.documents.count({ ...options, organizationId: org }),
-          facets: (options) =>
-            knowledge.documents.facets({ ...options, organizationId: org }),
-          get: (id) => knowledge.documents.get(id),
-        },
-        rows: 5,
-        sorts: ["title"],
-        facets: { status: { ready: 2, pending: 3 }, scope: { user: 5 } },
-        arrayFilter: { column: "status", values: ["ready", "pending"] },
-        search: "Alpha",
-      });
-
-      for (const [index, name] of [
-        "Alpha set",
-        "Alpha pack",
-        "Beta set",
-        "Beta pack",
-        "Gamma set",
+      for (const [index, [provider, name]] of [
+        ["anthropic", "Alpha key"],
+        ["anthropic", "Alpha spare"],
+        ["openai", "Beta key"],
+        ["openai", "Beta spare"],
+        ["google", "Gamma key"],
       ].entries()) {
-        await knowledge.collections
-          .create({
+        await s.value(
+          "better_supabase.save_ai_provider_key($1, $2, $3::jsonb, $4, '{}'::jsonb, $5)",
+          [
+            org,
+            provider,
+            JSON.stringify({
+              provider: "vault",
+              secret: `k${index}`,
+              tenant: org,
+            }),
+            name,
+            index < 3,
+          ],
+        );
+      }
+
+      for (const [index, provider] of [
+        "alpha",
+        "alpha",
+        "beta",
+        "beta",
+        "gamma",
+      ].entries()) {
+        await createAiKeys({ transport })
+          .batches.record({
             organizationId: org,
-            collection: {
-              name,
-              visibility: index < 2 ? "restricted" : "automatic",
-              priority: index,
+            batch: {
+              provider,
+              reference: { id: `b${index}` },
+              status: index < 3 ? "pending" : "completed",
             },
           })
           .orThrow();
       }
 
+      for (const [index, title] of [
+        "Alpha digest",
+        "Alpha report",
+        "Beta digest",
+        "Beta report",
+        "Gamma digest",
+      ].entries()) {
+        const created = await tasks
+          .create({
+            organizationId: org,
+            task: { title, prompt: "Summarize", cron: "0 9 * * *" },
+          })
+          .orThrow();
+
+        if (index >= 3) {
+          await tasks
+            .pause({ organizationId: org, taskId: created.id })
+            .orThrow();
+        }
+      }
+
+      await spreadTimes(s, "ai_provider_keys", ["created_at"]);
+      await spreadTimes(s, "ai_batches", ["created_at"]);
+      await spreadTimes(s, "ai_scheduled_tasks", ["created_at"]);
+      await s.asRole(owner);
+
       await testBlockList({
-        name: "knowledge.collections",
+        name: "ai-keys.keys",
         target: {
           page: (options) =>
-            knowledge.collections.page({ ...options, organizationId: org }),
+            keys.keys.page({ ...options, organizationId: org }),
           count: (options) =>
-            knowledge.collections.count({ ...options, organizationId: org }),
+            keys.keys.count({ ...options, organizationId: org }),
           facets: (options) =>
-            knowledge.collections.facets({ ...options, organizationId: org }),
-          get: (id) => knowledge.collections.get(id),
+            keys.keys.facets({ ...options, organizationId: org }),
+          get: (id) => keys.keys.get(id),
         },
         rows: 5,
-        sorts: ["name", "priority"],
-        facets: { visibility: { restricted: 2, automatic: 3 } },
-        arrayFilter: {
-          column: "visibility",
-          values: ["restricted", "automatic"],
+        sorts: ["name", "createdAt"],
+        facets: {
+          provider: { anthropic: 2, openai: 2, google: 1 },
+          enabled: { true: 3, false: 2 },
         },
+        arrayFilter: { column: "provider", values: ["anthropic", "openai"] },
         search: "Alpha",
+      });
+
+      await testBlockList({
+        name: "ai-keys.batches",
+        target: {
+          page: (options) =>
+            keys.batches.page({ ...options, organizationId: org }),
+          count: (options) =>
+            keys.batches.count({ ...options, organizationId: org }),
+          facets: (options) =>
+            keys.batches.facets({ ...options, organizationId: org }),
+          get: (id) => keys.batches.getBatch(id),
+        },
+        rows: 5,
+        sorts: ["createdAt"],
+        facets: {
+          status: { pending: 3, completed: 2 },
+          provider: { alpha: 2, beta: 2, gamma: 1 },
+        },
+        arrayFilter: { column: "provider", values: ["alpha", "beta"] },
+      });
+
+      await testBlockList({
+        name: "ai-schedules.tasks",
+        target: {
+          page: (options) => tasks.page({ ...options, organizationId: org }),
+          count: (options) => tasks.count({ ...options, organizationId: org }),
+          facets: (options) =>
+            tasks.facets({ ...options, organizationId: org }),
+          get: (id) => tasks.get(id),
+        },
+        rows: 5,
+        sorts: ["createdAt", "title"],
+        facets: { enabled: { true: 3, false: 2 } },
+        arrayFilter: { column: "enabled", values: ["true", "false"] },
+        search: "Alpha",
+      });
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("pages ai files", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "outbox", "ai-chat", "ai-files"]);
+      const owner = await s.user("files-owner");
+      const org = await s.organization(owner);
+      await s.asRole(owner);
+
+      const files = createAiFiles({
+        transport: sqlTransport(s.sql),
+        storage: {
+          from: () => ({
+            createSignedUploadUrl: (path) =>
+              Promise.resolve({
+                data: { signedUrl: `https://storage.test/${path}`, token: "t" },
+                error: null,
+              }),
+            createSignedUrl: (path) =>
+              Promise.resolve({
+                data: { signedUrl: `https://storage.test/${path}` },
+                error: null,
+              }),
+            download: () =>
+              Promise.resolve({
+                data: new Blob([new Uint8Array([1])]),
+                error: null,
+              }),
+            remove: () => Promise.resolve({ data: [], error: null }),
+            upload: () => Promise.resolve({ data: {}, error: null }),
+          }),
+        },
+      });
+
+      for (const [index, [filename, mediaType]] of [
+        ["alpha one.png", "image/png"],
+        ["alpha two.png", "image/png"],
+        ["beta three.pdf", "application/pdf"],
+        ["beta four.pdf", "application/pdf"],
+        ["gamma five.txt", "text/plain"],
+      ].entries()) {
+        const { file } = await files.files
+          .upload({
+            organizationId: org,
+            file: {
+              filename: filename ?? "",
+              mediaType: mediaType ?? "",
+              size: index + 1,
+            },
+          })
+          .orThrow();
+
+        if (index < 3) {
+          await s.client.query("reset role");
+          await s.client.query(
+            "update better_supabase.ai_files set status = 'ready', uploaded_at = now() where id = $1",
+            [file.id],
+          );
+          await s.asRole(owner);
+        }
+      }
+
+      await spreadTimes(s, "ai_files", ["created_at"]);
+      await s.asRole(owner);
+
+      await testBlockList({
+        name: "ai-files.files",
+        target: {
+          page: (options) =>
+            files.files.page({ ...options, organizationId: org }),
+          count: (options) =>
+            files.files.count({ ...options, organizationId: org }),
+          facets: (options) =>
+            files.files.facets({ ...options, organizationId: org }),
+          get: (id) => files.files.get(id),
+        },
+        rows: 5,
+        sorts: ["createdAt", "filename", "size"],
+        facets: {
+          status: { ready: 3, pending: 2 },
+          mediaType: { "image/png": 2, "application/pdf": 2, "text/plain": 1 },
+        },
+        arrayFilter: {
+          column: "mediaType",
+          values: ["image/png", "application/pdf"],
+        },
+        search: "alpha",
       });
     } finally {
       await s.close();
