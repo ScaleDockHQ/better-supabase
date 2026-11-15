@@ -2792,6 +2792,8 @@
       "QueueProvider",
       "QueuePurgeOptions",
       "QueueRpcClient",
+      "QueueRun",
+      "QueueRunState",
       "QueueSchemas",
       "QueueStats",
       "RetryDeadOptions",

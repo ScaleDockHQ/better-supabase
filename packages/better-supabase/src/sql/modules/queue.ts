@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the run record (get_job, queue.get and the job source) adds lines past the limit. 1 finding. */
 import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
@@ -420,6 +421,56 @@ begin
      from pgmq.%1$I q',
     'q_' || queue, 'a_' || queue
   );
+end;
+$$;
+
+-- One message's state without its payload: waiting, running, done or dead.
+-- Null when the id is unknown or purge_job_archive removed it, and for a dead
+-- letter that replay_dead_job moved to a new id.
+create or replace function better_supabase.get_job(queue text, job_id bigint)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  found jsonb;
+begin
+  if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is not null then
+    execute format($q$
+      select jsonb_build_object(
+        'queue', %L,
+        'id', msg_id,
+        'state', case when read_ct > 0 and vt > clock_timestamp() and not message ? 'last_error' then 'running' else 'waiting' end,
+        'attempts', read_ct,
+        'enqueuedAt', enqueued_at,
+        'lastError', message ->> 'last_error',
+        'maxAttempts', coalesce((message ->> 'max_attempts')::integer, 5))
+      from pgmq.%I where msg_id = $1$q$, queue, 'q_' || queue)
+      into found using job_id;
+    if found is not null then
+      return found;
+    end if;
+  end if;
+  if pg_catalog.to_regclass(format('pgmq.%I', 'a_' || queue)) is not null then
+    execute format($q$
+      select jsonb_build_object(
+        'queue', %L,
+        'id', msg_id,
+        'state', case when message ? 'dead' then 'dead' else 'done' end,
+        'attempts', read_ct,
+        'enqueuedAt', enqueued_at,
+        'finishedAt', archived_at,
+        'lastError', message ->> 'last_error',
+        'maxAttempts', coalesce((message ->> 'max_attempts')::integer, 5))
+      from pgmq.%I where msg_id = $1$q$, queue, 'a_' || queue)
+      into found using job_id;
+    if found is not null then
+      return found;
+    end if;
+  end if;
+  return null;
 end;
 $$;
 
@@ -904,6 +955,7 @@ const GRANTS = (backend: JobsBackend): string =>
     "purge_job_archive(text, interval, integer, interval)",
     "replay_dead_job(text, bigint)",
     "job_queue_stats(text)",
+    "get_job(text, bigint)",
     "list_dead_jobs(text, integer, bigint)",
     "retry_dead_jobs(text, bigint[], integer)",
     "http_tick()",
@@ -964,7 +1016,7 @@ export const JOBS: BlockSqlDefinition = {
   requires: ["housekeeping"],
   integrates: ["data-lifecycle"],
   target: "schema",
-  version: 14,
+  version: 16,
   names: NAMES,
   data: (ctx) =>
     [
@@ -978,6 +1030,18 @@ export const JOBS: BlockSqlDefinition = {
       .filter((part) => part !== "")
       .join("\n\n"),
   upgrades: [
+    {
+      from: 14,
+      description:
+        "get_job(queue, job_id) reads one message's state (waiting, running, done or dead) without its payload, the run record behind queue.get and the queue job source.",
+      sql: () => "",
+    },
+    {
+      from: 15,
+      description:
+        "get_job builds the record in one statement per table, so plpgsql_check sees no record that is not assigned yet.",
+      sql: () => "",
+    },
     {
       from: 13,
       description:
