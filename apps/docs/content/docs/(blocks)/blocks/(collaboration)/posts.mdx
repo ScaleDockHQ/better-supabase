@@ -65,14 +65,18 @@ const rows = usePosts({ limit: 50 });
 once set and `archived: true` hides it from `boards()`. `create` writes a
 post that shows at once, or with the `moderation: "pre"` option waits for a
 moderator. A banned member can't post. `update(postId, input)` changes the
-caller's own post while it isn't locked, or any post for a moderator, and
-`delete(postId)` removes a post with its votes. `postInputSchema` and
-`postBoardInputSchema` validate the inputs.
+caller's own post while it isn't locked, or any post for a moderator.
+`archive(postId)` hides a post from `list` (its author or a moderator), and an
+archived post takes no votes, replies or edits until `restore(postId)` brings
+it back. `purge(postId)` removes a post with its votes: `permissions.purge`
+gates it when you set that key, and otherwise its author or a moderator.
+`postInputSchema` and `postBoardInputSchema` validate the inputs.
 
 `list({ boardId, status, authorId, sort })` returns the posts the caller
 reads. `sort` is `active` (pinned first, then the latest activity, the
 default), `new` or `top` (most votes). Posts merged into others stay out
-unless you pass `merged: true`. Each post carries its `votes` tally with the
+unless you pass `merged: true`, and archived ones unless you pass
+`archived: true`, which lists only them. Each post carries its `votes` tally with the
 caller's own vote, its `replyCount` and whether the caller wrote it
 (`mine`).
 
@@ -147,8 +151,8 @@ blocks: {
 ## Events
 
 The block writes `post_board.created`, `post_board.updated`, and per post `post.created`,
-`post.updated`, `post.status_changed`, `post.moderated`, `post.merged` and
-`post.deleted`, to the [outbox](/docs/blocks/outbox). See
+`post.updated`, `post.status_changed`, `post.moderated`, `post.merged`,
+`post.archived`, `post.restored` and `post.purged`, to the [outbox](/docs/blocks/outbox). See
 [Events](/docs/extending/events).
 
 | Error code             | When                                                             |

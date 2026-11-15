@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { archiveRestoreContract } from "../archive-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { schemaPreamble } from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
@@ -41,7 +42,9 @@ const EVENTS: BlockSqlEvents<PostsEvents> = {
   "post.status_changed": post,
   "post.moderated": post,
   "post.merged": post,
-  "post.deleted": post,
+  "post.archived": post,
+  "post.restored": post,
+  "post.purged": post,
 };
 
 const NAMES: BlockSqlNames = {
@@ -95,6 +98,7 @@ const NAMES: BlockSqlNames = {
         moderation: "moderation_status",
         pinnedAt: "pinned_at",
         lockedAt: "locked_at",
+        archivedAt: "archived_at",
         mergedInto: "merged_into_id",
         replyCount: "reply_count",
         lastActivityAt: "last_activity_at",
@@ -104,6 +108,7 @@ const NAMES: BlockSqlNames = {
       optional: [
         "pinnedAt",
         "lockedAt",
+        "archivedAt",
         "replyCount",
         "lastActivityAt",
         "updatedAt",
@@ -168,7 +173,7 @@ create table if not exists ${posts} (
   ${p("body")} text not null default '' check (length(${p("body")}) <= ${String(q.maxBody)}),
   ${p("status")} text not null default 'open' check (${p("status")} in (${statuses})),
   -- The moderation item's status, kept in step by a trigger.
-  ${p("moderation")} text not null default 'visible' check (${p("moderation")} in ('visible', 'pending', 'hidden', 'removed')),${column("posts", "pinnedAt", () => "timestamptz")}${column("posts", "lockedAt", () => "timestamptz")}
+  ${p("moderation")} text not null default 'visible' check (${p("moderation")} in ('visible', 'pending', 'hidden', 'removed')),${column("posts", "pinnedAt", () => "timestamptz")}${column("posts", "lockedAt", () => "timestamptz")}${column("posts", "archivedAt", () => "timestamptz")}
   ${p("mergedInto")} uuid references ${posts} (${p("id")}) on delete set null check (${p("mergedInto")} is distinct from ${p("id")}),${column("posts", "replyCount", () => "integer not null default 0")}${column("posts", "lastActivityAt", () => "timestamptz not null default now()")}
   ${p("createdAt")} timestamptz not null default now()${q.hasPost("updatedAt") ? `,\n  ${p("updatedAt")} timestamptz not null default now()` : ""}
 );
@@ -229,7 +234,8 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "set_post_state", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "vote_on_post", args: ["uuid", "integer"], returns: "jsonb" },
     { name: "merge_posts", args: ["uuid", "uuid"], returns: "jsonb" },
-    { name: "delete_post", args: ["uuid"], returns: "boolean" },
+    ...archiveRestoreContract("post"),
+    { name: "purge_post", args: ["uuid"], returns: "jsonb" },
   ];
 }
 
