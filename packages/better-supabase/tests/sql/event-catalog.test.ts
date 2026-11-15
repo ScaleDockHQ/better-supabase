@@ -68,6 +68,9 @@ const OPTIONAL = new Set([
   "subject.accessed",
   "field_value.deleted",
   "team.restored",
+  // Recorded only when blocks.invoices.columns.invoices names archivedAt.
+  "invoice.archived",
+  "invoice.restored",
   "timesheet.rejected",
   "leave_request.rejected",
   "expense_report.rejected",

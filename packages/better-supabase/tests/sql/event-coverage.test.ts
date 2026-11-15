@@ -50,6 +50,8 @@ const NOT_LITERAL = [
   "activities: activity.recorded",
   "activities: activity.transcribed",
   "activities: activity.summarized",
+  "invoices: invoice.archived",
+  "invoices: invoice.restored",
   "leave: leave_request.rejected",
   "passes: pass.credit_used",
   "passes: pass.credit_refunded",

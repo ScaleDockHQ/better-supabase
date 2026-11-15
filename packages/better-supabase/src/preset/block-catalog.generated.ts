@@ -1827,10 +1827,12 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
+        "booking.archived",
         "booking.cancelled",
         "booking.confirmed",
         "booking.expired",
-        "booking.reserved"
+        "booking.reserved",
+        "booking.restored"
       ],
       "subpath": "better-supabase/blocks/bookings",
       "react": {
@@ -3518,10 +3520,12 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
+        "shipment.archived",
         "shipment.cancelled",
         "shipment.created",
         "shipment.labeled",
         "shipment.proof_recorded",
+        "shipment.restored",
         "shipment.status_changed"
       ],
       "subpath": "better-supabase/blocks/shipments",
@@ -4125,9 +4129,11 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
+        "risk.archived",
         "risk.assessed",
         "risk.closed",
         "risk.created",
+        "risk.restored",
         "risk.review_date_reached",
         "risk.reviewed",
         "risk.treatment_changed",

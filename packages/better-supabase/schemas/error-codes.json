@@ -684,6 +684,10 @@
     "message": "Not allowed to read every tenant"
   },
   {
+    "code": "BOOKING_ACTIVE",
+    "message": "only a cancelled booking or one that has ended is archived"
+  },
+  {
     "code": "BOOKING_CUSTOMER_INVALID",
     "message": "a guest booking needs a name and an email"
   },
@@ -3014,6 +3018,10 @@
     "message": "the caller is not the approver of a pending level"
   },
   {
+    "code": "INVOICE_ARCHIVE_UNSUPPORTED",
+    "message": "this invoices table has no archive column"
+  },
+  {
     "code": "INVOICE_ATTRS_INVALID",
     "message": "attrs is an object, and a title isn"
   },
@@ -5034,6 +5042,10 @@
   {
     "code": "SHIFT_TEMPLATE_NOT_FOUND",
     "message": "shift template not found"
+  },
+  {
+    "code": "SHIPMENT_ACTIVE",
+    "message": "only a delivered, returned or cancelled shipment is archived"
   },
   {
     "code": "SHIPMENT_ADDRESS_INVALID",

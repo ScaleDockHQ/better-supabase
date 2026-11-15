@@ -42,6 +42,7 @@ export function bookingOf(value: unknown): Booking {
     ...text("notes"),
     ...instant("createdAt"),
     ...instant("cancelledAt"),
+    ...instant("archivedAt"),
     ...text("cancelReason"),
     ...text("seriesId"),
   };

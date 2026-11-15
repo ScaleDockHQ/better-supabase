@@ -38,6 +38,12 @@ import { registeredSubjects } from "../subject-registry.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import {
+  ARCHIVE_EVENTS,
+  archiveContract,
+  archiveFilter,
+  archiveFunctions,
+} from "./shipments-archive.ts";
+import {
   INTRASTAT_TABLE,
   intrastatContract,
   intrastatFunctions,
@@ -83,6 +89,7 @@ const EVENTS: BlockSqlEvents<ShipmentsEvents> = {
     subject: "shipments",
     payload: ["organizationId", "id", "trackingNumber"],
   },
+  ...ARCHIVE_EVENTS,
   "shipment.proof_recorded": {
     subject: "shipments",
     payload: ["organizationId", "id", "deliveredTo"],
@@ -142,6 +149,7 @@ const NAMES: BlockSqlNames = {
         labeledAt: "labeled_at",
         deliveredAt: "delivered_at",
         cancelledAt: "cancelled_at",
+        archivedAt: "archived_at",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -155,6 +163,7 @@ const NAMES: BlockSqlNames = {
         "subjectId",
         "trackingUrl",
         "labelUrl",
+        "archivedAt",
         "createdBy",
       ],
       typed: ["status"],
@@ -286,7 +295,7 @@ create table if not exists ${shipments} (
   ${h("currency")} text check (${h("currency")} is null or ${h("currency")} ~ '^[A-Z]{3}$'),
   ${h("labeledAt")} timestamptz,
   ${h("deliveredAt")} timestamptz,
-  ${h("cancelledAt")} timestamptz,${column("shipments", "createdBy", (name) => `${name} uuid`)}
+  ${h("cancelledAt")} timestamptz,${column("shipments", "archivedAt", (name) => `${name} timestamptz`)}${column("shipments", "createdBy", (name) => `${name} uuid`)}
   ${h("createdAt")} timestamptz not null default now(),
   ${h("updatedAt")} timestamptz not null default now(),${subject ? `\n  check ((${h("subjectType")} is null) = (${h("subjectId")} is null)),` : ""}
   check ((${h("labelCost")} is null) = (${h("currency")} is null)),
@@ -419,7 +428,7 @@ function functions(
 
   const shipmentJson = (row: string): string =>
     withExtraFields(
-      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${ctx.label("shipments", "status", `${row}.${h("status")}`)}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'direction', ${or("shipments", row, "direction")}, 'fromLocationId', ${or("shipments", row, "fromLocation")}, 'subjectType', ${or("shipments", row, "subjectType")}, 'subjectId', ${or("shipments", row, "subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${or("shipments", row, "trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${or("shipments", row, "labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'deliveredTo', ${or("shipments", row, "deliveredTo")}, 'proofReference', ${or("shipments", row, "proofReference")}, 'proofAttachmentId', ${or("shipments", row, "proofAttachment")}, 'proofRecordedAt', ${or("shipments", row, "proofRecordedAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'createdBy', ${or("shipments", row, "createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)}, 'lines', ${linesJson(ctx, row)})`,
+      `jsonb_build_object('id', ${row}.${h("id")}, 'organizationId', ${row}.${h("tenant")}::text, 'reference', ${row}.${h("reference")}, 'status', ${ctx.label("shipments", "status", `${row}.${h("status")}`)}, 'from', ${row}.${h("fromAddress")}, 'to', ${row}.${h("toAddress")}, 'direction', ${or("shipments", row, "direction")}, 'fromLocationId', ${or("shipments", row, "fromLocation")}, 'subjectType', ${or("shipments", row, "subjectType")}, 'subjectId', ${or("shipments", row, "subjectId")}, 'carrier', ${row}.${h("carrier")}, 'service', ${row}.${h("service")}, 'trackingNumber', ${row}.${h("trackingNumber")}, 'trackingUrl', ${or("shipments", row, "trackingUrl")}, 'labelId', ${row}.${h("labelId")}, 'labelUrl', ${or("shipments", row, "labelUrl")}, 'labelFormat', ${row}.${h("labelFormat")}, 'labelCost', ${row}.${h("labelCost")}::text, 'currency', ${row}.${h("currency")}, 'labeledAt', ${row}.${h("labeledAt")}, 'deliveredAt', ${row}.${h("deliveredAt")}, 'deliveredTo', ${or("shipments", row, "deliveredTo")}, 'proofReference', ${or("shipments", row, "proofReference")}, 'proofAttachmentId', ${or("shipments", row, "proofAttachment")}, 'proofRecordedAt', ${or("shipments", row, "proofRecordedAt")}, 'cancelledAt', ${row}.${h("cancelledAt")}, 'archivedAt', ${or("shipments", row, "archivedAt")}, 'createdBy', ${or("shipments", row, "createdBy")}, 'createdAt', ${row}.${h("createdAt")}, 'updatedAt', ${row}.${h("updatedAt")}, 'packages', ${packagesJson(row)}, 'lines', ${linesJson(ctx, row)})`,
       row,
       extras,
     );
@@ -537,6 +546,7 @@ function functions(
       `x.${h("tenant")} = list_shipments.tenant`,
       filterAny("status", shipStatus("x")),
       filterAny("carrier", `x.${h("carrier")}`),
+      ...archiveFilter(ctx, h),
       linked
         ? `(not v_filters ? 'subjectType' or (x.${h("subjectType")} = v_filters ->> 'subjectType' and x.${h("subjectId")} = v_filters ->> 'subjectId'))`
         : `(not v_filters ? 'subjectType')`,
@@ -837,9 +847,9 @@ ${findForWrite("cancel_shipment.shipment_id")}
 end;
 $$;
 ${userGrant(`${fn("cancel_shipment")}(uuid)`)}
-${
-  ctx.has("shipments", "direction")
-    ? `
+${archiveFunctions({ ctx, shipments, h, fn, st, findForWrite, shipmentJson, base, subject, audited })}${
+    ctx.has("shipments", "direction")
+      ? `
 -- Sets whether a draft shipment leaves the organization (outbound) or comes
 -- to it (inbound). Lines keep their own direction.
 create or replace function ${fn("set_shipment_direction")}(shipment_id uuid, direction text)
@@ -867,8 +877,8 @@ end;
 $$;
 ${userGrant(`${fn("set_shipment_direction")}(uuid, text)`)}
 `
-    : ""
-}${proofFunctionSql(ctx, {
+      : ""
+  }${proofFunctionSql(ctx, {
     shipments,
     h,
     findForWrite,
@@ -1006,6 +1016,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "cancel_shipment", args: ["uuid"], returns: "jsonb" },
+    ...archiveContract(ctx),
     ...(ctx.has("shipments", "direction")
       ? [
           {

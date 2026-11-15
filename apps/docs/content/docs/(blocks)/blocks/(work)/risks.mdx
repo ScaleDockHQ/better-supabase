@@ -151,6 +151,19 @@ reminders: {
 },
 ```
 
+## Archive and restore
+
+`archive(riskId)` takes a risk of any status out of the lists, the heatmap and
+the review reminders, and keeps its assessments and versions. It needs
+`risks.manage` and records `risk.archived`. `restore(riskId)` brings the risk
+back and records `risk.restored`. Both return the risk, and calling either on
+a risk that is already in that state changes nothing and records nothing.
+
+```ts
+await risks.archive(risk.id).orThrow();
+await risks.restore(risk.id).orThrow();
+```
+
 ## Barriers and the heatmap
 
 With relations installed, a risk links to what mitigates it through the
