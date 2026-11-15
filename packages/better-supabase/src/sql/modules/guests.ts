@@ -10,7 +10,12 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { guestFunctions, providerGuestSource } from "../guest-sql.ts";
-import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { GUEST_ACTIONS } from "../scope.ts";
 import {
@@ -363,6 +368,7 @@ function functions(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     where: [
       `x.${g("tenant")} = page_guests.tenant`,
       filterAny("status", asText(ctx, "guests", `x.${g("status")}`)),
+      `(v_search is null or x.${g("email")} ilike v_search or ${guest("x", "name", "''")} ilike v_search)`,
     ],
     keys: idKeys,
     sorts: {
@@ -805,6 +811,7 @@ as $$
 #variable_conflict use_column
 declare
   v_filters jsonb := coalesce(page_guests.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(pageList)}
 begin
   if not ${allowed("page_guests.tenant", read)} then

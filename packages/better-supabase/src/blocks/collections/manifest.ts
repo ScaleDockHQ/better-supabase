@@ -4,6 +4,7 @@ import type { CollectionsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createCollections } from "./collections.ts";
 import { collectionsEvents } from "./events.ts";
+import { collectionListSurface } from "./lists.ts";
 
 /** The `collections` block's manifest (ADR 0029). */
 export const collectionsBlock: BlockOf<
@@ -18,7 +19,9 @@ export const collectionsBlock: BlockOf<
   consumes: { notifier: "optional" },
   create: createCollections,
   category: "work",
-  entities: { subject_collection: { mutability: "read-only" } },
+  entities: {
+    subject_collection: { ...collectionListSurface, mutability: "read-only" },
+  },
   concerns: ["lifecycle"],
   description:
     "Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.",

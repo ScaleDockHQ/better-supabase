@@ -9,12 +9,13 @@ import { cacheTag } from "next/cache";
 import type { BlockPage } from "@/lib/block-page";
 import type { BlockListQuery } from "@/lib/block-status-list";
 
+import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
 import { bsb } from "@/lib/supabase/server";
 
 import type { CollectionRow } from "./collection-row";
 
 import { COLLECTIONS_TAG } from "./collections-cache";
-import { collectionList } from "./collections-list";
+import { COLLECTION_PAGE_SIZE, collectionList } from "./collections-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
@@ -30,7 +31,11 @@ function toRow(collection: Collection): CollectionRow {
   };
 }
 
-/** The collections the filters keep, newest first. */
+/**
+ * The collections the filters keep, newest first: the scopes go to the block as
+ * one list filter, `q` searches the name and the description, and the keyset
+ * cursor `after` holds pages on.
+ */
 export async function loadCollectionPage(
   db: Db,
   organizationId: string,
@@ -39,26 +44,28 @@ export async function loadCollectionPage(
   const scopes = query.facets["scope"] ?? [];
   const states = query.facets["state"] ?? [];
 
-  const result = await db.collections.list({
+  const result = await db.collections.collectionPage({
     organizationId,
-    includeArchived: states.includes("archived"),
+    sort: { by: "createdAt" },
+    ...pageOptionsOf(query, COLLECTION_PAGE_SIZE, {
+      scope: scopes,
+      includeArchived: states.includes("archived") ? ["true"] : [],
+    }),
   });
 
   if (!result.ok) {
     return result;
   }
 
-  const items = result.data
+  const items = result.data.items
     .map(toRow)
     .filter(
       (row) =>
-        (scopes.length === 0 || scopes.includes(row.scope)) &&
-        (states.length === 0 ||
-          states.includes(row.archived ? "archived" : "active")),
-    )
-    .toSorted((a, b) => b.createdAt.localeCompare(a.createdAt));
+        states.length === 0 ||
+        states.includes(row.archived ? "archived" : "active"),
+    );
 
-  return ok({ items, nextCursor: null });
+  return ok({ items, nextCursor: encodeCursor(result.data.nextCursor) });
 }
 
 /** The first page of collections, for the instant shell. */
@@ -107,14 +114,12 @@ export async function getCollection(
   const { session, db } = await bsb.cached();
   cacheTag(COLLECTIONS_TAG);
 
-  const organizationId = tenantOf(session);
-
-  if (!organizationId) {
+  if (!tenantOf(session)) {
     return null;
   }
 
-  const [all, entries, customers] = await Promise.all([
-    db.collections.list({ organizationId, includeArchived: true }),
+  const [found, entries, customers] = await Promise.all([
+    db.collections.get(id),
     db.collections.entries({ id, limit: 100 }),
     db.customers.list({
       orderBy: { name: "asc" },
@@ -123,15 +128,15 @@ export async function getCollection(
     }),
   ]);
 
-  if (!all.ok) {
-    throw new Error(all.error.message);
+  if (!found.ok) {
+    if (found.error.kind === "not_found") {
+      return null;
+    }
+
+    throw new Error(found.error.message);
   }
 
-  const collection = all.data.find((row) => row.id === id);
-
-  if (collection === undefined) {
-    return null;
-  }
+  const collection = found.data;
 
   if (!entries.ok) {
     throw new Error(entries.error.message);

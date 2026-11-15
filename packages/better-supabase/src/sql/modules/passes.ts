@@ -9,7 +9,12 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { ensureExclusion } from "../exclusion.ts";
-import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import {
   addForeignKey,
   fail,
@@ -390,6 +395,7 @@ function functions(ctx: BlockSqlContext): string {
       `x.${p("tenant")} = page_passes.tenant`,
       filterAny("holderUserId", `x.${p("holderUser")}`, "uuid"),
       filterAny("status", passStatus("x")),
+      `(v_search is null or coalesce(${pass("x", "holderName")}, '') ilike v_search or coalesce(${pass("x", "holderEmail")}, '') ilike v_search)`,
     ],
     keys: createdKeys,
     sorts: {
@@ -758,6 +764,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(page_passes.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(pageList)}
 begin
   if not ${allowed("page_passes.tenant", read)} then

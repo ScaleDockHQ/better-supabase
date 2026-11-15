@@ -157,13 +157,19 @@ describe("guests get, page, facets and count", () => {
     ]);
   });
 
-  it("rejects a search, since guests declare none", async () => {
-    const guests = createGuests({
-      transport: fieldsTransport({}),
-      tenant: "org-1",
+  it("sends a search over the email and the name", async () => {
+    const t = fieldsTransport({
+      page_guests: () => ({ items: [], hasMore: false }),
     });
 
-    expect((await guests.page({ q: "ada" })).error?.kind).toBe("invalid_input");
+    await createGuests({ transport: t, tenant: "org-1" })
+      .page({ q: "ada" })
+      .orThrow();
+
+    expect(t.calls[0]).toEqual([
+      "page_guests",
+      { tenant: "org-1", filters: { search: "ada", paged: true } },
+    ]);
   });
 });
 

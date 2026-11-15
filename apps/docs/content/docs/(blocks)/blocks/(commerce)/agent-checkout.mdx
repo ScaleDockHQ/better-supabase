@@ -147,7 +147,7 @@ to the outbox, and every change is audited.
 
 ## Paging a list
 
-`listSessions` is the capped convenience list. `sessionPage` is the full contract for checkout sessions (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `expiresAt`, and the default order is createdAt (newest first); filters are `status`, `protocol`, `cartId`; facets are `status`, `protocol`.
+`listSessions` is the capped convenience list, deprecated in favor of `sessionPage` (ADR 1077). `sessionPage` is the full contract for checkout sessions (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `expiresAt`, and the default order is createdAt (newest first); filters are `status`, `protocol`, `cartId`; facets are `status`, `protocol`; `q` searches the idempotency key and the session id.
 
 ```ts
 const first = await checkout
@@ -179,7 +179,7 @@ const total = await checkout
   .orThrow();
 ```
 
-`listMandates` is the capped convenience list. `mandatePage` is the full contract for agent mandates (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `expiresAt`, and the default order is createdAt (newest first); filters are `sessionId`, `status`, `vct`; facets are `status`, `vct`.
+`listMandates` is the capped convenience list, deprecated in favor of `mandatePage` (ADR 1077). `mandatePage` is the full contract for agent mandates (ADR 0749): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `expiresAt`, and the default order is createdAt (newest first); filters are `sessionId`, `status`, `vct`; facets are `status`, `vct`; `q` searches the mandate subject and the issuer key id.
 
 ```ts
 const first = await checkout

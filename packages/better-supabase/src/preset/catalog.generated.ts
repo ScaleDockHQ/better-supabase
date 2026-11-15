@@ -15986,6 +15986,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "collection.entry_removed",
           "saved_item.reminded"
         ]
+      },
+      "entityLists": {
+        "subject_collection": {
+          "sorts": [
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "subjectType",
+            "scope"
+          ],
+          "filters": [
+            "subjectType",
+            "scope",
+            "includeArchived"
+          ],
+          "search": [
+            "name",
+            "description"
+          ]
+        }
       }
     },
     {
@@ -16670,6 +16691,28 @@ export const PRESET_CATALOG: PresetCatalog = {
           "review.replied",
           "review.deleted"
         ]
+      },
+      "entityLists": {
+        "review": {
+          "sorts": [
+            "publishedAt",
+            "rating"
+          ],
+          "facets": [
+            "rating",
+            "verified"
+          ],
+          "filters": [
+            "subjectType",
+            "subjectId",
+            "rating",
+            "verified"
+          ],
+          "search": [
+            "title",
+            "body"
+          ]
+        }
       }
     },
     {
@@ -17360,6 +17403,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           ],
           "filters": [
             "status"
+          ],
+          "search": [
+            "email",
+            "name"
           ]
         }
       }
@@ -17605,6 +17652,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "filters": [
             "status",
             "holderUserId"
+          ],
+          "search": [
+            "holderName",
+            "holderEmail"
           ]
         }
       }
@@ -17975,6 +18026,9 @@ export const PRESET_CATALOG: PresetCatalog = {
             "unitId",
             "partyType",
             "partyId"
+          ],
+          "search": [
+            "title"
           ]
         }
       }
@@ -25295,6 +25349,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "filters": [
             "status",
             "assetId"
+          ],
+          "search": [
+            "title"
           ]
         }
       }
@@ -26283,6 +26340,10 @@ export const PRESET_CATALOG: PresetCatalog = {
             "status",
             "protocol",
             "cartId"
+          ],
+          "search": [
+            "idempotencyKey",
+            "id"
           ]
         },
         "agent_mandate": {
@@ -26298,6 +26359,10 @@ export const PRESET_CATALOG: PresetCatalog = {
             "sessionId",
             "status",
             "vct"
+          ],
+          "search": [
+            "subject",
+            "issuerKid"
           ]
         }
       }

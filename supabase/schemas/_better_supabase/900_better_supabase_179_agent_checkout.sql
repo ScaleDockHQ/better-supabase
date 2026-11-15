@@ -1,6 +1,6 @@
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:f887307d99655d88d3246725fce91fa6c2a1a69cb4abf08c1ee381013908a689
+-- @bsb-hash sha256:aa169c25e06ba8ebea17add47cd3affa07d52a9db8e2458c55d6f8fa9ea08536
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -232,6 +232,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_checkout_sessions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -264,6 +266,7 @@ begin
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
         and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_search is null or x."idempotency_key" ilike v_search or x."id"::text ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -281,6 +284,7 @@ begin
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
         and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_search is null or x."idempotency_key" ilike v_search or x."id"::text ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -307,6 +311,7 @@ begin
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
         and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_search is null or x."idempotency_key" ilike v_search or x."id"::text ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -328,6 +333,7 @@ begin
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
         and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_search is null or x."idempotency_key" ilike v_search or x."id"::text ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -349,6 +355,7 @@ begin
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
         and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_search is null or x."idempotency_key" ilike v_search or x."id"::text ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -370,6 +377,7 @@ begin
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
         and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_search is null or x."idempotency_key" ilike v_search or x."id"::text ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -391,6 +399,7 @@ begin
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
         and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_search is null or x."idempotency_key" ilike v_search or x."id"::text ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -412,6 +421,7 @@ begin
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
         and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_search is null or x."idempotency_key" ilike v_search or x."id"::text ilike v_search)
         and (v_after is null or (coalesce(x."expires_at", 'infinity'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."expires_at", 'infinity'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."expires_at", 'infinity'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by coalesce(x."expires_at", 'infinity'::timestamptz) desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -428,6 +438,7 @@ begin
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'protocol' is not null and jsonb_typeof(v_filters -> 'protocol') <> 'null' and not (jsonb_typeof(v_filters -> 'protocol') = 'array' and jsonb_array_length(v_filters -> 'protocol') = 0)) or x."protocol" = any((case when jsonb_typeof(v_filters -> 'protocol') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'protocol')) else array[v_filters ->> 'protocol'] end)::text[]))
         and (not (v_filters -> 'cartId' is not null and jsonb_typeof(v_filters -> 'cartId') <> 'null' and not (jsonb_typeof(v_filters -> 'cartId') = 'array' and jsonb_array_length(v_filters -> 'cartId') = 0)) or x."cart_id"::text = any((case when jsonb_typeof(v_filters -> 'cartId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'cartId')) else array[v_filters ->> 'cartId'] end)::text[]))
+        and (v_search is null or x."idempotency_key" ilike v_search or x."id"::text ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -693,6 +704,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_agent_mandates.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -725,6 +738,7 @@ begin
         and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_search is null or coalesce(x."subject", '') ilike v_search or coalesce(x."issuer_kid", '') ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -742,6 +756,7 @@ begin
         and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_search is null or coalesce(x."subject", '') ilike v_search or coalesce(x."issuer_kid", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -768,6 +783,7 @@ begin
         and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_search is null or coalesce(x."subject", '') ilike v_search or coalesce(x."issuer_kid", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -789,6 +805,7 @@ begin
         and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_search is null or coalesce(x."subject", '') ilike v_search or coalesce(x."issuer_kid", '') ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -810,6 +827,7 @@ begin
         and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_search is null or coalesce(x."subject", '') ilike v_search or coalesce(x."issuer_kid", '') ilike v_search)
         and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -831,6 +849,7 @@ begin
         and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_search is null or coalesce(x."subject", '') ilike v_search or coalesce(x."issuer_kid", '') ilike v_search)
         and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."created_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -852,6 +871,7 @@ begin
         and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_search is null or coalesce(x."subject", '') ilike v_search or coalesce(x."issuer_kid", '') ilike v_search)
         and (v_after is null or (x."expires_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."expires_at" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -873,6 +893,7 @@ begin
         and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_search is null or coalesce(x."subject", '') ilike v_search or coalesce(x."issuer_kid", '') ilike v_search)
         and (v_after is null or (x."expires_at" <= (v_after ->> 0)::timestamptz and ((x."expires_at" < (v_after ->> 0)::timestamptz) or (x."expires_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
       order by x."expires_at" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -889,6 +910,7 @@ begin
         and (not (v_filters -> 'sessionId' is not null and jsonb_typeof(v_filters -> 'sessionId') <> 'null' and not (jsonb_typeof(v_filters -> 'sessionId') = 'array' and jsonb_array_length(v_filters -> 'sessionId') = 0)) or x."session_id"::text = any((case when jsonb_typeof(v_filters -> 'sessionId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'sessionId')) else array[v_filters ->> 'sessionId'] end)::text[]))
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
         and (not (v_filters -> 'vct' is not null and jsonb_typeof(v_filters -> 'vct') <> 'null' and not (jsonb_typeof(v_filters -> 'vct') = 'array' and jsonb_array_length(v_filters -> 'vct') = 0)) or x."vct" = any((case when jsonb_typeof(v_filters -> 'vct') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'vct')) else array[v_filters ->> 'vct'] end)::text[]))
+        and (v_search is null or coalesce(x."subject", '') ilike v_search or coalesce(x."issuer_kid", '') ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;

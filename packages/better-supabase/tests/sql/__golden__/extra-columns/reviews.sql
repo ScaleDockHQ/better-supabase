@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:849e49fbff0854e0f742f652b63e99de5cfa4305cb30bb5f1e8d671ba912c3bf
+-- @bsb-hash sha256:a71e01f15623b8b43ca5cdb3f31cd2ea109d4c5c41282f8405919d80124c1377
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -400,6 +400,290 @@ $$;
 revoke execute on function "better_supabase"."list_reviews"(uuid, text, text, integer, timestamptz, integer, boolean) from public;
 grant execute on function "better_supabase"."list_reviews"(uuid, text, text, integer, timestamptz, integer, boolean) to anon, authenticated, service_role;
 
+-- A subject's published reviews as a keyset page, newest first (ADR 1077), for
+-- anyone who can read the subject. filters must hold subjectType and
+-- subjectId, and may hold rating and verified (each a value or a list),
+-- search, sort (publishedAt, rating), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap. Author ids stay hidden.
+create or replace function "better_supabase"."page_reviews"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_reviews.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_subject_type text := nullif(coalesce(v_filters #>> '{subjectType,0}', v_filters ->> 'subjectType'), '');
+  v_subject_id text := nullif(coalesce(v_filters #>> '{subjectId,0}', v_filters ->> 'subjectId'), '');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 20), 1), 100);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if jsonb_typeof(v_filters) <> 'object' or v_subject_type is null or v_subject_id is null then
+    raise exception 'filters must name one subjectType and one subjectId' using errcode = '22023', hint = 'REVIEW_INVALID';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."review_subject_readable"(page_reviews.tenant, v_subject_type, v_subject_id)) then
+    raise exception 'not allowed to read this record''s reviews' using errcode = '42501', hint = 'REVIEW_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'REVIEW_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('rating', 'verified') then
+      raise exception 'facet is one of rating, verified' using errcode = '22023', hint = 'REVIEW_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'rating' then (x."rating"::text)::text when 'verified' then (x."verified"::text)::text end) as v
+      from "better_supabase"."reviews" x
+      where x."tenant_id" = page_reviews.tenant
+        and x."subject_type" = v_subject_type
+        and x."subject_id" = v_subject_id
+        and x."status" = 'published'
+        and (not (v_filters -> 'rating' is not null and jsonb_typeof(v_filters -> 'rating') <> 'null' and not (jsonb_typeof(v_filters -> 'rating') = 'array' and jsonb_array_length(v_filters -> 'rating') = 0)) or x."rating"::text = any((case when jsonb_typeof(v_filters -> 'rating') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'rating')) else array[v_filters ->> 'rating'] end)::text[]))
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or x."verified"::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (v_search is null or coalesce(x."title", '') ilike v_search or coalesce(x."body", '') ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."reviews" x
+      where x."tenant_id" = page_reviews.tenant
+        and x."subject_type" = v_subject_type
+        and x."subject_id" = v_subject_id
+        and x."status" = 'published'
+        and (not (v_filters -> 'rating' is not null and jsonb_typeof(v_filters -> 'rating') <> 'null' and not (jsonb_typeof(v_filters -> 'rating') = 'array' and jsonb_array_length(v_filters -> 'rating') = 0)) or x."rating"::text = any((case when jsonb_typeof(v_filters -> 'rating') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'rating')) else array[v_filters ->> 'rating'] end)::text[]))
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or x."verified"::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (v_search is null or coalesce(x."title", '') ilike v_search or coalesce(x."body", '') ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('publishedAt', 'rating') then
+    raise exception 'sort is one of publishedAt, rating' using errcode = '22023', hint = 'REVIEW_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'REVIEW_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REVIEW_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'authorId', null::uuid, 'authorName', x."author_name", 'mine', coalesce(x."author_id" = auth.uid(), false), 'rating', x."rating", 'title', x."title", 'body', x."body", 'status', x."status", 'verified', x."verified", 'rejectionReason', x."rejection_reason", 'reply', x."reply", 'repliedAt', x."replied_at", 'publishedAt', x."published_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((coalesce(x."published_at", x."created_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."reviews" x
+      where x."tenant_id" = page_reviews.tenant
+        and x."subject_type" = v_subject_type
+        and x."subject_id" = v_subject_id
+        and x."status" = 'published'
+        and (not (v_filters -> 'rating' is not null and jsonb_typeof(v_filters -> 'rating') <> 'null' and not (jsonb_typeof(v_filters -> 'rating') = 'array' and jsonb_array_length(v_filters -> 'rating') = 0)) or x."rating"::text = any((case when jsonb_typeof(v_filters -> 'rating') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'rating')) else array[v_filters ->> 'rating'] end)::text[]))
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or x."verified"::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (v_search is null or coalesce(x."title", '') ilike v_search or coalesce(x."body", '') ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."created_at") >= (v_after ->> 0)::timestamptz and ((coalesce(x."published_at", x."created_at") > (v_after ->> 0)::timestamptz) or (coalesce(x."published_at", x."created_at") = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."published_at", x."created_at") asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REVIEW_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'authorId', null::uuid, 'authorName', x."author_name", 'mine', coalesce(x."author_id" = auth.uid(), false), 'rating', x."rating", 'title', x."title", 'body', x."body", 'status', x."status", 'verified', x."verified", 'rejectionReason', x."rejection_reason", 'reply', x."reply", 'repliedAt', x."replied_at", 'publishedAt', x."published_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((coalesce(x."published_at", x."created_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."reviews" x
+      where x."tenant_id" = page_reviews.tenant
+        and x."subject_type" = v_subject_type
+        and x."subject_id" = v_subject_id
+        and x."status" = 'published'
+        and (not (v_filters -> 'rating' is not null and jsonb_typeof(v_filters -> 'rating') <> 'null' and not (jsonb_typeof(v_filters -> 'rating') = 'array' and jsonb_array_length(v_filters -> 'rating') = 0)) or x."rating"::text = any((case when jsonb_typeof(v_filters -> 'rating') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'rating')) else array[v_filters ->> 'rating'] end)::text[]))
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or x."verified"::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (v_search is null or coalesce(x."title", '') ilike v_search or coalesce(x."body", '') ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."created_at"), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."published_at", x."created_at") desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'publishedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REVIEW_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'authorId', null::uuid, 'authorName', x."author_name", 'mine', coalesce(x."author_id" = auth.uid(), false), 'rating', x."rating", 'title', x."title", 'body', x."body", 'status', x."status", 'verified', x."verified", 'rejectionReason', x."rejection_reason", 'reply', x."reply", 'repliedAt', x."replied_at", 'publishedAt', x."published_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((coalesce(x."published_at", x."created_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."reviews" x
+      where x."tenant_id" = page_reviews.tenant
+        and x."subject_type" = v_subject_type
+        and x."subject_id" = v_subject_id
+        and x."status" = 'published'
+        and (not (v_filters -> 'rating' is not null and jsonb_typeof(v_filters -> 'rating') <> 'null' and not (jsonb_typeof(v_filters -> 'rating') = 'array' and jsonb_array_length(v_filters -> 'rating') = 0)) or x."rating"::text = any((case when jsonb_typeof(v_filters -> 'rating') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'rating')) else array[v_filters ->> 'rating'] end)::text[]))
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or x."verified"::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (v_search is null or coalesce(x."title", '') ilike v_search or coalesce(x."body", '') ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."created_at") >= (v_after ->> 0)::timestamptz and ((coalesce(x."published_at", x."created_at") > (v_after ->> 0)::timestamptz) or (coalesce(x."published_at", x."created_at") = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by coalesce(x."published_at", x."created_at") asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'publishedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REVIEW_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'authorId', null::uuid, 'authorName', x."author_name", 'mine', coalesce(x."author_id" = auth.uid(), false), 'rating', x."rating", 'title', x."title", 'body', x."body", 'status', x."status", 'verified', x."verified", 'rejectionReason', x."rejection_reason", 'reply', x."reply", 'repliedAt', x."replied_at", 'publishedAt', x."published_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((coalesce(x."published_at", x."created_at"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."reviews" x
+      where x."tenant_id" = page_reviews.tenant
+        and x."subject_type" = v_subject_type
+        and x."subject_id" = v_subject_id
+        and x."status" = 'published'
+        and (not (v_filters -> 'rating' is not null and jsonb_typeof(v_filters -> 'rating') <> 'null' and not (jsonb_typeof(v_filters -> 'rating') = 'array' and jsonb_array_length(v_filters -> 'rating') = 0)) or x."rating"::text = any((case when jsonb_typeof(v_filters -> 'rating') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'rating')) else array[v_filters ->> 'rating'] end)::text[]))
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or x."verified"::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (v_search is null or coalesce(x."title", '') ilike v_search or coalesce(x."body", '') ilike v_search)
+        and (v_after is null or (coalesce(x."published_at", x."created_at"), x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."published_at", x."created_at") desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REVIEW_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'authorId', null::uuid, 'authorName', x."author_name", 'mine', coalesce(x."author_id" = auth.uid(), false), 'rating', x."rating", 'title', x."title", 'body', x."body", 'status', x."status", 'verified', x."verified", 'rejectionReason', x."rejection_reason", 'reply', x."reply", 'repliedAt', x."replied_at", 'publishedAt', x."published_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((x."rating")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."reviews" x
+      where x."tenant_id" = page_reviews.tenant
+        and x."subject_type" = v_subject_type
+        and x."subject_id" = v_subject_id
+        and x."status" = 'published'
+        and (not (v_filters -> 'rating' is not null and jsonb_typeof(v_filters -> 'rating') <> 'null' and not (jsonb_typeof(v_filters -> 'rating') = 'array' and jsonb_array_length(v_filters -> 'rating') = 0)) or x."rating"::text = any((case when jsonb_typeof(v_filters -> 'rating') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'rating')) else array[v_filters ->> 'rating'] end)::text[]))
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or x."verified"::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (v_search is null or coalesce(x."title", '') ilike v_search or coalesce(x."body", '') ilike v_search)
+        and (v_after is null or (x."rating" >= (v_after ->> 0)::integer and ((x."rating" > (v_after ->> 0)::integer) or (x."rating" = (v_after ->> 0)::integer and x."id" < (v_after ->> 1)::uuid))))
+      order by x."rating" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rating' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'REVIEW_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'authorId', null::uuid, 'authorName', x."author_name", 'mine', coalesce(x."author_id" = auth.uid(), false), 'rating', x."rating", 'title', x."title", 'body', x."body", 'status', x."status", 'verified', x."verified", 'rejectionReason', x."rejection_reason", 'reply', x."reply", 'repliedAt', x."replied_at", 'publishedAt', x."published_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'fields', jsonb_build_object('app_note', x."app_note")) as j, jsonb_build_array((x."rating")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."reviews" x
+      where x."tenant_id" = page_reviews.tenant
+        and x."subject_type" = v_subject_type
+        and x."subject_id" = v_subject_id
+        and x."status" = 'published'
+        and (not (v_filters -> 'rating' is not null and jsonb_typeof(v_filters -> 'rating') <> 'null' and not (jsonb_typeof(v_filters -> 'rating') = 'array' and jsonb_array_length(v_filters -> 'rating') = 0)) or x."rating"::text = any((case when jsonb_typeof(v_filters -> 'rating') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'rating')) else array[v_filters ->> 'rating'] end)::text[]))
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or x."verified"::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (v_search is null or coalesce(x."title", '') ilike v_search or coalesce(x."body", '') ilike v_search)
+        and (v_after is null or (x."rating", x."id") < ((v_after ->> 0)::integer, (v_after ->> 1)::uuid))
+      order by x."rating" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."reviews" x
+      where x."tenant_id" = page_reviews.tenant
+        and x."subject_type" = v_subject_type
+        and x."subject_id" = v_subject_id
+        and x."status" = 'published'
+        and (not (v_filters -> 'rating' is not null and jsonb_typeof(v_filters -> 'rating') <> 'null' and not (jsonb_typeof(v_filters -> 'rating') = 'array' and jsonb_array_length(v_filters -> 'rating') = 0)) or x."rating"::text = any((case when jsonb_typeof(v_filters -> 'rating') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'rating')) else array[v_filters ->> 'rating'] end)::text[]))
+        and (not (v_filters -> 'verified' is not null and jsonb_typeof(v_filters -> 'verified') <> 'null' and not (jsonb_typeof(v_filters -> 'verified') = 'array' and jsonb_array_length(v_filters -> 'verified') = 0)) or x."verified"::text = any((case when jsonb_typeof(v_filters -> 'verified') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'verified')) else array[v_filters ->> 'verified'] end)::text[]))
+        and (v_search is null or coalesce(x."title", '') ilike v_search or coalesce(x."body", '') ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_reviews"(uuid, jsonb) from public;
+grant execute on function "better_supabase"."page_reviews"(uuid, jsonb) to anon, authenticated, service_role;
+
+-- One review: the caller's own in any status, or a published one of a subject
+-- the caller can read (author id hidden).
+create or replace function "better_supabase"."get_review"(review_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."reviews"%rowtype;
+begin
+  select * into v_row from "better_supabase"."reviews" x where x."id" = get_review.review_id;
+  if not found then
+    raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
+  end if;
+  if coalesce(v_row."author_id" = auth.uid(), false) then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', v_row."author_id", 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+  end if;
+  if v_row."status" <> 'published'
+    or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."review_subject_readable"(v_row."tenant_id", v_row."subject_type", v_row."subject_id")) then
+    raise exception 'review not found' using errcode = 'P0002', hint = 'REVIEW_NOT_FOUND';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'authorId', null::uuid, 'authorName', v_row."author_name", 'mine', coalesce(v_row."author_id" = auth.uid(), false), 'rating', v_row."rating", 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'verified', v_row."verified", 'rejectionReason', v_row."rejection_reason", 'reply', v_row."reply", 'repliedAt', v_row."replied_at", 'publishedAt', v_row."published_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('app_note', v_row."app_note"));
+end;
+$$;
+revoke execute on function "better_supabase"."get_review"(uuid) from public;
+grant execute on function "better_supabase"."get_review"(uuid) to anon, authenticated, service_role;
 -- The caller's own review of a subject in any status, or null.
 create or replace function "better_supabase"."my_review"(tenant uuid, subject_type text, subject_id text)
 returns jsonb
