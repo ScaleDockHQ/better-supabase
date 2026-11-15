@@ -104,7 +104,7 @@ export default defineConfig({
           area: "finance",
           // Six fiscal months from the periods block's input schema. `kind` is a value no
           // generator can guess and the ranges may not overlap, so `seed.fields` declares
-          // them (ADR 1031); `pnpm db:seed:pages` creates them through `create_period`.
+          // them (ADR 1032); `pnpm db:seed:pages` creates them through `create_period`.
           seed: {
             demo: 6,
             tiers: ["demo"],
@@ -134,7 +134,7 @@ export default defineConfig({
         // The risk register (EX-1001). The block's `category` field takes one of the
         // block's configured categories, which a generated demo value cannot know, so
         // `seed.fields` lists the block's default categories and row `i` takes the one at `i`
-        // (ADR 1031).
+        // (ADR 1032).
         defineEntityPage({
           entity: "risks.risk",
           route: "/risks",
@@ -174,7 +174,7 @@ export default defineConfig({
         }),
         // The sales overviews of phase 6 (EX-607). Their blocks export no input schema that
         // fits (an accrual takes `source: { type, id }` and an attribution a code), so each page
-        // declares its rows in `seed.rows` (ADR 1031). The commission plans and the referral
+        // declares its rows in `seed.rows` (ADR 1032). The commission plans and the referral
         // code stay in `example.sql`: the accruals and the attribution need them.
         defineEntityPage({
           entity: "commissions.commission",

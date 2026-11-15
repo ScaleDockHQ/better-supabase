@@ -1,9 +1,11 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import type { PowerSyncSubject } from "../../../src/cli/powersync/streams.ts";
 
 import { projectionsOf } from "../../../src/cli/powersync/projection.ts";
 import {
+  offlineOf,
   powersyncColumnType,
   powersyncOutput,
   publicationSql,
@@ -668,5 +670,57 @@ describe("powersyncOutput for the care blocks", () => {
     expect(out.streams).toContain(
       "activity_id || ':' || subject_type || ':' || subject_id AS id",
     );
+  });
+});
+
+describe("powersyncOutput from the offline join declarations", () => {
+  const names = [
+    "organizations",
+    "memberships",
+    "notifications",
+    "attachments",
+  ];
+
+  const joined = (): string => {
+    const joinConfig = resolveConfig(
+      { blocks: Object.fromEntries(names.map((name) => [name, {}])) },
+      "/p",
+    );
+
+    return powersyncOutput({
+      files: renderBlocks(joinConfig.blockNames, moduleLayout(joinConfig)),
+      instances: [
+        { key: "memberships", block: "memberships" },
+        { key: "notifications", block: "notifications" },
+        { key: "attachments", block: "attachments" },
+      ],
+      importFrom: "@powersync/common",
+      readRoles: new Map([["attachments", ["admin", "member"]]]),
+    }).streams;
+  };
+
+  it("writes the same YAML the generator wrote before the joins were declared", () => {
+    expect(joined()).toBe(
+      readFileSync(
+        new URL("__golden__/joined-streams.yaml", import.meta.url),
+        "utf-8",
+      ),
+    );
+  });
+
+  it("writes a stream for each declared join and none for a kind a block leaves out", () => {
+    for (const block of [
+      "notifications",
+      "memberships",
+      "attachments",
+    ] as const) {
+      const kinds = offlineOf(block).join?.map((join) => join.kind);
+
+      expect(kinds?.length).toBeGreaterThan(0);
+    }
+
+    expect(joined()).toContain("notifications_events:");
+    expect(joined()).toContain("memberships_organizations:");
+    expect(offlineOf("teams").join).toBeUndefined();
   });
 });
