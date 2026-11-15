@@ -29,7 +29,7 @@ export const fundingBlock: BlockOf<
     funding_delivery: { mutability: "state-machine" },
     funding_claim: {
       mutability: "state-machine",
-      emits: { create: true, delete: true },
+      emits: { create: true, archive: true, restore: true, purge: true },
     },
     funding_claim_line: { mutability: "read-only" },
   },

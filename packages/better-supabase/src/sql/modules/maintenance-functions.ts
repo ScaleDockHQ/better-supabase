@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { MaintenanceSql } from "./maintenance-sql.ts";
 
+import { archiveRestoreFunctions, archivedListFilter } from "../archive-sql.ts";
 import {
   filterAny,
   filterFirst,
@@ -19,11 +20,15 @@ const list = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
 /** The plan json with its parts and whether it is due. */
-function planView(q: MaintenanceSql, row: string): string {
+function planView(
+  ctx: BlockSqlContext,
+  q: MaintenanceSql,
+  row: string,
+): string {
   const { m, s, p, meters, parts } = q;
 
   return `${q.planJson(row)} || jsonb_build_object(
-    'due', ${row}.${p("status")} = 'active' and ${row}.${p("workOrder")} is null and (
+    'due', ${row}.${p("status")} = 'active'${ctx.has("plans", "archivedAt") ? ` and ${row}.${p("archivedAt")} is null` : ""} and ${row}.${p("workOrder")} is null and (
       (${row}.${p("kind")} in ('time', 'rrule') and ${row}.${p("nextDueAt")} <= now())
       or (${row}.${p("kind")} = 'meter' and exists (
         select 1 from ${meters} z
@@ -188,7 +193,7 @@ begin
   end;
   ${q.recordPlan("maintenance_plan.created", "v_row", "maintenance plan created")}
   ${ctx.hook("after_maintenance_plan_create", [["uuid", `v_row.${p("id")}`]])}
-  return ${planView(q, "v_row")};
+  return ${planView(ctx, q, "v_row")};
 end;
 $$;
 ${userGrant(`${fn("create_maintenance_plan")}(${idType}, jsonb)`)}
@@ -268,14 +273,47 @@ begin
     ${q.invalid("a part needs a name of 1 to 200 characters and a quantity above 0")}
   end;
   ${q.recordPlan("maintenance_plan.updated", "v_row", "maintenance plan updated")}
-  return ${planView(q, "v_row")};
+  return ${planView(ctx, q, "v_row")};
 end;
 $$;
 ${userGrant(`${fn("update_maintenance_plan")}(uuid, jsonb)`)}
 
--- Deletes a plan with its parts. Its open work order stays. Needs
--- maintenance.manage.
-create or replace function ${fn("delete_maintenance_plan")}(plan_id uuid)
+${
+  ctx.has("plans", "archivedAt")
+    ? archiveRestoreFunctions(ctx, {
+        entity: "maintenance_plan",
+        arg: "plan_id",
+        rowType: plans,
+        table: plans,
+        id: p("id"),
+        archivedAt: p("archivedAt"),
+        updatedAt: p("updatedAt"),
+        json: q.planJson("v_row"),
+        archiveNote:
+          "Archives a plan: it stops opening work orders and leaves the list, and keeps its parts and its open work order. Needs maintenance.manage.",
+        restoreNote:
+          "Brings an archived plan back to the list and the schedule. Needs maintenance.manage.",
+        load: (
+          name,
+        ) => `select * into v_row from ${plans} x where x.${p("id")} = ${name}.plan_id for update;
+  if not found or not ${q.allowed(`v_row.${p("tenant")}`, q.read)} then
+    ${q.planMissing}
+  end if;
+  if not ${q.allowed(`v_row.${p("tenant")}`, q.manage)} then
+    ${q.forbidden("not allowed to manage maintenance plans")}
+  end if;`,
+        record: (type) =>
+          q.recordPlan(
+            type,
+            "v_row",
+            `maintenance plan ${type.endsWith("archived") ? "archived" : "restored"}`,
+          ),
+      })
+    : ""
+}
+-- Removes a plan and its parts for good. Archive keeps them. Its open work
+-- order stays. Needs maintenance.manage, or permissions.purge.
+create or replace function ${fn("purge_maintenance_plan")}(plan_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -285,19 +323,19 @@ as $$
 declare
   v_row ${plans};
 begin
-  select * into v_row from ${plans} x where x.${p("id")} = delete_maintenance_plan.plan_id for update;
+  select * into v_row from ${plans} x where x.${p("id")} = purge_maintenance_plan.plan_id for update;
   if not found or not ${q.allowed(`v_row.${p("tenant")}`, q.read)} then
     ${q.planMissing}
   end if;
-  if not ${q.allowed(`v_row.${p("tenant")}`, q.manage)} then
+  if not ${q.allowed(`v_row.${p("tenant")}`, q.purge)} then
     ${q.forbidden("not allowed to manage maintenance plans")}
   end if;
   delete from ${plans} x where x.${p("id")} = v_row.${p("id")};
-  ${q.recordPlan("maintenance_plan.deleted", "v_row", "maintenance plan deleted")}
+  ${q.recordPlan("maintenance_plan.purged", "v_row", "maintenance plan purged")}
   return ${q.planJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("delete_maintenance_plan")}(uuid)`)}
+${userGrant(`${fn("purge_maintenance_plan")}(uuid)`)}
 `;
 }
 
@@ -558,7 +596,10 @@ function dispatchFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
       filterAny("status", `x.${p("status")}`),
       filterAny("kind", `x.${p("kind")}`),
       filterAny("assetId", `x.${p("asset")}`, "uuid"),
-      `(not ${filterFlag("due")} or (${planView(q, "x")} ->> 'due')::boolean)`,
+      `(not ${filterFlag("due")} or (${planView(ctx, q, "x")} ->> 'due')::boolean)`,
+      ...(ctx.has("plans", "archivedAt")
+        ? [archivedListFilter("x", p("archivedAt"))]
+        : []),
     ],
     keys: [
       {
@@ -583,7 +624,7 @@ function dispatchFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
       ],
     },
     facets: { status: `x.${p("status")}`, kind: `x.${p("kind")}` },
-    rowJson: planView(q, "x"),
+    rowJson: planView(ctx, q, "x"),
     invalid: q.invalid,
   } as const;
 
@@ -604,7 +645,7 @@ begin
   if not found or not ${q.allowed(`v_row.${p("tenant")}`, q.read)} then
     ${q.planMissing}
   end if;
-  return ${planView(q, "v_row")};
+  return ${planView(ctx, q, "v_row")};
 end;
 $$;
 ${userGrant(`${fn("get_maintenance_plan")}(uuid)`)}
@@ -667,11 +708,11 @@ begin
   end if;
   for v_plan in
     select * from ${plans} x
-    where x.${p("tenant")} = generate_maintenance_work_orders.tenant and x.${p("status")} = 'active' and x.${p("workOrder")} is null
+    where x.${p("tenant")} = generate_maintenance_work_orders.tenant and x.${p("status")} = 'active'${ctx.has("plans", "archivedAt") ? ` and x.${p("archivedAt")} is null` : ""} and x.${p("workOrder")} is null
     order by x.${p("nextDueAt")} nulls last, x.${p("id")}
     for update
   loop
-    v_view := ${planView(q, "v_plan")};
+    v_view := ${planView(ctx, q, "v_plan")};
     continue when not (v_view ->> 'due')::boolean;
     v_order := ${dispatch.fn("create_work_order")}(
       tenant => v_plan.${p("tenant")},

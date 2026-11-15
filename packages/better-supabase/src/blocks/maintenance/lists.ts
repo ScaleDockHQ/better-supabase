@@ -3,12 +3,13 @@ import type { EntityListSurface } from "../../core/entity-list.ts";
 /**
  * What `planPage`, `planFacets` and `planCount` accept for a maintenance plan
  * (ADR 0749). The manifest declares the same names, and the SQL list function
- * `list_maintenance_plans` implements them. `due` is `["true"]`.
+ * `list_maintenance_plans` implements them. `due` is `["true"]`. Archived plans
+ * are hidden unless `archived` is `["true"]` (only the archived ones).
  */
 export const maintenancePlanListSurface: EntityListSurface = {
   sorts: ["nextDueAt", "title"],
   facets: ["status", "kind"],
-  filters: ["status", "kind", "assetId", "due"],
+  filters: ["status", "kind", "assetId", "due", "archived"],
 };
 
 /**
