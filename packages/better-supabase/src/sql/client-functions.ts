@@ -14,7 +14,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   activities:
     "activities_of amend_activity archive_activity complete_activity log_activity mark_activity_error next_activity open_activities purge_activity restore_activity update_activity",
   agents:
-    "delete_agent get_agent install_agent list_agents publish_agent rate_agent record_skill_sync save_agent set_agent_skills",
+    "archive_agent get_agent install_agent list_agents publish_agent purge_agent rate_agent record_skill_sync restore_agent save_agent set_agent_skills",
   prompts:
     "create_prompt_version get_prompt list_prompt_versions list_prompts set_prompt_label",
   "ai-evals":

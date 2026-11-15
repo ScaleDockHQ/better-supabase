@@ -57,6 +57,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     create: "tenant",
     update: "tenant",
     delete: "tenant",
+    purge: "tenant",
     reimburse: "tenant",
     categories: "tenant",
     withdraw: "tenant",

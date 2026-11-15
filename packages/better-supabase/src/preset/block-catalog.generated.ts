@@ -1244,10 +1244,12 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "managed"
       ],
       "events": [
+        "agent.archived",
         "agent.created",
-        "agent.deleted",
         "agent.installed",
         "agent.published",
+        "agent.purged",
+        "agent.restored",
         "agent.uninstalled",
         "agent.updated"
       ],

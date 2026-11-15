@@ -118,16 +118,16 @@ export interface BlockNameRegistry {
   };
   readonly "agents": {
     readonly tables: {
-      readonly "agents": "id" | "tenant" | "owner" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connectors" | "knowledgeScope" | "starters" | "visibility" | "publishedAt" | "installCount" | "ratingCount" | "ratingSum" | "createdAt" | "updatedAt";
+      readonly "agents": "id" | "tenant" | "owner" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connectors" | "knowledgeScope" | "starters" | "visibility" | "publishedAt" | "installCount" | "ratingCount" | "ratingSum" | "createdAt" | "updatedAt" | "archivedAt";
       readonly "installs": "agent" | "user" | "tenant" | "installedAt";
       readonly "ratings": "agent" | "user" | "rating" | "comment" | "createdAt";
       readonly "skills": "id" | "agent" | "provider" | "reference" | "name" | "files" | "contentHash" | "latestVersion" | "providerRefs" | "createdAt";
     };
-    readonly functions: "delete_agent" | "get_agent" | "install_agent" | "list_agents" | "publish_agent" | "rate_agent" | "record_skill_sync" | "save_agent" | "set_agent_skills";
+    readonly functions: "archive_agent" | "delete_agent" | "get_agent" | "install_agent" | "list_agents" | "publish_agent" | "purge_agent" | "rate_agent" | "record_skill_sync" | "restore_agent" | "save_agent" | "set_agent_skills";
     readonly actions: "read" | "create" | "publish" | "moderate";
     readonly hooks: never;
     readonly entities: {
-      readonly "agent": "id" | "tenant_id" | "owner_id" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connector_ids" | "knowledge_scope" | "starters" | "visibility" | "published_at" | "install_count" | "rating_count" | "rating_sum" | "created_at" | "updated_at";
+      readonly "agent": "id" | "tenant_id" | "owner_id" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connector_ids" | "knowledge_scope" | "starters" | "visibility" | "published_at" | "install_count" | "rating_count" | "rating_sum" | "created_at" | "updated_at" | "archived_at";
     };
     readonly primary: "agent";
   };
@@ -1003,7 +1003,7 @@ export interface BlockNameRegistry {
       readonly "expenses": "id" | "tenant" | "user" | "employee" | "category" | "spentOn" | "description" | "merchant" | "amount" | "currency" | "status" | "submittedAt" | "approvedAt" | "rejectedAt" | "decidedBy" | "decidedAt" | "decisionNote" | "reimbursedAt" | "reimbursedBy" | "reimbursement" | "createdBy" | "createdAt" | "updatedAt";
     };
     readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "restore_expense_category" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
-    readonly actions: "read" | "submit" | "approve" | "manage" | "create" | "update" | "delete" | "reimburse" | "categories" | "withdraw" | "deleteSubmitted";
+    readonly actions: "read" | "submit" | "approve" | "manage" | "create" | "update" | "delete" | "purge" | "reimburse" | "categories" | "withdraw" | "deleteSubmitted";
     readonly hooks: never;
     readonly entities: {
       readonly "expense_report": "id" | "tenant_id" | "user_id" | "title" | "currency" | "note" | "approval_id" | "submitted_at" | "approved_at" | "approval_transaction_id" | "reimbursed_at" | "reimbursement_transaction_id" | "cancelled_at" | "created_at" | "updated_at" | "rejected_at" | "decided_by" | "decision_note";
