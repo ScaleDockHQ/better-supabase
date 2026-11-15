@@ -130,8 +130,8 @@
     "brotli": 352193
   },
   "/[locale]/(app)/assistant/usage/page": {
-    "raw": 1431653,
-    "gzip": 450636,
+    "raw": 1434269,
+    "gzip": 451909,
     "brotli": 393879
   },
   "/[locale]/(app)/banking/accounts/[id]/page": {
