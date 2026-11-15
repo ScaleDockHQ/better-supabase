@@ -876,7 +876,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G2
 
 - Scope: List contract rollout: work and collaboration
-- Status: PR open
+- Status: merged
 - Branch: `feat/audit-g2`
 - PR: [#921](https://github.com/ScaleDockHQ/better-supabase/pull/921)
 - Findings: EX-1200 to EX-1205, EX-1215, EX-200, EX-204, EX-901
@@ -887,7 +887,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G3
 
 - Scope: List contract rollout: commerce
-- Status: PR open #929
+- Status: merged
 - Branch: `feat/audit-g3`
 - PR: [#929](https://github.com/ScaleDockHQ/better-supabase/pull/929)
 - Findings: EX-1200 to EX-1205, EX-1215, EX-800 to EX-802, EX-811, EX-812, EX-1100 to EX-1105
@@ -899,7 +899,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G4
 
 - Scope: List contract rollout: crm, people and scheduling
-- Status: in progress (#918 merged; the lists listed in the log stay for a later G4 PR)
+- Status: merged
 - Branch: `feat/audit-g4`
 - PR: [#918](https://github.com/ScaleDockHQ/better-supabase/pull/918) (merged)
 - Findings: EX-1200 to EX-1205, EX-1215, EX-600, EX-1000, EX-1001
@@ -910,7 +910,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G5
 
 - Scope: List contract rollout: all other categories
-- Status: PR open #920
+- Status: merged
 - Branch: `feat/audit-g5`
 - PR: [#920](https://github.com/ScaleDockHQ/better-supabase/pull/920)
 - Findings: EX-1200 to EX-1205, EX-1215, EX-300, EX-400, EX-401
@@ -921,9 +921,9 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G6
 
 - Scope: Per-call tenant for the shared list surface, and the lists it unlocks
-- Status: PR open
+- Status: merged
 - Branch: `feat/audit-g6`
-- PR: none yet
+- PR: [#928](https://github.com/ScaleDockHQ/better-supabase/pull/928)
 - Findings: EX-1200 to EX-1205, EX-1215
 - Log: 2026-11-14, lane G6 started from main (125e0e82d8) in `../bsb-audit-g6`.
   2026-11-14, ADR 0939: `entityList` takes `organizationId` per call (`tenantOrOption`, `RequiredTenantOption`). `hostname` (`domains`), `form` (`forms`), `import` runs (`imports`) and `access_request` (`access-requests`) page, facet and count (migration 20261217060006). Deferred with reasons in ADR 0939: `teams` (PowerSync local list), `api-keys` (caller scope in the same function), the caller-scoped, child and no-identity lists of ADR 0789.
@@ -931,7 +931,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane G7
 
 - Scope: Shared page, facets and count for the remaining work and collaboration lists
-- Status: PR open
+- Status: merged
 - Branch: `feat/audit-g7`
 - PR: [#950](https://github.com/ScaleDockHQ/better-supabase/pull/950)
 - Findings: EX-1200 to EX-1205, EX-1215
@@ -1003,7 +1003,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane L
 
 - Scope: Bulk, export, import target and job shape
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-l-4` (#946, #960, #967 and #969 are merged)
 - PR: [#946](https://github.com/ScaleDockHQ/better-supabase/pull/946) merged; follow-ups are sequential PRs, one open at a time (EX-515 done)
 - Findings: EX-1209, EX-1210, EX-1211, EX-1324, EX-515 (check #917's set checks first)
@@ -1017,7 +1017,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M1
 
 - Scope: defineEntityPage, list query, route, index
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-m1`
 - PR: [#945](https://github.com/ScaleDockHQ/better-supabase/pull/945)
 - Findings: EX-1260, EX-1261, EX-1265, EX-1270, EX-001 to EX-003, EX-012, EX-014, EX-410, EX-607
@@ -1055,7 +1055,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M5
 
 - Scope: Remaining example list helpers, app-table and inbox pages, free sort
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-lane-m5`, `feat/audit-lane-m5b`
 - PR: [#974](https://github.com/ScaleDockHQ/better-supabase/pull/974), [#975](https://github.com/ScaleDockHQ/better-supabase/pull/975)
 - Findings: EX-001, EX-014, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
@@ -1066,7 +1066,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M6
 
 - Scope: M5's leftovers: reads modules for app tables and arrays, free sort, instant pages, shell accessibility
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-lane-m6a`
 - PR: [#976](https://github.com/ScaleDockHQ/better-supabase/pull/976)
 - Findings: EX-001, EX-014, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
@@ -1075,7 +1075,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane M7
 
 - Scope: M6's leftovers: reads modules for the customers app table and the inbox, an array reads module, generated seeds and coverage
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-m7a`, `feat/audit-m7b`, `feat/audit-m7c`
 - PR: [#978](https://github.com/ScaleDockHQ/better-supabase/pull/978), [#979](https://github.com/ScaleDockHQ/better-supabase/pull/979)
 - Findings: EX-001, EX-014, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
@@ -1097,7 +1097,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 ### Lane O2
 
 - Scope: Plan limits, quota, method meters
-- Status: in progress
+- Status: merged
 - Branch: `feat/audit-o2`
 - PR: #947 (single PR, not stacked)
 - Findings: EX-1312, EX-1313, EX-1314
@@ -1114,19 +1114,26 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 
 ### Lane P
 
-- Scope: Generated skill references, final matrix, close the report
-- Status: planned
-- Branch: `feat/audit-p`
-- PR: none yet
-- Findings: EX-1350
+- Scope: Generated skill references, final matrix, close the report, close out the example findings program
+- Status: merged
+- Branch: `docs/example-findings-closeout-2` (PR 2 of the close-out), [#981](https://github.com/ScaleDockHQ/better-supabase/pull/981) (PR 1, merged)
+- PR: [#981](https://github.com/ScaleDockHQ/better-supabase/pull/981) (EX-1210, ADR 1029), this PR (the classification, the maintainer steps and the roadmap)
+- Findings: EX-1350, EX-1210
+- Classification (2026-11-15, 52 unfinished rows of 295 when the close-out started; 50 are left, all stated `deferred (needs: ...)`):
+  (a) bounded, done in the close-out: EX-1210 (format hook on `exportCsv`, ADR 1029) and EX-1211 (the row was already fixed by lane L and is corrected to `fixed`).
+  (a) bounded, tried and measured away: the lazy store connection on `supportSessions` (CI measured about 15 KB more raw on every server route, see the roadmap note in `example-findings.md`; PR #982 closed).
+  (a) bounded, not done here and moved to the roadmap as one lane each, because each is a block or SQL change of 80 to 100 files with its own ADR, migration and golden files: the archive methods for invoices, risks, shipments and bookings and the care-plan restore (Y2, EX-1206), the per-field seed value and block input schemas (Y3, EX-1264), `bulk` for the `*Many` calls and the `offline` join declaration (Y4, EX-1209, EX-1318, EX-1324).
+  (b) needs a maintainer step or decision: EX-404 (WhatsApp, Slack, Gmail and Outlook), EX-317 and EX-104 (`AI_GATEWAY_API_KEY`), EX-1608 (Stripe), EX-818 (captcha for anonymous sign-ins), EX-903, EX-313 and EX-1020 (Next.js fixes). The steps are in the "Maintainer steps" list of `example-findings.md`.
+  (c) large roadmap items, one owner lane each in the "Roadmap" table of `example-findings.md`: Y1 (block list contract, 32 rows), Y2 (archive and soft delete), Y3 (generated seeds), Y4 (bulk, jobs and offline), Y5 (generated skill references, EX-1350), Y6 (AI block reads and typing).
 - Log: 2026-11-12, planned.
+- Log: 2026-11-15, close-out: lanes G2 to G7, L, M1, M5 to M7, O2, X0, X1, X5 to X9 and P are `merged`, because every row they still name waits on a maintainer step or a roadmap lane (the checker allows `deferred (needs: ...)` in a merged lane). The program that continues with the roadmap lanes Y1 to Y6 takes the next free ADR number and a migration slot after `20270119000006`.
 
 The lanes X0 to X9 below are the findings program. It closes the unfinished rows of [`example-findings.md`](example-findings.md) that no audit lane owns. One lane is one PR on `feat/findings-x<n>` in `../bsb-findings-x<n>`, and its PR body says "findings program, lane Xn". `pnpm check:example-findings` fails when an unfinished row is named by no lane's Findings line and when a lane is `merged` while one of its rows is unfinished, except a row stated `deferred (needs: ...)`, which waits on a maintainer step.
 
 ### Lane X0
 
 - Scope: Reconcile the report and this tracker with the merged lanes, repair the report tables, add the X lanes and `check:example-findings`
-- Status: in progress
+- Status: merged (the reconciliation landed with the findings tracker; the checker is `pnpm check:example-findings`)
 - Branch: `feat/findings-x0`
 - PR: none yet
 - Findings: EX-1237, EX-1238, EX-1319, EX-1326, EX-611 (closed here; the other lagging rows keep their lane)
@@ -1135,7 +1142,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X1
 
 - Scope: Dev loop and local stack: open bugs and tooling rows (repo tooling, no changeset)
-- Status: in progress (#923 merged; EX-313, EX-903, EX-1020 and EX-310 stay deferred)
+- Status: merged (#923; EX-313, EX-903, EX-1020 and EX-310 stay deferred with their needs)
 - Branch: `feat/findings-x1`
 - PR: [#923](https://github.com/ScaleDockHQ/better-supabase/pull/923) (merged)
 - Findings: EX-309, EX-704, EX-313, EX-318, EX-819, EX-903, EX-430, EX-315, EX-108, EX-050, EX-051, EX-056, EX-1021, EX-505, EX-511, EX-512, EX-605, EX-606, EX-820, EX-207, EX-208, EX-214, EX-316, EX-107, EX-106, EX-902, EX-1507, EX-310, EX-1020
@@ -1187,7 +1194,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X5
 
 - Scope: Inbox and messaging (after G5; real Slack and WhatsApp adapters need accounts)
-- Status: in progress
+- Status: merged
 - Branch: `feat/findings-x5`
 - PR: none yet
 - Findings: EX-403, EX-404, EX-411, EX-030, EX-422
@@ -1197,7 +1204,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X6
 
 - Scope: Workflows (after G2)
-- Status: in progress
+- Status: merged
 - Branch: `feat/findings-x6`
 - PR: none yet
 - Findings: EX-201, EX-202, EX-203, EX-205, EX-210, EX-212, EX-213
@@ -1209,7 +1216,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X7
 
 - Scope: AI ops, EX-301 first (a maintainer sets `AI_GATEWAY_API_KEY`)
-- Status: in progress
+- Status: merged
 - Branch: `feat/findings-x7`
 - PR: [#927](https://github.com/ScaleDockHQ/better-supabase/pull/927)
 - Findings: EX-301, EX-302, EX-305, EX-306, EX-307, EX-317
@@ -1219,7 +1226,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X8
 
 - Scope: Commerce and finance (after G3)
-- Status: in review
+- Status: merged
 - Branch: `feat/findings-x8`
 - PR: [#938](https://github.com/ScaleDockHQ/better-supabase/pull/938)
 - Findings: EX-805, EX-818, EX-1106, EX-1110 to EX-1113, EX-701
@@ -1230,7 +1237,7 @@ The lanes X0 to X9 below are the findings program. It closes the unfinished rows
 ### Lane X9
 
 - Scope: CRM and records (after G4)
-- Status: in review
+- Status: merged
 - Branch: `feat/findings-x9`
 - PR: #936
 - Findings: EX-601, EX-602, EX-032, EX-035, EX-103
