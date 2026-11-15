@@ -1,6 +1,6 @@
 -- better-supabase module: queue
--- @bsb-block queue@14 managed
--- @bsb-hash sha256:66e3e62d25cef66bfef8a7078abf047b91aa22ef68c708947429a4fd20a02662
+-- @bsb-block queue@15 managed
+-- @bsb-hash sha256:d927dc89f5312dd535ef3dc65a9a78a7efd03a3028d3757bdabdbba03c55971c
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -377,6 +377,54 @@ begin
      from pgmq.%1$I q',
     'q_' || queue, 'a_' || queue
   );
+end;
+$$;
+
+-- One message's state without its payload: waiting, running, done or dead.
+-- Null when the id is unknown or purge_job_archive removed it, and for a dead
+-- letter that replay_dead_job moved to a new id.
+create or replace function better_supabase.get_job(queue text, job_id bigint)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  r record;
+begin
+  if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is not null then
+    execute format('select read_ct, enqueued_at, vt, message from pgmq.%I where msg_id = $1', 'q_' || queue)
+      into r using job_id;
+    if r.read_ct is not null then
+      return jsonb_build_object(
+        'queue', queue,
+        'id', job_id,
+        'state', case when r.read_ct > 0 and r.vt > clock_timestamp() and not r.message ? 'last_error' then 'running' else 'waiting' end,
+        'attempts', r.read_ct,
+        'enqueuedAt', r.enqueued_at,
+        'lastError', r.message ->> 'last_error',
+        'maxAttempts', coalesce((r.message ->> 'max_attempts')::integer, 5)
+      );
+    end if;
+  end if;
+  if pg_catalog.to_regclass(format('pgmq.%I', 'a_' || queue)) is not null then
+    execute format('select read_ct, enqueued_at, archived_at, message from pgmq.%I where msg_id = $1', 'a_' || queue)
+      into r using job_id;
+    if r.read_ct is not null then
+      return jsonb_build_object(
+        'queue', queue,
+        'id', job_id,
+        'state', case when r.message ? 'dead' then 'dead' else 'done' end,
+        'attempts', r.read_ct,
+        'enqueuedAt', r.enqueued_at,
+        'finishedAt', r.archived_at,
+        'lastError', r.message ->> 'last_error',
+        'maxAttempts', coalesce((r.message ->> 'max_attempts')::integer, 5)
+      );
+    end if;
+  end if;
+  return null;
 end;
 $$;
 
@@ -764,6 +812,8 @@ revoke execute on function better_supabase.replay_dead_job(text, bigint) from pu
 grant execute on function better_supabase.replay_dead_job(text, bigint) to service_role;
 revoke execute on function better_supabase.job_queue_stats(text) from public, anon, authenticated;
 grant execute on function better_supabase.job_queue_stats(text) to service_role;
+revoke execute on function better_supabase.get_job(text, bigint) from public, anon, authenticated;
+grant execute on function better_supabase.get_job(text, bigint) to service_role;
 revoke execute on function better_supabase.list_dead_jobs(text, integer, bigint) from public, anon, authenticated;
 grant execute on function better_supabase.list_dead_jobs(text, integer, bigint) to service_role;
 revoke execute on function better_supabase.retry_dead_jobs(text, bigint[], integer) from public, anon, authenticated;

@@ -44,6 +44,69 @@ export interface QueueStats {
   readonly oldestAgeSeconds: number | null;
 }
 
+/** Where one message is, as `better_supabase.get_job` reports it. */
+export type QueueRunState = "waiting" | "running" | "done" | "dead";
+
+/**
+ * One message's run record (ADR 1076): its state and attempts, never its
+ * payload, which may hold personal data.
+ */
+export interface QueueRun {
+  readonly queue: string;
+  readonly id: number;
+  readonly state: QueueRunState;
+  /** How often a worker claimed it. */
+  readonly attempts: number;
+  readonly maxAttempts: number;
+  readonly enqueuedAt: string;
+  /** When it was archived; null while it waits or runs. */
+  readonly finishedAt: string | null;
+  readonly lastError: string | null;
+}
+
+const RUN_STATES: readonly QueueRunState[] = [
+  "waiting",
+  "running",
+  "done",
+  "dead",
+];
+
+const textOrNull = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
+
+/**
+ * The `QueueRun` of `get_job`'s jsonb; null for no message or a shape this
+ * version does not know.
+ */
+export function queueRunOf(value: unknown): QueueRun | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const { queue, id, state, attempts, maxAttempts, enqueuedAt } = value;
+
+  const known = RUN_STATES.find((candidate) => candidate === state);
+
+  if (
+    typeof queue !== "string" ||
+    known === undefined ||
+    typeof enqueuedAt !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    queue,
+    id: Number(id),
+    state: known,
+    attempts: Number(attempts ?? 0),
+    maxAttempts: Number(maxAttempts ?? 5),
+    enqueuedAt,
+    finishedAt: textOrNull(value["finishedAt"]),
+    lastError: textOrNull(value["lastError"]),
+  };
+}
+
 /** A dead letter, as `better_supabase.list_dead_jobs` returns it. */
 export interface DeadJobRow {
   readonly id: string | number;
@@ -215,6 +278,11 @@ export interface QueueProvider extends ScheduleProvider {
   replay?(queue: string, id: number): Promise<number | null>;
   /** Counts for one queue. Absent when the backend can't. */
   stats?(queue: string): Promise<QueueStats>;
+  /**
+   * One message's run record; `null` when the id is unknown or purged. Absent
+   * when the backend can't.
+   */
+  get?(queue: string, id: number): Promise<QueueRun | null>;
   /**
    * Dead letters, newest first, before `before` when given. Absent when the
    * backend can't.
@@ -488,6 +556,14 @@ export function sqlQueueProvider(
 
       return row?.id === null || row?.id === undefined ? null : Number(row.id);
     },
+    async get(queue, id) {
+      const [row] = await sql.queryRaw<{ run: unknown }>(
+        "select better_supabase.get_job($1, $2) as run",
+        [queue, id],
+      );
+
+      return queueRunOf(row?.run);
+    },
     async stats(queue) {
       const [row] = await sql.queryRaw<StatsRow>(
         "select * from better_supabase.job_queue_stats($1)",
@@ -613,6 +689,7 @@ const PARAMS = {
   extend_job_lease: ["queue", "job_id", "attempt", "lease"],
   replay_dead_job: ["queue", "job_id"],
   job_queue_stats: ["queue"],
+  get_job: ["queue", "job_id"],
   list_dead_jobs: ["queue", "max_rows", "before_id"],
   retry_dead_jobs: ["queue", "ids", "batch"],
   schedule_job: [
@@ -774,6 +851,8 @@ export function transportQueueProvider(
       bool("extend_job_lease", job.queue, job.id, job.attempts, lease),
     replay: async (queue, jobId) =>
       id(await call("replay_dead_job", queue, jobId)),
+    get: async (queue, jobId) =>
+      queueRunOf(await call("get_job", queue, jobId)),
     stats: async (queue) =>
       statsOf((await rows<StatsRow>("job_queue_stats", queue))[0]),
     listDead: (queue, limit, before) =>
