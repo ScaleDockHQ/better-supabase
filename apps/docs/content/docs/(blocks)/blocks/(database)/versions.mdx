@@ -75,6 +75,21 @@ blocks: {
 
 A frozen version can't be relabeled or deleted, so a quote keeps what was sent. A label keeps a version out of retention; `label(id, null)` removes it.
 
+## Paging versions
+
+`versionPage` pages the versions by keyset (ADR 1077) with `versionFacets` and `versionCount`. Sorts are `createdAt` (the default, newest first) and `number`. Filters are `subjectType`, `subjectId` and `source`, each a list. `q` searches the label and the subject id. `versionFacets` counts `source` and `subjectType`.
+
+```ts
+const history = await versions
+  .versionPage({
+    organizationId,
+    filters: { subjectType: ["document"], subjectId: [documentId] },
+  })
+  .orThrow();
+```
+
+`list` keeps working and is deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Diff
 
 `diff(fromId, toId)` returns the [RFC 6902](https://www.rfc-editor.org/rfc/rfc6902) JSON Patch that turns one version's content into the other's. `createPatch(from, to)` and `applyPatch(document, patch)` work on any JSON value, and `applyPatch` throws a `JsonPatchError` with the failing operation's `index` for an operation the RFC calls an error. Object members are compared by name and array elements by position.

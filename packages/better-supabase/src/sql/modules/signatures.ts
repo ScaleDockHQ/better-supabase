@@ -8,6 +8,13 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   extraFieldsArg,
@@ -262,6 +269,44 @@ function build(ctx: BlockSqlContext): string {
         tenant: `${row}.${r("tenant")}`,
       },
     )})`;
+
+  const requestPage = {
+    name: "page_signature_requests",
+    from: requests,
+    alias: "x",
+    where: [
+      `x.${r("tenant")} = page_signature_requests.tenant`,
+      filterAny("status", `x.${r("status")}`),
+      filterAny("subjectType", `x.${r("subjectType")}`),
+      filterAny("subjectId", `x.${r("subjectId")}`),
+      `(not ${filterFlag("mine")} or auth.uid() = any (x.${r("signers")}))`,
+      `(v_search is null or x.${r("subjectId")} ilike v_search or x.${r("message")} ilike v_search)`,
+      `(${SERVICE_CALLER} or auth.uid() = any (x.${r("signers")}) or ${readableRequest("x")})`,
+    ],
+    keys: [
+      { expr: `x.${r("createdAt")}`, dir: "desc", type: "timestamptz" },
+      { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${r("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+      ],
+      completedAt: [
+        {
+          expr: `coalesce(x.${r("completedAt")}, timestamptz '-infinity')`,
+          dir: "desc",
+          type: "timestamptz",
+        },
+        { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: `x.${r("status")}` },
+    rowJson: requestJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("SIGNATURE_INVALID", message, "22023"),
+  } as const;
 
   const imageCheck =
     attachments === undefined
@@ -689,6 +734,32 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_signature_requests")}(${ctx.idType}, text, text, text, boolean, integer, timestamptz)`)}
+
+-- A keyset page of signature requests, newest first (ADR 1077). filters is
+-- { status, subjectType, subjectId (each a value or a list), mine, search,
+-- sort (createdAt, completedAt), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }. A caller sees the requests they are asked to sign
+-- and the ones they can read.
+create or replace function ${fn("page_signature_requests")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_signature_requests.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(requestPage)}
+begin
+  if not (${SERVICE_CALLER} or ${filterFlag("mine")} or ${ctx.can("tenant", "page_signature_requests.tenant", read)}) then
+    ${forbidden("not allowed to list signature requests")}
+  end if;
+  ${listBody(requestPage)}
+end;
+$$;
+${userGrant(`${fn("page_signature_requests")}(${ctx.idType}, jsonb)`)}
 `;
 }
 
@@ -716,6 +787,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "get_signature_request", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "page_signature_requests",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
   ];
 }
 

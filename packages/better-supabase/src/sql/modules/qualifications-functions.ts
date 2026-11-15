@@ -2,6 +2,12 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
+import {
   activeMembership,
   extraFieldsArg,
   extraFieldsJson,
@@ -188,6 +194,41 @@ export function qualificationFunctions(ctx: BlockSqlContext): string {
     : `if save_qualification_type.course_id is not null then
     ${typeInvalid("the qualification types table has no course column")}
   end if;`;
+
+  const typeState = `case when x.${t("archivedAt")} is null then 'active' else 'archived' end`;
+  const typeExpiry = `case when x.${t("validForMonths")} is null then 'never' else 'expires' end`;
+  const typeIdKey = { expr: `x.${t("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const nameKeys = [
+    { expr: `lower(x.${t("name")})`, dir: "asc", type: "text" },
+    typeIdKey,
+  ] as const;
+
+  const typePage = {
+    name: "page_qualification_types",
+    from: types,
+    alias: "x",
+    where: [
+      `x.${t("tenant")} = page_qualification_types.tenant`,
+      filterAny("state", typeState),
+      filterAny("expiry", typeExpiry),
+      `(v_search is null or x.${t("name")} ilike v_search or x.${t("key")} ilike v_search)`,
+    ],
+    keys: nameKeys,
+    sorts: {
+      name: nameKeys,
+      key: [
+        { expr: `lower(x.${t("key")})`, dir: "asc", type: "text" },
+        typeIdKey,
+      ],
+    },
+    facets: { state: typeState, expiry: typeExpiry },
+    rowJson: typeJson(ctx, "x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) =>
+      fail("QUALIFICATION_TYPE_INVALID", message, "22023"),
+  } as const;
 
   const typeSets = [
     `${t("name")} = v_name`,
@@ -425,6 +466,49 @@ as $$
     and (coalesce(list_qualification_types.include_archived, false) or x.${t("archivedAt")} is null)
 $$;
 ${userGrant(`${fn("list_qualification_types")}(${idType}, boolean)`)}
+
+-- The organization's qualification types as a keyset page, by name (ADR 1077).
+-- Row security decides what the caller sees. filters is { state (active,
+-- archived), expiry (never, expires), search, sort (name, key), direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_qualification_types")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_qualification_types.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(typePage)}
+begin
+  ${listBody(typePage)}
+end;
+$$;
+${userGrant(`${fn("page_qualification_types")}(${idType}, jsonb)`)}
+
+-- One qualification type by id, or QUALIFICATION_TYPE_NOT_FOUND when it does
+-- not exist or row security hides it.
+create or replace function ${fn("get_qualification_type")}(type_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row ${types}%rowtype;
+begin
+  select * into v_row from ${types} x where x.${t("id")} = get_qualification_type.type_id;
+  if not found then
+    ${typeNotFound}
+  end if;
+  return ${typeJson(ctx, "v_row")};
+end;
+$$;
+${userGrant(`${fn("get_qualification_type")}(uuid)`)}
 
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an

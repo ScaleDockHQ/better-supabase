@@ -90,8 +90,10 @@ export type {
   InventoryLowStock,
   InventoryOverview,
   InventoryReads,
+  StockLevelPageRead,
   StockLevelRead,
   StockLevelStatus,
+  StockLotRead,
   StockMovementRead,
 } from "./reads.ts";
 

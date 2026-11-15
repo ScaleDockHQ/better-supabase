@@ -92,6 +92,8 @@ const facets = await forms.facets({ organizationId }).orThrow();
 const total = await forms.count({ organizationId }).orThrow();
 ```
 
+`submissionPage` pages the submissions of the organization the same way, newest first. Sorts are `createdAt` and `submittedAt`. Filters are `formId`, `status`, `respondentId` and `includeArchived`, each a list. `q` searches the answers as text. `submissionFacets` counts `status` and `formId`, and `submissionCount` returns `{ value, exact }`. `listSubmissions` keeps working and is deprecated.
+
 ## Definitions and versions
 
 A definition is a list of steps, and each step a list of fields. `publish(formId, definition)` stores it as the form's next numbered version and makes it current; older versions and their submissions stay as they were. A form takes submissions only while its status is `open` (`FORM_CLOSED` otherwise).

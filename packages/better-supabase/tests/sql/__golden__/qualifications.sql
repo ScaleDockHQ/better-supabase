@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:aec644d609bcf9a9d613580b70fcd2bc55d94bfaa700ec0dd9ed7ee3c66af686
+-- @bsb-hash sha256:023ac33e159073169396356d1475e9ae6ba4293418ceadf3d7b4175edad5c511
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -279,6 +279,248 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_qualification_types"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_qualification_types"(uuid, boolean) to authenticated, service_role;
+
+-- The organization's qualification types as a keyset page, by name (ADR 1077).
+-- Row security decides what the caller sees. filters is { state (active,
+-- archived), expiry (never, expires), search, sort (name, key), direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_qualification_types"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_qualification_types.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('state', 'expiry') then
+      raise exception 'facet is one of state, expiry' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'state' then (case when x."archived_at" is null then 'active' else 'archived' end)::text when 'expiry' then (case when x."valid_for_months" is null then 'never' else 'expires' end)::text end) as v
+      from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'key') then
+    raise exception 'sort is one of name, key' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."key") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key") <= (v_after ->> 0)::text and ((lower(x."key") < (v_after ->> 0)::text) or (lower(x."key") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."key") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_qualification_types"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_qualification_types"(uuid, jsonb) to authenticated, service_role;
+
+-- One qualification type by id, or QUALIFICATION_TYPE_NOT_FOUND when it does
+-- not exist or row security hides it.
+create or replace function "better_supabase"."get_qualification_type"(type_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."qualification_types"%rowtype;
+begin
+  select * into v_row from "better_supabase"."qualification_types" x where x."id" = get_qualification_type.type_id;
+  if not found then
+    raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_qualification_type"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_qualification_type"(uuid) to authenticated, service_role;
 
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
@@ -773,7 +1015,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:554fe300047bbd0fdad9f996b67d50680871c799478f766eab2e76311243a434
+-- @bsb-hash sha256:4fa7933f5cb18d06bec0f35cfa44a70ad18ea1652d172ffda3e81354c3c693e5
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1091,6 +1333,248 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_qualification_types"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_qualification_types"(uuid, boolean) to authenticated, service_role;
+
+-- The organization's qualification types as a keyset page, by name (ADR 1077).
+-- Row security decides what the caller sees. filters is { state (active,
+-- archived), expiry (never, expires), search, sort (name, key), direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_qualification_types"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_qualification_types.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('state', 'expiry') then
+      raise exception 'facet is one of state, expiry' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'state' then (case when x."archived_at" is null then 'active' else 'archived' end)::text when 'expiry' then (case when x."valid_for_months" is null then 'never' else 'expires' end)::text end) as v
+      from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'key') then
+    raise exception 'sort is one of name, key' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."key") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key") <= (v_after ->> 0)::text and ((lower(x."key") < (v_after ->> 0)::text) or (lower(x."key") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."key") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_qualification_types"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_qualification_types"(uuid, jsonb) to authenticated, service_role;
+
+-- One qualification type by id, or QUALIFICATION_TYPE_NOT_FOUND when it does
+-- not exist or row security hides it.
+create or replace function "better_supabase"."get_qualification_type"(type_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."qualification_types"%rowtype;
+begin
+  select * into v_row from "better_supabase"."qualification_types" x where x."id" = get_qualification_type.type_id;
+  if not found then
+    raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_qualification_type"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_qualification_type"(uuid) to authenticated, service_role;
 
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
@@ -1711,7 +2195,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:f1868c9cd9deb2bf2858250adfe0bcc5d925c3e0b75b72dff382be5e884ef3dd
+-- @bsb-hash sha256:64d71ea588c841bee698f5ef5ae1eb9e004b2faa9f487de16685e3904000f9b0
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1994,6 +2478,248 @@ as $$
 $$;
 revoke execute on function "app_private"."list_qualification_types"(uuid, boolean) from public, anon;
 grant execute on function "app_private"."list_qualification_types"(uuid, boolean) to authenticated, service_role;
+
+-- The organization's qualification types as a keyset page, by name (ADR 1077).
+-- Row security decides what the caller sees. filters is { state (active,
+-- archived), expiry (never, expires), search, sort (name, key), direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_qualification_types"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_qualification_types.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('state', 'expiry') then
+      raise exception 'facet is one of state, expiry' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'state' then (case when x."archived_at" is null then 'active' else 'archived' end)::text when 'expiry' then (case when x."valid_for_months" is null then 'never' else 'expires' end)::text end) as v
+      from "app_private"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'key') then
+    raise exception 'sort is one of name, key' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."key") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key") <= (v_after ->> 0)::text and ((lower(x."key") < (v_after ->> 0)::text) or (lower(x."key") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."key") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_qualification_types"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_qualification_types"(uuid, jsonb) to authenticated, service_role;
+
+-- One qualification type by id, or QUALIFICATION_TYPE_NOT_FOUND when it does
+-- not exist or row security hides it.
+create or replace function "app_private"."get_qualification_type"(type_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."qualification_types"%rowtype;
+begin
+  select * into v_row from "app_private"."qualification_types" x where x."id" = get_qualification_type.type_id;
+  if not found then
+    raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."get_qualification_type"(uuid) from public, anon;
+grant execute on function "app_private"."get_qualification_type"(uuid) to authenticated, service_role;
 
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
@@ -2488,7 +3214,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:668e0d8997873362f079ca591f6982b3ea95456622a4460b6f82dff541746e29
+-- @bsb-hash sha256:dd7ad0f97f4593dfdbd71db197c1e638b235b093b192dfbf68d6e9b226d6a135
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2766,6 +3492,248 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_qualification_types"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_qualification_types"(uuid, boolean) to authenticated, service_role;
+
+-- The organization's qualification types as a keyset page, by name (ADR 1077).
+-- Row security decides what the caller sees. filters is { state (active,
+-- archived), expiry (never, expires), search, sort (name, key), direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_qualification_types"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_qualification_types.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('state', 'expiry') then
+      raise exception 'facet is one of state, expiry' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'state' then (case when x."archived_at" is null then 'active' else 'archived' end)::text when 'expiry' then (case when x."valid_for_months" is null then 'never' else 'expires' end)::text end) as v
+      from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'key') then
+    raise exception 'sort is one of name, key' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."key") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key") <= (v_after ->> 0)::text and ((lower(x."key") < (v_after ->> 0)::text) or (lower(x."key") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."key") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_qualification_types"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_qualification_types"(uuid, jsonb) to authenticated, service_role;
+
+-- One qualification type by id, or QUALIFICATION_TYPE_NOT_FOUND when it does
+-- not exist or row security hides it.
+create or replace function "better_supabase"."get_qualification_type"(type_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."qualification_types"%rowtype;
+begin
+  select * into v_row from "better_supabase"."qualification_types" x where x."id" = get_qualification_type.type_id;
+  if not found then
+    raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_qualification_type"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_qualification_type"(uuid) to authenticated, service_role;
 
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
@@ -3284,6 +4252,26 @@ as $$ select "better_supabase"."list_qualification_types"($1, $2) $$;
 revoke execute on function "api"."list_qualification_types"(uuid, boolean) from public, anon;
 grant execute on function "api"."list_qualification_types"(uuid, boolean) to authenticated, service_role;
 
+create or replace function "api"."page_qualification_types"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_qualification_types"($1, $2) $$;
+revoke execute on function "api"."page_qualification_types"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_qualification_types"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."get_qualification_type"(type_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_qualification_type"($1) $$;
+revoke execute on function "api"."get_qualification_type"(uuid) from public, anon;
+grant execute on function "api"."get_qualification_type"(uuid) to authenticated, service_role;
+
 create or replace function "api"."add_qualification_requirement"(type_id uuid, target_type text, target_value text)
 returns jsonb
 language sql
@@ -3386,7 +4374,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:2fc32792f2e961b0705f542de1456878767027b9bf86a77e34524b793cd5f8c8
+-- @bsb-hash sha256:be968c6bf68c71d255f5e8e246deba51748aac15328f8c0fe0df0fb560a807fc
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3648,6 +4636,248 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_qualification_types"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_qualification_types"(uuid, boolean) to authenticated, service_role;
+
+-- The organization's qualification types as a keyset page, by name (ADR 1077).
+-- Row security decides what the caller sees. filters is { state (active,
+-- archived), expiry (never, expires), search, sort (name, key), direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_qualification_types"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_qualification_types.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('state', 'expiry') then
+      raise exception 'facet is one of state, expiry' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'state' then (case when x."archived_at" is null then 'active' else 'archived' end)::text when 'expiry' then (case when x."valid_for_months" is null then 'never' else 'expires' end)::text end) as v
+      from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'key') then
+    raise exception 'sort is one of name, key' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."key") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key") <= (v_after ->> 0)::text and ((lower(x."key") < (v_after ->> 0)::text) or (lower(x."key") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."key") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."qualification_types" x
+      where x."tenant_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_qualification_types"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_qualification_types"(uuid, jsonb) to authenticated, service_role;
+
+-- One qualification type by id, or QUALIFICATION_TYPE_NOT_FOUND when it does
+-- not exist or row security hides it.
+create or replace function "better_supabase"."get_qualification_type"(type_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."qualification_types"%rowtype;
+begin
+  select * into v_row from "better_supabase"."qualification_types" x where x."id" = get_qualification_type.type_id;
+  if not found then
+    raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_qualification_type"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_qualification_type"(uuid) to authenticated, service_role;
 
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an
@@ -4142,7 +5372,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:b59a541369828064fe13a5f69564230391354048e86de0acf2af0b125986a64f
+-- @bsb-hash sha256:ce34d53796f0384fd29ff447ab4ad1027bfe2c6b366d73d494378322554b4d4a
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4420,6 +5650,248 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_qualification_types"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_qualification_types"(uuid, boolean) to authenticated, service_role;
+
+-- The organization's qualification types as a keyset page, by name (ADR 1077).
+-- Row security decides what the caller sees. filters is { state (active,
+-- archived), expiry (never, expires), search, sort (name, key), direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_qualification_types"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_qualification_types.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('state', 'expiry') then
+      raise exception 'facet is one of state, expiry' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'state' then (case when x."archived_at" is null then 'active' else 'archived' end)::text when 'expiry' then (case when x."valid_for_months" is null then 'never' else 'expires' end)::text end) as v
+      from "better_supabase"."qualification_types" x
+      where x."org_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."qualification_types" x
+      where x."org_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'key') then
+    raise exception 'sort is one of name, key' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."org_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."org_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."org_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."name") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."name"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."org_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."name") <= (v_after ->> 0)::text and ((lower(x."name") < (v_after ->> 0)::text) or (lower(x."name") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."name") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."org_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."key") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'QUALIFICATION_TYPE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'description', x."description", 'holderTypes', to_jsonb(x."holder_types"), 'validForMonths', x."valid_for_months", 'evidenceRequired', x."evidence_required", 'courseId', x."course_id", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."key"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."qualification_types" x
+      where x."org_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."key") <= (v_after ->> 0)::text and ((lower(x."key") < (v_after ->> 0)::text) or (lower(x."key") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."key") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."qualification_types" x
+      where x."org_id" = page_qualification_types.tenant
+        and (not (v_filters -> 'state' is not null and jsonb_typeof(v_filters -> 'state') <> 'null' and not (jsonb_typeof(v_filters -> 'state') = 'array' and jsonb_array_length(v_filters -> 'state') = 0)) or case when x."archived_at" is null then 'active' else 'archived' end = any((case when jsonb_typeof(v_filters -> 'state') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'state')) else array[v_filters ->> 'state'] end)::text[]))
+        and (not (v_filters -> 'expiry' is not null and jsonb_typeof(v_filters -> 'expiry') <> 'null' and not (jsonb_typeof(v_filters -> 'expiry') = 'array' and jsonb_array_length(v_filters -> 'expiry') = 0)) or case when x."valid_for_months" is null then 'never' else 'expires' end = any((case when jsonb_typeof(v_filters -> 'expiry') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'expiry')) else array[v_filters ->> 'expiry'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_qualification_types"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_qualification_types"(uuid, jsonb) to authenticated, service_role;
+
+-- One qualification type by id, or QUALIFICATION_TYPE_NOT_FOUND when it does
+-- not exist or row security hides it.
+create or replace function "better_supabase"."get_qualification_type"(type_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."qualification_types"%rowtype;
+begin
+  select * into v_row from "better_supabase"."qualification_types" x where x."id" = get_qualification_type.type_id;
+  if not found then
+    raise exception 'qualification type not found' using errcode = 'P0002', hint = 'QUALIFICATION_TYPE_NOT_FOUND';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'holderTypes', to_jsonb(v_row."holder_types"), 'validForMonths', v_row."valid_for_months", 'evidenceRequired', v_row."evidence_required", 'courseId', v_row."course_id", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_qualification_type"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_qualification_type"(uuid) to authenticated, service_role;
 
 -- Says who must hold a type: target_type role (a membership role), team (a
 -- team id), job_title (an employee job title, any case), asset_kind (an

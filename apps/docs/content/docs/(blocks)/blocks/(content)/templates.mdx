@@ -23,6 +23,18 @@ better-supabase add templates
 
 The module needs `memberships` and `access`. With `outbox` it records events, with `audit` it audits publishes and applications, with `workflow-editor` it attaches workflows, and with `jsonb-schemas` it checks a workflow's inputs against its whole input schema.
 
+## Paging templates
+
+`templatePage` pages the templates by name (ADR 1077) with `templateFacets`, `templateCount` and `getTemplate`. Sorts are `name` (the default), `createdAt` and `updatedAt`. Filters are `type`, `language`, `scope` and `isDefault`, each a list. `q` searches the name and the key. `getTemplate` returns a `not_found` error for a template that is missing or hidden from the caller.
+
+```ts
+const emails = await templates
+  .templatePage({ organizationId, filters: { type: ["email"] } })
+  .orThrow();
+```
+
+`list` keeps working and is deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Template types
 
 A type gives a template its Standard Schemas and creates the record. `settings` and `body` are checked on every write and parsed again before `apply`. `apply` returns the record it created as a subject.

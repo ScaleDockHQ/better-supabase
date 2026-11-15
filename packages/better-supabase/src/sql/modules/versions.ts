@@ -10,6 +10,12 @@ import type { Subject } from "../subjects.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   extraFieldsArg,
@@ -440,6 +446,47 @@ function build(ctx: BlockSqlContext): string {
       ? ` and ${type} <> ${sqlString(aiDocumentSubject(ctx.of("ai-files")))}`
       : "";
 
+  const versionIdKey = {
+    expr: `x.${c("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const newestKeys = [
+    { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
+    versionIdKey,
+  ] as const;
+
+  const versionPage = {
+    name: "page_versions",
+    from: versions,
+    alias: "x",
+    where: [
+      `x.${c("tenant")} = page_versions.tenant`,
+      filterAny("subjectType", `x.${c("subjectType")}`),
+      filterAny("subjectId", `x.${c("subjectId")}`),
+      filterAny("source", `x.${c("source")}`),
+      `(v_search is null or x.${c("label")} ilike v_search or x.${c("subjectId")} ilike v_search)`,
+      `(${SERVICE_CALLER} or (${subjectReadable(ctx, subjects, { type: `x.${c("subjectType")}`, id: `x.${c("subjectId")}`, tenant: `x.${c("tenant")}` })}${own(`x.${c("subjectType")}`)}))`,
+    ],
+    keys: newestKeys,
+    sorts: {
+      createdAt: newestKeys,
+      number: [
+        { expr: `x.${c("number")}`, dir: "desc", type: "integer" },
+        ...newestKeys,
+      ],
+    },
+    facets: {
+      source: `x.${c("source")}`,
+      subjectType: `x.${c("subjectType")}`,
+    },
+    rowJson: summary("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("VERSION_INVALID", message, "22023"),
+  } as const;
+
   const privateDocuments = ctx.installed("ai-files")
     ? `\n${renderPolicy(makePolicy({ table: versions, name: ctx.of("ai-files").naming.rename("versions_ai_documents"), command: "select", roles: ["authenticated"], permissive: false, using: `${c("subjectType")} <> ${sqlString(aiDocumentSubject(ctx.of("ai-files")))}` }), { target: versions })}`
     : "";
@@ -598,6 +645,31 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_versions")}(${ctx.idType}, text, text, integer, integer)`)}
+
+-- A keyset page of versions without content, newest first (ADR 1077). filters
+-- is { subjectType, subjectId, source (each a value or a list), search, sort
+-- (createdAt, number), direction, facet, count, limit, after, offset, paged,
+-- total, totalCap }. The caller sees the versions of the records they can read.
+create or replace function ${fn("page_versions")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_versions.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(versionPage)}
+begin
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "page_versions.tenant", read)}) then
+    ${forbidden}
+  end if;
+  ${listBody(versionPage)}
+end;
+$$;
+${userGrant(`${fn("page_versions")}(${ctx.idType}, jsonb)`)}
 
 create or replace function ${fn("get_version")}(version_id uuid)
 returns jsonb
@@ -902,6 +974,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "text", "jsonb", "text", "text", "text", ...extra],
       returns: "jsonb",
     },
+    { name: "page_versions", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "get_version", args: ["uuid"], returns: "jsonb" },
     { name: "get_versions", args: ["uuid[]"], returns: "jsonb" },
     { name: "restore_version", args: ["uuid", "text[]"], returns: "jsonb" },

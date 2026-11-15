@@ -42,6 +42,7 @@ import {
   countTables,
 } from "./inventory-counts.ts";
 import { counterCase, stockLedger } from "./inventory-ledger.ts";
+import { inventoryPages } from "./inventory-pages.ts";
 import {
   PROCUREMENT_ENTITIES,
   PROCUREMENT_TABLES,
@@ -664,7 +665,7 @@ function build(ctx: BlockSqlContext): string {
 -- weighted average cost, reservations with expiry, allocations with
 -- backorders, transfers, purchase requisitions and purchase orders with
 -- receiving into goods receipts.
-${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${allocationImportFunctions(ctx, names)}${addressColumn(ctx)}${locationFunctions(ctx, names)}${addressFunctions(ctx, names)}${stockFunctions(ctx, names)}${countFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${inventoryReads(ctx)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
+${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${allocationImportFunctions(ctx, names)}${addressColumn(ctx)}${locationFunctions(ctx, names)}${addressFunctions(ctx, names)}${stockFunctions(ctx, names)}${countFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}${requisitionFunctions(ctx, names)}${inventoryReads(ctx)}${inventoryPages(ctx)}${accountingSourcesSql(ctx, inventoryAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
