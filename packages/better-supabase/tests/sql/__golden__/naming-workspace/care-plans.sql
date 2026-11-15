@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:33fed055cf572f4ca48850ae3675ef7fb3c80b4ae14ae71868f90993468bae78
+-- @bsb-hash sha256:e85620b80a63192d1ebae92e283189529914b879a5f8ba1707abf4c137e65ef7
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1252,7 +1252,7 @@ $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
 
--- Restores an archived plan as a draft (ADR 1034). Its actions stay ended,
+-- Restores an archived plan as a draft (ADR 1040). Its actions stay ended,
 -- so publishing it again starts nothing until actions are added.
 create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
 returns jsonb

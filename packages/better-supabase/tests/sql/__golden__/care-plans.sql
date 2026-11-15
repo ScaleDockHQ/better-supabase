@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:53263a04eecb9046f15c8536f33366715f513f3f21a2bd92025cda08b22663df
+-- @bsb-hash sha256:2e5466b6733876ce1758c430c812712b3acdaf9743dde753cbf58b9aa50b9ed5
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1252,7 +1252,7 @@ $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
 
--- Restores an archived plan as a draft (ADR 1034). Its actions stay ended,
+-- Restores an archived plan as a draft (ADR 1040). Its actions stay ended,
 -- so publishing it again starts nothing until actions are added.
 create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
 returns jsonb
@@ -1550,7 +1550,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:d07bde858bb95edc33e50c5b421cb55b951f1d49f135b542a6fd6c9ba56298e6
+-- @bsb-hash sha256:c1b427e4d05bcb45aea713cab71fc58b77dbed79f4dded2b0e660dfcf8101dbc
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2941,7 +2941,7 @@ $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
 
--- Restores an archived plan as a draft (ADR 1034). Its actions stay ended,
+-- Restores an archived plan as a draft (ADR 1040). Its actions stay ended,
 -- so publishing it again starts nothing until actions are added.
 create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
 returns jsonb
@@ -3407,7 +3407,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:2b5df02386f268a03d8e1165cf915c798e30a29d986ab4ce799c4ca9891cf77d
+-- @bsb-hash sha256:fb18bd67ed40ee38493c3bfa19d883da23223a6d5b90ddf2ef197beb4d92e4d3
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4663,7 +4663,7 @@ $$;
 revoke execute on function "app_private"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "app_private"."archive_care_plan"(uuid) to authenticated, service_role;
 
--- Restores an archived plan as a draft (ADR 1034). Its actions stay ended,
+-- Restores an archived plan as a draft (ADR 1040). Its actions stay ended,
 -- so publishing it again starts nothing until actions are added.
 create or replace function "app_private"."restore_care_plan"(plan_id uuid)
 returns jsonb
@@ -4961,7 +4961,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:d5222cba3e6ede2b7273de2ff421d9891a0efca78de2f2eea3b3d1440202d6b9
+-- @bsb-hash sha256:fda31729211eceb1f411e5d3338448813b668918e0ff00a8c78a5e676920ea39
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6212,7 +6212,7 @@ $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
 
--- Restores an archived plan as a draft (ADR 1034). Its actions stay ended,
+-- Restores an archived plan as a draft (ADR 1040). Its actions stay ended,
 -- so publishing it again starts nothing until actions are added.
 create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
 returns jsonb
@@ -6735,7 +6735,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:b6e88359dbd4c67b6100a40fd0faa1efca376795f14bb6c479b6ce91d3bf6406
+-- @bsb-hash sha256:df7eac223e31ebb2b5c0ff9505603a952dafed65fb97cc8fdcf66cbfce29655d
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7953,7 +7953,7 @@ $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
 
--- Restores an archived plan as a draft (ADR 1034). Its actions stay ended,
+-- Restores an archived plan as a draft (ADR 1040). Its actions stay ended,
 -- so publishing it again starts nothing until actions are added.
 create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
 returns jsonb
@@ -8251,7 +8251,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:99f76016f63bd6b6f253664d95c5e11cedba96e8697e4a19c0191af6b79097cc
+-- @bsb-hash sha256:68e807011792ee139eec10288aff506bd69d6309aa8a510052675e911fd0655e
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9502,7 +9502,7 @@ $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
 
--- Restores an archived plan as a draft (ADR 1034). Its actions stay ended,
+-- Restores an archived plan as a draft (ADR 1040). Its actions stay ended,
 -- so publishing it again starts nothing until actions are added.
 create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
 returns jsonb

@@ -1,4 +1,4 @@
--- Restoring a care plan (ADR 1034): an archived plan comes back as a draft,
+-- Restoring a care plan (ADR 1040): an archived plan comes back as a draft,
 -- its actions stay ended and publishing it starts nothing, and a plan that is
 -- not archived is returned unchanged. Run with `supabase test db`.
 begin;
