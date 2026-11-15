@@ -6,8 +6,8 @@ select plan(6);
 
 create temp table fixture as
 with endpoint as (
-  insert into better_supabase.webhook_endpoints (tenant_id, url, event_types)
-  values ('00000000-0000-4000-8000-000000000001', 'https://example.com/hook', array['invoice.paid'])
+  insert into better_supabase.webhook_endpoints (tenant_id, name, url, event_types)
+  values ('00000000-0000-4000-8000-000000000001', 'Test hook', 'https://example.com/hook', array['invoice.paid'])
   returning id
 )
 select e.id as endpoint,
