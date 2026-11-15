@@ -5,6 +5,7 @@ import { defineBlock } from "../define-block.ts";
 import { periodsEvents } from "./events.ts";
 import { periodListSurface } from "./lists.ts";
 import { createPeriods } from "./periods.ts";
+import { periodInputSchema } from "./schemas.ts";
 
 /** The `periods` block's manifest (ADR 0197). */
 export const periodsBlock: BlockOf<
@@ -15,7 +16,7 @@ export const periodsBlock: BlockOf<
   name: "periods",
   sql: ["periods"],
   events: periodsEvents,
-  schemas: {},
+  schemas: { period: { input: periodInputSchema } },
   create: createPeriods,
   recipes: [],
   category: "commerce",

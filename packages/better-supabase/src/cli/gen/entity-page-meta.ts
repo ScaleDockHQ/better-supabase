@@ -88,11 +88,58 @@ export function seedValue(
   }
 }
 
+const invalid = (entity: string, message: string): CliError =>
+  new CliError("config_invalid", `gen.entityPages: ${entity}: ${message}`);
+
+/** The table of a page's seed: the entity's, else the `seed.table` override. */
+function seedTable(
+  entry: ResolvedEntityPage,
+):
+  | {
+      readonly schema: string;
+      readonly name: string;
+      readonly tenant: string | undefined;
+    }
+  | undefined {
+  const { seed } = entry.page;
+  const { table } = entry;
+
+  if (seed?.table === undefined) {
+    return table === undefined
+      ? undefined
+      : { schema: table.schema, name: table.name, tenant: table.tenant };
+  }
+
+  const dot = seed.table.indexOf(".");
+
+  return {
+    schema: dot === -1 ? "public" : seed.table.slice(0, dot),
+    name: dot === -1 ? seed.table : seed.table.slice(dot + 1),
+    tenant: seed.tenant ?? table?.tenant,
+  };
+}
+
+const isSeedList = (
+  value: EntitySeedValue | readonly EntitySeedValue[],
+): value is readonly EntitySeedValue[] => Array.isArray(value);
+
 /**
- * The demo rows of a page: one per `seed.demo`, filled from the required fields
- * of the block's input schema that are columns of the table. The values come
- * from the field's kind and bounds, so the same descriptor gives the same
- * rows.
+ * The value of a declared field for one row: a scalar for every row, a list
+ * cycled by the row's index.
+ */
+export function declaredSeedValue(
+  value: EntitySeedValue | readonly EntitySeedValue[],
+  index: number,
+): EntitySeedValue {
+  return isSeedList(value) ? (value[index % value.length] ?? null) : value;
+}
+
+/**
+ * The demo rows of a page. `seed.rows` are used as written. Otherwise there is
+ * one row per `seed.demo`, filled from the required fields of the block's input
+ * schema that are columns of the table, plus every field `seed.fields`
+ * declares. The values come from the field's kind and bounds or from the
+ * declaration, so the same descriptor gives the same rows.
  */
 export function entityPageSeedRows(
   entry: ResolvedEntityPage,
@@ -101,36 +148,72 @@ export function entityPageSeedRows(
   const { table } = entry;
   const fields = entry.schemas?.input?.fields;
 
-  if (seed === undefined || table === undefined || fields === undefined) {
+  if (seed === undefined) {
+    return [];
+  }
+
+  if (seed.rows !== undefined) {
+    if (seed.demo !== undefined || seed.fields !== undefined) {
+      throw invalid(
+        entry.page.entity,
+        "seed.rows replaces the generated rows, so `demo` and `fields` stay unset.",
+      );
+    }
+
+    return seed.rows;
+  }
+
+  if (table === undefined || fields === undefined) {
     return [];
   }
 
   const demo = seed.demo ?? DEFAULT_DEMO_ROWS;
 
   if (demo > MAX_DEMO_ROWS) {
-    throw new CliError(
-      "config_invalid",
-      `gen.entityPages: ${entry.page.entity}: seed.demo is ${String(demo)}; the most is ${String(MAX_DEMO_ROWS)}. Use \`pnpm db:seed:scale\` for larger loads.`,
+    throw invalid(
+      entry.page.entity,
+      `seed.demo is ${String(demo)}; the most is ${String(MAX_DEMO_ROWS)}. Use \`pnpm db:seed:scale\` for larger loads.`,
     );
+  }
+
+  const declared = seed.fields ?? {};
+
+  for (const [key, value] of Object.entries(declared)) {
+    if (fields[key] === undefined || table.columns[key] === undefined) {
+      throw invalid(
+        entry.page.entity,
+        `seed.fields.${key} is not a field of the block's input schema that is a column of ${table.name}.`,
+      );
+    }
+
+    if (isSeedList(value) && value.length === 0) {
+      throw invalid(entry.page.entity, `seed.fields.${key} is an empty list.`);
+    }
   }
 
   const columns = Object.entries(fields).flatMap(([key, field]) => {
     const column = table.columns[key];
 
     return column === undefined ||
-      field.optional === true ||
+      (field.optional === true && declared[key] === undefined) ||
       field.readOnly === true ||
-      kindOf(field) === "json"
+      (kindOf(field) === "json" && declared[key] === undefined)
       ? []
       : [{ key, column, field }];
   });
 
   return Array.from({ length: demo }, (_, index) =>
     Object.fromEntries(
-      columns.map(({ key, column, field }) => [
-        column,
-        seedValue(key, field, index),
-      ]),
+      columns.map(({ key, column, field }) => {
+        const value = declared[key];
+
+        return [
+          column,
+          value === undefined
+            ? seedValue(key, field, index)
+            : declaredSeedValue(value, index),
+        ];
+      }),
     ),
   );
 }
@@ -138,7 +221,7 @@ export function entityPageSeedRows(
 /**
  * `pages/<name>.seed.ts`: the demo rows of `page.seed`, keyed by database
  * column, with the table, the tenant column and the tiers. A page without
- * `seed`, or whose block exports no input schema, writes no file.
+ * `seed` writes no file; a `seed` with no table or no rows stops `gen`.
  */
 export const SEED_OUTPUT: EntityPageOutput = {
   apiVersion: 1,
@@ -146,18 +229,26 @@ export const SEED_OUTPUT: EntityPageOutput = {
   render: (context) =>
     withPage(context, (entry) => {
       const { seed } = entry.page;
-      const { table } = entry;
 
-      if (seed === undefined || table === undefined) {
+      if (seed === undefined) {
         return;
+      }
+
+      const table = seedTable(entry);
+
+      if (table === undefined) {
+        throw invalid(
+          entry.page.entity,
+          "seed needs a table, and the block declares none for this entity. Set `seed.table` and `seed.tenant`, or remove `seed`.",
+        );
       }
 
       const rows = entityPageSeedRows(entry);
 
       if (rows.length === 0) {
-        throw new CliError(
-          "config_invalid",
-          `gen.entityPages: ${entry.page.entity}: seed needs the block's input schema with columns of ${table.name}, and the block exports none that fit. Remove \`seed\`.`,
+        throw invalid(
+          entry.page.entity,
+          `seed needs the block's input schema with columns of ${table.name}, and the block exports none that fit. Set \`seed.rows\` or remove \`seed\`.`,
         );
       }
 

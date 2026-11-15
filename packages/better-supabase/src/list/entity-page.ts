@@ -8,6 +8,7 @@ import type {
 import type { EntityListSurface } from "../core/entity-list.ts";
 import type { DbError, ValidationIssue } from "../core/errors.ts";
 import type { PageSort } from "../core/page-sort.ts";
+import type { EntitySeedValue } from "./entity-ui.ts";
 
 import { MAX_PAGE_SORTS, sortsOf } from "../core/page-sort.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
@@ -117,10 +118,36 @@ export interface EntityPage {
   readonly columns?: readonly string[];
   /** The sections of the detail page. Read by the detail generator (lane M2). */
   readonly sections?: readonly string[];
-  /** The demo rows and tiers to seed. Read by the seed generator (lane M3). */
+  /**
+   * The demo rows and tiers to seed. Read by the seed generator (ADR 0879).
+   * `fields` and `rows` are additive (ADR 0897).
+   */
   readonly seed?: {
+    /** How many generated rows (default 10, at most 500). */
     readonly demo?: number;
     readonly tiers?: readonly string[];
+    /**
+     * A value for an input field of the block, keyed by field name. A scalar is
+     * the value of every row; a list gives row `i` the value at `i` modulo its
+     * length. The field is seeded even when it is optional, so a field a
+     * generated value cannot know (a risk's `category`) can still be set.
+     */
+    readonly fields?: Readonly<
+      Record<string, EntitySeedValue | readonly EntitySeedValue[]>
+    >;
+    /**
+     * Explicit rows, for a page whose block exports no input schema that fits.
+     * They replace the generated rows, so `demo` and `fields` stay unset. A key
+     * is what the app's insert call reads, usually a database column.
+     */
+    readonly rows?: readonly Readonly<Record<string, EntitySeedValue>>[];
+    /**
+     * The table of the rows as `schema.table`, for a page whose block declares
+     * none. Default: the entity's table.
+     */
+    readonly table?: string;
+    /** The tenant column of `table`. Default: the entity's tenant column. */
+    readonly tenant?: string;
   };
   /**
    * Adds a CSV download route over the page's filters: `gen` writes `GET

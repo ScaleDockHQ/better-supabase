@@ -25627,6 +25627,54 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "PeriodStatus"
         }
       ],
+      "entitySchemas": {
+        "period": {
+          "input": {
+            "title": "CreatePeriodInput",
+            "fields": {
+              "kind": {
+                "kind": "string",
+                "minLength": 1,
+                "description": "What the range is for, such as `fiscal_month`."
+              },
+              "startsOn": {
+                "kind": "plainDate"
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "description": "The last day of the range, inclusive."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CreatePeriodInput",
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "What the range is for, such as `fiscal_month`."
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "The last day of the range, inclusive."
+                }
+              },
+              "required": [
+                "kind",
+                "startsOn",
+                "endsOn"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
       "events": {
         "type": "PeriodsEvents",
         "types": [

@@ -196,6 +196,40 @@ describe("configIssues", () => {
     ).toEqual([]);
   });
 
+  it("accepts the seed values, rows and table of an entity page", () => {
+    const page = (seed: unknown) =>
+      configIssues({
+        gen: {
+          entityPages: {
+            pages: [{ apiVersion: 1, entity: "risks.risk", route: "/r", seed }],
+          },
+        },
+      });
+
+    expect(
+      page({
+        demo: 2,
+        fields: { category: ["a", "b"], kind: "x", level: 1, flag: null },
+      }),
+    ).toEqual([]);
+
+    expect(
+      page({
+        rows: [{ email: "a@b.test", n: 1, on: true, off: null }],
+        table: "better_supabase.invitations",
+        tenant: "tenant_id",
+      }),
+    ).toEqual([]);
+
+    expect(page({ fields: { category: [{}] } })).toEqual([
+      expect.stringMatching(/seed\.fields\.category/),
+    ]);
+
+    expect(page({ rows: [{ a: [1] }] })).toEqual([
+      expect.stringMatching(/seed\.rows\.0\.a/),
+    ]);
+  });
+
   it("names the key path of every problem", () => {
     expect(
       configIssues({
