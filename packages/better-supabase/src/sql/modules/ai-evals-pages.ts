@@ -31,7 +31,7 @@ export function evalPagesSql(ctx: BlockSqlContext, deps: EvalPageDeps): string {
   const items = ctx.table("items");
 
   const invalid = (message: string): string =>
-    fail("EVAL_INVALID", message, "22023");
+    fail("AI_EVAL_INVALID", message, "22023");
 
   const datasetIdKey = {
     expr: `x.${d("id")}`,

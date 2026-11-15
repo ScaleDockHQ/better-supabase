@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:a28c58293a2d556d5447881bab121d0428051d70410726ace25a7e906fab8c87
+-- @bsb-hash sha256:97995059d44fb09accb9692ac6b372736ea89b57c8ce20ee1e3b89d62fdd2e6c
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -196,10 +196,10 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'id is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_count then
     select count(*) into v_total from (
@@ -212,14 +212,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
-    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -243,7 +243,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -267,7 +267,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -291,7 +291,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -315,7 +315,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -339,7 +339,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -363,7 +363,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -387,7 +387,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -463,14 +463,14 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_facet is not null then
     if v_facet not in ('status', 'model', 'promptName') then
-      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'EVAL_INVALID';
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
     end if;
     with s as (
       select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
@@ -505,14 +505,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
-    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -535,7 +535,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -558,7 +558,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -581,7 +581,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -604,7 +604,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -627,7 +627,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1029,7 +1029,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:363be7b9d237866cf276b0ceef555c14a919352434a2f109dadee4a27ae66f43
+-- @bsb-hash sha256:096df1efa6dffc68dc381adb446a22fcac40de3b0a26eb6a7e00a4552b768b18
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1224,10 +1224,10 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'id is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_count then
     select count(*) into v_total from (
@@ -1240,14 +1240,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
-    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1271,7 +1271,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1295,7 +1295,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1319,7 +1319,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1343,7 +1343,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1367,7 +1367,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1391,7 +1391,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1415,7 +1415,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1491,14 +1491,14 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_facet is not null then
     if v_facet not in ('status', 'model', 'promptName') then
-      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'EVAL_INVALID';
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
     end if;
     with s as (
       select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
@@ -1533,14 +1533,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
-    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1563,7 +1563,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1586,7 +1586,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1609,7 +1609,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1632,7 +1632,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -1655,7 +1655,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2098,7 +2098,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:6ba6f95058f8955aee11d95d10bc665e641face754640162faeb312879dd0624
+-- @bsb-hash sha256:ca492cb8524572ca245f6b2bd11448a29905c4237e410b2193fe110ca435f11e
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2298,10 +2298,10 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'id is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_count then
     select count(*) into v_total from (
@@ -2314,14 +2314,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
-    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2345,7 +2345,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2369,7 +2369,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2393,7 +2393,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2417,7 +2417,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2441,7 +2441,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2465,7 +2465,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2489,7 +2489,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2565,14 +2565,14 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_facet is not null then
     if v_facet not in ('status', 'model', 'promptName') then
-      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'EVAL_INVALID';
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
     end if;
     with s as (
       select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
@@ -2607,14 +2607,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
-    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2637,7 +2637,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2660,7 +2660,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2683,7 +2683,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2706,7 +2706,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -2729,7 +2729,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3131,7 +3131,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:9312aa1c13b586e2ec44b31a56110a3da21c6da8e48ac13ec098cea5424547d1
+-- @bsb-hash sha256:d4c58e0061b9126eac534da742ed9f2ba85a48b93da7fdabdbde61bba4584d78
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3326,10 +3326,10 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'id is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_count then
     select count(*) into v_total from (
@@ -3342,14 +3342,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
-    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3373,7 +3373,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3397,7 +3397,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3421,7 +3421,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3445,7 +3445,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3469,7 +3469,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3493,7 +3493,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3517,7 +3517,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3593,14 +3593,14 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_facet is not null then
     if v_facet not in ('status', 'model', 'promptName') then
-      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'EVAL_INVALID';
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
     end if;
     with s as (
       select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
@@ -3635,14 +3635,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
-    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3665,7 +3665,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3688,7 +3688,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3711,7 +3711,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3734,7 +3734,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -3757,7 +3757,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4317,7 +4317,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:0f22ddc96f9238463bf533bce21dae3d606ee2efb7486e378e7713e66ff93590
+-- @bsb-hash sha256:b0faabb9b10f48bf5912e7e2867c44b1b3ca123b6993cd7f82dbc876c154cdbf
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4503,10 +4503,10 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'id is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_count then
     select count(*) into v_total from (
@@ -4519,14 +4519,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
-    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4550,7 +4550,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4574,7 +4574,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4598,7 +4598,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4622,7 +4622,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4646,7 +4646,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4670,7 +4670,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4694,7 +4694,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4770,14 +4770,14 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_facet is not null then
     if v_facet not in ('status', 'model', 'promptName') then
-      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'EVAL_INVALID';
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
     end if;
     with s as (
       select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
@@ -4812,14 +4812,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
-    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4842,7 +4842,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4865,7 +4865,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4888,7 +4888,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4911,7 +4911,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -4934,7 +4934,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5336,7 +5336,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_182_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:6eadba485a24f490f69842330f01cab8fd466af63cff34f89dbfb33a12e6f7b3
+-- @bsb-hash sha256:317a377255f739a60b61ec20175eab449758b5a4353788264a9add1adb5b49f8
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5531,10 +5531,10 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'id') = 'array' then v_filters -> 'id' when jsonb_typeof(v_filters -> 'id') in ('string', 'number') then jsonb_build_array(v_filters -> 'id') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'id is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'id is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_count then
     select count(*) into v_total from (
@@ -5547,14 +5547,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastRunAt') then
-    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of name, createdAt, lastRunAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5578,7 +5578,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5602,7 +5602,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5626,7 +5626,7 @@ begin
   ) p;
   elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5650,7 +5650,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5674,7 +5674,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5698,7 +5698,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5722,7 +5722,7 @@ begin
   ) p;
   elsif v_sort = 'lastRunAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5798,14 +5798,14 @@ declare
   v_result jsonb;
 begin
   if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'datasetId') = 'array' then v_filters -> 'datasetId' when jsonb_typeof(v_filters -> 'datasetId') in ('string', 'number') then jsonb_build_array(v_filters -> 'datasetId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
-    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'datasetId is a uuid' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_filters ? 'after' and v_filters ? 'offset' then
-    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_facet is not null then
     if v_facet not in ('status', 'model', 'promptName') then
-      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'EVAL_INVALID';
+      raise exception 'facet is one of status, model, promptName' using errcode = '22023', hint = 'AI_EVAL_INVALID';
     end if;
     with s as (
       select (case v_facet when 'status' then (x."status")::text when 'model' then (x."model")::text when 'promptName' then (x."prompt_name")::text end) as v
@@ -5840,14 +5840,14 @@ begin
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
   end if;
   if v_sort is not null and v_sort not in ('createdAt', 'finishedAt') then
-    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'sort is one of createdAt, finishedAt' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_dir is not null and v_dir not in ('asc', 'desc') then
-    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5870,7 +5870,7 @@ begin
   ) p;
   elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5893,7 +5893,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5916,7 +5916,7 @@ begin
   ) p;
   elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5939,7 +5939,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'asc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
@@ -5962,7 +5962,7 @@ begin
   ) p;
   elsif v_sort = 'finishedAt' and coalesce(v_dir, 'desc') = 'desc' then
     if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
-    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EVAL_INVALID';
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_EVAL_INVALID';
   end if;
   select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
     count(*) > v_limit,
