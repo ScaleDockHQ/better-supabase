@@ -63,6 +63,12 @@ wins over the system policy of the same agent and stage.
 
 `flag` logs the reasons and lets the text through.
 
+`policies.list` returns one page of the policies an organization saved, enabled
+or not, ordered by agent and stage. Pass `agent` to list one agent's two
+stages. It does not resolve the fallback that `get` applies: a card for an agent
+without its own policy is absent. `limit` defaults to 50 and is at most 200;
+pass the page's `nextCursor` as `after`.
+
 ## Check and wrap
 
 ```ts
@@ -112,6 +118,7 @@ and a check that cannot run blocks the stage unless you set `failOpen`.
 | ----------------------------------------------------------------- | ------- |
 | `set_guardrail_policy(agent, stage, config, tenant, enabled)`     | service |
 | `get_guardrail_policy(agent, stage, tenant)`                      | service |
+| `list_guardrail_policies(tenant, agent, after_agent, ...)`        | service |
 | `record_guardrail_decision(agent, stage, decision, reasons, ...)` | service |
 | `list_guardrail_decisions(tenant, agent, decision, limit)`        | service |
 | `purge_guardrail_decisions()`                                     | service |

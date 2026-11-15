@@ -1,6 +1,6 @@
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:56d4c5c7035aa1cacefbf1ad551bfe09f5c7005fbf75d063210d8a88b634e81d
+-- @bsb-hash sha256:ffec2655a5f949ba56cf14f4f9f1fadd10637261a234d3bf638a4dc908233f98
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -117,6 +117,50 @@ end;
 $$;
 revoke execute on function "better_supabase"."get_eval_dataset"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."get_eval_dataset"(uuid) to service_role;
+
+-- One page of a tenant's datasets (the system's when tenant is null), in name
+-- order, each with its item count, run count and the time of its latest run.
+-- after is the last name of the previous page. It runs as invoker for the same
+-- reason as get_eval_dataset.
+create or replace function "better_supabase"."list_eval_datasets"(tenant uuid default null, after text default null, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_size integer := least(greatest(coalesce(list_eval_datasets.max_rows, 50), 1), 200);
+  v_items jsonb;
+  v_more boolean;
+begin
+  select coalesce(jsonb_agg(n.item order by n.name), '[]'::jsonb) into v_items
+  from (
+    select x."name" as name, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'description', x."description", 'created_at', x."created_at") || jsonb_build_object(
+      'item_count', (select count(*) from "better_supabase"."eval_items" i where i."dataset_id" = x."id"),
+      'run_count', (select count(*) from "better_supabase"."eval_runs" r where r."dataset_id" = x."id"),
+      'last_run_at', (select max(r."created_at") from "better_supabase"."eval_runs" r where r."dataset_id" = x."id")
+    ) as item
+    from "better_supabase"."eval_datasets" x
+    where coalesce(x."tenant_id"::text, '') = coalesce(list_eval_datasets.tenant::text, '')
+      and (list_eval_datasets.after is null or x."name" > list_eval_datasets.after)
+    order by x."name"
+    limit v_size + 1
+  ) n;
+  v_more := jsonb_array_length(v_items) > v_size;
+  if v_more then
+    v_items := v_items - v_size;
+  end if;
+  return jsonb_build_object(
+    'items', v_items,
+    'hasMore', v_more,
+    'nextCursor', case when v_more then jsonb_build_array(v_items -> (v_size - 1) ->> 'name') else null end
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_eval_datasets"(uuid, text, integer) to service_role;
 
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most 5000.
@@ -521,6 +565,16 @@ set search_path = ''
 as $$ select "better_supabase"."get_eval_dataset"($1) $$;
 revoke execute on function "api"."get_eval_dataset"(uuid) from public, anon, authenticated;
 grant execute on function "api"."get_eval_dataset"(uuid) to service_role;
+
+create or replace function "api"."list_eval_datasets"(tenant uuid default null, after text default null, max_rows integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_eval_datasets"($1, $2, $3) $$;
+revoke execute on function "api"."list_eval_datasets"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "api"."list_eval_datasets"(uuid, text, integer) to service_role;
 
 create or replace function "api"."add_eval_items"(dataset uuid, items jsonb)
 returns integer
