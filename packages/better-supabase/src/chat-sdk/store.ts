@@ -200,6 +200,7 @@ export function inboxStore(inbox: Inbox): ChatInboundStore {
       inbox.deliveries.setStatus(input).orThrow(),
     lastInboundAt: async (conversationId) => {
       const conversation = await inbox.conversations
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
         .get(conversationId)
         .orThrow();
 
@@ -213,6 +214,7 @@ export function inboxStore(inbox: Inbox): ChatInboundStore {
       }
 
       const conversation = await inbox.conversations
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias stays in use until 0.70 (ADR 1077)
         .get(message.conversationId)
         .orThrow();
 

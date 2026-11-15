@@ -3,6 +3,7 @@ import type { MessagingEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { messagingEvents } from "./events.ts";
+import { conversationListSurface } from "./lists.ts";
 import { createMessaging } from "./messaging.ts";
 import { messagingSqlOptions } from "./options.ts";
 import { messageChangeSchema, messageInputSchema } from "./schemas.ts";
@@ -25,7 +26,11 @@ export const messagingBlock: BlockOf<
   category: "collaboration",
   entities: {
     message: { mutability: "editable", emits: { update: false, delete: true } },
-    conversation: { mutability: "state-machine", emits: { create: true } },
+    conversation: {
+      ...conversationListSurface,
+      mutability: "state-machine",
+      emits: { create: true },
+    },
   },
   concerns: ["lifecycle", "search"],
   description:

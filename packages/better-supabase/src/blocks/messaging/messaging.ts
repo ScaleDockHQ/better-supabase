@@ -4,9 +4,20 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -25,6 +36,11 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
+import {
   applyTemporal,
   blockCall,
   enumOrThrow,
@@ -36,6 +52,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { conversationListSurface } from "./lists.ts";
 import { editOf, messageOf, num } from "./rows.ts";
 import { summarize, threadSummaryOf } from "./summaries.ts";
 
@@ -279,11 +296,32 @@ export interface Messaging<F extends object = Record<never, never>> {
   }): AsyncResult<boolean>;
   /** Brings an archived conversation back and records `conversation.restored`. */
   restore(conversationId: string): AsyncResult<boolean>;
-  /** The caller's conversations, latest message first. */
+  /**
+   * The caller's conversations, latest message first.
+   *
+   * @deprecated Use `conversationPage`, which pages by keyset and takes `q`,
+   * sorts, array filters and a count (ADR 1077).
+   */
   conversations(options?: {
     readonly kinds?: readonly ConversationKind[];
     readonly limit?: number;
   }): AsyncResult<ConversationSummary[]>;
+  /**
+   * One keyset page of the caller's conversations, latest message first.
+   * `filters` takes `kind` as a list (every kind but the inbox's when left
+   * out); `q` searches the title.
+   */
+  conversationPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<ConversationSummary>>;
+  /** The values of the `kind` facet and how many conversations hold each. */
+  conversationFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many conversations match the page's filters. */
+  conversationCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One conversation the caller is a member of, or a `not_found` error. */
+  getConversation(conversationId: string): AsyncResult<ConversationSummary>;
   /** Unread counts by conversation id, for the conversations with any. */
   unreadCounts(): AsyncResult<Readonly<Record<string, UnreadCount>>>;
   /** Moves the caller's read marker forward; returns where it is. */
@@ -494,6 +532,15 @@ export function createMessaging<
       fields.rows,
     );
 
+  const conversationPages = entityList<ConversationSummary, TenantOption>({
+    entity: "conversation",
+    surface: conversationListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_conversations",
+    rowOf: (row) => summaryOf(row),
+  });
+
   const open = (conversation: OpenConversation): AsyncResult<Conversation> =>
     tenant().andThen((organizationId) =>
       call(
@@ -623,6 +670,17 @@ export function createMessaging<
         // archive_conversation returns the new archived flag, which is false here.
         () => true,
       ),
+    conversationPage: conversationPages.page,
+    conversationFacets: conversationPages.facets,
+    conversationCount: conversationPages.count,
+    getConversation: (conversationId) =>
+      call(
+        "get_conversation_summary",
+        { conversation: conversationId },
+        (value) =>
+          value === null || value === undefined ? undefined : summaryOf(value),
+      ).andThen((row) => foundOrNotFound("conversation", row, conversationId)),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     conversations: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(

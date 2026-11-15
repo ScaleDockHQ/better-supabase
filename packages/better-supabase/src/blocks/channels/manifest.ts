@@ -4,6 +4,7 @@ import type { ChannelsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createChannels } from "./channels.ts";
 import { channelsEvents } from "./events.ts";
+import { channelListSurface } from "./lists.ts";
 import { channelChangeSchema, channelInputSchema } from "./schemas.ts";
 
 /** The `channels` block's manifest (ADR 0029, ADR 0062). */
@@ -21,7 +22,11 @@ export const channelsBlock: BlockOf<
   create: createChannels,
   category: "collaboration",
   entities: {
-    channel: { mutability: "editable", emits: { create: true, update: true } },
+    channel: {
+      ...channelListSurface,
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
   },
   concerns: ["lifecycle", "search"],
   description:

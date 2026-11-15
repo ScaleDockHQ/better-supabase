@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { createAgents } from "../../src/blocks/agents/index.ts";
+import { createAiChat } from "../../src/blocks/ai-chat/index.ts";
 import { createAiFiles } from "../../src/blocks/ai-files/index.ts";
 import { createAiKeys } from "../../src/blocks/ai-keys/index.ts";
 import { createAiSchedules } from "../../src/blocks/ai-schedules/index.ts";
@@ -469,6 +470,99 @@ describe.skipIf(!live)("the F11 block lists follow the list contract", () => {
           values: ["image/png", "application/pdf"],
         },
         search: "alpha",
+      });
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("pages ai chats and projects", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "outbox", "ai-chat"]);
+      const owner = await s.user("chat-owner");
+      const org = await s.organization(owner);
+      await s.asRole(owner);
+
+      const chat = createAiChat({ transport: sqlTransport(s.sql) });
+
+      for (const [index, title] of [
+        "Alpha plan",
+        "Alpha notes",
+        "Beta plan",
+        "Beta notes",
+        "Gamma plan",
+      ].entries()) {
+        const created = await chat.chats
+          .create({ organizationId: org, input: { title } })
+          .orThrow();
+
+        if (index < 2) {
+          await chat.chats
+            .update({ chatId: created.id, patch: { pinned: true } })
+            .orThrow();
+        }
+      }
+
+      for (const [index, name] of [
+        "Alpha project",
+        "Beta project",
+        "Gamma project",
+        "Delta project",
+      ].entries()) {
+        const created = await chat.projects
+          .create({ organizationId: org, input: { name } })
+          .orThrow();
+
+        if (index === 0) {
+          await chat.projects
+            .update({ projectId: created.id, input: { pinned: true } })
+            .orThrow();
+        }
+      }
+
+      await spreadTimes(s, "ai_chats", [
+        "last_message_at",
+        "created_at",
+        "updated_at",
+      ]);
+      await spreadTimes(s, "ai_projects", ["updated_at", "created_at"]);
+
+      await testBlockList({
+        name: "ai-chat.chats",
+        target: {
+          page: (options) =>
+            chat.chats.page({ ...options, organizationId: org }),
+          count: (options) =>
+            chat.chats.count({ ...options, organizationId: org }),
+          facets: (options) =>
+            chat.chats.facets({ ...options, organizationId: org }),
+          get: (id) => chat.chats.get(id),
+        },
+        rows: 5,
+        sorts: ["lastMessageAt", "createdAt", "title"],
+        facets: { pinned: { true: 2, false: 3 } },
+        arrayFilter: { column: "pinned", values: ["true", "false"] },
+        search: "Alpha",
+      });
+
+      await testBlockList({
+        name: "ai-chat.projects",
+        target: {
+          page: (options) =>
+            chat.projects.page({ ...options, organizationId: org }),
+          count: (options) =>
+            chat.projects.count({ ...options, organizationId: org }),
+          facets: (options) =>
+            chat.projects.facets({ ...options, organizationId: org }),
+          get: (id) => chat.projects.get(id),
+        },
+        rows: 4,
+        sorts: ["updatedAt", "name"],
+        facets: { pinned: { true: 1, false: 3 } },
+        arrayFilter: { column: "pinned", values: ["true", "false"] },
+        search: "Alpha",
       });
     } finally {
       await s.close();

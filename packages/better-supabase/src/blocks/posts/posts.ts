@@ -3,7 +3,18 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
@@ -11,6 +22,11 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -24,6 +40,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { boardListSurface, postListSurface } from "./lists.ts";
 
 const BOARD_KINDS = ["forum", "feedback"] as const;
 
@@ -145,9 +162,23 @@ export interface PostsFilter {
 export interface Posts<F extends object = Record<never, never>> {
   /** Creates or changes a board; needs `posts.manage`. */
   saveBoard(input: PostBoardInput): AsyncResult<PostBoard>;
+  /**
+   * @deprecated Use `boardPage`, which pages by keyset and takes `q`, sorts, a
+   * kind filter and a count (ADR 1077).
+   */
   boards(filter?: {
     readonly archived?: boolean;
   }): AsyncResult<readonly PostBoard[]>;
+  /** One keyset page of the tenant's boards by name. */
+  boardPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<PostBoard>>;
+  /** The values of the `kind` facet and how many boards hold each. */
+  boardFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many boards match the page's filters. */
+  boardCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
   /**
    * Writes a post on a board. It shows at once, or waits for a moderator when
    * `options.moderation` is "pre". Banned members can't post.
@@ -170,8 +201,30 @@ export interface Posts<F extends object = Record<never, never>> {
    * set; otherwise its author or a moderator. Records `post.purged`.
    */
   purge(postId: string): AsyncResult<Post<F>>;
+  /**
+   * @deprecated Use `getPost`, which returns a `not_found` error for an
+   * unknown id (ADR 1077).
+   */
   get(postId: string): AsyncResult<Post<F> | null>;
+  /** One post by id, or a `not_found` error. */
+  getPost(postId: string): AsyncResult<Post<F>>;
+  /**
+   * @deprecated Use `page`, which pages by keyset and takes `q`, array filters
+   * and a count (ADR 1077).
+   */
   list(filter?: PostsFilter): AsyncResult<readonly Post<F>[]>;
+  /**
+   * One keyset page of the tenant's posts. `sort` is `active` (default), `new`
+   * or `top`; `filters` takes `boardId`, `status` and `authorId` as lists, and
+   * `merged` and `archived` as flags.
+   */
+  page(options?: PageOptions & TenantOption): AsyncResult<ListPage<Post<F>>>;
+  /** The values of the `status` or `boardId` facet and how many posts hold each. */
+  facets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many posts match the page's filters. */
+  count(options?: CountOptions & TenantOption): AsyncResult<Count>;
   /** Sets the status, pin or lock of a post; needs `posts.moderate`. */
   setState(input: {
     postId: string;
@@ -291,7 +344,44 @@ export function createPosts<S extends StandardSchemaV1 | undefined = undefined>(
       }));
   };
 
+  const postPages = entityList<Post, TenantOption>({
+    entity: "post",
+    surface: postListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_posts",
+    rowOf: (row) => postOf(row, "page_posts"),
+  });
+
+  const boardPages = entityList<PostBoard, TenantOption>({
+    entity: "post_board",
+    surface: boardListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_post_boards",
+    rowOf: (row) => boardOf(row, "page_post_boards"),
+  });
+
   const client: Posts<F> = {
+    boardPage: boardPages.page,
+    boardFacets: boardPages.facets,
+    boardCount: boardPages.count,
+    page: (pageOptions) =>
+      postPages
+        .page(pageOptions)
+        .andThen((page) =>
+          fields.rows(page.items).map((items) => ({ ...page, items })),
+        ),
+    facets: postPages.facets,
+    count: postPages.count,
+    getPost: (postId) =>
+      call("get_post", { post_id: postId }, (value) =>
+        value === null || value === undefined
+          ? null
+          : postOf(value, "get_post"),
+      )
+        .andThen((row) => foundOrNotFound("post", row, postId))
+        .andThen(fields.row),
     saveBoard: (input) =>
       tenant().andThen((organizationId) =>
         call(
@@ -300,6 +390,7 @@ export function createPosts<S extends StandardSchemaV1 | undefined = undefined>(
           (value) => boardOf(value, "save_post_board"),
         ),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     boards: (filter = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -339,6 +430,7 @@ export function createPosts<S extends StandardSchemaV1 | undefined = undefined>(
       call("purge_post", { post_id: postId }, post("purge_post")).andThen(
         fields.row,
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     get: (postId) =>
       call("get_post", { post_id: postId }, (value) =>
         value === null || value === undefined
@@ -347,6 +439,7 @@ export function createPosts<S extends StandardSchemaV1 | undefined = undefined>(
       ).andThen((row) =>
         row === null ? AsyncResult.ok(null) : fields.row(row),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (filter = {}) =>
       tenant().andThen((organizationId) =>
         call(

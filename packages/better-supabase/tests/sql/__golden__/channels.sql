@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:937feb254bdcbad3df15da8779646ea2ccc507463f99baff8146c52600ebb49a
+-- @bsb-hash sha256:f0d89e2f98a5d1d93d17815c9be611309ccc5f90b78b89d6ee90ecf63595022b
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -277,6 +277,320 @@ $$;
 revoke execute on function "better_supabase"."list_channels"(uuid, boolean, boolean) from public, anon;
 grant execute on function "better_supabase"."list_channels"(uuid, boolean, boolean) to authenticated, service_role;
 
+-- The tenant's channels as a keyset page (ADR 1077), by name. filters is
+-- { browse (true reads every channel the caller can see, not only theirs),
+-- includeArchived, visibility (a value or a list), search (name, topic,
+-- purpose), sort (name, createdAt, lastMessageAt), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_channels"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_channels.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'CHANNEL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastMessageAt') then
+    raise exception 'sort is one of name, createdAt, lastMessageAt' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_channels"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_channels"(uuid, jsonb) to authenticated, service_role;
+
 -- One channel by id, or null when the caller can't see it.
 create or replace function "better_supabase"."get_channel"(channel uuid)
 returns jsonb
@@ -377,7 +691,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:ea5b879f4f8fd0c448f3718d2d382ebcb6361e77cb6008a422d179104e5c9288
+-- @bsb-hash sha256:5b3a303141b1e428807ff87625e57d72af287717337ebd8e903e155cddf55bca
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -671,6 +985,320 @@ $$;
 revoke execute on function "better_supabase"."list_channels"(uuid, boolean, boolean) from public, anon;
 grant execute on function "better_supabase"."list_channels"(uuid, boolean, boolean) to authenticated, service_role;
 
+-- The tenant's channels as a keyset page (ADR 1077), by name. filters is
+-- { browse (true reads every channel the caller can see, not only theirs),
+-- includeArchived, visibility (a value or a list), search (name, topic,
+-- purpose), sort (name, createdAt, lastMessageAt), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_channels"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_channels.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'CHANNEL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastMessageAt') then
+    raise exception 'sort is one of name, createdAt, lastMessageAt' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_channels"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_channels"(uuid, jsonb) to authenticated, service_role;
+
 -- One channel by id, or null when the caller can't see it.
 create or replace function "better_supabase"."get_channel"(channel uuid)
 returns jsonb
@@ -774,7 +1402,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:d465cf66be6069d7de7b632eaa9d9d925dbd290407b21bcbd14a20fc5a139995
+-- @bsb-hash sha256:60253048e98fc8cea4f8082754aaa8e0c499d23fc51173ee66bb589bb258f957
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1055,6 +1683,320 @@ $$;
 revoke execute on function "app_private"."list_channels"(uuid, boolean, boolean) from public, anon;
 grant execute on function "app_private"."list_channels"(uuid, boolean, boolean) to authenticated, service_role;
 
+-- The tenant's channels as a keyset page (ADR 1077), by name. filters is
+-- { browse (true reads every channel the caller can see, not only theirs),
+-- includeArchived, visibility (a value or a list), search (name, topic,
+-- purpose), sort (name, createdAt, lastMessageAt), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_channels"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_channels.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'CHANNEL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "app_private"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastMessageAt') then
+    raise exception 'sort is one of name, createdAt, lastMessageAt' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_channels"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_channels"(uuid, jsonb) to authenticated, service_role;
+
 -- One channel by id, or null when the caller can't see it.
 create or replace function "app_private"."get_channel"(channel uuid)
 returns jsonb
@@ -1155,7 +2097,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:dd8a699d5bfd1a7f30705d8e2d1634d88a6b0b3a48963bf494a9d8844be5ddce
+-- @bsb-hash sha256:a85224a36c46c1b597e6bfcac50a01e9d8fbd41fbac84831f7b2995b78d3555a
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1431,6 +2373,320 @@ $$;
 revoke execute on function "better_supabase"."list_channels"(uuid, boolean, boolean) from public, anon;
 grant execute on function "better_supabase"."list_channels"(uuid, boolean, boolean) to authenticated, service_role;
 
+-- The tenant's channels as a keyset page (ADR 1077), by name. filters is
+-- { browse (true reads every channel the caller can see, not only theirs),
+-- includeArchived, visibility (a value or a list), search (name, topic,
+-- purpose), sort (name, createdAt, lastMessageAt), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_channels"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_channels.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'CHANNEL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastMessageAt') then
+    raise exception 'sort is one of name, createdAt, lastMessageAt' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_channels"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_channels"(uuid, jsonb) to authenticated, service_role;
+
 -- One channel by id, or null when the caller can't see it.
 create or replace function "better_supabase"."get_channel"(channel uuid)
 returns jsonb
@@ -1582,6 +2838,16 @@ as $$ select "better_supabase"."list_channels"($1, $2, $3) $$;
 revoke execute on function "api"."list_channels"(uuid, boolean, boolean) from public, anon;
 grant execute on function "api"."list_channels"(uuid, boolean, boolean) to authenticated, service_role;
 
+create or replace function "api"."page_channels"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_channels"($1, $2) $$;
+revoke execute on function "api"."page_channels"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_channels"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "api"."get_channel"(channel uuid)
 returns jsonb
 language sql
@@ -1629,7 +2895,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:c48bfb1f13827f8f32c0c49948a0808fd470d5efd027e599b98e2c2e73506b87
+-- @bsb-hash sha256:9d3aebbd73a0cb5dadd712ce60b46d76553b03da3b24bc28f78778faeeeaf2e6
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1902,6 +3168,320 @@ $$;
 revoke execute on function "better_supabase"."list_channels"(uuid, boolean, boolean) from public, anon;
 grant execute on function "better_supabase"."list_channels"(uuid, boolean, boolean) to authenticated, service_role;
 
+-- The tenant's channels as a keyset page (ADR 1077), by name. filters is
+-- { browse (true reads every channel the caller can see, not only theirs),
+-- includeArchived, visibility (a value or a list), search (name, topic,
+-- purpose), sort (name, createdAt, lastMessageAt), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_channels"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_channels.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'CHANNEL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastMessageAt') then
+    raise exception 'sort is one of name, createdAt, lastMessageAt' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."channels" x
+      where x."tenant_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_channels"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_channels"(uuid, jsonb) to authenticated, service_role;
+
 -- One channel by id, or null when the caller can't see it.
 create or replace function "better_supabase"."get_channel"(channel uuid)
 returns jsonb
@@ -2002,7 +3582,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:bfc845d443f2c13a0bec699f7d6ef9b911fa58fd80be608ea13a0626453bf4a0
+-- @bsb-hash sha256:7bd1ce356d94f6b77d396ae5d19e39313a50417f892974d87d191961955c2770
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2277,6 +3857,320 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_channels"(uuid, boolean, boolean) from public, anon;
 grant execute on function "better_supabase"."list_channels"(uuid, boolean, boolean) to authenticated, service_role;
+
+-- The tenant's channels as a keyset page (ADR 1077), by name. filters is
+-- { browse (true reads every channel the caller can see, not only theirs),
+-- includeArchived, visibility (a value or a list), search (name, topic,
+-- purpose), sort (name, createdAt, lastMessageAt), direction, facet, count,
+-- limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_channels"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_channels.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('visibility') then
+      raise exception 'facet is one of visibility' using errcode = '22023', hint = 'CHANNEL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'visibility' then (x."visibility")::text end) as v
+      from "better_supabase"."channels" x
+      where x."org_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."channels" x
+      where x."org_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt', 'lastMessageAt') then
+    raise exception 'sort is one of name, createdAt, lastMessageAt' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."org_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."org_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."org_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."name" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."name")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."org_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."name" <= (v_after ->> 0)::text and ((x."name" < (v_after ->> 0)::text) or (x."name" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."name" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."org_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."org_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."org_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'CHANNEL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select to_jsonb(x) || jsonb_build_object(
+      'archivedAt', c."archived_at",
+      'lastMessageAt', c."last_message_at",
+      'role', (select k."role" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'memberCount', (select count(*) from "better_supabase"."conversation_members" k where k."conversation_id" = c."id")
+    ) from "better_supabase"."conversations" c where c."id" = x."id") as j, jsonb_build_array((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."channels" x
+      where x."org_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+        and (v_after is null or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce((select c."last_message_at" from "better_supabase"."conversations" c where c."id" = x."id"), 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."channels" x
+      where x."org_id" = page_channels.tenant
+        and exists (select 1 from "better_supabase"."conversations" c where c."id" = x."id" and (coalesce(nullif(coalesce(v_filters #>> '{includeArchived,0}', v_filters ->> 'includeArchived'), '') = 'true', false) or c."archived_at" is null))
+        and (coalesce(nullif(coalesce(v_filters #>> '{browse,0}', v_filters ->> 'browse'), '') = 'true', false) or exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()))
+        and (not (v_filters -> 'visibility' is not null and jsonb_typeof(v_filters -> 'visibility') <> 'null' and not (jsonb_typeof(v_filters -> 'visibility') = 'array' and jsonb_array_length(v_filters -> 'visibility') = 0)) or x."visibility"::text = any((case when jsonb_typeof(v_filters -> 'visibility') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'visibility')) else array[v_filters ->> 'visibility'] end)::text[]))
+        and (v_search is null or x."name" ilike v_search or x."topic" ilike v_search or x."purpose" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_channels"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_channels"(uuid, jsonb) to authenticated, service_role;
 
 -- One channel by id, or null when the caller can't see it.
 create or replace function "better_supabase"."get_channel"(channel uuid)

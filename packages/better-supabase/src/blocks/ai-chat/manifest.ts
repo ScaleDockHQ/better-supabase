@@ -4,6 +4,7 @@ import type { AiChatEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createAiChat } from "./ai-chat.ts";
 import { aiChatEvents } from "./events.ts";
+import { chatListSurface, projectListSurface } from "./lists.ts";
 import { aiChatSqlOptions } from "./options.ts";
 
 /** The `ai-chat` block's manifest (ADR 0029). */
@@ -21,10 +22,12 @@ export const aiChatBlock: BlockOf<
   category: "ai",
   entities: {
     ai_chat: {
+      ...chatListSurface,
       mutability: "editable",
       emits: { create: false, update: false, delete: false },
     },
     ai_project: {
+      ...projectListSurface,
       mutability: "editable",
       emits: { update: false, delete: false },
     },

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:e5d5f537a6129973980692a67960ae276370b023aa1673bd56b15dde9d2e55d4
+-- @bsb-hash sha256:6aabea85d30a163fc72150762bf3118261d689fdbbc9e74efa45369e896e870a
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -692,6 +692,330 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_conversations"(uuid, text[], integer) from public, anon;
 grant execute on function "better_supabase"."list_conversations"(uuid, text[], integer) to authenticated, service_role;
+
+-- The caller's conversations as a keyset page (ADR 1077), latest message
+-- first. filters is { kind (a value or a list; every kind but inbox when
+-- left out), search (title), sort (lastMessageAt, createdAt, title),
+-- direction, facet (kind), count, limit, after, offset, paged, total,
+-- totalCap }. Each row carries unread and mentions as list_conversations does.
+create or replace function "better_supabase"."page_conversations"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_conversations.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'MESSAGING_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('kind') then
+      raise exception 'facet is one of kind' using errcode = '22023', hint = 'MESSAGING_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'kind' then (x."kind")::text end) as v
+      from "better_supabase"."conversations" x
+      where x."tenant_id" = page_conversations.tenant
+        and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+        and (case when not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then true else (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) end)
+        and (v_search is null or x."title" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."conversations" x
+      where x."tenant_id" = page_conversations.tenant
+        and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+        and (case when not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then true else (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) end)
+        and (v_search is null or x."title" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('lastMessageAt', 'createdAt', 'title') then
+    raise exception 'sort is one of lastMessageAt, createdAt, title' using errcode = '22023', hint = 'MESSAGING_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'MESSAGING_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MESSAGING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object(
+      'unread', (select count(*) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'mentions', (select count(*) filter (where auth.uid() = any (m."mentions") or m."mention_scope" is not null) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'lastReadAt', (select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()),
+      'notify', (select k."notify" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+    ) as j, jsonb_build_array((coalesce(x."last_message_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."conversations" x
+      where x."tenant_id" = page_conversations.tenant
+        and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+        and (case when not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then true else (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) end)
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (coalesce(x."last_message_at", 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."last_message_at", 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MESSAGING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object(
+      'unread', (select count(*) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'mentions', (select count(*) filter (where auth.uid() = any (m."mentions") or m."mention_scope" is not null) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'lastReadAt', (select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()),
+      'notify', (select k."notify" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+    ) as j, jsonb_build_array((coalesce(x."last_message_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."conversations" x
+      where x."tenant_id" = page_conversations.tenant
+        and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+        and (case when not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then true else (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) end)
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (coalesce(x."last_message_at", 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."last_message_at", 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."last_message_at", 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."last_message_at", 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MESSAGING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object(
+      'unread', (select count(*) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'mentions', (select count(*) filter (where auth.uid() = any (m."mentions") or m."mention_scope" is not null) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'lastReadAt', (select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()),
+      'notify', (select k."notify" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+    ) as j, jsonb_build_array((coalesce(x."last_message_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."conversations" x
+      where x."tenant_id" = page_conversations.tenant
+        and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+        and (case when not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then true else (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) end)
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (coalesce(x."last_message_at", 'epoch'::timestamptz), x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by coalesce(x."last_message_at", 'epoch'::timestamptz) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'lastMessageAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MESSAGING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object(
+      'unread', (select count(*) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'mentions', (select count(*) filter (where auth.uid() = any (m."mentions") or m."mention_scope" is not null) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'lastReadAt', (select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()),
+      'notify', (select k."notify" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+    ) as j, jsonb_build_array((coalesce(x."last_message_at", 'epoch'::timestamptz))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."conversations" x
+      where x."tenant_id" = page_conversations.tenant
+        and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+        and (case when not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then true else (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) end)
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (coalesce(x."last_message_at", 'epoch'::timestamptz) <= (v_after ->> 0)::timestamptz and ((coalesce(x."last_message_at", 'epoch'::timestamptz) < (v_after ->> 0)::timestamptz) or (coalesce(x."last_message_at", 'epoch'::timestamptz) = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by coalesce(x."last_message_at", 'epoch'::timestamptz) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MESSAGING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object(
+      'unread', (select count(*) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'mentions', (select count(*) filter (where auth.uid() = any (m."mentions") or m."mention_scope" is not null) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'lastReadAt', (select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()),
+      'notify', (select k."notify" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."conversations" x
+      where x."tenant_id" = page_conversations.tenant
+        and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+        and (case when not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then true else (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) end)
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MESSAGING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object(
+      'unread', (select count(*) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'mentions', (select count(*) filter (where auth.uid() = any (m."mentions") or m."mention_scope" is not null) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'lastReadAt', (select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()),
+      'notify', (select k."notify" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+    ) as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."conversations" x
+      where x."tenant_id" = page_conversations.tenant
+        and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+        and (case when not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then true else (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) end)
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MESSAGING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object(
+      'unread', (select count(*) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'mentions', (select count(*) filter (where auth.uid() = any (m."mentions") or m."mention_scope" is not null) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'lastReadAt', (select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()),
+      'notify', (select k."notify" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+    ) as j, jsonb_build_array((lower(coalesce(x."title", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."conversations" x
+      where x."tenant_id" = page_conversations.tenant
+        and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+        and (case when not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then true else (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) end)
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."title", '')), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(coalesce(x."title", '')) asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'MESSAGING_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, to_jsonb(x) || jsonb_build_object(
+      'unread', (select count(*) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'mentions', (select count(*) filter (where auth.uid() = any (m."mentions") or m."mention_scope" is not null) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid() and m."conversation_id" = x."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'lastReadAt', (select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid()),
+      'notify', (select k."notify" from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+    ) as j, jsonb_build_array((lower(coalesce(x."title", '')))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."conversations" x
+      where x."tenant_id" = page_conversations.tenant
+        and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+        and (case when not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then true else (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) end)
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (lower(coalesce(x."title", '')) <= (v_after ->> 0)::text and ((lower(coalesce(x."title", '')) < (v_after ->> 0)::text) or (lower(coalesce(x."title", '')) = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(coalesce(x."title", '')) desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."conversations" x
+      where x."tenant_id" = page_conversations.tenant
+        and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = x."id" and k."user_id" = auth.uid())
+        and (case when not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) then true else (not (v_filters -> 'kind' is not null and jsonb_typeof(v_filters -> 'kind') <> 'null' and not (jsonb_typeof(v_filters -> 'kind') = 'array' and jsonb_array_length(v_filters -> 'kind') = 0)) or x."kind" = any((case when jsonb_typeof(v_filters -> 'kind') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'kind')) else array[v_filters ->> 'kind'] end)::text[])) end)
+        and (v_search is null or x."title" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_conversations"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_conversations"(uuid, jsonb) to authenticated, service_role;
+
+-- One conversation the caller is a member of, as list_conversations returns it, or null.
+create or replace function "better_supabase"."get_conversation_summary"(conversation uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(c) || jsonb_build_object(
+      'unread', (select count(*) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid() and m."conversation_id" = c."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'mentions', (select count(*) filter (where auth.uid() = any (m."mentions") or m."mention_scope" is not null) from "better_supabase"."messages" m, "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid() and m."conversation_id" = c."id" and (m."thread_id" is null or m."broadcast") and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz) and m."archived_at" is null and m."author_id" is distinct from auth.uid()),
+      'lastReadAt', (select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid()),
+      'notify', (select k."notify" from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid())
+    )
+  from "better_supabase"."conversations" c
+  where c."id" = get_conversation_summary.conversation
+    and exists (select 1 from "better_supabase"."conversation_members" k where k."conversation_id" = c."id" and k."user_id" = auth.uid())
+$$;
+revoke execute on function "better_supabase"."get_conversation_summary"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_conversation_summary"(uuid) to authenticated, service_role;
 
 -- Unread top-level messages and mentions per member conversation of the
 -- caller in a tenant: { conversationId: { unread, mentions } }, for badges.

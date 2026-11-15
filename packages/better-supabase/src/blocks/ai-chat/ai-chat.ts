@@ -1,6 +1,17 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -52,6 +63,11 @@ import {
   withFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -66,6 +82,7 @@ import {
   instantOf,
 } from "../shared.ts";
 import { aiRunLookups } from "./durable.ts";
+import { chatListSurface, projectListSurface } from "./lists.ts";
 import {
   approvalOf,
   record,
@@ -186,6 +203,24 @@ export interface AiChat<F extends object = Record<never, never>> {
       input?: (AiChatInput & Partial<F>) | undefined;
     }): AsyncResult<AiChatRecord & F>;
     get(chatId: string): AsyncResult<AiChatRecord & F>;
+    /**
+     * The caller's chats and the ones they take part in, in a tenant, with `q`
+     * over titles and message text. The default order is newest activity first;
+     * `projectId`, `pinned` and `archived` filter.
+     */
+    page(
+      options: PageOptions & RequiredTenantOption,
+    ): AsyncResult<ListPage<AiChatRecord & F>>;
+    /** The values of each facet (`pinned`, `archived`) and their chat counts. */
+    facets(
+      options: FacetOptions & RequiredTenantOption,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many chats match the page's filters. */
+    count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+    /**
+     * @deprecated Use `page`, which takes `q`, sorts, array filters and a
+     * count (ADR 1077).
+     */
     list(query?: AiChatQuery): AsyncResult<AiChatPage<F>>;
     update(input: {
       chatId: string;
@@ -217,6 +252,19 @@ export interface AiChat<F extends object = Record<never, never>> {
       input: AiProjectInput;
       fields?: Readonly<Record<string, unknown>> | undefined;
     }): AsyncResult<AiProject>;
+    /** One of the caller's projects, or a `not_found` error. */
+    get(projectId: string): AsyncResult<AiProject>;
+    /** The caller's projects in a tenant, pinned first. */
+    page(
+      options: PageOptions & RequiredTenantOption,
+    ): AsyncResult<ListPage<AiProject>>;
+    /** The values of each facet (`pinned`, `archived`) and their counts. */
+    facets(
+      options: FacetOptions & RequiredTenantOption,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many projects match the page's filters. */
+    count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+    /** @deprecated Use `page` (ADR 1077). */
     list(organizationId: string | null): AsyncResult<readonly AiProject[]>;
     remove(projectId: string): AsyncResult<boolean>;
   };
@@ -474,6 +522,27 @@ export function createAiChat<
   const count = (value: unknown): number =>
     typeof value === "number" ? value : Number(value ?? 0);
 
+  const chatPages = entityList<
+    readonly [unknown, AiChatRecord],
+    RequiredTenantOption
+  >({
+    entity: "ai_chat",
+    surface: chatListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_ai_chats",
+    rowOf: (row) => [row, chatOf(row)] as const,
+  });
+
+  const projectPages = entityList<AiProject, RequiredTenantOption>({
+    entity: "ai_project",
+    surface: projectListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_ai_projects",
+    rowOf: (row) => projectOf(row),
+  });
+
   const client: AiChat<F> = {
     chats: {
       create: ({ organizationId, input = {} }) =>
@@ -489,6 +558,17 @@ export function createAiChat<
         ),
       get: (chatId) =>
         call("get_ai_chat", { chat: chatId }, (value) => value).andThen(typed),
+      page: (pageOptions) =>
+        chatPages
+          .page(pageOptions)
+          .andThen((page) =>
+            AsyncResult.from(() => allWithFields(fields, page.items)).map(
+              (items) => ({ ...page, items }),
+            ),
+          ),
+      facets: chatPages.facets,
+      count: chatPages.count,
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: (query = {}) =>
         call(
           "list_ai_chats",
@@ -552,6 +632,14 @@ export function createAiChat<
           },
           projectOf,
         ),
+      get: (projectId) =>
+        call("get_ai_project", { id: projectId }, (value) =>
+          value === null || value === undefined ? undefined : projectOf(value),
+        ).andThen((row) => foundOrNotFound("ai_project", row, projectId)),
+      page: projectPages.page,
+      facets: projectPages.facets,
+      count: projectPages.count,
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: (organizationId) =>
         call("list_ai_projects", { tenant: organizationId }, (value) =>
           recordsOf(value, "list_ai_projects").map(projectOf),

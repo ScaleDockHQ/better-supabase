@@ -1,5 +1,9 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  EntityList,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { MessageReaction } from "../messaging/messaging.ts";
@@ -27,6 +31,11 @@ import type {
 } from "./types.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { reactionsOf } from "../messaging/rows.ts";
 import {
@@ -42,6 +51,7 @@ import {
   pageOf,
 } from "../shared.ts";
 import { inboxDrafts } from "./drafts.ts";
+import { conversationListSurface } from "./lists.ts";
 import {
   conversationOf,
   conversationsOf,
@@ -59,6 +69,8 @@ import {
   storedEventsOf,
   templateOf,
 } from "./rows.ts";
+
+type ConversationList = EntityList<Conversation, RequiredTenantOption>;
 
 export interface InboxOptions extends BlockTemporalOptions {
   /**
@@ -272,11 +284,28 @@ export interface Inbox {
       inboxId: string;
       input?: StartConversationInput | undefined;
     }): AsyncResult<Conversation>;
+    /**
+     * Open conversations by default.
+     *
+     * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+     * filters and a count (ADR 1077).
+     */
     list(input: {
       tenant: string | null;
       filter?: ConversationFilter | undefined;
     }): AsyncResult<readonly Conversation[]>;
+    /**
+     * Keyset `page`, `facets` and `count` of conversations (ADR 1077). `status`
+     * is open by default (`["all"]` for every status); the organization is
+     * required.
+     */
+    readonly page: ConversationList["page"];
+    readonly facets: ConversationList["facets"];
+    readonly count: ConversationList["count"];
+    /** @deprecated Use `getConversation`, which returns `not_found` (ADR 1077). */
     get(conversationId: string): AsyncResult<Conversation | null>;
+    /** One conversation by id, or a `not_found` error. */
+    getConversation(conversationId: string): AsyncResult<Conversation>;
     assign(input: {
       conversationId: string;
       to: {
@@ -675,6 +704,15 @@ export function createInbox(options: InboxOptions): Inbox {
   const confirm = (attachmentId: string): AsyncResult<void> =>
     call("confirm_attachment", { id: attachmentId }, () => undefined);
 
+  const conversationPages = entityList<Conversation, RequiredTenantOption>({
+    entity: "conversation",
+    surface: conversationListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_inbox_conversations",
+    rowOf: (row) => conversationOf(row),
+  });
+
   const client: Inbox = {
     inboxes: {
       create: (input) =>
@@ -771,6 +809,16 @@ export function createInbox(options: InboxOptions): Inbox {
           { inbox: inboxId, input: startArg(input) },
           conversationOf,
         ),
+      page: conversationPages.page,
+      facets: conversationPages.facets,
+      count: conversationPages.count,
+      getConversation: (conversationId) =>
+        call("get_conversation", { conversation: conversationId }, (value) =>
+          value === null ? undefined : conversationOf(value),
+        ).andThen((row) =>
+          foundOrNotFound("conversation", row, conversationId),
+        ),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: ({ tenant, filter = {} }) =>
         call(
           "list_inbox_conversations",
@@ -789,6 +837,7 @@ export function createInbox(options: InboxOptions): Inbox {
           },
           conversationsOf,
         ),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       get: (conversationId) =>
         call("get_conversation", { conversation: conversationId }, (value) =>
           value === null ? null : conversationOf(value),

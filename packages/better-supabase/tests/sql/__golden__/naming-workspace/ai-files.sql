@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:e104df19aa021cb4f08abd393bf4733488aa5c55d59d2ba1a47c0a2f7c790ac5
+-- @bsb-hash sha256:57294bd3bfdbc28fd19432e3065c30eecf64e6bea21d73a7f6e65f7955ef6832
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -272,6 +272,294 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_ai_files"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_files"(uuid) to authenticated, service_role;
+
+-- The files of a tenant the caller can read as a keyset page (ADR 1077),
+-- oldest first. filters is { chatId (one uuid), status, source, mediaType (a
+-- value or a list), search (filename), sort (createdAt, filename, size),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_ai_files"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_ai_files.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_chat text := nullif(coalesce(v_filters #>> '{chatId,0}', v_filters ->> 'chatId'), '');
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'chatId') = 'array' then v_filters -> 'chatId' when jsonb_typeof(v_filters -> 'chatId') in ('string', 'number') then jsonb_build_array(v_filters -> 'chatId') else '[]'::jsonb end) s where s !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$') then
+    raise exception 'chatId is a uuid' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'source', 'mediaType') then
+      raise exception 'facet is one of status, source, mediaType' using errcode = '22023', hint = 'AI_FILE_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status")::text when 'source' then (x."source")::text when 'mediaType' then (x."media_type")::text end) as v
+      from "better_supabase"."ai_files" x
+      where x."tenant_id" = page_ai_files.tenant
+        and (v_chat is null or x."chat_id" = v_chat::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source"::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'mediaType' is not null and jsonb_typeof(v_filters -> 'mediaType') <> 'null' and not (jsonb_typeof(v_filters -> 'mediaType') = 'array' and jsonb_array_length(v_filters -> 'mediaType') = 0)) or x."media_type" = any((case when jsonb_typeof(v_filters -> 'mediaType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'mediaType')) else array[v_filters ->> 'mediaType'] end)::text[]))
+        and (v_search is null or x."filename" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."ai_files" x
+      where x."tenant_id" = page_ai_files.tenant
+        and (v_chat is null or x."chat_id" = v_chat::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source"::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'mediaType' is not null and jsonb_typeof(v_filters -> 'mediaType') <> 'null' and not (jsonb_typeof(v_filters -> 'mediaType') = 'array' and jsonb_array_length(v_filters -> 'mediaType') = 0)) or x."media_type" = any((case when jsonb_typeof(v_filters -> 'mediaType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'mediaType')) else array[v_filters ->> 'mediaType'] end)::text[]))
+        and (v_search is null or x."filename" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'filename', 'size') then
+    raise exception 'sort is one of createdAt, filename, size' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_files" x
+      where x."tenant_id" = page_ai_files.tenant
+        and (v_chat is null or x."chat_id" = v_chat::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source"::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'mediaType' is not null and jsonb_typeof(v_filters -> 'mediaType') <> 'null' and not (jsonb_typeof(v_filters -> 'mediaType') = 'array' and jsonb_array_length(v_filters -> 'mediaType') = 0)) or x."media_type" = any((case when jsonb_typeof(v_filters -> 'mediaType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'mediaType')) else array[v_filters ->> 'mediaType'] end)::text[]))
+        and (v_search is null or x."filename" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_files" x
+      where x."tenant_id" = page_ai_files.tenant
+        and (v_chat is null or x."chat_id" = v_chat::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source"::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'mediaType' is not null and jsonb_typeof(v_filters -> 'mediaType') <> 'null' and not (jsonb_typeof(v_filters -> 'mediaType') = 'array' and jsonb_array_length(v_filters -> 'mediaType') = 0)) or x."media_type" = any((case when jsonb_typeof(v_filters -> 'mediaType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'mediaType')) else array[v_filters ->> 'mediaType'] end)::text[]))
+        and (v_search is null or x."filename" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_files" x
+      where x."tenant_id" = page_ai_files.tenant
+        and (v_chat is null or x."chat_id" = v_chat::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source"::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'mediaType' is not null and jsonb_typeof(v_filters -> 'mediaType') <> 'null' and not (jsonb_typeof(v_filters -> 'mediaType') = 'array' and jsonb_array_length(v_filters -> 'mediaType') = 0)) or x."media_type" = any((case when jsonb_typeof(v_filters -> 'mediaType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'mediaType')) else array[v_filters ->> 'mediaType'] end)::text[]))
+        and (v_search is null or x."filename" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_files" x
+      where x."tenant_id" = page_ai_files.tenant
+        and (v_chat is null or x."chat_id" = v_chat::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source"::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'mediaType' is not null and jsonb_typeof(v_filters -> 'mediaType') <> 'null' and not (jsonb_typeof(v_filters -> 'mediaType') = 'array' and jsonb_array_length(v_filters -> 'mediaType') = 0)) or x."media_type" = any((case when jsonb_typeof(v_filters -> 'mediaType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'mediaType')) else array[v_filters ->> 'mediaType'] end)::text[]))
+        and (v_search is null or x."filename" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'filename' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") as j, jsonb_build_array((lower(x."filename"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_files" x
+      where x."tenant_id" = page_ai_files.tenant
+        and (v_chat is null or x."chat_id" = v_chat::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source"::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'mediaType' is not null and jsonb_typeof(v_filters -> 'mediaType') <> 'null' and not (jsonb_typeof(v_filters -> 'mediaType') = 'array' and jsonb_array_length(v_filters -> 'mediaType') = 0)) or x."media_type" = any((case when jsonb_typeof(v_filters -> 'mediaType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'mediaType')) else array[v_filters ->> 'mediaType'] end)::text[]))
+        and (v_search is null or x."filename" ilike v_search)
+        and (v_after is null or (lower(x."filename"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."filename") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'filename' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") as j, jsonb_build_array((lower(x."filename"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_files" x
+      where x."tenant_id" = page_ai_files.tenant
+        and (v_chat is null or x."chat_id" = v_chat::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source"::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'mediaType' is not null and jsonb_typeof(v_filters -> 'mediaType') <> 'null' and not (jsonb_typeof(v_filters -> 'mediaType') = 'array' and jsonb_array_length(v_filters -> 'mediaType') = 0)) or x."media_type" = any((case when jsonb_typeof(v_filters -> 'mediaType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'mediaType')) else array[v_filters ->> 'mediaType'] end)::text[]))
+        and (v_search is null or x."filename" ilike v_search)
+        and (v_after is null or (lower(x."filename") <= (v_after ->> 0)::text and ((lower(x."filename") < (v_after ->> 0)::text) or (lower(x."filename") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."filename") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'size' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") as j, jsonb_build_array((x."byte_size")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_files" x
+      where x."tenant_id" = page_ai_files.tenant
+        and (v_chat is null or x."chat_id" = v_chat::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source"::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'mediaType' is not null and jsonb_typeof(v_filters -> 'mediaType') <> 'null' and not (jsonb_typeof(v_filters -> 'mediaType') = 'array' and jsonb_array_length(v_filters -> 'mediaType') = 0)) or x."media_type" = any((case when jsonb_typeof(v_filters -> 'mediaType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'mediaType')) else array[v_filters ->> 'mediaType'] end)::text[]))
+        and (v_search is null or x."filename" ilike v_search)
+        and (v_after is null or (x."byte_size", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."byte_size" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'size' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'AI_FILE_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") as j, jsonb_build_array((x."byte_size")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."ai_files" x
+      where x."tenant_id" = page_ai_files.tenant
+        and (v_chat is null or x."chat_id" = v_chat::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source"::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'mediaType' is not null and jsonb_typeof(v_filters -> 'mediaType') <> 'null' and not (jsonb_typeof(v_filters -> 'mediaType') = 'array' and jsonb_array_length(v_filters -> 'mediaType') = 0)) or x."media_type" = any((case when jsonb_typeof(v_filters -> 'mediaType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'mediaType')) else array[v_filters ->> 'mediaType'] end)::text[]))
+        and (v_search is null or x."filename" ilike v_search)
+        and (v_after is null or (x."byte_size" <= (v_after ->> 0)::bigint and ((x."byte_size" < (v_after ->> 0)::bigint) or (x."byte_size" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."byte_size" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."ai_files" x
+      where x."tenant_id" = page_ai_files.tenant
+        and (v_chat is null or x."chat_id" = v_chat::uuid)
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'source' is not null and jsonb_typeof(v_filters -> 'source') <> 'null' and not (jsonb_typeof(v_filters -> 'source') = 'array' and jsonb_array_length(v_filters -> 'source') = 0)) or x."source"::text = any((case when jsonb_typeof(v_filters -> 'source') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'source')) else array[v_filters ->> 'source'] end)::text[]))
+        and (not (v_filters -> 'mediaType' is not null and jsonb_typeof(v_filters -> 'mediaType') <> 'null' and not (jsonb_typeof(v_filters -> 'mediaType') = 'array' and jsonb_array_length(v_filters -> 'mediaType') = 0)) or x."media_type" = any((case when jsonb_typeof(v_filters -> 'mediaType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'mediaType')) else array[v_filters ->> 'mediaType'] end)::text[]))
+        and (v_search is null or x."filename" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_ai_files"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_ai_files"(uuid, jsonb) to authenticated, service_role;
 
 -- Deletes the record; returns { bucket, path } for the Storage API to
 -- remove the object, or null when the caller may not delete it.

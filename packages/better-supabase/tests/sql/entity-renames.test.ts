@@ -105,7 +105,8 @@ describe("blocks.<name>.entities in the SQL", () => {
     announcements: ["'announcement_changed'"],
     automations: ["'rules'", "'rules[]'", '"rules"', "'ruleId'"],
     hiring: ["'interviews[]'", "'interviews'"],
-    inbox: ["'inbox_id'"],
+    // The conversation page filters by `inboxId`, a key the client sends.
+    inbox: ["'inbox_id'", "'inboxId'"],
     inventory: ["'purchaseOrderId'"],
     // The submission list filters by `formId`, a key the client sends.
     forms: ["'formId'"],

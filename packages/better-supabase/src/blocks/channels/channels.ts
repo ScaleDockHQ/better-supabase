@@ -1,6 +1,17 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -9,6 +20,11 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import {
   applyTemporal,
   blockCall,
@@ -20,6 +36,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { channelListSurface } from "./lists.ts";
 
 /** Who reads a channel: the tenant, or its members. */
 export type ChannelVisibility = "public" | "private";
@@ -95,13 +112,34 @@ export interface Channels {
   /**
    * The caller's channels by name, with `browse` every channel they can see, or
    * with `on` the channels linked to that record that the caller can see.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+   * filters and a count (ADR 1077). `on` stays on `list` until `channelsFor`.
    */
   list(options?: {
     readonly browse?: boolean;
     readonly includeArchived?: boolean;
     readonly on?: RecordRef;
   }): AsyncResult<Channel[]>;
+  /**
+   * One keyset page of the tenant's channels by name. `filters` takes
+   * `visibility` as a list, `browse` and `includeArchived` as flags; `q`
+   * searches the name, topic and purpose.
+   */
+  page(options?: PageOptions & TenantOption): AsyncResult<ListPage<Channel>>;
+  /** The values of the `visibility` facet and how many channels hold each. */
+  facets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many channels match the page's filters. */
+  count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /**
+   * @deprecated Use `getChannel`, which returns a `not_found` error for an
+   * unknown id (ADR 1077).
+   */
   get(channelId: string): AsyncResult<Channel | undefined>;
+  /** One channel by id, or a `not_found` error. */
+  getChannel(channelId: string): AsyncResult<Channel>;
   /** A channel by name in the tenant. */
   find(name: string): AsyncResult<Channel | undefined>;
 }
@@ -162,6 +200,15 @@ export function createChannels(options: ChannelsOptions): Channels {
   const many = (fn: string, args: Record<string, unknown>) =>
     call(fn, args, (value) => recordsOf(value, fn).map(channelOf));
 
+  const channelPages = entityList<Channel, TenantOption>({
+    entity: "channel",
+    surface: channelListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_channels",
+    rowOf: (row) => channelOf(row),
+  });
+
   const client: Channels = {
     create: (channel) =>
       tenant().andThen((organizationId) =>
@@ -215,6 +262,14 @@ export function createChannels(options: ChannelsOptions): Channels {
         { channel: channelId, users: [...userIds] },
         Number,
       ),
+    page: channelPages.page,
+    facets: channelPages.facets,
+    count: channelPages.count,
+    getChannel: (channelId) =>
+      call("get_channel", { channel: channelId }, maybeChannel).andThen((row) =>
+        foundOrNotFound("channel", row, channelId),
+      ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (list = {}) =>
       list.on === undefined
         ? tenant().andThen((organizationId) =>
@@ -228,6 +283,7 @@ export function createChannels(options: ChannelsOptions): Channels {
             subject_type: list.on.type,
             subject_id: list.on.id,
           }),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     get: (channelId) =>
       call("get_channel", { channel: channelId }, maybeChannel),
     find: (name) =>
