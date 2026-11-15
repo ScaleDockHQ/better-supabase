@@ -48,7 +48,7 @@ the cursor.
 - The example's prompt registry reads the saved names with `prompts.list`
   instead of one `versions` call per subject, and shows saved names that no
   agent owns.
-- The migration `20270119140000_y6_ai_list_reads.sql` adds the three functions;
+- The migration `20270119140100_y6_ai_list_reads.sql` adds the three functions;
   apps run `better-supabase upgrade` and apply the migration it generates.
 - `Prompts`, `AiEvals.datasets` and `AiGuardrails.policies` gain a method, so a
   hand-written implementation of these interfaces (a test double) needs it.
