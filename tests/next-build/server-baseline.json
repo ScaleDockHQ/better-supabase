@@ -401,7 +401,7 @@
   },
   "/[locale]/(app)/customers/[id]/page": {
     "raw": 3154420,
-    "gzip": 959480,
+    "gzip": 961990,
     "brotli": 802130
   },
   "/[locale]/(app)/customers/page": {
@@ -537,7 +537,7 @@
   "/[locale]/(app)/finance/payables/page": {
     "raw": 3167201,
     "gzip": 963203,
-    "brotli": 800857
+    "brotli": 802958
   },
   "/[locale]/(app)/finance/periods/[id]/page": {
     "raw": 3155294,
@@ -637,7 +637,7 @@
   "/[locale]/(app)/legal-entities/page": {
     "raw": 3171094,
     "gzip": 964070,
-    "brotli": 801629
+    "brotli": 803727
   },
   "/[locale]/(app)/lims/[id]/page": {
     "raw": 3137532,
@@ -1676,7 +1676,7 @@
   },
   "/api/outbox/route": {
     "raw": 4673788,
-    "gzip": 1407290,
+    "gzip": 1410911,
     "brotli": 1186480
   },
   "/api/passes/list/route": {
@@ -1716,7 +1716,7 @@
   },
   "/api/queues/block-ticks/route": {
     "raw": 4737002,
-    "gzip": 1426295,
+    "gzip": 1429908,
     "brotli": 1203493
   },
   "/api/queues/schedules/route": {
@@ -1831,7 +1831,7 @@
   },
   "/api/workflows/tick/route": {
     "raw": 4690785,
-    "gzip": 1411446,
+    "gzip": 1415058,
     "brotli": 1190260
   },
   "/manifest.webmanifest/route": {
