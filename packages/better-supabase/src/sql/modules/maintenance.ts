@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { archiveRestoreContract } from "../archive-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble } from "../shared.ts";
 import { maintenanceFunctions } from "./maintenance-functions.ts";
@@ -26,7 +27,9 @@ const plan = { subject: "maintenance-plans", payload: PLAN } as const;
 const EVENTS: BlockSqlEvents<MaintenanceEvents> = {
   "maintenance_plan.created": plan,
   "maintenance_plan.updated": plan,
-  "maintenance_plan.deleted": plan,
+  "maintenance_plan.archived": plan,
+  "maintenance_plan.restored": plan,
+  "maintenance_plan.purged": plan,
   "maintenance_plan.triggered": {
     subject: "maintenance-plans",
     payload: [...PLAN, "workOrderId"],
@@ -79,6 +82,7 @@ const NAMES: BlockSqlNames = {
       name: "maintenance_plans",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
+      optional: ["archivedAt"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -98,6 +102,7 @@ const NAMES: BlockSqlNames = {
         dtstart: "dtstart",
         tz: "tz",
         requiredQualifications: "required_qualifications",
+        archivedAt: "archived_at",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -248,7 +253,7 @@ create table if not exists ${plans} (
   ${p("dtstart")} timestamptz,
   ${p("tz")} text not null default 'UTC',
   -- Qualification type keys the technician of the work order must hold.
-  ${p("requiredQualifications")} text[] not null default '{}',
+  ${p("requiredQualifications")} text[] not null default '{}',${ctx.has("plans", "archivedAt") ? `\n  ${p("archivedAt")} timestamptz,` : ""}
   ${p("createdBy")} uuid,
   ${p("createdAt")} timestamptz not null default now(),
   ${p("updatedAt")} timestamptz not null default now(),
@@ -323,7 +328,7 @@ ${tables(ctx)}
 ${maintenanceFunctions(ctx)}`;
 }
 
-function contract(_ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "create_maintenance_plan",
@@ -335,7 +340,10 @@ function contract(_ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "jsonb"],
       returns: "jsonb",
     },
-    { name: "delete_maintenance_plan", args: ["uuid"], returns: "jsonb" },
+    ...(ctx.has("plans", "archivedAt")
+      ? archiveRestoreContract("maintenance_plan")
+      : []),
+    { name: "purge_maintenance_plan", args: ["uuid"], returns: "jsonb" },
     {
       name: "create_maintenance_meter",
       args: ["{id}", "text", "text", "uuid"],

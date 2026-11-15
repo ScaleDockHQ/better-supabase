@@ -75,8 +75,14 @@ export interface FundingClaimSentEventData extends FundingClaimEventBase {
 /** `funding_claim.responded`: the funder accepted or rejected its lines. */
 export type FundingClaimRespondedEventData = FundingClaimEventBase;
 
-/** `funding_claim.deleted`: a draft claim was deleted; its deliveries are free. */
-export type FundingClaimDeletedEventData = FundingClaimEventBase;
+/** `funding_claim.archived`: a claim the funder answered left the list. */
+export type FundingClaimArchivedEventData = FundingClaimEventBase;
+
+/** `funding_claim.restored`: an archived claim is back on the list. */
+export type FundingClaimRestoredEventData = FundingClaimEventBase;
+
+/** `funding_claim.purged`: a draft claim was removed; its deliveries are free. */
+export type FundingClaimPurgedEventData = FundingClaimEventBase;
 
 /** The events of the `funding` block: type to data. */
 export type FundingEvents = {
@@ -88,7 +94,9 @@ export type FundingEvents = {
   readonly "funding_claim.created": FundingClaimCreatedEventData;
   readonly "funding_claim.sent": FundingClaimSentEventData;
   readonly "funding_claim.responded": FundingClaimRespondedEventData;
-  readonly "funding_claim.deleted": FundingClaimDeletedEventData;
+  readonly "funding_claim.archived": FundingClaimArchivedEventData;
+  readonly "funding_claim.restored": FundingClaimRestoredEventData;
+  readonly "funding_claim.purged": FundingClaimPurgedEventData;
 };
 
 /** The `funding` block's event types, for its manifest and `onBlockEvent`. */
@@ -101,5 +109,7 @@ export const fundingEvents: Events<FundingEvents> = defineEvents({
   "funding_claim.created": event<FundingClaimCreatedEventData>(),
   "funding_claim.sent": event<FundingClaimSentEventData>(),
   "funding_claim.responded": event<FundingClaimRespondedEventData>(),
-  "funding_claim.deleted": event<FundingClaimDeletedEventData>(),
+  "funding_claim.archived": event<FundingClaimArchivedEventData>(),
+  "funding_claim.restored": event<FundingClaimRestoredEventData>(),
+  "funding_claim.purged": event<FundingClaimPurgedEventData>(),
 });

@@ -168,7 +168,7 @@ export function deliveryJson(ctx: BlockSqlContext, row: string): string {
 export function claimJson(ctx: BlockSqlContext, row: string): string {
   const c = (column: string): string => `${row}.${ctx.col("claims", column)}`;
 
-  return `jsonb_build_object('id', ${c("id")}, 'organizationId', ${c("tenant")}, 'funderId', ${c("funder")}, 'number', ${c("number")}, 'periodStart', ${c("periodStart")}, 'periodEnd', ${c("periodEnd")}, 'format', ${c("format")}, 'status', ${c("status")}, 'externalRef', ${c("externalRef")}, 'sentAt', ${c("sentAt")}, 'payloadSha256', ${c("payloadSha256")}, 'response', ${c("response")}, 'total', ${c("total")}::text, 'currency', ${c("currency")}, 'invoiceId', ${optionalField(ctx, "claims", row, "invoice")}, 'createdBy', ${optionalField(ctx, "claims", row, "createdBy")}, 'createdAt', ${optionalField(ctx, "claims", row, "createdAt")}, 'updatedAt', ${optionalField(ctx, "claims", row, "updatedAt")})`;
+  return `jsonb_build_object('id', ${c("id")}, 'organizationId', ${c("tenant")}, 'funderId', ${c("funder")}, 'number', ${c("number")}, 'periodStart', ${c("periodStart")}, 'periodEnd', ${c("periodEnd")}, 'format', ${c("format")}, 'status', ${c("status")}, 'externalRef', ${c("externalRef")}, 'sentAt', ${c("sentAt")}, 'payloadSha256', ${c("payloadSha256")}, 'response', ${c("response")}, 'total', ${c("total")}::text, 'currency', ${c("currency")}, 'invoiceId', ${optionalField(ctx, "claims", row, "invoice")}, 'archivedAt', ${optionalField(ctx, "claims", row, "archivedAt")}, 'createdBy', ${optionalField(ctx, "claims", row, "createdBy")}, 'createdAt', ${optionalField(ctx, "claims", row, "createdAt")}, 'updatedAt', ${optionalField(ctx, "claims", row, "updatedAt")})`;
 }
 
 /** The JSON of a claim line row; the amount is minor units as text. */
