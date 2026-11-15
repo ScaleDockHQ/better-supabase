@@ -76,6 +76,19 @@ const ANSWERS: Record<string, unknown> = {
     runRow,
     { ...runRow, id: "r2", status: "weird", cost_micro_usd: null },
   ],
+  ai_usage_by_user: [
+    {
+      user_id: "u1",
+      runs: 3,
+      failed: 1,
+      input_tokens: "120",
+      output_tokens: 30,
+      cached_input_tokens: 0,
+      cost_micro_usd: "3500",
+      last_run_at: AT,
+    },
+    { user_id: "u2", runs: "1", cost_micro_usd: null, last_run_at: null },
+  ],
   attach_ai_run: true,
   record_ai_run_step: stepRow,
   list_ai_run_steps: [stepRow],
@@ -150,6 +163,41 @@ describe("ai-chat runs", () => {
       chat: undefined,
       active: undefined,
       size: undefined,
+    });
+  });
+
+  it("rolls usage up per user across an organization", async () => {
+    const { runs, user } = fake();
+
+    const usage = await runs
+      .usageByUser({
+        organizationId: "org1",
+        since: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+        limit: 10,
+      })
+      .orThrow();
+
+    expect(usage[0]).toMatchObject({
+      userId: "u1",
+      runs: 3,
+      failed: 1,
+      inputTokens: 120,
+      outputTokens: 30,
+      costMicroUsd: 3500,
+    });
+    expect(usage[0]?.lastRunAt?.toString()).toBe("2026-01-01T00:00:00Z");
+    expect(usage[1]).toMatchObject({
+      userId: "u2",
+      runs: 1,
+      failed: 0,
+      costMicroUsd: 0,
+      lastRunAt: undefined,
+    });
+    expect(lastArgs(user)).toEqual({
+      tenant: "org1",
+      since: "2026-01-01T00:00:00Z",
+      until: undefined,
+      size: 10,
     });
   });
 
