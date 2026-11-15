@@ -235,6 +235,8 @@ export type {
   EntityMutability,
   EntityOffline,
   EntityOfflineCondition,
+  EntityOfflineJoin,
+  EntityOfflineJoinTable,
   EntityOfflineScope,
   EntityPartition,
   EntityPartitionEvery,

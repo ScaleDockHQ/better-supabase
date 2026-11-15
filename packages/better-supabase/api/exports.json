@@ -3002,6 +3002,8 @@
       "EntityNoun",
       "EntityOffline",
       "EntityOfflineCondition",
+      "EntityOfflineJoin",
+      "EntityOfflineJoinTable",
       "EntityOfflineScope",
       "EntityPartition",
       "EntityPartitionEvery",
