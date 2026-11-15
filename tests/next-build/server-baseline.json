@@ -1106,7 +1106,7 @@
   },
   "/[locale]/(app)/shop/inventory/[variantId]/page": {
     "raw": 3160755,
-    "gzip": 958135,
+    "gzip": 960533,
     "brotli": 797702
   },
   "/[locale]/(app)/shop/inventory/lots/page": {
@@ -1591,17 +1591,17 @@
   },
   "/api/inventory/levels/list/route": {
     "raw": 2742214,
-    "gzip": 825969,
+    "gzip": 828078,
     "brotli": 702028
   },
   "/api/inventory/lots/list/route": {
     "raw": 2742215,
-    "gzip": 825972,
+    "gzip": 828088,
     "brotli": 703326
   },
   "/api/inventory/movements/list/route": {
     "raw": 2742233,
-    "gzip": 825974,
+    "gzip": 828086,
     "brotli": 703321
   },
   "/api/invitations/list/route": {
