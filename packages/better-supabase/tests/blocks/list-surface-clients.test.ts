@@ -5,19 +5,27 @@ import type { EntityList } from "../../src/core/entity-list.ts";
 
 import { createAgentCheckout } from "../../src/blocks/agent-checkout/index.ts";
 import { createAttachments } from "../../src/blocks/attachments/index.ts";
+import { createContacts } from "../../src/blocks/contacts/index.ts";
+import { createContracts } from "../../src/blocks/contracts/index.ts";
+import { createDeals } from "../../src/blocks/deals/index.ts";
 import { createDocumentTemplates } from "../../src/blocks/document-templates/index.ts";
 import { createDrive } from "../../src/blocks/drive/index.ts";
 import { createEPrescribing } from "../../src/blocks/e-prescribing/index.ts";
 import { createEmployees } from "../../src/blocks/employees/index.ts";
 import { createEnrollments } from "../../src/blocks/enrollments/index.ts";
+import { createForecasts } from "../../src/blocks/forecasts/index.ts";
 import { createForms } from "../../src/blocks/forms/index.ts";
 import { createGuests } from "../../src/blocks/guests/index.ts";
 import { createInventory } from "../../src/blocks/inventory/index.ts";
 import { createLeases } from "../../src/blocks/leases/index.ts";
 import { createLeave } from "../../src/blocks/leave/index.ts";
+import { createMailSync } from "../../src/blocks/mail-sync/index.ts";
 import { createPasses } from "../../src/blocks/passes/index.ts";
 import { createPayrollExport } from "../../src/blocks/payroll-export/index.ts";
+import { createPipelines } from "../../src/blocks/pipelines/index.ts";
 import { createQualifications } from "../../src/blocks/qualifications/index.ts";
+import { createQuotes } from "../../src/blocks/quotes/index.ts";
+import { createSegments } from "../../src/blocks/segments/index.ts";
 import { createSequences } from "../../src/blocks/sequences/index.ts";
 import { createSignatures } from "../../src/blocks/signatures/index.ts";
 import { createTemplates } from "../../src/blocks/templates/index.ts";
@@ -103,6 +111,209 @@ const CASES: readonly Case[] = [
         page: (page) => client.mandatePage(page),
         facets: (facets) => client.mandateFacets(facets),
         count: (count) => client.mandateCount(count),
+      };
+    },
+  },
+  {
+    label: "segments",
+    searchable: true,
+    fn: "page_segments",
+    sort: "createdAt",
+    filter: "subjectType",
+    facet: "subjectType",
+    list: (transport) => {
+      const client = createSegments(options(transport));
+
+      return {
+        page: (page) => client.page({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.facets({ ...facets, organizationId: "org-1" }),
+        count: (count) => client.count({ ...count, organizationId: "org-1" }),
+      };
+    },
+  },
+  {
+    label: "forecasts",
+    fn: "page_forecast_snapshots",
+    sort: "takenAt",
+    filter: "pipelineId",
+    facet: "currency",
+    list: (transport) => {
+      const client = createForecasts(options(transport));
+
+      return {
+        page: (page) => client.page({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.facets({ ...facets, organizationId: "org-1" }),
+        count: (count) => client.count({ ...count, organizationId: "org-1" }),
+      };
+    },
+  },
+  {
+    label: "pipelines",
+    searchable: true,
+    fn: "page_pipelines",
+    sort: "name",
+    filter: "subjectType",
+    facet: "subjectType",
+    list: (transport) => {
+      const client = createPipelines(options(transport));
+
+      return {
+        page: (page) => client.page({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.facets({ ...facets, organizationId: "org-1" }),
+        count: (count) => client.count({ ...count, organizationId: "org-1" }),
+      };
+    },
+  },
+  {
+    label: "deals",
+    searchable: true,
+    fn: "page_deals",
+    sort: "closeOn",
+    filter: "ownerId",
+    facet: "stageId",
+    list: (transport) => {
+      const client = createDeals(options(transport));
+
+      return {
+        page: (page) => client.page(page),
+        facets: (facets) => client.facets(facets),
+        count: (count) => client.count(count),
+      };
+    },
+  },
+  {
+    label: "quotes",
+    searchable: true,
+    fn: "page_quotes",
+    sort: "validUntil",
+    filter: "status",
+    facet: "currency",
+    list: (transport) => {
+      const client = createQuotes(options(transport));
+
+      return {
+        page: (page) => client.page(page),
+        facets: (facets) => client.facets(facets),
+        count: (count) => client.count(count),
+      };
+    },
+  },
+  {
+    label: "contracts",
+    searchable: true,
+    fn: "page_contracts",
+    sort: "endsOn",
+    filter: "status",
+    facet: "ownerId",
+    list: (transport) => {
+      const client = createContracts(options(transport));
+
+      return {
+        page: (page) => client.page({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.facets({ ...facets, organizationId: "org-1" }),
+        count: (count) => client.count({ ...count, organizationId: "org-1" }),
+      };
+    },
+  },
+  {
+    label: "contract obligations",
+    searchable: true,
+    fn: "page_contract_obligations",
+    sort: "dueOn",
+    filter: "status",
+    facet: "contractId",
+    list: (transport) => {
+      const client = createContracts(options(transport));
+
+      return {
+        page: (page) =>
+          client.obligationPage({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.obligationFacets({ ...facets, organizationId: "org-1" }),
+        count: (count) =>
+          client.obligationCount({ ...count, organizationId: "org-1" }),
+      };
+    },
+  },
+  {
+    label: "companies",
+    searchable: true,
+    fn: "page_companies",
+    sort: "name",
+    filter: "lifecycle",
+    facet: "ownerId",
+    list: (transport) => {
+      const client = createContacts(options(transport));
+
+      return {
+        page: (page) =>
+          client.companyPage({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.companyFacets({ ...facets, organizationId: "org-1" }),
+        count: (count) =>
+          client.companyCount({ ...count, organizationId: "org-1" }),
+      };
+    },
+  },
+  {
+    label: "people",
+    searchable: true,
+    fn: "page_people",
+    sort: "createdAt",
+    filter: "lifecycle",
+    facet: "supplierStatus",
+    list: (transport) => {
+      const client = createContacts(options(transport));
+
+      return {
+        page: (page) => client.personPage({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.personFacets({ ...facets, organizationId: "org-1" }),
+        count: (count) =>
+          client.personCount({ ...count, organizationId: "org-1" }),
+      };
+    },
+  },
+  {
+    label: "mail threads",
+    searchable: true,
+    fn: "page_mail_threads",
+    sort: "lastMessageAt",
+    filter: "accountId",
+    facet: "accountId",
+    list: (transport) => {
+      const client = createMailSync(options(transport));
+
+      return {
+        page: (page) => client.threadPage({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.threadFacets({ ...facets, organizationId: "org-1" }),
+        count: (count) =>
+          client.threadCount({ ...count, organizationId: "org-1" }),
+      };
+    },
+  },
+  {
+    label: "mail accounts",
+    searchable: true,
+    fn: "page_mail_accounts",
+    sort: "createdAt",
+    filter: "provider",
+    facet: "status",
+    list: (transport) => {
+      const client = createMailSync(options(transport));
+
+      return {
+        page: (page) =>
+          client.accountPage({ ...page, organizationId: "org-1" }),
+        facets: (facets) =>
+          client.accountFacets({ ...facets, organizationId: "org-1" }),
+        count: (count) =>
+          client.accountCount({ ...count, organizationId: "org-1" }),
       };
     },
   },
