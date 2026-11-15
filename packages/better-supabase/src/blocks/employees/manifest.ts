@@ -31,7 +31,7 @@ export const employeesBlock: BlockOf<
     employee: {
       ...employeeListSurface,
       mutability: "editable",
-      emits: { create: true, update: true, delete: true },
+      emits: { create: true, update: true, purge: true },
     },
   },
   links: [

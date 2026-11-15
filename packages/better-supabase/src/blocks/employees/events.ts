@@ -9,7 +9,7 @@ export type EmployeesEvents = {
   readonly "employee.updated": EmployeeEventData;
   readonly "employee.offboarded": EmployeeEventData;
   readonly "employee.manager_changed": EmployeeEventData;
-  readonly "employee.deleted": EmployeeEventData;
+  readonly "employee.purged": EmployeeEventData;
 };
 
 /** The `employees` block's event types, for its manifest and `onBlockEvent`. */
@@ -18,5 +18,5 @@ export const employeesEvents: Events<EmployeesEvents> = defineEvents({
   "employee.updated": event<EmployeeEventData>(),
   "employee.offboarded": event<EmployeeEventData>(),
   "employee.manager_changed": event<EmployeeEventData>(),
-  "employee.deleted": event<EmployeeEventData>(),
+  "employee.purged": event<EmployeeEventData>(),
 });

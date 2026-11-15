@@ -30,7 +30,7 @@ export const employeeContractsBinding: RecordBinding<
   permissions: { read: "contractsRead", write: "contractsWrite" },
   module: "employees",
   load: (client: Employees, subject) => client.contracts(subject.id),
-  events: ["employee.updated", "employee.deleted"],
+  events: ["employee.updated", "employee.purged"],
   writes: {
     remove: {
       input: recordRowInput,
