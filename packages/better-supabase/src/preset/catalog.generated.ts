@@ -15236,7 +15236,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "calendar.updated",
           "calendar_event.created",
           "calendar_event.updated",
-          "calendar_event.deleted"
+          "calendar_event.purged"
         ]
       }
     },

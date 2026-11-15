@@ -263,7 +263,11 @@ export interface Calendar<F extends object = Record<never, never>> {
     calendarId: string;
     alarms: readonly CalendarDefaultAlarm[];
   }): AsyncResult<CalendarDefaultAlarm[]>;
-  delete(eventId: string): AsyncResult<boolean>;
+  /**
+   * Removes an event for good, with its overrides. Set its `status` to
+   * `cancelled` instead to keep it in the calendar.
+   */
+  purge(eventId: string): AsyncResult<boolean>;
   /** The rows that can fall in the range: events, series and their overrides. */
   events(input: {
     calendarIds: readonly string[];
@@ -814,9 +818,9 @@ export function createCalendar<
         },
         defaultAlarmsOf,
       ),
-    delete: (eventId) =>
+    purge: (eventId) =>
       call(
-        "delete_calendar_event",
+        "purge_calendar_event",
         { event_id: eventId },
         (value) => value === true,
       ),
@@ -931,7 +935,7 @@ export function createCalendar<
 
       if (!occurrence.recurring || series === undefined) {
         return call(
-          "delete_calendar_event",
+          "purge_calendar_event",
           { event_id: occurrence.event.id },
           (value) => value === true,
         );

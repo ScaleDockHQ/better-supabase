@@ -420,7 +420,7 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
 
   it("deletes an event with its overrides and its reminders rule", async () => {
     await session.as(member);
-    expect(await calendar.delete(seriesId).orThrow()).toBe(true);
+    expect(await calendar.purge(seriesId).orThrow()).toBe(true);
     expect(
       await session.value<number>(
         "(select count(*)::int from calendar_it.calendar_events where id = $1 or recurrence_id = $1)",
