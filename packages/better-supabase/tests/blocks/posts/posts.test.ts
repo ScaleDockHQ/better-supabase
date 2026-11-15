@@ -37,6 +37,7 @@ const POST = {
   moderation: "visible",
   pinnedAt: null,
   lockedAt: null,
+  archivedAt: null,
   mergedIntoId: null,
   replyCount: 2,
   lastActivityAt: AT,
@@ -115,7 +116,9 @@ describe("createPosts", () => {
     const { transport, call } = fakeTransport({
       create_post: POST,
       update_post: POST,
-      delete_post: true,
+      archive_post: { ...POST, archivedAt: AT },
+      restore_post: POST,
+      purge_post: POST,
       get_post: MERGED,
       list_posts: [POST, MERGED],
       set_post_state: POST,
@@ -200,7 +203,17 @@ describe("createPosts", () => {
       source_id: "p2",
       target_id: "p1",
     });
-    expect(await posts.delete("p1").orThrow()).toBe(true);
+    expect((await posts.archive("p1").orThrow()).archivedAt?.toString()).toBe(
+      AT,
+    );
+    expect(call).toHaveBeenLastCalledWith("better_supabase", "archive_post", {
+      post_id: "p1",
+    });
+    expect((await posts.restore("p1").orThrow()).archivedAt).toBeUndefined();
+    expect((await posts.purge("p1").orThrow()).id).toBe("p1");
+    expect(call).toHaveBeenLastCalledWith("better_supabase", "purge_post", {
+      post_id: "p1",
+    });
   });
 
   it("returns null for a post the caller can't see", async () => {

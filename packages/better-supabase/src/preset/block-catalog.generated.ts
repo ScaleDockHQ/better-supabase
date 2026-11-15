@@ -4011,10 +4011,12 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
+        "post.archived",
         "post.created",
-        "post.deleted",
         "post.merged",
         "post.moderated",
+        "post.purged",
+        "post.restored",
         "post.status_changed",
         "post.updated",
         "post_board.created",

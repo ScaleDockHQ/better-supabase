@@ -19,6 +19,7 @@ const POST_KEYS = [
   "moderation",
   "pinnedAt",
   "lockedAt",
+  "archivedAt",
   "mergedIntoId",
   "replyCount",
   "lastActivityAt",
@@ -139,7 +140,7 @@ export function postsSql(ctx: BlockSqlContext): PostsSql {
       `jsonb_build_object('id', ${row}.${b("id")}, 'organizationId', ${row}.${b("tenant")}, 'key', ${row}.${b("key")}, 'name', ${row}.${b("name")}, 'description', ${board(row, "description")}, 'kind', ${row}.${b("kind")}, 'archivedAt', ${board(row, "archivedAt")}, 'createdBy', ${board(row, "createdBy")}, 'createdAt', ${row}.${b("createdAt")}, 'updatedAt', ${board(row, "updatedAt", `${row}.${b("createdAt")}`)})`,
     postJson: (row) =>
       withExtraFields(
-        `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'boardId', ${row}.${p("board")}, 'authorId', ${row}.${p("author")}, 'mine', coalesce(${row}.${p("author")} = (select auth.uid()), false), 'title', ${row}.${p("title")}, 'body', ${row}.${p("body")}, 'status', ${row}.${p("status")}, 'moderation', ${row}.${p("moderation")}, 'pinnedAt', ${post(row, "pinnedAt")}, 'lockedAt', ${post(row, "lockedAt")}, 'mergedIntoId', ${row}.${p("mergedInto")}, 'replyCount', ${post(row, "replyCount", "0")}, 'lastActivityAt', ${post(row, "lastActivityAt", `${row}.${p("createdAt")}`)}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${post(row, "updatedAt", `${row}.${p("createdAt")}`)})`,
+        `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'boardId', ${row}.${p("board")}, 'authorId', ${row}.${p("author")}, 'mine', coalesce(${row}.${p("author")} = (select auth.uid()), false), 'title', ${row}.${p("title")}, 'body', ${row}.${p("body")}, 'status', ${row}.${p("status")}, 'moderation', ${row}.${p("moderation")}, 'pinnedAt', ${post(row, "pinnedAt")}, 'lockedAt', ${post(row, "lockedAt")}, 'archivedAt', ${post(row, "archivedAt")}, 'mergedIntoId', ${row}.${p("mergedInto")}, 'replyCount', ${post(row, "replyCount", "0")}, 'lastActivityAt', ${post(row, "lastActivityAt", `${row}.${p("createdAt")}`)}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${post(row, "updatedAt", `${row}.${p("createdAt")}`)})`,
         row,
         extras,
       ),

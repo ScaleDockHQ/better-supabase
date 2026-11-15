@@ -97,6 +97,8 @@ export interface Post<F extends object = Record<never, never>> {
   readonly moderation: PostModeration;
   readonly pinnedAt?: Temporal.Instant;
   readonly lockedAt?: Temporal.Instant;
+  /** Set while the post is archived. */
+  readonly archivedAt?: Temporal.Instant;
   /** The post this one was merged into as a duplicate. */
   readonly mergedIntoId?: string;
   readonly replyCount: number;
@@ -130,6 +132,11 @@ export interface PostsFilter {
   readonly sort?: "active" | "new" | "top";
   /** Include posts merged into others. */
   readonly merged?: boolean;
+  /**
+   * Archived posts are hidden unless this is set; `true` lists only the
+   * archived ones.
+   */
+  readonly archived?: boolean;
   /** 1 to 200. Default 50. */
   readonly limit?: number;
   readonly offset?: number;
@@ -151,8 +158,18 @@ export interface Posts<F extends object = Record<never, never>> {
     postId: string;
     input: Partial<PostInput<F>>;
   }): AsyncResult<Post<F>>;
-  /** Deletes a post; false when there was none. */
-  delete(postId: string): AsyncResult<boolean>;
+  /**
+   * Archives a post: it leaves `list` unless `archived` is set and takes no new
+   * votes or replies. Its author or a moderator; records `post.archived`.
+   */
+  archive(postId: string): AsyncResult<Post<F>>;
+  /** Brings an archived post back; records `post.restored`. */
+  restore(postId: string): AsyncResult<Post<F>>;
+  /**
+   * Removes a post for good, with its votes. `permissions.purge` gates it when
+   * set; otherwise its author or a moderator. Records `post.purged`.
+   */
+  purge(postId: string): AsyncResult<Post<F>>;
   get(postId: string): AsyncResult<Post<F> | null>;
   list(filter?: PostsFilter): AsyncResult<readonly Post<F>[]>;
   /** Sets the status, pin or lock of a post; needs `posts.moderate`. */
@@ -223,6 +240,7 @@ function postOf(value: unknown, fn: string): Post {
   const mergedIntoId = optionalText(row["mergedIntoId"]);
   const pinnedAt = optionalInstant(row["pinnedAt"]);
   const lockedAt = optionalInstant(row["lockedAt"]);
+  const archivedAt = optionalInstant(row["archivedAt"]);
 
   return {
     id: textOf(row["id"]),
@@ -243,6 +261,7 @@ function postOf(value: unknown, fn: string): Post {
     ...(mergedIntoId === undefined ? {} : { mergedIntoId }),
     ...(pinnedAt === undefined ? {} : { pinnedAt }),
     ...(lockedAt === undefined ? {} : { lockedAt }),
+    ...(archivedAt === undefined ? {} : { archivedAt }),
   };
 }
 
@@ -308,8 +327,18 @@ export function createPosts<S extends StandardSchemaV1 | undefined = undefined>(
           post("update_post"),
         ).andThen(fields.row),
       ),
-    delete: (postId) =>
-      call("delete_post", { post_id: postId }, (value) => value === true),
+    archive: (postId) =>
+      call("archive_post", { post_id: postId }, post("archive_post")).andThen(
+        fields.row,
+      ),
+    restore: (postId) =>
+      call("restore_post", { post_id: postId }, post("restore_post")).andThen(
+        fields.row,
+      ),
+    purge: (postId) =>
+      call("purge_post", { post_id: postId }, post("purge_post")).andThen(
+        fields.row,
+      ),
     get: (postId) =>
       call("get_post", { post_id: postId }, (value) =>
         value === null || value === undefined
