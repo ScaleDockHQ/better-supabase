@@ -231,6 +231,9 @@ the `archived_at` column and replaces the delete function with `purge`.
 | `employees`                 | `employees.delete(id)`, `delete_employee()`               | `employees.purge(id)`, `purge_employee()`; offboarding stays the archive                          |
 | `employees`                 | event `employee.deleted`                                  | `employee.purged`                                                                                 |
 | `employees`                 | hooks `before_employee_delete`, `after_employee_delete`   | `before_employee_purge`, `after_employee_purge`                                                   |
+| `expenses`                  | `expenses.deleteExpense(id)`, `delete_expense()`          | `expenses.purgeExpense(id)`, `purge_expense()`; the status stays the archive                      |
+| `expenses`                  | event `expense.deleted`                                   | `expense.purged`                                                                                  |
+| `expenses`                  | `permissions.delete`                                      | `permissions.purge`; `delete` is still read when `purge` is unset                                 |
 | `scores`                    | `scores.deleteModel(id)`, `delete_score_model()`          | `scores.purgeModel(id)`, `purge_score_model()` (ADR 1053)                                         |
 | `scores`                    | event `score_model.deleted`                               | `score_model.purged`, plus `archived` and `restored`                                              |
 | `scores`                    | `models()` and `list_score_models()` show every row       | hide archived models; `models({ includeArchived: true })` adds them                               |
@@ -240,7 +243,7 @@ the `archived_at` column and replaces the delete function with `purge`.
 | `agents`                    | `agents.remove(id)`, `delete_agent()`                     | `agents.purge(id)`, `purge_agent()` (ADR 1080)                                                    |
 | `agents`                    | event `agent.deleted`                                     | `agent.purged`, plus `archived` and `restored`                                                    |
 | `agents`                    | `agents.list()` shows every agent                         | hides archived agents; `list({ includeArchived: true })` adds them                                |
-| `custom-fields`             | `deleteDefinition(id)`, `delete_field_definition()`       | `purgeDefinition(id)`, `purge_field_definition()` (ADR 1081)                                      |
+| `custom-fields`             | `deleteDefinition(id)`, `delete_field_definition()`       | `purgeDefinition(id)`, `purge_field_definition()` (ADR 1083)                                      |
 | `custom-fields`             | event `field_definition.deleted`                          | `field_definition.purged`, plus `archived` and `restored`                                         |
 | `custom-fields`             | `listDefinitions(entity)` shows every field               | hides archived fields; `listDefinitions({ entity, includeArchived: true })` adds them             |
 

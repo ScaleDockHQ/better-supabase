@@ -1,4 +1,4 @@
--- Archiving a field definition (ADR 1081): an archived field leaves
+-- Archiving a field definition (ADR 1083): an archived field leaves
 -- list_field_definitions, save_field_definition and set_field_value refuse it,
 -- its values stay readable, restore brings it back and purge is the hard
 -- delete that takes the values with it. Run with `supabase test db`.

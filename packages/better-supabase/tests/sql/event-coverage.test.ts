@@ -60,7 +60,7 @@ const NOT_LITERAL = [
   "expenses: expense.submitted",
   "expenses: expense.rejected",
   "expenses: expense.withdrawn",
-  "expenses: expense.deleted",
+  "expenses: expense.purged",
   "shipments: shipment.return_received",
   "content: content_entry.publish_requested",
   "care-plans: care_plan.agreed",
