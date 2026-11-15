@@ -66,7 +66,7 @@
   },
   "/[locale]/(app)/assistant/[id]/page": {
     "raw": 3653511,
-    "gzip": 1092033,
+    "gzip": 1092038,
     "brotli": 909869
   },
   "/[locale]/(app)/assistant/activity/page": {
@@ -101,7 +101,7 @@
   },
   "/[locale]/(app)/assistant/agents/runs/page": {
     "raw": 3663199,
-    "gzip": 1095530,
+    "gzip": 1095533,
     "brotli": 912846
   },
   "/[locale]/(app)/assistant/agents/tools/page": {
@@ -126,7 +126,7 @@
   },
   "/[locale]/(app)/assistant/page": {
     "raw": 3656049,
-    "gzip": 1093059,
+    "gzip": 1093062,
     "brotli": 910720
   },
   "/[locale]/(app)/assistant/prompts/[name]/page": {
@@ -146,7 +146,7 @@
   },
   "/[locale]/(app)/assistant/tour/page": {
     "raw": 3644619,
-    "gzip": 1088101,
+    "gzip": 1088104,
     "brotli": 906345
   },
   "/[locale]/(app)/assistant/usage/page": {
@@ -572,7 +572,7 @@
   "/[locale]/(app)/forbidden/page": {
     "raw": 3084419,
     "gzip": 936123,
-    "brotli": 776762
+    "brotli": 776765
   },
   "/[locale]/(app)/forms/[id]/page": {
     "raw": 3110404,
