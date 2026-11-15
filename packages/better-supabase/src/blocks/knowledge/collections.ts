@@ -1,6 +1,22 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockCall } from "../shared.ts";
 
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import {
   instantOf,
   oneOf,
@@ -9,6 +25,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { collectionListSurface } from "./lists.ts";
 
 /**
  * `automatic` collections show up in every search of their tenant, `restricted`
@@ -65,8 +82,28 @@ export interface KnowledgeCollections {
   }): AsyncResult<KnowledgeCollection>;
   /** Deletes a collection; its documents stay, without a collection. */
   remove(collectionId: string): AsyncResult<boolean>;
-  /** The collections the caller reads, system ones included. */
+  /**
+   * The collections the caller reads, system ones included.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+   * filters and a count (ADR 1077).
+   */
   list(organizationId: string): AsyncResult<readonly KnowledgeCollection[]>;
+  /**
+   * One keyset page of collections, highest priority first. `filters` takes
+   * `visibility` as a list; `q` searches the name and description.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<KnowledgeCollection>>;
+  /** The values of the `visibility` facet and how many collections hold each. */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many collections match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One collection by id, or a `not_found` error. */
+  get(collectionId: string): AsyncResult<KnowledgeCollection>;
   grant(input: {
     collectionId: string;
     to: KnowledgeGrantee;
@@ -122,7 +159,30 @@ export function knowledgeCollections(call: BlockCall): KnowledgeCollections {
       (value) => value === true,
     );
 
+  const pages = entityList<KnowledgeCollection, RequiredTenantOption>({
+    entity: "knowledge_collection",
+    surface: collectionListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_knowledge_collections",
+    rowOf: (row) => collectionOf(row),
+  });
+
   return {
+    page: pages.page,
+    facets: pages.facets,
+    count: pages.count,
+    get: (collectionId) =>
+      call(
+        "get_knowledge_collection",
+        { collection_id: collectionId },
+        (value) =>
+          value === null || value === undefined
+            ? undefined
+            : collectionOf(value),
+      ).andThen((row) =>
+        foundOrNotFound("knowledge_collection", row, collectionId),
+      ),
     create: ({ organizationId, collection }) =>
       call(
         "create_knowledge_collection",
@@ -147,6 +207,7 @@ export function knowledgeCollections(call: BlockCall): KnowledgeCollections {
         { collection_id: collectionId },
         (value) => value === true,
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (organizationId) =>
       call("list_knowledge_collections", { tenant: organizationId }, (value) =>
         recordsOf(value, "knowledge_collections").map(collectionOf),

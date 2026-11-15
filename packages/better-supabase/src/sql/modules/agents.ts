@@ -9,8 +9,18 @@ import type { Columns } from "./module-columns.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
+import {
+  filterAny,
+  filterFirst,
+  filterFlag,
+  filterHasInvalid,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
+  fail,
   raise,
   revokeTable,
   schemaPreamble,
@@ -289,6 +299,61 @@ function build(ctx: BlockSqlContext): string {
         `x.${a[key]} ilike '%' || replace(replace(list_agents.search, '%', '\\%'), '_', '\\_') || '%'`,
     )
     .join("\n        or ");
+
+  const idKey = { expr: `x.${a.id}`, dir: "asc", type: "uuid" } as const;
+  const recent = `coalesce(${agent("publishedAt") ? `x.${a.publishedAt}, ` : ""}x.${a.updatedAt})`;
+
+  const agentPage = {
+    name: "page_agents",
+    from: agents,
+    alias: "x",
+    where: [
+      `case v_mode
+        when 'mine' then x.${a.owner} = auth.uid() and x.${a.tenant} = page_agents.tenant
+        when 'installed' then exists (select 1 from ${installs} n where n.${i.agent} = x.${a.id} and n.${i.user} = auth.uid() and n.${i.tenant} = page_agents.tenant)
+        else ${agent("publishedAt") ? `x.${a.publishedAt} is not null and ` : ""}(x.${a.visibility} = 'public' or x.${a.tenant} = page_agents.tenant)
+      end`,
+      ...(archivable
+        ? [`(${filterFlag("includeArchived")} or x.${a.archivedAt} is null)`]
+        : []),
+      filterAny("visibility", `x.${a.visibility}::text`),
+      `(v_search is null or ${(["name", "description"] as const)
+        .filter((key) => agent(key))
+        .map((key) => `x.${a[key]} ilike v_search`)
+        .join(" or ")})`,
+    ],
+    keys: [{ expr: recent, dir: "desc", type: "timestamptz" }, idKey],
+    sorts: {
+      name: [{ expr: `lower(x.${a.name})`, dir: "asc", type: "text" }, idKey],
+      updatedAt: [
+        { expr: `x.${a.updatedAt}`, dir: "desc", type: "timestamptz" },
+        idKey,
+      ],
+      createdAt: [
+        {
+          expr: agent("createdAt") ? `x.${a.createdAt}` : `x.${a.updatedAt}`,
+          dir: "desc",
+          type: "timestamptz",
+        },
+        idKey,
+      ],
+      installCount: [
+        {
+          expr: agent("installCount")
+            ? `coalesce(x.${a.installCount}, 0)`
+            : "0",
+          dir: "desc",
+          type: "integer",
+        },
+        idKey,
+      ],
+    },
+    facets: { visibility: `x.${a.visibility}` },
+    rowJson: `${json("x")} || jsonb_build_object('installed', exists (select 1 from ${installs} n where n.${i.agent} = x.${a.id} and n.${i.user} = auth.uid() and n.${i.tenant} = page_agents.tenant))`,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("AGENT_INVALID", message, "22023"),
+  } as const;
 
   const totals = [
     ...(agent("ratingCount")
@@ -637,6 +702,37 @@ ${archivable ? `      and (coalesce(list_agents.include_archived, false) or x.${
   ) y
 $$;
 ${userGrant(`${fn("list_agents")}(${id}, text, text, integer${archivable ? ", boolean" : ""})`)}
+
+-- Agents as a keyset page (ADR 1077): the same three modes as list_agents.
+-- filters is { mode ('store' by default, 'mine' or 'installed'), visibility (a
+-- value or a list), includeArchived, search (name, description), sort (name,
+-- updatedAt, createdAt, installCount), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }. The default order is the newest published
+-- or updated agent first.
+create or replace function ${fn("page_agents")}(tenant ${id}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_agents.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  v_mode text := coalesce(${filterFirst("mode")}, 'store');
+  ${listDeclare(agentPage)}
+begin
+  if v_mode not in ('store', 'mine', 'installed') then
+    ${fail("AGENT_INVALID", "mode is store, mine or installed", "22023")}
+  end if;
+  if ${filterHasInvalid("visibility", ["private", "organization", "public"])} then
+    ${fail("AGENT_INVALID", "visibility is private, organization or public", "22023")}
+  end if;
+  ${listBody(agentPage)}
+end;
+$$;
+${userGrant(`${fn("page_agents")}(${id}, jsonb)`)}
 
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function ${fn("install_agent")}(tenant ${id}, agent_id uuid, installed boolean default true)
