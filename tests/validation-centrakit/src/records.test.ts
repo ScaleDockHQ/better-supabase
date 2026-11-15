@@ -172,6 +172,7 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
         );
 
         const [read] = await items
+          // oxlint-disable-next-line typescript/no-deprecated -- the test covers the deprecated array method until 0.70 (ADR 1077).
           .list({ organizationId: org, search: "boiler" })
           .orThrow();
 
