@@ -34,7 +34,7 @@ keeps its delete, with no archive, when its row is one of these:
 | `organization`                                  | `organizations`    | `deleteMode` already offers `soft` and `lifecycle`; the app picks the mode    |
 | the seventeen configuration and credential rows | see ADR 1052       | A state or the delete itself already revokes; an archive would be restorable  |
 
-The first five are decided here and the next six by ADR 1050 (slice 4), and all are recorded in the EX-1207 row. The other 43 entities stay
+The first five are decided here and the next six by ADR 1050 (slice 4), and all are recorded in the EX-1207 row. The other 33 entities (28 of them stay delete by decision) stay
 open and follow the order below, in slices of at most 80 files, each with its
 own ADR number, migration and pgTAP test:
 

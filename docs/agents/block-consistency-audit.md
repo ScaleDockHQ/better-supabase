@@ -640,7 +640,7 @@ The webhook event catalog: the events each block marks `public` (`event<T>({ pub
 - Lists. 86 blocks that list return an array with no cursor. Ten blocks page (`agent-checkout`, `appraisals`, `dam`, `lims`, `maintenance`, `rfqs`, `risks`, `sso`, `tills`, `warehouse`), and each does so with its own option names. EX-1200, EX-1203.
 - Sort and facets. Five blocks mention a sort and none returns facet counts, so the record list kit shows chips with no numbers on a block list (EX-1010 hand-writes the facet values). EX-1201, EX-1202.
 - Search and count. Search is a method on 20 blocks; count on 37. App tables get exact or estimated counts (ADR 0425, 0433) and blocks do not. EX-1204, EX-1205.
-- Lifecycle. The soft delete column `archived_at` is the convention (ADR 0346), yet 47 blocks delete with no archive and 28 archive with no restore. EX-1206, EX-1207.
+- Lifecycle. The soft delete column `archived_at` is the convention (ADR 0346), yet 33 entities delete with no archive (28 stay delete by decision) and 28 archive with no restore. EX-1206, EX-1207.
 - Writes. Bulk has three shapes, idempotency is on 19 blocks, expected-version locking on fewer than ten, and optimistic handlers on none of the controllers. EX-1209, EX-1212, EX-1213, EX-1214.
 - Export and import are on 8 and 6 blocks. EX-1210, EX-1211.
 
@@ -709,7 +709,7 @@ Status per concern across the catalog. "Covered" means a block or core feature h
 | -------------------------------- | ------- | ----------------------------------------------------------------- | -------------------------------------------------------- | ------------------------- |
 | Multi-tenant isolation           | covered | tenant policies on block tables (ADR 0099, 0426), tested in pgTAP | none found                                               | none                      |
 | Roles and per-record access      | partial | permissions block, record teams (ADR 0134), grants                | keys declared per entity and generated (#903)            | EX-1231, EX-1232, EX-1322 |
-| Soft delete and restore          | partial | tasks, deals, cases, drive, teams, trash                          | 47 blocks hard delete, 28 archive without restore        | EX-1206, EX-1207          |
+| Soft delete and restore          | partial | tasks, deals, cases, drive, teams, trash                          | 33 entities hard delete, 28 archive without restore      | EX-1206, EX-1207          |
 | Audit trail                      | covered | audit block and row triggers (ADR 0196, 0252)                     | impersonation actor outside audit                        | EX-1321                   |
 | Versioning                       | partial | versions, field-history, 77 mentions                              | no declaration per entity                                | EX-1323                   |
 | Idempotency                      | partial | 19 blocks and the idempotency block                               | tasks, deals, quotes and most creates                    | EX-1212                   |
