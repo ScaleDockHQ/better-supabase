@@ -303,6 +303,13 @@ export interface CarePlans<F extends object = Record<never, never>> {
   publish(planId: string): AsyncResult<CarePlan<F>>;
   /** Archives a plan and ends its actions; needs `care_plans.publish`. */
   archive(planId: string): AsyncResult<CarePlan<F>>;
+  /**
+   * Brings an archived plan back as a draft and records `care_plan.restored`;
+   * needs `care_plans.publish`. The plan's actions stay ended, so add actions
+   * before you publish it again. A plan that is not archived is returned
+   * unchanged.
+   */
+  restore(planId: string): AsyncResult<CarePlan<F>>;
   get(planId: string): AsyncResult<CarePlan<F>>;
   /**
    * Many plans with their problems, goals, actions and evaluations in one read,
@@ -676,6 +683,12 @@ export function createCarePlans<
         "archive_care_plan",
         { plan_id: planId },
         plan("archive_care_plan"),
+      ).andThen(fields.row),
+    restore: (planId) =>
+      call(
+        "restore_care_plan",
+        { plan_id: planId },
+        plan("restore_care_plan"),
       ).andThen(fields.row),
     get: (planId) =>
       call("get_care_plan", { plan_id: planId }, plan("get_care_plan")).andThen(

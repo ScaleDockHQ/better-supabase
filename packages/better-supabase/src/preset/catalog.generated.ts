@@ -15761,6 +15761,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "care_plan.updated",
           "care_plan.published",
           "care_plan.archived",
+          "care_plan.restored",
           "care_plan.agreed",
           "care_plan.review_date_reached",
           "care_plan_goal.status_changed",

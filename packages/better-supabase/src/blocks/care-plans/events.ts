@@ -96,6 +96,7 @@ export type CarePlansEvents = {
   readonly "care_plan.updated": CarePlanEventData;
   readonly "care_plan.published": CarePlanPublishedEventData;
   readonly "care_plan.archived": CarePlanEventData;
+  readonly "care_plan.restored": CarePlanEventData;
   readonly "care_plan.agreed": CarePlanAgreedEventData;
   readonly "care_plan.review_date_reached": CarePlanReviewDateReachedEventData;
   readonly "care_plan_goal.status_changed": CarePlanGoalStatusChangedEventData;
@@ -112,6 +113,7 @@ export const carePlansEvents: Events<CarePlansEvents> = defineEvents({
   "care_plan.updated": event<CarePlanEventData>(),
   "care_plan.published": event<CarePlanPublishedEventData>(),
   "care_plan.archived": event<CarePlanEventData>(),
+  "care_plan.restored": event<CarePlanEventData>(),
   "care_plan.agreed": event<CarePlanAgreedEventData>(),
   "care_plan.review_date_reached": event<CarePlanReviewDateReachedEventData>(),
   "care_plan_goal.status_changed": event<CarePlanGoalStatusChangedEventData>(),

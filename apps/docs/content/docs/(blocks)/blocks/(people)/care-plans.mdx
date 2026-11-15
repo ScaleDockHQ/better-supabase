@@ -146,7 +146,9 @@ problem or goal changes, and an action changes only how it runs
 (`bookingSeriesId`, `endsOn`, `frequency`, `instructions`, `reviewEvery` and
 `teamRole`). Anything else goes into the next version: create a draft with
 `copyFromPlanId` and publish it. `archive` ends the plan's actions with the
-reason `plan archived`.
+reason `plan archived`. `restore` brings an archived plan back as a draft with
+its actions still ended, so add the actions the client needs before you
+publish it again; publishing starts only the actions that are planned.
 
 ## Evaluations and reviews
 
@@ -223,6 +225,7 @@ await db.carePlans
 | `updateAction(actionId, change)`        | the action                                                 |
 | `publish(planId)`                       | the active plan                                            |
 | `archive(planId)`                       | the archived plan                                          |
+| `restore(planId)`                       | the draft plan                                             |
 | `get(planId)`                           | the plan with its problems, goals, actions and evaluations |
 | `getMany(planIds)`                      | those plans in one read, in the order asked                |
 | `list(subjectType, subjectId, options)` | the client's plans, the newest version first               |
@@ -252,7 +255,8 @@ await db.carePlans
 ## Events
 
 `care_plan.created`, `care_plan.updated`, `care_plan.published`,
-`care_plan.archived`, `care_plan.agreed`, `care_plan.review_date_reached`,
+`care_plan.archived`, `care_plan.restored`, `care_plan.agreed`,
+`care_plan.review_date_reached`,
 `care_plan_goal.status_changed`, `care_plan_evaluation.created`,
 `care_plan_action.started`, `care_plan_action.ended`,
 `care_plan_action.review_date_reached` and `care_plan_action.reviewed`. The

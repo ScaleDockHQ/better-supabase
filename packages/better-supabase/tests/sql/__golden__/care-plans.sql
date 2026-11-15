@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:70d97c0575c5bb268b7b77f8440ee8b656094050db82c219dcd954f89b9425c8
+-- @bsb-hash sha256:cbc877246b48003856cc45f7777bc355bb4f39efb9a4e9922fe8528f1b555578
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1252,6 +1252,44 @@ $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
 
+-- Restores an archived plan as a draft (ADR 1030). Its actions stay ended,
+-- so publishing it again starts nothing until actions are added.
+create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."care_plans";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."care_plans" x where x."id" = restore_care_plan.plan_id for update;
+  if not found then
+    raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'care_plans.publish'), false))) then
+    raise exception 'not allowed to restore care plans' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false)) then
+    raise exception 'not allowed to read this client' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return "better_supabase"."care_plan_json"(v_row."id");
+  end if;
+  update "better_supabase"."care_plans" x set "status" = 'draft', "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return "better_supabase"."care_plan_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_care_plan"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_care_plan"(uuid) to authenticated, service_role;
+
 -- Records an evaluation of a goal on an active plan: the status found, an
 -- outcome and the forms submission it came from, if any. A status the goal
 -- doesn't have yet becomes the goal's status.
@@ -1512,7 +1550,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:239de1e9ce3e023a58679fe6989a1b93159c588d56cb94ad8719dfc6f2cad9b8
+-- @bsb-hash sha256:30cf9aec9a0d8c48431b1559d65a20135a8f75aec52287f4e9b7726b4675ef79
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2903,6 +2941,54 @@ $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
 
+-- Restores an archived plan as a draft (ADR 1030). Its actions stay ended,
+-- so publishing it again starts nothing until actions are added.
+create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."care_plans";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."care_plans" x where x."id" = restore_care_plan.plan_id for update;
+  if not found then
+    raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'care_plans.publish'), false))) then
+    raise exception 'not allowed to restore care plans' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false)) then
+    raise exception 'not allowed to read this client' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return "better_supabase"."care_plan_json"(v_row."id");
+  end if;
+  update "better_supabase"."care_plans" x set "status" = 'draft', "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('care_plan.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'title', v_row."title", 'status', v_row."status", 'version', v_row."version"), 'care-plans/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/care-plans');
+  perform better_supabase.audit_event(
+    event_type => 'care_plan.restored',
+    category => 'data',
+    target_type => 'care_plan',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'care plan restored',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'title', v_row."title", 'status', v_row."status", 'version', v_row."version")
+  );
+  return "better_supabase"."care_plan_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_care_plan"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_care_plan"(uuid) to authenticated, service_role;
+
 -- Records an evaluation of a goal on an active plan: the status found, an
 -- outcome and the forms submission it came from, if any. A status the goal
 -- doesn't have yet becomes the goal's status.
@@ -3321,7 +3407,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:efc20f3bec4d4eef4c9471751709a480d9d6c821e957a8be3f7e643fc9307d34
+-- @bsb-hash sha256:359298afa8c6c3766a3b655de811a417b88f116743593226f2cb8508b0eb0613
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4577,6 +4663,44 @@ $$;
 revoke execute on function "app_private"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "app_private"."archive_care_plan"(uuid) to authenticated, service_role;
 
+-- Restores an archived plan as a draft (ADR 1030). Its actions stay ended,
+-- so publishing it again starts nothing until actions are added.
+create or replace function "app_private"."restore_care_plan"(plan_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."care_plans";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."care_plans" x where x."id" = restore_care_plan.plan_id for update;
+  if not found then
+    raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'care_plans.publish'), false))) then
+    raise exception 'not allowed to restore care plans' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false)) then
+    raise exception 'not allowed to read this client' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return "app_private"."care_plan_json"(v_row."id");
+  end if;
+  update "app_private"."care_plans" x set "status" = 'draft', "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return "app_private"."care_plan_json"(v_row."id");
+end;
+$$;
+revoke execute on function "app_private"."restore_care_plan"(uuid) from public, anon;
+grant execute on function "app_private"."restore_care_plan"(uuid) to authenticated, service_role;
+
 -- Records an evaluation of a goal on an active plan: the status found, an
 -- outcome and the forms submission it came from, if any. A status the goal
 -- doesn't have yet becomes the goal's status.
@@ -4837,7 +4961,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:ead60dfb91afacd7bb4ca37ce7cb142a2781bf52f92c1c2f89ec8169d6c111b8
+-- @bsb-hash sha256:c8cbf5b6389401054a76fc0d5cf9b3c0b53ae2e4334c0c818cf006c446ac51e2
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6088,6 +6212,44 @@ $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
 
+-- Restores an archived plan as a draft (ADR 1030). Its actions stay ended,
+-- so publishing it again starts nothing until actions are added.
+create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."care_plans";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."care_plans" x where x."id" = restore_care_plan.plan_id for update;
+  if not found then
+    raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'care_plans.publish'), false))) then
+    raise exception 'not allowed to restore care plans' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false)) then
+    raise exception 'not allowed to read this client' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return "better_supabase"."care_plan_json"(v_row."id");
+  end if;
+  update "better_supabase"."care_plans" x set "status" = 'draft', "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return "better_supabase"."care_plan_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_care_plan"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_care_plan"(uuid) to authenticated, service_role;
+
 -- Records an evaluation of a goal on an active plan: the status found, an
 -- outcome and the forms submission it came from, if any. A status the goal
 -- doesn't have yet becomes the goal's status.
@@ -6510,6 +6672,15 @@ as $$ select "better_supabase"."archive_care_plan"($1) $$;
 revoke execute on function "api"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "api"."archive_care_plan"(uuid) to authenticated, service_role;
 
+create or replace function "api"."restore_care_plan"(plan_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_care_plan"($1) $$;
+revoke execute on function "api"."restore_care_plan"(uuid) from public, anon;
+grant execute on function "api"."restore_care_plan"(uuid) to authenticated, service_role;
+
 create or replace function "api"."record_care_plan_evaluation"(goal_id uuid, status text, outcome text default null, submission_id uuid default null)
 returns jsonb
 language sql
@@ -6564,7 +6735,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:e9dad8194fbca2cbd2c799e763093c33686e4c58d76f0e86e81647e1b3cc2cde
+-- @bsb-hash sha256:8f9356b6055457c35cecd540435968a9f50f44f8ea370f2b477e50b26e83dcd0
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7782,6 +7953,44 @@ $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
 
+-- Restores an archived plan as a draft (ADR 1030). Its actions stay ended,
+-- so publishing it again starts nothing until actions are added.
+create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."care_plans";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."care_plans" x where x."id" = restore_care_plan.plan_id for update;
+  if not found then
+    raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'care_plans.publish'), false))) then
+    raise exception 'not allowed to restore care plans' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false)) then
+    raise exception 'not allowed to read this client' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return "better_supabase"."care_plan_json"(v_row."id");
+  end if;
+  update "better_supabase"."care_plans" x set "status" = 'draft', "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return "better_supabase"."care_plan_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_care_plan"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_care_plan"(uuid) to authenticated, service_role;
+
 -- Records an evaluation of a goal on an active plan: the status found, an
 -- outcome and the forms submission it came from, if any. A status the goal
 -- doesn't have yet becomes the goal's status.
@@ -8042,7 +8251,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:3c635e920ad5cb998ff1094f7d4e7c2180f34045ba564d9bd2338ee297b4645b
+-- @bsb-hash sha256:8a13b7d27793632b7383d458f64c0bdbe589e1bd8f644a0a42c947c0c29774c5
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9292,6 +9501,44 @@ end;
 $$;
 revoke execute on function "better_supabase"."archive_care_plan"(uuid) from public, anon;
 grant execute on function "better_supabase"."archive_care_plan"(uuid) to authenticated, service_role;
+
+-- Restores an archived plan as a draft (ADR 1030). Its actions stay ended,
+-- so publishing it again starts nothing until actions are added.
+create or replace function "better_supabase"."restore_care_plan"(plan_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."care_plans";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."care_plans" x where x."id" = restore_care_plan.plan_id for update;
+  if not found then
+    raise exception 'no such care plan' using errcode = 'P0002', hint = 'CARE_PLAN_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'care_plans.publish'), false))) then
+    raise exception 'not allowed to restore care plans' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce("better_supabase"."can_subject"(v_row."subject_type", v_row."subject_id", 'read'), false)) then
+    raise exception 'not allowed to read this client' using errcode = '42501', hint = 'CARE_PLAN_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    return "better_supabase"."care_plan_json"(v_row."id");
+  end if;
+  update "better_supabase"."care_plans" x set "status" = 'draft', "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return "better_supabase"."care_plan_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_care_plan"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_care_plan"(uuid) to authenticated, service_role;
 
 -- Records an evaluation of a goal on an active plan: the status found, an
 -- outcome and the forms submission it came from, if any. A status the goal
