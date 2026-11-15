@@ -195,12 +195,15 @@ export type {
 
 export {
   EXPORT_ROW_CAP,
+  csvFormat,
   exportCsv,
   exportResponse,
+  ndjsonFormat,
 } from "../core/entity-export.ts";
 
 export type {
   EntityExport,
+  ExportFormat,
   ExportOptions,
   ExportPage,
 } from "../core/entity-export.ts";

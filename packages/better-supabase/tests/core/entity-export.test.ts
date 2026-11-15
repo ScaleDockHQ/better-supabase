@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { PageOptions } from "../../src/core/block-helpers.ts";
 
-import { exportCsv, exportResponse } from "../../src/core/entity-export.ts";
+import {
+  exportCsv,
+  exportResponse,
+  ndjsonFormat,
+} from "../../src/core/entity-export.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { AsyncResult } from "../../src/core/result.ts";
 
@@ -130,6 +134,35 @@ describe("exportCsv", () => {
     );
 
     expect(text).toContain("=SUM(A1)");
+  });
+
+  it("writes one JSON object per line with a format", async () => {
+    const text = await read(
+      exportCsv(pager(), {
+        format: ndjsonFormat,
+        columns: ["id"],
+        pageSize: 2,
+      }),
+    );
+
+    expect(text).toBe(
+      [
+        '{"id":"0"}',
+        '{"id":"1"}',
+        '{"id":"2"}',
+        '{"id":"3"}',
+        '{"id":"4"}',
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("answers a route with the content type of the format", () => {
+    const response = exportResponse(pager(), "rows.ndjson", {
+      format: ndjsonFormat,
+    });
+
+    expect(response.headers.get("content-type")).toContain("x-ndjson");
   });
 
   it("answers a route with text/csv", async () => {

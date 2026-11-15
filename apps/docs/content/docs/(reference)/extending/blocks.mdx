@@ -556,6 +556,12 @@ An entity declares its part in the manifest with `bulk: { limit, actions }` and
 (100,000 by default) with the hint `EXPORT_ROW_CAP`, and the part already
 written stays valid CSV.
 
+Pass `format` to write another line-oriented format (ADR 1029). `csvFormat` is the default,
+`ndjsonFormat` writes one JSON object per line, and an `ExportFormat` of your own has a
+`contentType`, an optional `header(columns)` and `rows(items, columns, escapeFormulas)`.
+`exportResponse` answers with the format's content type. Formats that write a whole document
+(payroll, OSCAL, SEPA, iCalendar) keep their own exports.
+
 ```ts title="app/api/invoices.csv/route.ts"
 import { exportResponse } from "better-supabase/blocks";
 
