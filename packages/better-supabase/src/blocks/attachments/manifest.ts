@@ -30,7 +30,17 @@ export const attachmentsBlock: BlockOf<
   entities: {
     attachment: {
       mutability: "state-machine",
-      offline: { scope: "tenant" },
+      offline: {
+        scope: "tenant",
+        join: [
+          { kind: "readers" },
+          {
+            kind: "subject",
+            typeColumn: "subject_type",
+            idColumn: "subject_id",
+          },
+        ],
+      },
       emits: { create: false, delete: false },
     },
   },

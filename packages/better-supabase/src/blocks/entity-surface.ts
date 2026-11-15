@@ -106,9 +106,84 @@ export type EntityOfflineCondition = {
   | { readonly isNull: true; readonly equals?: never }
 );
 
+/** The table of a join, found by its columns in the files the block renders. */
+export interface EntityOfflineJoinTable {
+  /** The block that owns the table. Default: the entity's own block. */
+  readonly block?: string;
+  /** Columns the table declares. The first table with all of them is used. */
+  readonly columns?: readonly string[];
+  /** Columns the table must not declare. */
+  readonly without?: readonly string[];
+  /**
+   * The table whose primary key ends in `role`: one row per role a member
+   * holds.
+   */
+  readonly roleSet?: true;
+}
+
+/**
+ * A table or a rule that joins the entity's rows to others, which one scope
+ * alone can't state (ADR 1031). Each `kind` is one shape the stream follows:
+ *
+ * - `owned`: rows of `table` that carry the signed-in user's `user_id`.
+ * - `referenced`: rows of `table` whose `column` is the `parentColumn` of a row
+ *   the entity syncs.
+ * - `member-set`: rows of `table` in the organizations the user belongs to, one
+ *   per role a member holds.
+ * - `member-organizations`: the organizations the user belongs to, with the
+ *   `select`ed columns of `table`.
+ * - `readers`: the entity's rows are held to the organizations where the user's
+ *   roles hold the block's `read`.
+ * - `subject`: the entity's rows are held to the rows of the subjects the app
+ *   registers for the types its view keeps, by `typeColumn` and `idColumn`.
+ *
+ * `optional` skips the stream when the app's schema has no such table.
+ */
+export type EntityOfflineJoin =
+  | {
+      readonly kind: "owned";
+      readonly stream: string;
+      readonly table: EntityOfflineJoinTable;
+      readonly optional?: boolean;
+    }
+  | {
+      readonly kind: "referenced";
+      readonly stream: string;
+      readonly table: EntityOfflineJoinTable;
+      readonly column: string;
+      readonly parentColumn: string;
+      readonly optional?: boolean;
+    }
+  | {
+      readonly kind: "member-set";
+      readonly stream: string;
+      readonly table: EntityOfflineJoinTable;
+      readonly optional?: boolean;
+    }
+  | {
+      readonly kind: "member-organizations";
+      readonly stream: string;
+      readonly table: EntityOfflineJoinTable;
+      readonly select: readonly string[];
+      readonly optional?: boolean;
+    }
+  | { readonly kind: "readers" }
+  | {
+      readonly kind: "subject";
+      readonly typeColumn: string;
+      readonly idColumn: string;
+    };
+
 /** The rows an offline entity syncs. */
 export interface EntityOffline {
   readonly scope: EntityOfflineScope;
+  /**
+   * The tables and rules that join the entity's rows to others, so the streams
+   * of the notification events and preferences, the membership role sets and
+   * organizations, and the attachment subject and reader rules are generated
+   * from the declaration (ADR 1031).
+   */
+  readonly join?: readonly EntityOfflineJoin[];
   /** Conditions on the entity's table, added to the scope. */
   readonly where?: readonly EntityOfflineCondition[];
   /**

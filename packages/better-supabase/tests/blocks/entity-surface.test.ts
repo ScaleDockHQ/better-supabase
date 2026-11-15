@@ -230,6 +230,21 @@ describe("the entity surface of a manifest", () => {
     });
   });
 
+  it("declares the joins of the notification, membership and attachment streams", () => {
+    expect(offlineOf("notifications").join?.map((join) => join.kind)).toEqual([
+      "referenced",
+      "owned",
+    ]);
+    expect(offlineOf("memberships").join?.map((join) => join.kind)).toEqual([
+      "member-set",
+      "member-organizations",
+    ]);
+    expect(offlineOf("attachments").join?.map((join) => join.kind)).toEqual([
+      "readers",
+      "subject",
+    ]);
+  });
+
   it("declares the shared offline rules on each offline manifest", () => {
     const declared = BLOCK_MANIFESTS.flatMap((block) =>
       entriesOf(block)

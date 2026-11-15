@@ -6,11 +6,55 @@ import type { EntityOffline } from "../../blocks/index.ts";
  * the manifests declare on their entity (a manifest can't import it: its entry
  * would carry the table).
  */
-const notificationsOffline: EntityOffline = { scope: "user" };
+const notificationsOffline: EntityOffline = {
+  scope: "user",
+  join: [
+    {
+      kind: "referenced",
+      stream: "events",
+      table: { columns: ["type", "idempotency_key", "summary"] },
+      column: "id",
+      parentColumn: "event_id",
+    },
+    {
+      kind: "owned",
+      stream: "preferences",
+      table: { columns: ["user_id", "channel", "enabled"] },
+      optional: true,
+    },
+  ],
+};
 
-const attachmentsOffline: EntityOffline = { scope: "tenant" };
+const attachmentsOffline: EntityOffline = {
+  scope: "tenant",
+  join: [
+    { kind: "readers" },
+    { kind: "subject", typeColumn: "subject_type", idColumn: "subject_id" },
+  ],
+};
 
-const membershipsOffline: EntityOffline = { scope: "user" };
+const membershipsOffline: EntityOffline = {
+  scope: "user",
+  join: [
+    {
+      kind: "member-set",
+      stream: "roles",
+      table: { roleSet: true },
+      optional: true,
+    },
+    {
+      kind: "member-organizations",
+      stream: "organizations",
+      table: {
+        block: "organizations",
+        columns: ["id", "name"],
+        without: ["user_id"],
+      },
+      select: ["id", "name", "slug", "disabled_at", "deleted_at"],
+      optional: true,
+    },
+  ],
+};
 
 const teamsOffline: EntityOffline = { scope: "tenant" };
 

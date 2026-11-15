@@ -27,7 +27,24 @@ export const notificationsBlock: BlockOf<
       mutability: "state-machine",
       emits: { create: true },
       bulk: { actions: ["read", "unread", "dismiss"] },
-      offline: { scope: "user" },
+      offline: {
+        scope: "user",
+        join: [
+          {
+            kind: "referenced",
+            stream: "events",
+            table: { columns: ["type", "idempotency_key", "summary"] },
+            column: "id",
+            parentColumn: "event_id",
+          },
+          {
+            kind: "owned",
+            stream: "preferences",
+            table: { columns: ["user_id", "channel", "enabled"] },
+            optional: true,
+          },
+        ],
+      },
     },
   },
   description:
