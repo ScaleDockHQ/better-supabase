@@ -77,11 +77,6 @@ export const seedRefs = (value: unknown): readonly EntitySeedRef[] => {
   return found;
 };
 
-/** Every entity a value refers to, once, in order of first use. */
-export const seedRefEntities = (value: unknown): readonly string[] => [
-  ...new Set(seedRefs(value).map((ref) => ref.$seedRef.entity)),
-];
-
 export interface SeedResolver {
   /** The id of the row of `entity` named `name`. */
   ref(entity: string, name: string): string;

@@ -6,7 +6,6 @@ import {
   resolveSeedValue,
   seedDate,
   seedRef,
-  seedRefEntities,
   seedRefs,
 } from "../../src/list/entity-seed.ts";
 
@@ -38,8 +37,6 @@ describe("seedRef and seedDate", () => {
       "Sales",
       "Two",
     ]);
-
-    expect(seedRefEntities(row)).toEqual(["app.deals", "app.pipelines"]);
   });
 
   it("reads an object with other keys as data", () => {

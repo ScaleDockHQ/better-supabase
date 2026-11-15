@@ -8,7 +8,7 @@ import type {
   ResolvedEntityPage,
 } from "./entity-pages.ts";
 
-import { seedRefEntities } from "../../list/entity-seed.ts";
+import { seedRefs } from "../../list/index.ts";
 import { CliError } from "../core/errors.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import {
@@ -255,11 +255,15 @@ export const SEED_OUTPUT: EntityPageOutput = {
 
       const tiers = seed.tiers ?? ["demo"];
 
-      const dependsOn = seedRefEntities(rows).filter(
+      const refEntities = [
+        ...new Set(seedRefs(rows).map((ref) => ref.$seedRef.entity)),
+      ];
+
+      const dependsOn = refEntities.filter(
         (entity) => entity !== entry.page.entity,
       );
 
-      if (seedRefEntities(rows).includes(entry.page.entity)) {
+      if (refEntities.includes(entry.page.entity)) {
         throw invalid(
           entry.page.entity,
           "a seed row refers to its own page. A ref names a row another page seeds.",
