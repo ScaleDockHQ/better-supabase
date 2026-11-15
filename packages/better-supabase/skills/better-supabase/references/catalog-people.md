@@ -183,7 +183,7 @@ Tenant rules for dose range, duplicate therapy and interactions over a record's 
 - Entities: `care_alert`, `care_rule`
 - Tables: `care_alerts`, `care_rules`
 - Permission keys: `clinical_decision_support.read`, `clinical_decision_support.write`, `clinical_decision_support.manage`
-- Events (`ClinicalDecisionSupportEvents`): `care_alert.decided`, `care_alert.raised`, `care_alert.resolved`, `care_rule.created`, `care_rule.deleted`, `care_rule.updated`
+- Events (`ClinicalDecisionSupportEvents`): `care_alert.decided`, `care_alert.raised`, `care_alert.resolved`, `care_rule.archived`, `care_rule.created`, `care_rule.purged`, `care_rule.restored`, `care_rule.updated`
 
 ## e-prescribing
 

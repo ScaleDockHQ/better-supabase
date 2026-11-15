@@ -231,6 +231,31 @@ the `archived_at` column and replaces the delete function with `purge`.
 | `scores`        | `scores.deleteModel(id)`, `delete_score_model()`          | `scores.purgeModel(id)`, `purge_score_model()` (ADR 1053)                                         |
 | `scores`        | event `score_model.deleted`                               | `score_model.purged`, plus `archived` and `restored`                                              |
 | `scores`        | `models()` and `list_score_models()` show every row       | hide archived models; `models({ includeArchived: true })` adds them                               |
+| Block                       | Before                                                    | After                                                                                             |
+| --------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `announcements`             | `announcements.remove(id)`, `delete_announcement()`       | `announcements.purge(id)`, `purge_announcement()`                                                 |
+| `announcements`             | event `announcement.deleted`                              | `announcement.purged`, plus `archived` and `restored`                                             |
+| `announcements`             | `announcements.list()` shows every row                    | hides archived rows; `list({ includeArchived: true })` adds them                                  |
+| `maintenance`               | `maintenance.deletePlan(id)`, `delete_maintenance_plan()` | `maintenance.purgePlan(id)`, `purge_maintenance_plan()`, plus `archivePlan` and `restorePlan`     |
+| `maintenance`               | event `maintenance_plan.deleted`                          | `maintenance_plan.purged`, plus `archived` and `restored`                                         |
+| `maintenance`               | an archived plan can still be due                         | an archived plan is never due and opens no work order; `listPlans({ archived: true })` lists them |
+| `funding`                   | `funding.deleteClaim(id)`, `delete_funding_claim()`       | `funding.purgeClaim(id)`, `purge_funding_claim()`, plus `archiveClaim` and `restoreClaim`         |
+| `funding`                   | event `funding_claim.deleted`                             | `funding_claim.purged`, plus `archived` and `restored`                                            |
+| `funding`                   | `funding.claims()` shows every claim                      | hides archived claims; `claims({ includeArchived: true })` adds them                              |
+| `meetings`                  | `meetings.delete(id)`, `delete_meeting()`                 | `meetings.purge(id)`, `purge_meeting()`, plus `archive` and `restore`                             |
+| `meetings`                  | event `meeting.deleted`                                   | `meeting.purged`, plus `archived` and `restored`                                                  |
+| `meetings`                  | `meetings.list()` shows every meeting                     | hides archived meetings; `list({ archived: true })` lists only them                               |
+| `courses`                   | `courses.delete(id)`, `delete_course()`                   | `courses.purge(id)`, `purge_course()`, plus `archive` and `restore`                               |
+| `courses`                   | event `course.deleted`                                    | `course.purged`, plus `archived` and `restored`                                                   |
+| `posts`                     | `posts.delete(id)`, `delete_post()`                       | `posts.purge(id)`, `purge_post()`, plus `archive` and `restore`                                   |
+| `posts`                     | event `post.deleted`                                      | `post.purged`, plus `archived` and `restored`                                                     |
+| `posts`                     | `posts.list()` shows every post                           | hides archived posts; `list({ archived: true })` lists only them                                  |
+| `scores`                    | `scores.deleteModel(id)`, `delete_score_model()`          | `scores.purgeModel(id)`, `purge_score_model()` (ADR 1053)                                         |
+| `scores`                    | event `score_model.deleted`                               | `score_model.purged`, plus `archived` and `restored`                                              |
+| `scores`                    | `models()` and `list_score_models()` show every row       | hide archived models; `models({ includeArchived: true })` adds them                               |
+| `clinical-decision-support` | `deleteRule(id)`, `delete_care_rule()`                    | `purgeRule(id)`, `purge_care_rule()` (ADR 1054)                                                   |
+| `clinical-decision-support` | event `care_rule.deleted`                                 | `care_rule.purged`, plus `archived` and `restored`                                                |
+| `clinical-decision-support` | `rules()` and `list_care_rules()` show every rule         | hide archived rules; `rules({ includeArchived: true })` adds them                                 |
 
 ## Team purge
 

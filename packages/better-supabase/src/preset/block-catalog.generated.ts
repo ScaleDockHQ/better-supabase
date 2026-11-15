@@ -5081,8 +5081,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "care_alert.decided",
         "care_alert.raised",
         "care_alert.resolved",
+        "care_rule.archived",
         "care_rule.created",
-        "care_rule.deleted",
+        "care_rule.purged",
+        "care_rule.restored",
         "care_rule.updated"
       ],
       "subpath": "better-supabase/blocks/clinical-decision-support",
