@@ -141,7 +141,7 @@ export interface EntityPage {
      * is what the app's insert call reads, usually a database column. A value
      * may be nested JSON, `seedRef(entity, name)` (the id of a row another page
      * seeds, which `gen` orders first) or `seedDate(days)` (a day counted from
-     * the day the seed runs; ADR 1034).
+     * the day the seed runs; ADR 1035).
      */
     readonly rows?: readonly Readonly<Record<string, EntitySeedJson>>[];
     /**

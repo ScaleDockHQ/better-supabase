@@ -199,6 +199,7 @@ describe("webhooks module", () => {
       "claim_webhook_deliveries",
       "complete_webhook_delivery",
       "redeliver_webhook",
+      "get_webhook_delivery",
       "purge_webhook_deliveries",
       "rotate_webhook_secret",
       "webhook_secrets",

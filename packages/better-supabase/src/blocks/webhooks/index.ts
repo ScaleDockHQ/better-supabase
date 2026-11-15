@@ -51,6 +51,8 @@ export type {
 
 export { createWebhooks } from "./outgoing.ts";
 
+export type { WebhookDeliveryRun, WebhookJobs } from "./outgoing-jobs.ts";
+
 export type {
   DeliverWebhooksOptions,
   DeliverWebhooksResult,

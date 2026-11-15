@@ -838,6 +838,58 @@ $$;
 ${grants(fn, "uuid", true)}`;
 }
 
+function readDelivery(ctx: BlockSqlContext, n: HookNames): string {
+  const fn = ctx.fn("get_webhook_delivery");
+  const v = (logical: string) => n.col("deliveries", logical);
+
+  const optional = (logical: string, key: string): string[] =>
+    n.has("deliveries", logical) ? [`'${key}', v.${v(logical)}`] : [];
+
+  const fields = [
+    `'id', v.${v("id")}`,
+    `'endpointId', v.${v("endpoint")}`,
+    `'type', v.${v("type")}`,
+    `'status', v.${v("status")}`,
+    `'attempt', v.${v("attempt")}`,
+    ...optional("responseStatus", "responseStatus"),
+    ...optional("durationMs", "durationMs"),
+    ...optional("lastError", "lastError"),
+    ...optional("processedAt", "processedAt"),
+    `'createdAt', v.${v("createdAt")}`,
+  ];
+
+  return `
+-- One delivery as the caller may read it (a member with the read permission, or
+-- the service), or null; the job source of dispatch_webhook and redeliver_webhook.
+create or replace function ${fn}(delivery uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+${VARIABLES}
+declare
+  v_endpoint uuid;
+  v_tenant ${ctx.idType};
+  v_enabled boolean;
+begin
+  select v.${v("endpoint")} into v_endpoint
+  from ${n.table("deliveries")} v where v.${v("id")} = get_webhook_delivery.delivery;
+  if not found then
+    return null;
+  end if;
+  ${endpointTenant(n, "v_endpoint")}
+  ${guard(n, "v_tenant", "read")}
+  return (
+    select jsonb_build_object(${fields.join(", ")})
+    from ${n.table("deliveries")} v where v.${v("id")} = get_webhook_delivery.delivery
+  );
+end;
+$$;
+${grants(fn, "uuid", true)}`;
+}
+
 function purge(ctx: BlockSqlContext, n: HookNames): string {
   const fn = ctx.fn("purge_webhook_deliveries");
   const v = (logical: string) => n.col("deliveries", logical);
@@ -1017,6 +1069,7 @@ export function functions(ctx: BlockSqlContext, n: HookNames): string {
     claim(ctx, n),
     complete(ctx, n),
     redeliver(ctx, n),
+    readDelivery(ctx, n),
     purge(ctx, n),
     secrets(ctx, n),
   ].join("\n");

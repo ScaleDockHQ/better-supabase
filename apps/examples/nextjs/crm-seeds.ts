@@ -1,6 +1,6 @@
 /**
  * The demo rows of the CRM pages (`app.*`), declared once for the entity page
- * descriptors in `better-supabase.config.ts` (ADR 1034). A `seedRef` names a
+ * descriptors in `better-supabase.config.ts` (ADR 1035). A `seedRef` names a
  * row another page seeds, and a `seedDate` counts from the day the seed runs.
  */
 import type { EntityPageInput } from "better-supabase/list";

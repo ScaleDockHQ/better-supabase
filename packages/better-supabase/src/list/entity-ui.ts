@@ -231,7 +231,7 @@ export type EntitySeedValue = string | number | boolean | null;
 /**
  * A value of a seed row that a column of the table does not take as is: a
  * nested value for a `jsonb` argument, or a marker (`seedRef`, `seedDate`) that
- * the seed runner resolves when it inserts the row (ADR 1034).
+ * the seed runner resolves when it inserts the row (ADR 1035).
  */
 export type EntitySeedJson =
   | EntitySeedValue

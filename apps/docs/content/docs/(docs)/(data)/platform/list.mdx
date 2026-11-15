@@ -684,7 +684,7 @@ Three more keys of `seed` cover what a generated value cannot know (ADR 1032):
   the organizations block does for its invitations. A `seed` with no table stops `gen`.
 
 A value in `rows` can be nested JSON (a `jsonb` argument such as a segment's `conditions`), and two
-helpers from `better-supabase/list` cover what a static file cannot hold (ADR 1034):
+helpers from `better-supabase/list` cover what a static file cannot hold (ADR 1035):
 
 - `seedRef(entity, name)` is the id of a row that another page seeds, found by its name (the first identity
   column the runner names for that page). `gen` lists the entity in the seed's `dependsOn`, and stops with

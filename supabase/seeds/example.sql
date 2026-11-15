@@ -103,7 +103,7 @@ insert into better_supabase.companies (id, tenant_id, name, domain, lifecycle, o
 select set_config('request.jwt.claims', '{"role": "service_role", "sub": "00000000-0000-4000-8000-0000000000a1"}', false);
 
 -- The pipelines, deals, segments, assignment queue, score model and contracts of the
--- sales area are generated seeds of their pages (`pnpm db:seed:pages`, ADR 1034).
+-- sales area are generated seeds of their pages (`pnpm db:seed:pages`, ADR 1035).
 
 -- The company field the segments and the score model test; the app writes the
 -- same catalog at start-up (features/rules/sync-rule-fields.ts).
