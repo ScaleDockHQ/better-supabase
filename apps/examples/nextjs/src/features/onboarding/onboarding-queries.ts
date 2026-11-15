@@ -7,6 +7,7 @@ import { cacheTag } from "next/cache";
 import type { Loaded } from "@/features/people/people-queries";
 
 import { readDirectory, settle } from "@/features/people/people-queries";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type { OnboardingRow } from "./onboarding-list";
@@ -32,7 +33,7 @@ export async function readOnboardingRows(
 }> {
   const [programs, enrollments, directory] = await Promise.all([
     db.enrollments.programs().orThrow(),
-    db.enrollments.list({ pageSize: 200 }).orThrow(),
+    readAllPages((page) => db.enrollments.enrollmentPage(page)),
     readDirectory(db, tenant),
   ]);
 

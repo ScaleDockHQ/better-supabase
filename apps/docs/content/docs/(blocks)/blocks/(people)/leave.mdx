@@ -97,6 +97,30 @@ A type with `autoApprove: true` needs no approval: its requests are approved whe
 const days = await leave.workingDays({ from, to }).orThrow();
 ```
 
+## Paging requests
+
+`list` stays as the capped convenience list. `requestPage` pages requests by keyset (ADR 1077). Sorts are `startsOn` (the default, soonest first), `endsOn` and `createdAt`. Filters are `status` and `typeId` (lists of values, a request matches any of them), `userId`, `employeeId`, `from` and `to` (one value each), and `everyone: ["true"]` for every member's requests, which needs `leave.read`. `q` searches the note and the type name, and facets are `status` and `typeId`. The organization comes from `organizationId` or the block's `tenant` option.
+
+```ts
+const first = await leave
+  .requestPage({
+    filters: { status: ["pending", "approved"], everyone: ["true"] },
+    q: "holiday",
+    limit: 50,
+  })
+  .orThrow();
+
+const facets = await leave
+  .requestFacets({ filters: { everyone: ["true"] } })
+  .orThrow();
+const total = await leave
+  .requestCount({ filters: { status: ["pending"] } })
+  .orThrow();
+const one = await leave.getRequest(first.items[0].id).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Balances
 
 Each member has a ledger account per type and year (amounts in hundredths of the type's unit), and every change to a balance is a ledger transaction of kind `leave.grant`, `leave.accrual`, `leave.adjustment`, `leave.taken`, `leave.carryover` or `leave.expiry` against the type's pool or taken account. A carryover moves the amount between the two years' accounts. `balances(organizationId)` returns the caller's balance of each tracked type this year (pass `userId` and `period` for others), with `granted`, `taken`, `pending` and `available`, which is the ledger total less pending requests. `ledger` lists the entries behind it.
