@@ -2,9 +2,7 @@ import { getExtracted } from "next-intl/server";
 
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { PeopleLoadError } from "@/features/people/components/people-load-error";
-import { pageBlockRows } from "@/lib/block-list";
 
-import { registerList, registerSpec } from "../document-register-list";
 import { getRegister } from "../document-register-queries";
 import { RegisterRecordList } from "./register-record-list";
 
@@ -25,13 +23,8 @@ export async function RegisterOverview() {
 
   return (
     <RegisterRecordList
-      initial={pageBlockRows(
-        registerList,
-        registerSpec,
-        register.data,
-        registerList.defaults,
-      )}
-      types={[...new Set(register.data.map((row) => row.type))].toSorted()}
+      initial={register.data}
+      types={Object.keys(register.data.facetCounts?.["type"] ?? {}).toSorted()}
     />
   );
 }

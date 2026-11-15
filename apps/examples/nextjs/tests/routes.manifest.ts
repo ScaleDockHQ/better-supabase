@@ -1029,7 +1029,7 @@ export const ROUTES: readonly RouteEntry[] = [
     route: "/documents/register",
     archetype: "overview",
     url: "/documents/register",
-    maxCalls: 5,
+    maxCalls: 6,
     maxWaves: 2,
     instant: true,
     scale: false,

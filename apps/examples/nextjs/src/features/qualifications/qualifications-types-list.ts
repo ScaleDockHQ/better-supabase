@@ -1,6 +1,6 @@
-import type { BlockListSpec } from "@/lib/block-list";
+import type { EntityListMap } from "@/lib/block-entity-page";
 
-import { defineBlockList } from "@/lib/block-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** One qualification type, as the list and the list route send it. */
 export interface QualificationTypeRow {
@@ -19,14 +19,7 @@ export const qualificationTypeList = defineBlockList({
   pageSize: 25,
 });
 
-export const qualificationTypeSpec: BlockListSpec<QualificationTypeRow> = {
-  text: (row) => [row.name, row.key],
-  facets: {
-    expiry: (row) => (row.validForMonths === null ? "never" : "expires"),
-    state: (row) => (row.archived ? "archived" : "active"),
-  },
-  sorts: {
-    name: (a, b) => a.name.localeCompare(b.name),
-    key: (a, b) => a.key.localeCompare(b.key),
-  },
+/** The list's URL names on the qualifications block's type list. */
+export const qualificationTypeMap: EntityListMap = {
+  sorts: { name: { by: "name" }, key: { by: "key" } },
 };

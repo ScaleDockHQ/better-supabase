@@ -8,13 +8,22 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
+import type {
+  RecordListPage,
+  RecordListUrlQuery,
+} from "@/components/record-list/record-list-types";
+
 import { readMemberNames } from "@/features/people/member-names";
-import { readAllPages } from "@/lib/read-all-pages";
+import { pageEntityRows } from "@/lib/block-entity-page";
 import { bsb } from "@/lib/supabase/server";
 
 import type { QualificationTypeRow } from "./qualifications-types-list";
 
 import { QUALIFICATIONS_TAG } from "./qualifications-cache";
+import {
+  qualificationTypeList,
+  qualificationTypeMap,
+} from "./qualifications-types-list";
 
 export type Loaded<T> =
   | { readonly kind: "ok"; readonly data: T }
@@ -153,36 +162,50 @@ export function getMyQualifications(): Promise<Loaded<MyQualificationsData>> {
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
-/** Every qualification type of the organization; the list kit pages them. */
-export async function readQualificationTypeRows(
+/**
+ * One page of qualification types for a list query, searched, filtered and
+ * sorted by the block's `typePage` and counted by `typeFacets`.
+ */
+export function loadQualificationTypePage(
   db: Db,
   organizationId: string,
-): Promise<readonly QualificationTypeRow[]> {
-  const types = await readAllPages((page) =>
-    db.qualifications.typePage({ organizationId, ...page }),
-  );
-
-  return types.map((type): QualificationTypeRow => ({
-    id: type.id,
-    key: type.key,
-    name: type.name,
-    validForMonths: type.validForMonths ?? null,
-    evidenceRequired: type.evidenceRequired,
-    archived: type.archivedAt !== undefined,
-  }));
+  query: RecordListUrlQuery,
+): Promise<RecordListPage<QualificationTypeRow>> {
+  return pageEntityRows({
+    pager: {
+      page: (options) =>
+        db.qualifications.typePage({ organizationId, ...options }),
+      facets: (options) =>
+        db.qualifications.typeFacets({ organizationId, ...options }),
+    },
+    map: qualificationTypeMap,
+    query,
+    pageSize: qualificationTypeList.config.pageSize,
+    rowsOf: (types) =>
+      types.map((type): QualificationTypeRow => ({
+        id: type.id,
+        key: type.key,
+        name: type.name,
+        validForMonths: type.validForMonths ?? null,
+        evidenceRequired: type.evidenceRequired,
+        archived: type.archivedAt !== undefined,
+      })),
+  });
 }
 
-async function loadTypes(): Promise<readonly QualificationTypeRow[] | null> {
+async function loadTypes(): Promise<RecordListPage<QualificationTypeRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(QUALIFICATIONS_TAG);
   const tenant = tenantOf(session);
 
-  return tenant ? readQualificationTypeRows(db, tenant) : null;
+  return tenant
+    ? loadQualificationTypePage(db, tenant, qualificationTypeList.defaults)
+    : null;
 }
 
 export function getQualificationTypes(): Promise<
-  Loaded<readonly QualificationTypeRow[]>
+  Loaded<RecordListPage<QualificationTypeRow>>
 > {
   return settle(loadTypes);
 }
