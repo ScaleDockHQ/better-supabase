@@ -49,6 +49,7 @@ const agent = (over: Partial<Agent> = {}): Agent => ({
   skills: [],
   createdAt: AT,
   updatedAt: AT,
+  archivedAt: undefined,
   ...over,
 });
 

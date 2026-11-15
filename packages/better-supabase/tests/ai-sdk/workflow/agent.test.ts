@@ -31,6 +31,7 @@ const agent: Agent = {
   skills: [],
   createdAt: AT,
   updatedAt: AT,
+  archivedAt: undefined,
 };
 
 const echo = (name: string) =>

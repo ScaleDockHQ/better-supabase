@@ -1573,7 +1573,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "ratingCount": "rating_count",
               "ratingSum": "rating_sum",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "archivedAt": "archived_at"
             }
           }
         },
@@ -13525,7 +13526,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "agent.created",
           "agent.updated",
           "agent.published",
-          "agent.deleted",
+          "agent.archived",
+          "agent.restored",
+          "agent.purged",
           "agent.installed",
           "agent.uninstalled"
         ]

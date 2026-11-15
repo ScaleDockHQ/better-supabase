@@ -42,6 +42,7 @@ const AGENTS = {
   ratingSum: "rating_sum",
   createdAt: "created_at",
   updatedAt: "updated_at",
+  archivedAt: "archived_at",
 } as const;
 
 const INSTALLS = {
@@ -85,7 +86,15 @@ const EVENTS: BlockSqlEvents<AgentsEvents> = {
     subject: "organizations",
     payload: ["organizationId", "agentId", "slug", "visibility"],
   },
-  "agent.deleted": {
+  "agent.archived": {
+    subject: "organizations",
+    payload: ["organizationId", "agentId", "slug"],
+  },
+  "agent.restored": {
+    subject: "organizations",
+    payload: ["organizationId", "agentId", "slug"],
+  },
+  "agent.purged": {
     subject: "organizations",
     payload: ["organizationId", "agentId", "slug"],
   },
@@ -120,6 +129,7 @@ const NAMES: BlockSqlNames = {
         "ratingCount",
         "ratingSum",
         "createdAt",
+        "archivedAt",
       ],
       typed: ["visibility"],
     },
@@ -209,6 +219,8 @@ function build(ctx: BlockSqlContext): string {
   const create = ctx.permission("create", permissions.create);
   const publish = ctx.permission("publish", permissions.publish);
   const moderate = ctx.permission("moderate", permissions.moderate);
+  const purge = ctx.permission("purge", permissions.moderate);
+  const archivable = ctx.has("agents", "archivedAt");
   const maxInstructions = ctx.number("maxInstructions", 100_000);
 
   if (!Number.isInteger(maxInstructions) || maxInstructions < 1) {
@@ -316,6 +328,20 @@ function build(ctx: BlockSqlContext): string {
   const notFound = (agent: string): string =>
     raise("agent % not found", "P0002", "AGENT_NOT_FOUND", agent);
 
+  const archivedError = raise(
+    "agent is archived; restore it first",
+    "55000",
+    "AGENT_ARCHIVED",
+  );
+
+  const refuseArchived = (row: string): string =>
+    archivable
+      ? `if ${row}.${a.archivedAt} is not null then
+    ${archivedError}
+  end if;
+  `
+      : "";
+
   const agentEvent = (type: string, row: string, extra = ""): string =>
     ctx.record({
       type,
@@ -358,10 +384,10 @@ create table if not exists ${agents} (
   ${a.instructions} text not null default '' check (length(${a.instructions}) <= ${String(maxInstructions)}),${line(agent("model"), `${a.model} text`)}${line(agent("tools"), `${a.tools} jsonb not null default '[]' check (jsonb_typeof(${a.tools}) = 'array')`)}${line(agent("connectors"), `${a.connectors} uuid[] not null default '{}'`)}${line(agent("knowledgeScope"), `${a.knowledgeScope} jsonb not null default '[]' check (jsonb_typeof(${a.knowledgeScope}) = 'array')`)}${line(agent("starters"), `${a.starters} jsonb not null default '[]' check (jsonb_typeof(${a.starters}) = 'array')`)}
   ${a.visibility} text not null default 'private' check (${a.visibility} in ('private', 'organization', 'public')),
   ${a.publishedAt} timestamptz,${line(agent("installCount"), `${a.installCount} integer not null default 0`)}${line(agent("ratingCount"), `${a.ratingCount} integer not null default 0`)}${line(agent("ratingSum"), `${a.ratingSum} integer not null default 0`)}${line(agent("createdAt"), `${a.createdAt} timestamptz not null default now()`)}
-  ${a.updatedAt} timestamptz not null default now(),
+  ${a.updatedAt} timestamptz not null default now(),${line(archivable, `${a.archivedAt} timestamptz`)}
   unique (${a.tenant}, ${a.slug})
 );
-create index if not exists ${ctx.naming.rename("agents_owner_idx")} on ${agents} (${a.owner});
+${archivable ? `alter table ${agents} add column if not exists ${a.archivedAt} timestamptz;\n` : ""}create index if not exists ${ctx.naming.rename("agents_owner_idx")} on ${agents} (${a.owner});
 create index if not exists ${ctx.naming.rename("agents_published_idx")} on ${agents} (${a.visibility}, ${a.publishedAt}) where ${a.publishedAt} is not null;
 alter table ${agents} enable row level security;
 ${revokeTable(agents)}
@@ -446,6 +472,7 @@ begin
     if not found or not ${canChange("v_row")} then
       ${notFound("save_agent.id")}
     end if;
+    ${refuseArchived("v_row")}
   end if;
   update ${agents} x set
     ${agentUpdate.join(",\n    ")}
@@ -478,7 +505,7 @@ begin
   if not found or not ${canChange("v_row")} then
     ${notFound("publish_agent.id")}
   end if;
-  if publish_agent.visibility <> 'private' and not (${SERVICE_CALLER} or ${ctx.scope.can(`v_row.${a.tenant}`, moderate)}
+  ${refuseArchived("v_row")}  if publish_agent.visibility <> 'private' and not (${SERVICE_CALLER} or ${ctx.scope.can(`v_row.${a.tenant}`, moderate)}
     or (coalesce(v_row.${a.owner} = auth.uid(), false) and ${ctx.scope.can(`v_row.${a.tenant}`, publish)})) then
     ${raise("you may not publish agents here", "42501", "AGENT_FORBIDDEN")}
   end if;
@@ -494,7 +521,48 @@ end;
 $$;
 ${userGrant(`${fn("publish_agent")}(uuid, text)`)}
 
-create or replace function ${fn("delete_agent")}(id uuid)
+${
+  archivable
+    ? ["archive", "restore"]
+        .map((verb) => {
+          const name = `${verb}_agent`;
+          const past = verb === "archive" ? "archived" : "restored";
+
+          return `-- ${verb === "archive" ? "Archives an agent: it leaves the store, the lists and new installs, and it can't be changed, published or rated until it is restored. Installs, ratings and skills stay." : "Restores an archived agent with the visibility it had."} The owner or a moderator may; ${verb === "archive" ? "archiving an archived agent" : "restoring one that is not archived"} returns it unchanged.
+create or replace function ${fn(name)}(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${agents}%rowtype;
+begin
+  select * into v_row from ${agents} x where x.${a.id} = ${name}.id for update;
+  if not found or not ${canChange("v_row")} then
+    ${notFound(`${name}.id`)}
+  end if;
+  if (v_row.${a.archivedAt} is not null) = ${verb === "archive" ? "true" : "false"} then
+    return ${json("v_row")};
+  end if;
+  update ${agents} x set ${a.archivedAt} = ${verb === "archive" ? "now()" : "null"}, ${a.updatedAt} = now()
+  where x.${a.id} = v_row.${a.id}
+  returning * into v_row;
+  ${agentEvent(`agent.${past}`, "v_row")}
+  return ${json("v_row")};
+end;
+$$;
+${userGrant(`${fn(name)}(uuid)`)}
+
+`;
+        })
+        .join("")
+    : ""
+}-- Deletes an agent for good with its installs, ratings and skills; archive
+-- keeps them. Needs ${purge}, which falls back to the moderate key, and the
+-- owner needs it too. False when the caller can't see the agent.
+drop function if exists ${fn("delete_agent")}(uuid);
+create or replace function ${fn("purge_agent")}(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -503,16 +571,19 @@ as $$
 declare
   v_row ${agents}%rowtype;
 begin
-  select * into v_row from ${agents} x where x.${a.id} = delete_agent.id;
+  select * into v_row from ${agents} x where x.${a.id} = purge_agent.id;
   if not found or not ${canChange("v_row")} then
     return false;
   end if;
+  if not (${SERVICE_CALLER} or ${ctx.scope.can(`v_row.${a.tenant}`, purge)}) then
+    ${raise("you may not purge agents here", "42501", "AGENT_FORBIDDEN")}
+  end if;
   delete from ${agents} x where x.${a.id} = v_row.${a.id};
-  ${agentEvent("agent.deleted", "v_row")}
+  ${agentEvent("agent.purged", "v_row")}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_agent")}(uuid)`)}
+${userGrant(`${fn("purge_agent")}(uuid)`)}
 
 -- An agent by id or by slug in a tenant, with its skills, when the caller may read it.
 create or replace function ${fn("get_agent")}(id uuid default null, tenant ${id} default null, slug text default null)
@@ -541,8 +612,9 @@ $$;
 ${userGrant(`${fn("get_agent")}(uuid, ${id}, text)`)}
 
 -- Agents the caller may read: 'mine', 'installed' in the tenant, or the
--- 'store' (published to the tenant or public), newest first.
-create or replace function ${fn("list_agents")}(tenant ${id}, filter text default 'store', search text default null, max_rows integer default 50)
+-- 'store' (published to the tenant or public), newest first. Archived agents
+-- stay out unless include_archived is true.${archivable ? `\ndrop function if exists ${fn("list_agents")}(${id}, text, text, integer);` : ""}
+create or replace function ${fn("list_agents")}(tenant ${id}, filter text default 'store', search text default null, max_rows integer default 50${archivable ? ", include_archived boolean default false" : ""})
 returns jsonb
 language sql
 stable
@@ -559,12 +631,12 @@ as $$
         when 'installed' then exists (select 1 from ${installs} n where n.${i.agent} = x.${a.id} and n.${i.user} = auth.uid() and n.${i.tenant} = list_agents.tenant)
         else x.${a.publishedAt} is not null and (x.${a.visibility} = 'public' or x.${a.tenant} = list_agents.tenant)
       end
-      and (list_agents.search is null or ${searched})
+${archivable ? `      and (coalesce(list_agents.include_archived, false) or x.${a.archivedAt} is null)\n` : ""}      and (list_agents.search is null or ${searched})
     order by coalesce(x.${a.publishedAt}, x.${a.updatedAt}) desc
     limit least(greatest(list_agents.max_rows, 1), 200)
   ) y
 $$;
-${userGrant(`${fn("list_agents")}(${id}, text, text, integer)`)}
+${userGrant(`${fn("list_agents")}(${id}, text, text, integer${archivable ? ", boolean" : ""})`)}
 
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function ${fn("install_agent")}(tenant ${id}, agent_id uuid, installed boolean default true)
@@ -590,7 +662,14 @@ begin
   if not exists (select 1 from ${agents} x where x.${a.id} = install_agent.agent_id and ${readable("x")}) then
     ${notFound("install_agent.agent_id")}
   end if;
-  insert into ${installs} (${i.agent}, ${i.user}, ${i.tenant}) values (install_agent.agent_id, auth.uid(), install_agent.tenant)
+${
+  archivable
+    ? `  if exists (select 1 from ${agents} x where x.${a.id} = install_agent.agent_id and x.${a.archivedAt} is not null) then
+    ${archivedError}
+  end if;
+`
+    : ""
+}  insert into ${installs} (${i.agent}, ${i.user}, ${i.tenant}) values (install_agent.agent_id, auth.uid(), install_agent.tenant)
   on conflict do nothing;
   get diagnostics v_count = row_count;${installCount(`x.${a.installCount} + v_count`, "  ")}
   if v_count > 0 then
@@ -619,7 +698,7 @@ begin
   if not found then
     ${notFound("rate_agent.agent_id")}
   end if;
-  if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
+  ${refuseArchived("v_row")}  if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
     ${raise("a rating is 1 to 5", "22023", "AGENT_INVALID")}
   end if;
   delete from ${ratings} g where g.${r.agent} = v_row.${a.id} and g.${r.user} = auth.uid()
@@ -649,7 +728,7 @@ begin
   if not found or not ${canChange("v_row")} then
     ${notFound("set_agent_skills.agent_id")}
   end if;
-  if jsonb_typeof(v_items) is distinct from 'array' then
+  ${refuseArchived("v_row")}  if jsonb_typeof(v_items) is distinct from 'array' then
     ${raise("skills must be a list", "22023", "AGENT_INVALID")}
   end if;
   delete from ${skills} k where k.${s.agent} = v_row.${a.id};

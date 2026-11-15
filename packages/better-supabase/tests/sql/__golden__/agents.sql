@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:c4d6bb70ede4e4385470ee5121e541598e3cc6edec2cb0c6f02db2e89006895f
+-- @bsb-hash sha256:21a68b45e79ce6fbda7f2b153d7262d117531cbf74ab3be092cfd03ef3e3aae2
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,6 +29,7 @@ create table "better_supabase"."agents" (
   "rating_sum" integer not null default 0,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
+  "archived_at" timestamptz,
   unique ("tenant_id", "slug")
 );
 create index agents_owner_idx on "better_supabase"."agents" ("owner_id");
@@ -131,6 +132,10 @@ begin
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
+    if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+  
   end if;
   update "better_supabase"."agents" x set
     "slug" = coalesce(save_agent.fields ->> 'slug', x."slug"),
@@ -152,7 +157,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 exception
   when unique_violation then
     raise exception 'an agent with slug % exists', save_agent.fields ->> 'slug' using errcode = '23505', hint = 'AGENT_SLUG_TAKEN';
@@ -182,7 +187,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)
     or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
@@ -193,13 +201,77 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_agent"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."publish_agent"(uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_agent"(id uuid)
+-- Archives an agent: it leaves the store, the lists and new installs, and it can't be changed, published or rated until it is restored. Installs, ratings and skills stay. The owner or a moderator may; archiving an archived agent returns it unchanged.
+create or replace function "better_supabase"."archive_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."agents" x where x."id" = archive_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', archive_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = true then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "better_supabase"."agents" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_agent"(uuid) to authenticated, service_role;
+
+-- Restores an archived agent with the visibility it had. The owner or a moderator may; restoring one that is not archived returns it unchanged.
+create or replace function "better_supabase"."restore_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."agents" x where x."id" = restore_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', restore_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = false then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "better_supabase"."agents" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_agent"(uuid) to authenticated, service_role;
+
+-- Deletes an agent for good with its installs, ratings and skills; archive
+-- keeps them. Needs 'agents.moderate', which falls back to the moderate key, and the
+-- owner needs it too. False when the caller can't see the agent.
+
+create or replace function "better_supabase"."purge_agent"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -211,17 +283,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."agents" x where x."id" = delete_agent.id;
+  select * into v_row from "better_supabase"."agents" x where x."id" = purge_agent.id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'you may not purge agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_agent"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_agent"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_agent"(uuid) to authenticated, service_role;
 
 -- An agent by id or by slug in a tenant, with its skills, when the caller may read it.
 create or replace function "better_supabase"."get_agent"(id uuid default null, tenant uuid default null, slug text default null)
@@ -240,7 +315,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at") || jsonb_build_object(
     'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k."id", 'provider', k."provider", 'reference', k."reference", 'name', k."name", 'files', k."files", 'content_hash', k."content_hash", 'latest_version', k."latest_version", 'provider_refs', k."provider_refs") order by k."created_at") from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id"), '[]'),
     'installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = v_row."id" and n."user_id" = auth.uid()),
     'my_rating', (select g."rating" from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid())
@@ -251,8 +326,10 @@ revoke execute on function "better_supabase"."get_agent"(uuid, uuid, text) from 
 grant execute on function "better_supabase"."get_agent"(uuid, uuid, text) to authenticated, service_role;
 
 -- Agents the caller may read: 'mine', 'installed' in the tenant, or the
--- 'store' (published to the tenant or public), newest first.
-create or replace function "better_supabase"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50)
+-- 'store' (published to the tenant or public), newest first. Archived agents
+-- stay out unless include_archived is true.
+
+create or replace function "better_supabase"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50, include_archived boolean default false)
 returns jsonb
 language sql
 stable
@@ -261,7 +338,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(y.row order by y.at desc), '[]')
   from (
-    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)) as row,
+    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)) as row,
       coalesce(x."published_at", x."updated_at") as at
     from "better_supabase"."agents" x
     where case list_agents.filter
@@ -269,14 +346,15 @@ as $$
         when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)
         else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = list_agents.tenant)
       end
+      and (coalesce(list_agents.include_archived, false) or x."archived_at" is null)
       and (list_agents.search is null or x."name" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%'
         or x."description" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%')
     order by coalesce(x."published_at", x."updated_at") desc
     limit least(greatest(list_agents.max_rows, 1), 200)
   ) y
 $$;
-revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer) from public, anon;
-grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
+grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "better_supabase"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
@@ -305,6 +383,9 @@ begin
   end if;
   if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."tenant_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."tenant_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and x."archived_at" is not null) then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
   end if;
   insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "tenant_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
   on conflict do nothing;
@@ -340,7 +421,10 @@ begin
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
     raise exception 'a rating is 1 to 5' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid()
@@ -354,7 +438,7 @@ begin
     "rating_sum" = x."rating_sum" - coalesce(v_old, 0) + coalesce(rate_agent.rating, 0)
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."rate_agent"(uuid, integer, text) from public, anon;
@@ -379,7 +463,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if jsonb_typeof(v_items) is distinct from 'array' then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if jsonb_typeof(v_items) is distinct from 'array' then
     raise exception 'skills must be a list' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id";
@@ -471,7 +558,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:c8e583b83d64a3e87b222b245500c88ae74333600351c1f74e6745f4fce0e073
+-- @bsb-hash sha256:020a03c1657d212e5d3d7161c48d3e7f16f5b70ed1fecb27cc900747c5a45969
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -499,6 +586,7 @@ create table "better_supabase"."agents" (
   "rating_sum" integer not null default 0,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
+  "archived_at" timestamptz,
   unique ("tenant_id", "slug")
 );
 create index agents_owner_idx on "better_supabase"."agents" ("owner_id");
@@ -601,6 +689,10 @@ begin
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
+    if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+  
   end if;
   update "better_supabase"."agents" x set
     "slug" = coalesce(save_agent.fields ->> 'slug', x."slug"),
@@ -640,7 +732,7 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 exception
   when unique_violation then
     raise exception 'an agent with slug % exists', save_agent.fields ->> 'slug' using errcode = '23505', hint = 'AGENT_SLUG_TAKEN';
@@ -670,7 +762,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)
     or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
@@ -690,13 +785,95 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug", 'visibility', publish_agent.visibility)
   );
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_agent"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."publish_agent"(uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_agent"(id uuid)
+-- Archives an agent: it leaves the store, the lists and new installs, and it can't be changed, published or rated until it is restored. Installs, ratings and skills stay. The owner or a moderator may; archiving an archived agent returns it unchanged.
+create or replace function "better_supabase"."archive_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."agents" x where x."id" = archive_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', archive_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = true then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "better_supabase"."agents" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('agent.archived', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."tenant_id"::text || '/agents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/agents');
+  perform better_supabase.audit_event(
+    event_type => 'agent.archived',
+    category => 'ai',
+    target_type => 'agent',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
+  );
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_agent"(uuid) to authenticated, service_role;
+
+-- Restores an archived agent with the visibility it had. The owner or a moderator may; restoring one that is not archived returns it unchanged.
+create or replace function "better_supabase"."restore_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."agents" x where x."id" = restore_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', restore_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = false then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "better_supabase"."agents" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('agent.restored', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."tenant_id"::text || '/agents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/agents');
+  perform better_supabase.audit_event(
+    event_type => 'agent.restored',
+    category => 'ai',
+    target_type => 'agent',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
+  );
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_agent"(uuid) to authenticated, service_role;
+
+-- Deletes an agent for good with its installs, ratings and skills; archive
+-- keeps them. Needs 'agents.moderate', which falls back to the moderate key, and the
+-- owner needs it too. False when the caller can't see the agent.
+
+create or replace function "better_supabase"."purge_agent"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -708,14 +885,17 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."agents" x where x."id" = delete_agent.id;
+  select * into v_row from "better_supabase"."agents" x where x."id" = purge_agent.id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     return false;
   end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'you may not purge agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
+  end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('agent.deleted', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."tenant_id"::text || '/agents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/agents');
+  perform "better_supabase".emit_event('agent.purged', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."tenant_id"::text || '/agents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/agents');
   perform better_supabase.audit_event(
-    event_type => 'agent.deleted',
+    event_type => 'agent.purged',
     category => 'ai',
     target_type => 'agent',
     record_id => v_row."id"::text,
@@ -726,8 +906,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_agent"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_agent"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_agent"(uuid) to authenticated, service_role;
 
 -- An agent by id or by slug in a tenant, with its skills, when the caller may read it.
 create or replace function "better_supabase"."get_agent"(id uuid default null, tenant uuid default null, slug text default null)
@@ -746,7 +926,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at") || jsonb_build_object(
     'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k."id", 'provider', k."provider", 'reference', k."reference", 'name', k."name", 'files', k."files", 'content_hash', k."content_hash", 'latest_version', k."latest_version", 'provider_refs', k."provider_refs") order by k."created_at") from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id"), '[]'),
     'installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = v_row."id" and n."user_id" = auth.uid()),
     'my_rating', (select g."rating" from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid())
@@ -757,8 +937,10 @@ revoke execute on function "better_supabase"."get_agent"(uuid, uuid, text) from 
 grant execute on function "better_supabase"."get_agent"(uuid, uuid, text) to authenticated, service_role;
 
 -- Agents the caller may read: 'mine', 'installed' in the tenant, or the
--- 'store' (published to the tenant or public), newest first.
-create or replace function "better_supabase"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50)
+-- 'store' (published to the tenant or public), newest first. Archived agents
+-- stay out unless include_archived is true.
+
+create or replace function "better_supabase"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50, include_archived boolean default false)
 returns jsonb
 language sql
 stable
@@ -767,7 +949,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(y.row order by y.at desc), '[]')
   from (
-    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)) as row,
+    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)) as row,
       coalesce(x."published_at", x."updated_at") as at
     from "better_supabase"."agents" x
     where case list_agents.filter
@@ -775,14 +957,15 @@ as $$
         when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)
         else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = list_agents.tenant)
       end
+      and (coalesce(list_agents.include_archived, false) or x."archived_at" is null)
       and (list_agents.search is null or x."name" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%'
         or x."description" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%')
     order by coalesce(x."published_at", x."updated_at") desc
     limit least(greatest(list_agents.max_rows, 1), 200)
   ) y
 $$;
-revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer) from public, anon;
-grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
+grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "better_supabase"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
@@ -819,6 +1002,9 @@ begin
   end if;
   if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."tenant_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."tenant_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and x."archived_at" is not null) then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
   end if;
   insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "tenant_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
   on conflict do nothing;
@@ -862,7 +1048,10 @@ begin
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
     raise exception 'a rating is 1 to 5' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid()
@@ -876,7 +1065,7 @@ begin
     "rating_sum" = x."rating_sum" - coalesce(v_old, 0) + coalesce(rate_agent.rating, 0)
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."rate_agent"(uuid, integer, text) from public, anon;
@@ -901,7 +1090,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if jsonb_typeof(v_items) is distinct from 'array' then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if jsonb_typeof(v_items) is distinct from 'array' then
     raise exception 'skills must be a list' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id";
@@ -996,7 +1188,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:f9b9c89a1ae2fe279421661db40fed60a9c04aaa0234420bf65ec6e07eafe708
+-- @bsb-hash sha256:2e095414f353ac355792d76a8ac87155a1b33d0dd76d222b47ce8cdba80998c7
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1029,6 +1221,7 @@ create table "app_private"."agents" (
   "rating_sum" integer not null default 0,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
+  "archived_at" timestamptz,
   unique ("tenant_id", "slug")
 );
 create index agents_owner_idx on "app_private"."agents" ("owner_id");
@@ -1131,6 +1324,10 @@ begin
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
+    if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+  
   end if;
   update "app_private"."agents" x set
     "slug" = coalesce(save_agent.fields ->> 'slug', x."slug"),
@@ -1152,7 +1349,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 exception
   when unique_violation then
     raise exception 'an agent with slug % exists', save_agent.fields ->> 'slug' using errcode = '23505', hint = 'AGENT_SLUG_TAKEN';
@@ -1182,7 +1379,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)
     or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
@@ -1193,13 +1393,77 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "app_private"."publish_agent"(uuid, text) from public, anon;
 grant execute on function "app_private"."publish_agent"(uuid, text) to authenticated, service_role;
 
-create or replace function "app_private"."delete_agent"(id uuid)
+-- Archives an agent: it leaves the store, the lists and new installs, and it can't be changed, published or rated until it is restored. Installs, ratings and skills stay. The owner or a moderator may; archiving an archived agent returns it unchanged.
+create or replace function "app_private"."archive_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."agents" x where x."id" = archive_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', archive_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = true then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "app_private"."agents" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "app_private"."archive_agent"(uuid) from public, anon;
+grant execute on function "app_private"."archive_agent"(uuid) to authenticated, service_role;
+
+-- Restores an archived agent with the visibility it had. The owner or a moderator may; restoring one that is not archived returns it unchanged.
+create or replace function "app_private"."restore_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."agents" x where x."id" = restore_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', restore_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = false then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "app_private"."agents" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "app_private"."restore_agent"(uuid) from public, anon;
+grant execute on function "app_private"."restore_agent"(uuid) to authenticated, service_role;
+
+-- Deletes an agent for good with its installs, ratings and skills; archive
+-- keeps them. Needs 'agents.moderate', which falls back to the moderate key, and the
+-- owner needs it too. False when the caller can't see the agent.
+
+create or replace function "app_private"."purge_agent"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1211,17 +1475,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."agents" x where x."id" = delete_agent.id;
+  select * into v_row from "app_private"."agents" x where x."id" = purge_agent.id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'you may not purge agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   delete from "app_private"."agents" x where x."id" = v_row."id";
   null;
   return true;
 end;
 $$;
-revoke execute on function "app_private"."delete_agent"(uuid) from public, anon;
-grant execute on function "app_private"."delete_agent"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."purge_agent"(uuid) from public, anon;
+grant execute on function "app_private"."purge_agent"(uuid) to authenticated, service_role;
 
 -- An agent by id or by slug in a tenant, with its skills, when the caller may read it.
 create or replace function "app_private"."get_agent"(id uuid default null, tenant uuid default null, slug text default null)
@@ -1240,7 +1507,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at") || jsonb_build_object(
     'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k."id", 'provider', k."provider", 'reference', k."reference", 'name', k."name", 'files', k."files", 'content_hash', k."content_hash", 'latest_version', k."latest_version", 'provider_refs', k."provider_refs") order by k."created_at") from "app_private"."agent_skills" k where k."agent_id" = v_row."id"), '[]'),
     'installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = v_row."id" and n."user_id" = auth.uid()),
     'my_rating', (select g."rating" from "app_private"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid())
@@ -1251,8 +1518,10 @@ revoke execute on function "app_private"."get_agent"(uuid, uuid, text) from publ
 grant execute on function "app_private"."get_agent"(uuid, uuid, text) to authenticated, service_role;
 
 -- Agents the caller may read: 'mine', 'installed' in the tenant, or the
--- 'store' (published to the tenant or public), newest first.
-create or replace function "app_private"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50)
+-- 'store' (published to the tenant or public), newest first. Archived agents
+-- stay out unless include_archived is true.
+
+create or replace function "app_private"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50, include_archived boolean default false)
 returns jsonb
 language sql
 stable
@@ -1261,7 +1530,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(y.row order by y.at desc), '[]')
   from (
-    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)) as row,
+    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)) as row,
       coalesce(x."published_at", x."updated_at") as at
     from "app_private"."agents" x
     where case list_agents.filter
@@ -1269,14 +1538,15 @@ as $$
         when 'installed' then exists (select 1 from "app_private"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)
         else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = list_agents.tenant)
       end
+      and (coalesce(list_agents.include_archived, false) or x."archived_at" is null)
       and (list_agents.search is null or x."name" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%'
         or x."description" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%')
     order by coalesce(x."published_at", x."updated_at") desc
     limit least(greatest(list_agents.max_rows, 1), 200)
   ) y
 $$;
-revoke execute on function "app_private"."list_agents"(uuid, text, text, integer) from public, anon;
-grant execute on function "app_private"."list_agents"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "app_private"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
+grant execute on function "app_private"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "app_private"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
@@ -1305,6 +1575,9 @@ begin
   end if;
   if not exists (select 1 from "app_private"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."tenant_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."tenant_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "app_private"."agents" x where x."id" = install_agent.agent_id and x."archived_at" is not null) then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
   end if;
   insert into "app_private"."agent_installs" ("agent_id", "user_id", "tenant_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
   on conflict do nothing;
@@ -1340,7 +1613,10 @@ begin
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
     raise exception 'a rating is 1 to 5' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "app_private"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid()
@@ -1354,7 +1630,7 @@ begin
     "rating_sum" = x."rating_sum" - coalesce(v_old, 0) + coalesce(rate_agent.rating, 0)
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "app_private"."rate_agent"(uuid, integer, text) from public, anon;
@@ -1379,7 +1655,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if jsonb_typeof(v_items) is distinct from 'array' then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if jsonb_typeof(v_items) is distinct from 'array' then
     raise exception 'skills must be a list' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "app_private"."agent_skills" k where k."agent_id" = v_row."id";
@@ -1471,7 +1750,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:448f3663cc498129b547db54c969b1591cf581b6c5707b54766ea5f43d6ffe2e
+-- @bsb-hash sha256:6757d8b28668429289c6221e986bc42aea7c58b0800000590f89b7f9050eb2cd
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1499,6 +1778,7 @@ create table "better_supabase"."agents" (
   "rating_sum" integer not null default 0,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
+  "archived_at" timestamptz,
   unique ("tenant_id", "slug")
 );
 create index agents_owner_idx on "better_supabase"."agents" ("owner_id");
@@ -1601,6 +1881,10 @@ begin
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
+    if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+  
   end if;
   update "better_supabase"."agents" x set
     "slug" = coalesce(save_agent.fields ->> 'slug', x."slug"),
@@ -1622,7 +1906,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 exception
   when unique_violation then
     raise exception 'an agent with slug % exists', save_agent.fields ->> 'slug' using errcode = '23505', hint = 'AGENT_SLUG_TAKEN';
@@ -1652,7 +1936,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)
     or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
@@ -1663,13 +1950,77 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_agent"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."publish_agent"(uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_agent"(id uuid)
+-- Archives an agent: it leaves the store, the lists and new installs, and it can't be changed, published or rated until it is restored. Installs, ratings and skills stay. The owner or a moderator may; archiving an archived agent returns it unchanged.
+create or replace function "better_supabase"."archive_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."agents" x where x."id" = archive_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', archive_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = true then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "better_supabase"."agents" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_agent"(uuid) to authenticated, service_role;
+
+-- Restores an archived agent with the visibility it had. The owner or a moderator may; restoring one that is not archived returns it unchanged.
+create or replace function "better_supabase"."restore_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."agents" x where x."id" = restore_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', restore_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = false then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "better_supabase"."agents" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_agent"(uuid) to authenticated, service_role;
+
+-- Deletes an agent for good with its installs, ratings and skills; archive
+-- keeps them. Needs 'agents.moderate', which falls back to the moderate key, and the
+-- owner needs it too. False when the caller can't see the agent.
+
+create or replace function "better_supabase"."purge_agent"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1681,17 +2032,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."agents" x where x."id" = delete_agent.id;
+  select * into v_row from "better_supabase"."agents" x where x."id" = purge_agent.id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'you may not purge agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_agent"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_agent"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_agent"(uuid) to authenticated, service_role;
 
 -- An agent by id or by slug in a tenant, with its skills, when the caller may read it.
 create or replace function "better_supabase"."get_agent"(id uuid default null, tenant uuid default null, slug text default null)
@@ -1710,7 +2064,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at") || jsonb_build_object(
     'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k."id", 'provider', k."provider", 'reference', k."reference", 'name', k."name", 'files', k."files", 'content_hash', k."content_hash", 'latest_version', k."latest_version", 'provider_refs', k."provider_refs") order by k."created_at") from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id"), '[]'),
     'installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = v_row."id" and n."user_id" = auth.uid()),
     'my_rating', (select g."rating" from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid())
@@ -1721,8 +2075,10 @@ revoke execute on function "better_supabase"."get_agent"(uuid, uuid, text) from 
 grant execute on function "better_supabase"."get_agent"(uuid, uuid, text) to authenticated, service_role;
 
 -- Agents the caller may read: 'mine', 'installed' in the tenant, or the
--- 'store' (published to the tenant or public), newest first.
-create or replace function "better_supabase"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50)
+-- 'store' (published to the tenant or public), newest first. Archived agents
+-- stay out unless include_archived is true.
+
+create or replace function "better_supabase"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50, include_archived boolean default false)
 returns jsonb
 language sql
 stable
@@ -1731,7 +2087,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(y.row order by y.at desc), '[]')
   from (
-    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)) as row,
+    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)) as row,
       coalesce(x."published_at", x."updated_at") as at
     from "better_supabase"."agents" x
     where case list_agents.filter
@@ -1739,14 +2095,15 @@ as $$
         when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)
         else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = list_agents.tenant)
       end
+      and (coalesce(list_agents.include_archived, false) or x."archived_at" is null)
       and (list_agents.search is null or x."name" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%'
         or x."description" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%')
     order by coalesce(x."published_at", x."updated_at") desc
     limit least(greatest(list_agents.max_rows, 1), 200)
   ) y
 $$;
-revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer) from public, anon;
-grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
+grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "better_supabase"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
@@ -1775,6 +2132,9 @@ begin
   end if;
   if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."tenant_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."tenant_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and x."archived_at" is not null) then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
   end if;
   insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "tenant_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
   on conflict do nothing;
@@ -1810,7 +2170,10 @@ begin
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
     raise exception 'a rating is 1 to 5' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid()
@@ -1824,7 +2187,7 @@ begin
     "rating_sum" = x."rating_sum" - coalesce(v_old, 0) + coalesce(rate_agent.rating, 0)
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."rate_agent"(uuid, integer, text) from public, anon;
@@ -1849,7 +2212,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if jsonb_typeof(v_items) is distinct from 'array' then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if jsonb_typeof(v_items) is distinct from 'array' then
     raise exception 'skills must be a list' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id";
@@ -1946,14 +2312,32 @@ as $$ select "better_supabase"."publish_agent"($1, $2) $$;
 revoke execute on function "api"."publish_agent"(uuid, text) from public, anon;
 grant execute on function "api"."publish_agent"(uuid, text) to authenticated, service_role;
 
-create or replace function "api"."delete_agent"(id uuid)
+create or replace function "api"."archive_agent"(id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_agent"($1) $$;
+revoke execute on function "api"."archive_agent"(uuid) from public, anon;
+grant execute on function "api"."archive_agent"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_agent"(id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_agent"($1) $$;
+revoke execute on function "api"."restore_agent"(uuid) from public, anon;
+grant execute on function "api"."restore_agent"(uuid) to authenticated, service_role;
+
+create or replace function "api"."purge_agent"(id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."delete_agent"($1) $$;
-revoke execute on function "api"."delete_agent"(uuid) from public, anon;
-grant execute on function "api"."delete_agent"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."purge_agent"($1) $$;
+revoke execute on function "api"."purge_agent"(uuid) from public, anon;
+grant execute on function "api"."purge_agent"(uuid) to authenticated, service_role;
 
 create or replace function "api"."get_agent"(id uuid default null, tenant uuid default null, slug text default null)
 returns jsonb
@@ -1965,15 +2349,15 @@ as $$ select "better_supabase"."get_agent"($1, $2, $3) $$;
 revoke execute on function "api"."get_agent"(uuid, uuid, text) from public, anon;
 grant execute on function "api"."get_agent"(uuid, uuid, text) to authenticated, service_role;
 
-create or replace function "api"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50)
+create or replace function "api"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50, include_archived boolean default false)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_agents"($1, $2, $3, $4) $$;
-revoke execute on function "api"."list_agents"(uuid, text, text, integer) from public, anon;
-grant execute on function "api"."list_agents"(uuid, text, text, integer) to authenticated, service_role;
+as $$ select "better_supabase"."list_agents"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
+grant execute on function "api"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
 create or replace function "api"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
 returns boolean
@@ -2028,7 +2412,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:2e864848edeed447f5bc5da8124abe6a38a1a4e3c34d7c329e4c6b48d9758054
+-- @bsb-hash sha256:978f5b1383970acb6260cbd9f77ebc7943d8077ec4f157ead79b1c01a76806c2
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2056,6 +2440,8 @@ alter table "better_supabase"."agents" add column if not exists "rating_count" i
 alter table "better_supabase"."agents" add column if not exists "rating_sum" integer not null default 0;
 alter table "better_supabase"."agents" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."agents" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."agents" add column if not exists "archived_at" timestamptz;
+alter table "better_supabase"."agents" add column if not exists "archived_at" timestamptz;
 create index if not exists agents_owner_idx on "better_supabase"."agents" ("owner_id");
 create index if not exists agents_published_idx on "better_supabase"."agents" ("visibility", "published_at") where "published_at" is not null;
 alter table "better_supabase"."agents" enable row level security;
@@ -2146,6 +2532,10 @@ begin
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
+    if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+  
   end if;
   update "better_supabase"."agents" x set
     "slug" = coalesce(save_agent.fields ->> 'slug', x."slug"),
@@ -2167,7 +2557,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 exception
   when unique_violation then
     raise exception 'an agent with slug % exists', save_agent.fields ->> 'slug' using errcode = '23505', hint = 'AGENT_SLUG_TAKEN';
@@ -2197,7 +2587,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)
     or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
@@ -2208,13 +2601,77 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_agent"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."publish_agent"(uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_agent"(id uuid)
+-- Archives an agent: it leaves the store, the lists and new installs, and it can't be changed, published or rated until it is restored. Installs, ratings and skills stay. The owner or a moderator may; archiving an archived agent returns it unchanged.
+create or replace function "better_supabase"."archive_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."agents" x where x."id" = archive_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', archive_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = true then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "better_supabase"."agents" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_agent"(uuid) to authenticated, service_role;
+
+-- Restores an archived agent with the visibility it had. The owner or a moderator may; restoring one that is not archived returns it unchanged.
+create or replace function "better_supabase"."restore_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."agents" x where x."id" = restore_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', restore_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = false then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "better_supabase"."agents" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_agent"(uuid) to authenticated, service_role;
+
+-- Deletes an agent for good with its installs, ratings and skills; archive
+-- keeps them. Needs 'agents.moderate', which falls back to the moderate key, and the
+-- owner needs it too. False when the caller can't see the agent.
+
+create or replace function "better_supabase"."purge_agent"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2226,17 +2683,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."agents" x where x."id" = delete_agent.id;
+  select * into v_row from "better_supabase"."agents" x where x."id" = purge_agent.id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
+    raise exception 'you may not purge agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_agent"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_agent"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_agent"(uuid) to authenticated, service_role;
 
 -- An agent by id or by slug in a tenant, with its skills, when the caller may read it.
 create or replace function "better_supabase"."get_agent"(id uuid default null, tenant uuid default null, slug text default null)
@@ -2255,7 +2715,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at") || jsonb_build_object(
     'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k."id", 'provider', k."provider", 'reference', k."reference", 'name', k."name", 'files', k."files", 'content_hash', k."content_hash", 'latest_version', k."latest_version", 'provider_refs', k."provider_refs") order by k."created_at") from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id"), '[]'),
     'installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = v_row."id" and n."user_id" = auth.uid()),
     'my_rating', (select g."rating" from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid())
@@ -2266,8 +2726,10 @@ revoke execute on function "better_supabase"."get_agent"(uuid, uuid, text) from 
 grant execute on function "better_supabase"."get_agent"(uuid, uuid, text) to authenticated, service_role;
 
 -- Agents the caller may read: 'mine', 'installed' in the tenant, or the
--- 'store' (published to the tenant or public), newest first.
-create or replace function "better_supabase"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50)
+-- 'store' (published to the tenant or public), newest first. Archived agents
+-- stay out unless include_archived is true.
+
+create or replace function "better_supabase"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50, include_archived boolean default false)
 returns jsonb
 language sql
 stable
@@ -2276,7 +2738,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(y.row order by y.at desc), '[]')
   from (
-    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)) as row,
+    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)) as row,
       coalesce(x."published_at", x."updated_at") as at
     from "better_supabase"."agents" x
     where case list_agents.filter
@@ -2284,14 +2746,15 @@ as $$
         when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)
         else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = list_agents.tenant)
       end
+      and (coalesce(list_agents.include_archived, false) or x."archived_at" is null)
       and (list_agents.search is null or x."name" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%'
         or x."description" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%')
     order by coalesce(x."published_at", x."updated_at") desc
     limit least(greatest(list_agents.max_rows, 1), 200)
   ) y
 $$;
-revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer) from public, anon;
-grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
+grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "better_supabase"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
@@ -2320,6 +2783,9 @@ begin
   end if;
   if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."tenant_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."tenant_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and x."archived_at" is not null) then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
   end if;
   insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "tenant_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
   on conflict do nothing;
@@ -2355,7 +2821,10 @@ begin
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
     raise exception 'a rating is 1 to 5' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid()
@@ -2369,7 +2838,7 @@ begin
     "rating_sum" = x."rating_sum" - coalesce(v_old, 0) + coalesce(rate_agent.rating, 0)
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."rate_agent"(uuid, integer, text) from public, anon;
@@ -2394,7 +2863,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if jsonb_typeof(v_items) is distinct from 'array' then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if jsonb_typeof(v_items) is distinct from 'array' then
     raise exception 'skills must be a list' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id";
@@ -2486,7 +2958,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:8012d149f6cdc50b2a5578d717a1407863f3781c56bfe1104cf50cdf7fe91f55
+-- @bsb-hash sha256:684785bc3035628d513669567a450c2aafb39f22683cfd33d6f6e5b0de1da8fb
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2514,6 +2986,7 @@ create table "better_supabase"."agents" (
   "rating_sum" integer not null default 0,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
+  "archived_at" timestamptz,
   unique ("org_id", "slug")
 );
 create index agents_owner_idx on "better_supabase"."agents" ("owner_id");
@@ -2616,6 +3089,10 @@ begin
     if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
+    if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+  
   end if;
   update "better_supabase"."agents" x set
     "slug" = coalesce(save_agent.fields ->> 'slug', x."slug"),
@@ -2637,7 +3114,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 exception
   when unique_violation then
     raise exception 'an agent with slug % exists', save_agent.fields ->> 'slug' using errcode = '23505', hint = 'AGENT_SLUG_TAKEN';
@@ -2667,7 +3144,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)
     or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
@@ -2678,13 +3158,77 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_agent"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."publish_agent"(uuid, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_agent"(id uuid)
+-- Archives an agent: it leaves the store, the lists and new installs, and it can't be changed, published or rated until it is restored. Installs, ratings and skills stay. The owner or a moderator may; archiving an archived agent returns it unchanged.
+create or replace function "better_supabase"."archive_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."agents" x where x."id" = archive_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', archive_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = true then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "better_supabase"."agents" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_agent"(uuid) to authenticated, service_role;
+
+-- Restores an archived agent with the visibility it had. The owner or a moderator may; restoring one that is not archived returns it unchanged.
+create or replace function "better_supabase"."restore_agent"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."agents"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."agents" x where x."id" = restore_agent.id for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)) then
+    raise exception 'agent % not found', restore_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if (v_row."archived_at" is not null) = false then
+    return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+  end if;
+  update "better_supabase"."agents" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_agent"(uuid) to authenticated, service_role;
+
+-- Deletes an agent for good with its installs, ratings and skills; archive
+-- keeps them. Needs 'agents.moderate', which falls back to the moderate key, and the
+-- owner needs it too. False when the caller can't see the agent.
+
+create or replace function "better_supabase"."purge_agent"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2696,17 +3240,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."agents" x where x."id" = delete_agent.id;
+  select * into v_row from "better_supabase"."agents" x where x."id" = purge_agent.id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)) then
     return false;
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)) then
+    raise exception 'you may not purge agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_agent"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_agent"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_agent"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_agent"(uuid) to authenticated, service_role;
 
 -- An agent by id or by slug in a tenant, with its skills, when the caller may read it.
 create or replace function "better_supabase"."get_agent"(id uuid default null, tenant uuid default null, slug text default null)
@@ -2725,7 +3272,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at") || jsonb_build_object(
     'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k."id", 'provider', k."provider", 'reference', k."reference", 'name', k."name", 'files', k."files", 'content_hash', k."content_hash", 'latest_version', k."latest_version", 'provider_refs', k."provider_refs") order by k."created_at") from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id"), '[]'),
     'installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = v_row."id" and n."user_id" = auth.uid()),
     'my_rating', (select g."rating" from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid())
@@ -2736,8 +3283,10 @@ revoke execute on function "better_supabase"."get_agent"(uuid, uuid, text) from 
 grant execute on function "better_supabase"."get_agent"(uuid, uuid, text) to authenticated, service_role;
 
 -- Agents the caller may read: 'mine', 'installed' in the tenant, or the
--- 'store' (published to the tenant or public), newest first.
-create or replace function "better_supabase"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50)
+-- 'store' (published to the tenant or public), newest first. Archived agents
+-- stay out unless include_archived is true.
+
+create or replace function "better_supabase"."list_agents"(tenant uuid, filter text default 'store', search text default null, max_rows integer default 50, include_archived boolean default false)
 returns jsonb
 language sql
 stable
@@ -2746,7 +3295,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(y.row order by y.at desc), '[]')
   from (
-    select jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = list_agents.tenant)) as row,
+    select jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at", 'archived_at', x."archived_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = list_agents.tenant)) as row,
       coalesce(x."published_at", x."updated_at") as at
     from "better_supabase"."agents" x
     where case list_agents.filter
@@ -2754,14 +3303,15 @@ as $$
         when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."org_id" = list_agents.tenant)
         else x."published_at" is not null and (x."visibility" = 'public' or x."org_id" = list_agents.tenant)
       end
+      and (coalesce(list_agents.include_archived, false) or x."archived_at" is null)
       and (list_agents.search is null or x."name" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%'
         or x."description" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%')
     order by coalesce(x."published_at", x."updated_at") desc
     limit least(greatest(list_agents.max_rows, 1), 200)
   ) y
 $$;
-revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer) from public, anon;
-grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) from public, anon;
+grant execute on function "better_supabase"."list_agents"(uuid, text, text, integer, boolean) to authenticated, service_role;
 
 -- Adds a readable agent to the caller's list in a tenant they belong to, or removes it.
 create or replace function "better_supabase"."install_agent"(tenant uuid, agent_id uuid, installed boolean default true)
@@ -2790,6 +3340,9 @@ begin
   end if;
   if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."org_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."org_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
+  end if;
+  if exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and x."archived_at" is not null) then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
   end if;
   insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "org_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
   on conflict do nothing;
@@ -2825,7 +3378,10 @@ begin
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if rate_agent.rating is not null and rate_agent.rating not between 1 and 5 then
     raise exception 'a rating is 1 to 5' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid()
@@ -2839,7 +3395,7 @@ begin
     "rating_sum" = x."rating_sum" - coalesce(v_old, 0) + coalesce(rate_agent.rating, 0)
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at", 'archived_at', v_row."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."rate_agent"(uuid, integer, text) from public, anon;
@@ -2864,7 +3420,10 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if jsonb_typeof(v_items) is distinct from 'array' then
+  if v_row."archived_at" is not null then
+    raise exception 'agent is archived; restore it first' using errcode = '55000', hint = 'AGENT_ARCHIVED';
+  end if;
+    if jsonb_typeof(v_items) is distinct from 'array' then
     raise exception 'skills must be a list' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   delete from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id";

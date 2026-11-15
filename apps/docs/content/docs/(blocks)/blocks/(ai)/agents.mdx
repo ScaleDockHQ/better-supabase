@@ -28,10 +28,12 @@ organization.
 | `agents.read`     | see the organization's agents | `owner`, `admin`, `member` |
 | `agents.write`    | create agents                 | `owner`, `admin`, `member` |
 | `agents.publish`  | publish an agent              | `owner`, `admin`, `member` |
-| `agents.moderate` | change or delete any agent    | `owner`, `admin`           |
+| `agents.moderate` | change or archive any agent   | `owner`, `admin`           |
 
+Purging an agent needs `agents.purge`, which falls back to `agents.moderate`
+until you set `blocks.agents.permissions.purge`; the owner needs it too.
 Rename the keys with `blocks.agents.permissions.read`, `.create`,
-`.publish` and `.moderate`. The `maxInstructions` option (100,000
+`.publish`, `.moderate` and `.purge`. The `maxInstructions` option (100,000
 characters by default) limits the instructions.
 
 ## Server
@@ -72,12 +74,19 @@ await agents.publish(agent.id, "organization").orThrow();
 
 | Method                         | Does                                                      |
 | ------------------------------ | --------------------------------------------------------- |
-| `create`, `update`, `remove`   | Change the caller's agents                                |
+| `create`, `update`             | Change the caller's agents                                |
+| `archive`, `restore`           | Hide an agent from the store and lists, or bring it back  |
+| `purge`                        | Delete an agent for good (needs `agents.purge`)           |
 | `get`, `bySlug`                | Read one agent the caller can see                         |
 | `list(organizationId, filter)` | `store` (published), `mine` (owned) or `installed`        |
 | `publish(id, visibility)`      | Set `private`, `organization` or `public`                 |
 | `install`, `rate`              | Install or uninstall, and rate from 1 to 5 with a comment |
 | `setSkills`                    | Replace the skill references                              |
+
+An archived agent leaves the store and `list` (`list({ includeArchived: true })`
+shows it), and `update`, `publish`, `install` and `rate` refuse it with
+`AGENT_ARCHIVED` until `restore`. Its installs, ratings and skills stay, and
+`get` still reads it by id, with `archivedAt` set.
 
 Each agent carries `installCount`, `ratingCount`, the average `rating`,
 and for the caller `installed` and `myRating`. A slug that is taken in the
