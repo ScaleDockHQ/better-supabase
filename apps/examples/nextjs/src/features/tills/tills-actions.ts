@@ -44,7 +44,7 @@ export const createTill = bsb.action(
 
     const [accounts, tills] = await Promise.all([
       db.accounting.accounts({ organizationId }),
-      db.tills.listTills({ includeArchived: true }),
+      db.tills.tillPage({ filters: { includeArchived: ["true"] }, limit: 200 }),
     ]);
 
     if (!accounts.ok) {
@@ -57,7 +57,7 @@ export const createTill = bsb.action(
 
     const plan = planCashAccount(
       accounts.data,
-      new Set(tills.data.flatMap((till) => till.accountId ?? [])),
+      new Set(tills.data.items.flatMap((till) => till.accountId ?? [])),
       name,
     );
 

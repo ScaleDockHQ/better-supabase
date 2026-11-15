@@ -1,7 +1,12 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { RfqsSql } from "./rfqs-sql.ts";
 
-import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { userGrant } from "../shared.ts";
 import { rfqsSql } from "./rfqs-sql.ts";
@@ -43,6 +48,7 @@ export function rfqsFunctions(ctx: BlockSqlContext): string {
     where: [
       `x.${q("tenant")} = list_rfqs.tenant`,
       filterAny("status", `x.${q("status")}`),
+      `(v_search is null or x.${q("number")} ilike v_search or x.${q("title")} ilike v_search)`,
     ],
     keys: [
       { expr: `x.${q("sequence")}`, dir: "desc", type: "bigint" },
@@ -243,6 +249,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_rfqs.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(list)}
 begin
   if not ${sql.allowed("list_rfqs.tenant", sql.read)} then

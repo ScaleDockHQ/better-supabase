@@ -11,7 +11,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { plainDateOf } from "../../core/block-helpers.ts";
+import { foundRow, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { entityList } from "../../core/entity-list.ts";
@@ -32,7 +32,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
-import { tillSessionListSurface } from "./lists.ts";
+import { tillListSurface, tillSessionListSurface } from "./lists.ts";
 
 /** Where a till session stands. */
 export type TillSessionStatus = (typeof TILL_SESSION_STATUSES)[number];
@@ -189,10 +189,29 @@ export interface Tills {
     tillId: string;
     input: TillUpdate;
   }): AsyncResultType<Till>;
-  /** Tills by name; archived ones only with `includeArchived`. */
+  /**
+   * Tills by name, at most 200; archived ones only with `includeArchived`.
+   *
+   * @deprecated Use `tillPage`, which pages by keyset and takes `q`, `sort`
+   * and array filters. The alias stays until 0.70 (ADR 1077).
+   */
   listTills(options?: {
     readonly includeArchived?: boolean;
   }): AsyncResultType<readonly Till[]>;
+  /**
+   * One keyset page of tills, by name unless `sort` says otherwise, with
+   * `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  tillPage(options?: PageOptions): AsyncResultType<ListPage<Till>>;
+  /**
+   * The values of each facet of tills and their counts, under the page's
+   * filters.
+   */
+  tillFacets(options?: FacetOptions): AsyncResultType<readonly FacetResult[]>;
+  /** How many tills match the page's filters. */
+  tillCount(options?: CountOptions): AsyncResultType<Count>;
+  /** One till, or a `not_found` error. */
+  getTill(tillId: string): AsyncResultType<Till>;
   /**
    * Starts a shift with the cash in the drawer. A till has one open session;
    * needs `tills.write`.
@@ -421,6 +440,15 @@ export function createTills(options: TillsOptions): Tills {
     rowOf: sessionOf,
   });
 
+  const tillRows = entityList({
+    entity: "till",
+    surface: tillListSurface,
+    call,
+    tenant,
+    fn: "list_tills",
+    rowOf: tillOf,
+  });
+
   const client: Tills = {
     createTill: (input) =>
       tenant().andThen((organizationId) =>
@@ -436,19 +464,29 @@ export function createTills(options: TillsOptions): Tills {
         { till_id: tillId, input: definedOf(input) },
         (value) => tillOf(value, "update_till"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listTills: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
           "list_tills",
           {
             tenant: organizationId,
-            filters: { archived: list.includeArchived === true },
+            filters: { archived: list.includeArchived === true, limit: 200 },
           },
           (value) =>
             recordsOf(value, "list_tills").map((row) =>
               tillOf(row, "list_tills"),
             ),
         ),
+      ),
+    tillPage: tillRows.page,
+    tillFacets: tillRows.facets,
+    tillCount: tillRows.count,
+    getTill: (tillId) =>
+      foundRow(
+        call("get_till", { till_id: tillId }, (value) => value),
+        "till not found",
+        (row) => tillOf(row, "get_till"),
       ),
     openSession: ({ tillId, ...open }) =>
       call(

@@ -9,4 +9,5 @@ export const shipmentListSurface: EntityListSurface = {
   sorts: ["createdAt", "deliveredAt"],
   facets: ["status", "carrier"],
   filters: ["status", "carrier", "subjectType", "subjectId", "archived"],
+  search: ["reference", "trackingNumber"],
 };

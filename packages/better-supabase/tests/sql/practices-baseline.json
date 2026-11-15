@@ -297,17 +297,17 @@
     "security-definer-functions": 36
   },
   "lims": {
-    "security-definer-functions": 78
+    "security-definer-functions": 90
   },
   "mail-sync": {
     "security-definer-functions": 80
   },
   "maintenance": {
-    "security-definer-functions": 81,
+    "security-definer-functions": 93,
     "row-triggers": 2
   },
   "manufacturing": {
-    "security-definer-functions": 151
+    "security-definer-functions": 169
   },
   "medications": {
     "security-definer-functions": 84
@@ -550,7 +550,7 @@
     "row-triggers": 1
   },
   "tills": {
-    "security-definer-functions": 62
+    "security-definer-functions": 68
   },
   "time-entries": {
     "security-definer-functions": 108,
@@ -573,7 +573,7 @@
     "security-definer-functions": 60
   },
   "warehouse": {
-    "security-definer-functions": 180
+    "security-definer-functions": 210
   },
   "warranty": {
     "security-definer-functions": 30,

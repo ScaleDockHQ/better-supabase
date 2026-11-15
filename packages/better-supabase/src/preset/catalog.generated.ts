@@ -9498,7 +9498,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               },
               "search": {
                 "title": "name",
-                "body": []
+                "body": [
+                  "name"
+                ]
               }
             }
           },
@@ -19494,6 +19496,10 @@ export const PRESET_CATALOG: PresetCatalog = {
             "subjectType",
             "subjectId",
             "archived"
+          ],
+          "search": [
+            "reference",
+            "trackingNumber"
           ]
         }
       }
@@ -24389,6 +24395,26 @@ export const PRESET_CATALOG: PresetCatalog = {
             "assetId",
             "due",
             "archived"
+          ],
+          "search": [
+            "title"
+          ]
+        },
+        "maintenance_meter": {
+          "sorts": [
+            "name",
+            "readAt"
+          ],
+          "facets": [
+            "unit",
+            "assetId"
+          ],
+          "filters": [
+            "unit",
+            "assetId"
+          ],
+          "search": [
+            "name"
           ]
         },
         "maintenance_calibration": {
@@ -24402,6 +24428,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "filters": [
             "assetId",
             "dueBefore"
+          ],
+          "search": [
+            "instrument",
+            "reference"
           ]
         }
       }
@@ -24823,6 +24853,29 @@ export const PRESET_CATALOG: PresetCatalog = {
           "filters": [
             "status",
             "kind"
+          ],
+          "search": [
+            "number",
+            "title",
+            "lot"
+          ]
+        },
+        "lims_method": {
+          "sorts": [
+            "key",
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "unit"
+          ],
+          "filters": [
+            "unit",
+            "includeArchived"
+          ],
+          "search": [
+            "key",
+            "name"
           ]
         }
       }
@@ -25426,6 +25479,53 @@ export const PRESET_CATALOG: PresetCatalog = {
             "documentId",
             "mine"
           ]
+        },
+        "pick_wave": {
+          "sorts": [
+            "createdAt",
+            "name"
+          ],
+          "facets": [
+            "status",
+            "locationId"
+          ],
+          "filters": [
+            "status",
+            "locationId"
+          ],
+          "search": [
+            "name"
+          ]
+        },
+        "count_plan": {
+          "sorts": [
+            "nextRunOn",
+            "name"
+          ],
+          "facets": [
+            "active"
+          ],
+          "filters": [
+            "active",
+            "locationId"
+          ],
+          "search": [
+            "name"
+          ]
+        },
+        "putaway_rule": {
+          "sorts": [
+            "priority",
+            "createdAt"
+          ],
+          "facets": [
+            "active"
+          ],
+          "filters": [
+            "locationId",
+            "variantId",
+            "active"
+          ]
         }
       }
     },
@@ -25664,6 +25764,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           ],
           "filters": [
             "status"
+          ],
+          "search": [
+            "number",
+            "title"
           ]
         }
       }
@@ -25827,6 +25931,22 @@ export const PRESET_CATALOG: PresetCatalog = {
         ]
       },
       "entityLists": {
+        "till": {
+          "sorts": [
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "currency"
+          ],
+          "filters": [
+            "currency",
+            "includeArchived"
+          ],
+          "search": [
+            "name"
+          ]
+        },
         "till_session": {
           "sorts": [
             "openedAt",
@@ -25839,6 +25959,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "filters": [
             "tillId",
             "status"
+          ],
+          "search": [
+            "notes"
           ]
         }
       }
@@ -27178,6 +27301,43 @@ export const PRESET_CATALOG: PresetCatalog = {
           "filters": [
             "status",
             "variantId"
+          ],
+          "search": [
+            "number",
+            "note"
+          ]
+        },
+        "bom": {
+          "sorts": [
+            "variant",
+            "createdAt",
+            "activatedAt"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "variantId",
+            "status"
+          ],
+          "search": [
+            "note"
+          ]
+        },
+        "work_center": {
+          "sorts": [
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "currency"
+          ],
+          "filters": [
+            "currency",
+            "includeArchived"
+          ],
+          "search": [
+            "name"
           ]
         }
       }

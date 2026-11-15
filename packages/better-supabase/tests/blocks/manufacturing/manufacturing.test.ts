@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated array methods until 0.70 (ADR 1077). 2 findings. */
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
@@ -643,5 +644,15 @@ describe("manufacturing schemas and manifest", () => {
     expect(facets[0]?.values[0]?.value).toBe("done");
     expect(count).toEqual({ value: 2, exact: true });
     expect(refused.ok).toBe(false);
+  });
+
+  it("returns one work center", async () => {
+    const t = fieldsTransport({ get_work_center: () => WORK_CENTER });
+
+    const client = createManufacturing({ transport: t, tenant: "org-1" });
+
+    const getWorkCenterRow = await client.getWorkCenter("c1").orThrow();
+
+    expect(getWorkCenterRow.id).toBe(WORK_CENTER.id);
   });
 });

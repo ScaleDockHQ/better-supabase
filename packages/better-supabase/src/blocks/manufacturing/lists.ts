@@ -9,4 +9,24 @@ export const productionOrderListSurface: EntityListSurface = {
   sorts: ["dueOn", "createdAt", "number"],
   facets: ["status"],
   filters: ["status", "variantId"],
+  search: ["number", "note"],
+};
+
+/** The same for a bill of materials version (`page_boms`). */
+export const bomListSurface: EntityListSurface = {
+  sorts: ["variant", "createdAt", "activatedAt"],
+  facets: ["status"],
+  filters: ["variantId", "status"],
+  search: ["note"],
+};
+
+/**
+ * The same for a work center (`page_work_centers`). Archived work centers are
+ * hidden unless `includeArchived` is `["true"]`.
+ */
+export const workCenterListSurface: EntityListSurface = {
+  sorts: ["name", "createdAt"],
+  facets: ["currency"],
+  filters: ["currency", "includeArchived"],
+  search: ["name"],
 };

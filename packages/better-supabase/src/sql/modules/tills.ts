@@ -330,6 +330,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "create_till", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "update_till", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "list_tills", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_till", args: ["uuid"], returns: "jsonb" },
     {
       name: "open_till_session",
       args: ["uuid", "bigint", "text"],
