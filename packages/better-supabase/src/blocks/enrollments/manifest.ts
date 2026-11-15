@@ -27,7 +27,13 @@ export const enrollmentsBlock: BlockOf<
   entities: {
     enrollment_program: {
       mutability: "editable",
-      emits: { create: true, update: true, delete: true },
+      emits: {
+        create: true,
+        update: true,
+        archive: true,
+        restore: true,
+        purge: true,
+      },
     },
     enrollment: {
       ...enrollmentListSurface,

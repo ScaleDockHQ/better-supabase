@@ -92,6 +92,8 @@ export interface EnrollmentProgram {
   readonly enabled: boolean;
   /** Raised each time the steps change. */
   readonly version: number;
+  /** When the program was archived; absent while it is active. */
+  readonly archivedAt?: Temporal.Instant;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
@@ -204,10 +206,21 @@ export interface EnrollmentsFilter {
 export interface Enrollments {
   /** Creates or changes a program; changing its steps raises its version. */
   saveProgram(program: EnrollmentProgramInput): AsyncResult<EnrollmentProgram>;
-  /** The organization's programs by key. */
-  programs(): AsyncResult<readonly EnrollmentProgram[]>;
-  /** Deletes a program with its enrollments; `false` when it was gone. */
-  deleteProgram(programId: string): AsyncResult<boolean>;
+  /** The organization's programs by key; `includeArchived` adds archived ones. */
+  programs(options?: {
+    readonly includeArchived?: boolean;
+  }): AsyncResult<readonly EnrollmentProgram[]>;
+  /**
+   * Archives a program: it leaves `programs()` and refuses new enrollments and
+   * edits; its enrollments stay.
+   */
+  archiveProgram(programId: string): AsyncResult<EnrollmentProgram>;
+  restoreProgram(programId: string): AsyncResult<EnrollmentProgram>;
+  /**
+   * Deletes an archived program with its enrollments for good; needs the
+   * `enrollments.purge` permission. `false` when it was gone.
+   */
+  purgeProgram(programId: string): AsyncResult<boolean>;
   /**
    * Enrolls a subject. An enrolled subject keeps its enrollment, and a
    * cancelled one starts again with its completed steps. With `dates`, it sets
@@ -396,6 +409,7 @@ function programOf(value: unknown, fn: string): EnrollmentProgram {
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("description", optionalText(row["description"])),
     ...optional("createdBy", optionalText(row["createdBy"])),
+    ...optional("archivedAt", optionalInstant(row["archivedAt"])),
   };
 }
 
@@ -504,17 +518,31 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
           (value) => programOf(value, "save_enrollment_program"),
         ),
       ),
-    programs: () =>
+    programs: (options = {}) =>
       tenant().andThen((organizationId) =>
-        call("enrollment_programs", { tenant: organizationId }, (value) =>
-          recordsOf(value, "enrollment_programs").map((row) =>
-            programOf(row, "enrollment_programs"),
-          ),
+        call(
+          "enrollment_programs",
+          {
+            tenant: organizationId,
+            include_archived: options.includeArchived ?? false,
+          },
+          (value) =>
+            recordsOf(value, "enrollment_programs").map((row) =>
+              programOf(row, "enrollment_programs"),
+            ),
         ),
       ),
-    deleteProgram: (programId) =>
+    archiveProgram: (programId) =>
+      call("archive_enrollment_program", { program_id: programId }, (value) =>
+        programOf(value, "archive_enrollment_program"),
+      ),
+    restoreProgram: (programId) =>
+      call("restore_enrollment_program", { program_id: programId }, (value) =>
+        programOf(value, "restore_enrollment_program"),
+      ),
+    purgeProgram: (programId) =>
       call(
-        "delete_enrollment_program",
+        "purge_enrollment_program",
         { program_id: programId },
         (value) => value === true,
       ),

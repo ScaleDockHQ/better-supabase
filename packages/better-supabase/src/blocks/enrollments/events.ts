@@ -3,8 +3,9 @@ import type { Events } from "../../core/event-map.ts";
 import { defineEvents, event } from "../../core/event-map.ts";
 
 /**
- * `enrollment_program.created`, `enrollment_program.updated` and
- * `enrollment_program.deleted`.
+ * `enrollment_program.created`, `enrollment_program.updated`,
+ * `enrollment_program.archived`, `enrollment_program.restored` and
+ * `enrollment_program.purged`.
  */
 export interface EnrollmentProgramEventData {
   readonly organizationId: string;
@@ -47,7 +48,9 @@ export interface EnrollmentEventData {
 export type EnrollmentsEvents = {
   readonly "enrollment_program.created": EnrollmentProgramEventData;
   readonly "enrollment_program.updated": EnrollmentProgramEventData;
-  readonly "enrollment_program.deleted": EnrollmentProgramEventData;
+  readonly "enrollment_program.archived": EnrollmentProgramEventData;
+  readonly "enrollment_program.restored": EnrollmentProgramEventData;
+  readonly "enrollment_program.purged": EnrollmentProgramEventData;
   readonly "enrollment.created": EnrollmentEventData;
   readonly "enrollment.step_completed": EnrollmentEventData;
   readonly "enrollment.paused": EnrollmentEventData;
@@ -60,7 +63,9 @@ export type EnrollmentsEvents = {
 export const enrollmentsEvents: Events<EnrollmentsEvents> = defineEvents({
   "enrollment_program.created": event<EnrollmentProgramEventData>(),
   "enrollment_program.updated": event<EnrollmentProgramEventData>(),
-  "enrollment_program.deleted": event<EnrollmentProgramEventData>(),
+  "enrollment_program.archived": event<EnrollmentProgramEventData>(),
+  "enrollment_program.restored": event<EnrollmentProgramEventData>(),
+  "enrollment_program.purged": event<EnrollmentProgramEventData>(),
   "enrollment.created": event<EnrollmentEventData>(),
   "enrollment.step_completed": event<EnrollmentEventData>(),
   "enrollment.paused": event<EnrollmentEventData>(),

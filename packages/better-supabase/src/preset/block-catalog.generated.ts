@@ -3274,8 +3274,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "enrollment.paused",
         "enrollment.resumed",
         "enrollment.step_completed",
+        "enrollment_program.archived",
         "enrollment_program.created",
-        "enrollment_program.deleted",
+        "enrollment_program.purged",
+        "enrollment_program.restored",
         "enrollment_program.updated"
       ],
       "subpath": "better-supabase/blocks/enrollments",

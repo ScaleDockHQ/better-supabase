@@ -80,7 +80,26 @@ describe("createEnrollments", () => {
           steps: null,
         },
       ],
-      delete_enrollment_program: true,
+      archive_enrollment_program: {
+        id: "p2",
+        organizationId: "org-1",
+        key: "training",
+        name: "Training",
+        version: 1,
+        archivedAt: "2026-05-01T00:00:00Z",
+        createdAt: "2026-05-01T00:00:00Z",
+        updatedAt: "2026-05-01T00:00:00Z",
+      },
+      restore_enrollment_program: {
+        id: "p2",
+        organizationId: "org-1",
+        key: "training",
+        name: "Training",
+        version: 1,
+        createdAt: "2026-05-01T00:00:00Z",
+        updatedAt: "2026-05-01T00:00:00Z",
+      },
+      purge_enrollment_program: true,
     });
 
     const enrollments = createEnrollments({
@@ -117,7 +136,13 @@ describe("createEnrollments", () => {
       steps: [],
     });
     expect(programs[1]).not.toHaveProperty("createdBy");
-    expect(await enrollments.deleteProgram("p2").orThrow()).toBe(true);
+    expect(
+      (await enrollments.archiveProgram("p2").orThrow()).archivedAt,
+    ).toBeDefined();
+    expect(
+      (await enrollments.restoreProgram("p2").orThrow()).archivedAt,
+    ).toBeUndefined();
+    expect(await enrollments.purgeProgram("p2").orThrow()).toBe(true);
 
     expect(fake.calls).toEqual([
       [
@@ -131,8 +156,10 @@ describe("createEnrollments", () => {
           },
         },
       ],
-      ["enrollment_programs", { tenant: "org-1" }],
-      ["delete_enrollment_program", { program_id: "p2" }],
+      ["enrollment_programs", { tenant: "org-1", include_archived: false }],
+      ["archive_enrollment_program", { program_id: "p2" }],
+      ["restore_enrollment_program", { program_id: "p2" }],
+      ["purge_enrollment_program", { program_id: "p2" }],
     ]);
   });
 
@@ -553,6 +580,6 @@ describe("enrollmentsBinding", () => {
     });
     expect(enrollmentsBlock.record).toBe(enrollmentsBinding);
     expect(enrollmentsBinding.events).toContain("enrollment.completed");
-    expect(enrollmentsEvents.types).toContain("enrollment_program.deleted");
+    expect(enrollmentsEvents.types).toContain("enrollment_program.purged");
   });
 });

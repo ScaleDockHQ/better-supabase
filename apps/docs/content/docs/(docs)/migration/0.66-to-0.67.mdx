@@ -252,6 +252,9 @@ the `archived_at` column and replaces the delete function with `purge`.
 | `drive`                     | `deleteDrive(id)`, `drive_delete_drive()`                 | `purgeDrive(id)` after `archiveDrive(id)`, `drive_purge_drive()` (ADR 1084)                       |
 | `drive`                     | event `drive.deleted`                                     | `drive.purged`, plus `archived` and `restored`                                                    |
 | `drive`                     | `drives()` shows every drive                              | hides archived drives; `drives({ options: { includeArchived: true } })` adds them                 |
+| `enrollments`               | `deleteProgram(id)`, `delete_enrollment_program()`        | `purgeProgram(id)` after `archiveProgram(id)`, `purge_enrollment_program()` (ADR 1085)            |
+| `enrollments`               | event `enrollment_program.deleted`                        | `enrollment_program.purged`, plus `archived` and `restored`                                       |
+| `enrollments`               | `programs()` shows every program                          | hides archived programs; `programs({ includeArchived: true })` adds them                          |
 
 ## Team purge
 

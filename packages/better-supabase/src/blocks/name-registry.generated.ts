@@ -974,15 +974,15 @@ export interface BlockNameRegistry {
   };
   readonly "enrollments": {
     readonly tables: {
-      readonly "programs": "id" | "tenant" | "key" | "name" | "description" | "subjectTypes" | "steps" | "enabled" | "version" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "programs": "id" | "tenant" | "key" | "name" | "description" | "subjectTypes" | "steps" | "enabled" | "archivedAt" | "version" | "createdBy" | "createdAt" | "updatedAt";
       readonly "enrollments": "id" | "tenant" | "program" | "programVersion" | "subjectType" | "subjectId" | "user" | "steps" | "completedSteps" | "status" | "enrolledBy" | "enrolledAt" | "startsAt" | "endsAt" | "completedAt" | "cancelledAt" | "pausedAt" | "cancelReason" | "updatedAt";
       readonly "steps": "enrollment" | "tenant" | "step" | "assigneeRole" | "assigneeUser" | "dueAt" | "completedBy" | "completedAt";
     };
-    readonly functions: "cancel_enrollment" | "complete_enrollment_step" | "delete_enrollment_program" | "enroll" | "enrollment" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_json" | "enrollment_mark" | "enrollment_pause" | "enrollment_programs" | "enrollment_restart" | "enrollment_schedule" | "enrollment_step" | "get_enrollment" | "list_enrollments" | "open_enrollment_steps" | "page_enrollments" | "pause_enrollment" | "reset_enrollment_step" | "resume_enrollment" | "save_enrollment_program" | "set_enrollment_dates";
+    readonly functions: "archive_enrollment_program" | "cancel_enrollment" | "complete_enrollment_step" | "delete_enrollment_program" | "enroll" | "enrollment" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_json" | "enrollment_mark" | "enrollment_pause" | "enrollment_programs" | "enrollment_restart" | "enrollment_schedule" | "enrollment_step" | "get_enrollment" | "list_enrollments" | "open_enrollment_steps" | "page_enrollments" | "pause_enrollment" | "purge_enrollment_program" | "reset_enrollment_step" | "restore_enrollment_program" | "resume_enrollment" | "save_enrollment_program" | "set_enrollment_dates";
     readonly actions: "read" | "enroll" | "manage";
     readonly hooks: "before_enrollment_create" | "after_enrollment_create" | "before_enrollment_cancel" | "after_enrollment_cancel";
     readonly entities: {
-      readonly "enrollment_program": "id" | "tenant_id" | "key" | "name" | "description" | "subject_types" | "steps" | "enabled" | "version" | "created_by" | "created_at" | "updated_at";
+      readonly "enrollment_program": "id" | "tenant_id" | "key" | "name" | "description" | "subject_types" | "steps" | "enabled" | "archived_at" | "version" | "created_by" | "created_at" | "updated_at";
       readonly "enrollment": "id" | "tenant_id" | "program" | "program_version" | "subject_type" | "subject_id" | "user_id" | "steps" | "completed_steps" | "status" | "enrolled_by" | "enrolled_at" | "starts_at" | "ends_at" | "completed_at" | "cancelled_at" | "paused_at" | "cancel_reason" | "updated_at";
     };
     readonly primary: "enrollment_program";

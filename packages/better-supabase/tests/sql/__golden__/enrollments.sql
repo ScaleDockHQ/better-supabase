@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:0d33398804846e5cb083a669eaef84495056e4eb777fd99ffc42bdccbd97615a
+-- @bsb-hash sha256:9e788165ea22121e0aa6eef96dccffb32ed166300b1a0a2cfc5f8f6e9c6fe21e
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18,6 +18,7 @@ create table "better_supabase"."enrollment_programs" (
   "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
+  "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -428,6 +429,9 @@ begin
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
     end if;
+    if v_old."archived_at" is not null then
+      raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
+    end if;
     if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
@@ -527,14 +531,16 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
--- The organization's programs by key.
-create or replace function "better_supabase"."enrollment_programs"(tenant uuid)
+-- The organization's programs by key; archived ones stay out unless
+-- include_archived is true.
+
+create or replace function "better_supabase"."enrollment_programs"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -546,16 +552,82 @@ begin
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'archivedAt', x."archived_at", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
     from "better_supabase"."enrollment_programs" x where x."tenant_id" = enrollment_programs.tenant
+      and (coalesce(enrollment_programs.include_archived, false) or x."archived_at" is null)
   ), '[]'::jsonb);
 end;
 $$;
-revoke execute on function "better_supabase"."enrollment_programs"(uuid) from public, anon;
-grant execute on function "better_supabase"."enrollment_programs"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."enrollment_programs"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."enrollment_programs"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a program with its enrollments; false when it was already gone.
-create or replace function "better_supabase"."delete_enrollment_program"(program_id uuid)
+create or replace function "better_supabase"."archive_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = archive_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."enrollment_programs" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_enrollment_program"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = restore_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."enrollment_programs" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_enrollment_program"(uuid) to authenticated, service_role;
+
+-- Deletes a program with its enrollments for good, once it is archived; false when it was already gone.
+
+create or replace function "better_supabase"."purge_enrollment_program"(program_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -567,12 +639,15 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = delete_enrollment_program.program_id for update;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = purge_enrollment_program.program_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
-    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+    raise exception 'not allowed to purge enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    raise exception 'archive the program before purging it' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_NOT_ARCHIVED';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = v_row."key";
   delete from "better_supabase"."enrollment_programs" x where x."id" = v_row."id";
@@ -580,8 +655,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_enrollment_program"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_enrollment_program"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_enrollment_program"(uuid) to authenticated, service_role;
 
 -- Enrolls a subject in a program; returns the enrollment. Enrolling an
 -- enrolled subject returns its enrollment, and enrolling a cancelled one
@@ -609,6 +684,9 @@ begin
   where x."tenant_id" = enroll.tenant and x."key" = enroll.program;
   if v_program."id" is null then
     raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if v_program."archived_at" is not null then
+    raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
   end if;
   if not v_program."enabled" then
     raise exception 'this program is turned off' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
@@ -1366,7 +1444,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:39d7f2d5511d7cc0b6eb24c780cc5b10c6e2f0e25ef0c039eae3c13cbe070e4f
+-- @bsb-hash sha256:f5437bf2027978331ac6915f9be522c5eb805991679be89bca511e40cd224830
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1383,6 +1461,7 @@ create table "better_supabase"."enrollment_programs" (
   "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
+  "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1856,6 +1935,9 @@ begin
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
     end if;
+    if v_old."archived_at" is not null then
+      raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
+    end if;
     if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
@@ -1975,14 +2057,16 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version")
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
--- The organization's programs by key.
-create or replace function "better_supabase"."enrollment_programs"(tenant uuid)
+-- The organization's programs by key; archived ones stay out unless
+-- include_archived is true.
+
+create or replace function "better_supabase"."enrollment_programs"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -1994,16 +2078,102 @@ begin
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'archivedAt', x."archived_at", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
     from "better_supabase"."enrollment_programs" x where x."tenant_id" = enrollment_programs.tenant
+      and (coalesce(enrollment_programs.include_archived, false) or x."archived_at" is null)
   ), '[]'::jsonb);
 end;
 $$;
-revoke execute on function "better_supabase"."enrollment_programs"(uuid) from public, anon;
-grant execute on function "better_supabase"."enrollment_programs"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."enrollment_programs"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."enrollment_programs"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a program with its enrollments; false when it was already gone.
-create or replace function "better_supabase"."delete_enrollment_program"(program_id uuid)
+create or replace function "better_supabase"."archive_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = archive_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."enrollment_programs" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('enrollment_program.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version"), 'enrollment-programs/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/enrollments');
+  perform better_supabase.audit_event(
+    event_type => 'enrollment_program.archived',
+    category => 'data',
+    target_type => 'enrollment_program',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    summary => 'archived an enrollment program',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_enrollment_program"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = restore_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."enrollment_programs" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('enrollment_program.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version"), 'enrollment-programs/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/enrollments');
+  perform better_supabase.audit_event(
+    event_type => 'enrollment_program.restored',
+    category => 'data',
+    target_type => 'enrollment_program',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    summary => 'restored an enrollment program',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_enrollment_program"(uuid) to authenticated, service_role;
+
+-- Deletes a program with its enrollments for good, once it is archived; false when it was already gone.
+
+create or replace function "better_supabase"."purge_enrollment_program"(program_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2015,31 +2185,34 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = delete_enrollment_program.program_id for update;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = purge_enrollment_program.program_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
-    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+    raise exception 'not allowed to purge enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    raise exception 'archive the program before purging it' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_NOT_ARCHIVED';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = v_row."key";
   delete from "better_supabase"."enrollment_programs" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('enrollment_program.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version"), 'enrollment-programs/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/enrollments');
+  perform "better_supabase".emit_event('enrollment_program.purged', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version"), 'enrollment-programs/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/enrollments');
   perform better_supabase.audit_event(
-    event_type => 'enrollment_program.deleted',
+    event_type => 'enrollment_program.purged',
     category => 'data',
     target_type => 'enrollment_program',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    summary => 'deleted an enrollment program',
+    summary => 'purged an enrollment program',
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version")
   );
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_enrollment_program"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_enrollment_program"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_enrollment_program"(uuid) to authenticated, service_role;
 
 -- Enrolls a subject in a program; returns the enrollment. Enrolling an
 -- enrolled subject returns its enrollment, and enrolling a cancelled one
@@ -2067,6 +2240,9 @@ begin
   where x."tenant_id" = enroll.tenant and x."key" = enroll.program;
   if v_program."id" is null then
     raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if v_program."archived_at" is not null then
+    raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
   end if;
   if not v_program."enabled" then
     raise exception 'this program is turned off' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
@@ -2840,7 +3016,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:7f4233618804e066d20260e39485161406c9b3dec36a59f5f39d42584dfc5197
+-- @bsb-hash sha256:77b1126382b76156093110f7aae99758335ab72cf673439dc4a8987c4f7663a2
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2862,6 +3038,7 @@ create table "app_private"."enrollment_programs" (
   "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
+  "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -3272,6 +3449,9 @@ begin
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
     end if;
+    if v_old."archived_at" is not null then
+      raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
+    end if;
     if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
@@ -3371,14 +3551,16 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."save_enrollment_program"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
--- The organization's programs by key.
-create or replace function "app_private"."enrollment_programs"(tenant uuid)
+-- The organization's programs by key; archived ones stay out unless
+-- include_archived is true.
+
+create or replace function "app_private"."enrollment_programs"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -3390,16 +3572,82 @@ begin
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'archivedAt', x."archived_at", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
     from "app_private"."enrollment_programs" x where x."tenant_id" = enrollment_programs.tenant
+      and (coalesce(enrollment_programs.include_archived, false) or x."archived_at" is null)
   ), '[]'::jsonb);
 end;
 $$;
-revoke execute on function "app_private"."enrollment_programs"(uuid) from public, anon;
-grant execute on function "app_private"."enrollment_programs"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."enrollment_programs"(uuid, boolean) from public, anon;
+grant execute on function "app_private"."enrollment_programs"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a program with its enrollments; false when it was already gone.
-create or replace function "app_private"."delete_enrollment_program"(program_id uuid)
+create or replace function "app_private"."archive_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."enrollment_programs" x where x."id" = archive_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "app_private"."enrollment_programs" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."archive_enrollment_program"(uuid) from public, anon;
+grant execute on function "app_private"."archive_enrollment_program"(uuid) to authenticated, service_role;
+
+create or replace function "app_private"."restore_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."enrollment_programs" x where x."id" = restore_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "app_private"."enrollment_programs" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."restore_enrollment_program"(uuid) from public, anon;
+grant execute on function "app_private"."restore_enrollment_program"(uuid) to authenticated, service_role;
+
+-- Deletes a program with its enrollments for good, once it is archived; false when it was already gone.
+
+create or replace function "app_private"."purge_enrollment_program"(program_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -3411,12 +3659,15 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."enrollment_programs" x where x."id" = delete_enrollment_program.program_id for update;
+  select * into v_row from "app_private"."enrollment_programs" x where x."id" = purge_enrollment_program.program_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
-    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+    raise exception 'not allowed to purge enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    raise exception 'archive the program before purging it' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_NOT_ARCHIVED';
   end if;
   delete from "app_private"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = v_row."key";
   delete from "app_private"."enrollment_programs" x where x."id" = v_row."id";
@@ -3424,8 +3675,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "app_private"."delete_enrollment_program"(uuid) from public, anon;
-grant execute on function "app_private"."delete_enrollment_program"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."purge_enrollment_program"(uuid) from public, anon;
+grant execute on function "app_private"."purge_enrollment_program"(uuid) to authenticated, service_role;
 
 -- Enrolls a subject in a program; returns the enrollment. Enrolling an
 -- enrolled subject returns its enrollment, and enrolling a cancelled one
@@ -3453,6 +3704,9 @@ begin
   where x."tenant_id" = enroll.tenant and x."key" = enroll.program;
   if v_program."id" is null then
     raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if v_program."archived_at" is not null then
+    raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
   end if;
   if not v_program."enabled" then
     raise exception 'this program is turned off' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
@@ -4210,7 +4464,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:786d394309b245e1c1c9a027898aafec7d8442c07aa39aefd39aaa711e2b518d
+-- @bsb-hash sha256:b72e1d5daa87610619c763e67fa0ef374dca33c08c700c6545dc7448b0e8f4af
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4227,6 +4481,7 @@ create table "better_supabase"."enrollment_programs" (
   "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
+  "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -4637,6 +4892,9 @@ begin
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
     end if;
+    if v_old."archived_at" is not null then
+      raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
+    end if;
     if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
@@ -4736,14 +4994,16 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
--- The organization's programs by key.
-create or replace function "better_supabase"."enrollment_programs"(tenant uuid)
+-- The organization's programs by key; archived ones stay out unless
+-- include_archived is true.
+
+create or replace function "better_supabase"."enrollment_programs"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -4755,16 +5015,82 @@ begin
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'archivedAt', x."archived_at", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
     from "better_supabase"."enrollment_programs" x where x."tenant_id" = enrollment_programs.tenant
+      and (coalesce(enrollment_programs.include_archived, false) or x."archived_at" is null)
   ), '[]'::jsonb);
 end;
 $$;
-revoke execute on function "better_supabase"."enrollment_programs"(uuid) from public, anon;
-grant execute on function "better_supabase"."enrollment_programs"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."enrollment_programs"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."enrollment_programs"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a program with its enrollments; false when it was already gone.
-create or replace function "better_supabase"."delete_enrollment_program"(program_id uuid)
+create or replace function "better_supabase"."archive_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = archive_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."enrollment_programs" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_enrollment_program"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = restore_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."enrollment_programs" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_enrollment_program"(uuid) to authenticated, service_role;
+
+-- Deletes a program with its enrollments for good, once it is archived; false when it was already gone.
+
+create or replace function "better_supabase"."purge_enrollment_program"(program_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -4776,12 +5102,15 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = delete_enrollment_program.program_id for update;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = purge_enrollment_program.program_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
-    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+    raise exception 'not allowed to purge enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    raise exception 'archive the program before purging it' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_NOT_ARCHIVED';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = v_row."key";
   delete from "better_supabase"."enrollment_programs" x where x."id" = v_row."id";
@@ -4789,8 +5118,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_enrollment_program"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_enrollment_program"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_enrollment_program"(uuid) to authenticated, service_role;
 
 -- Enrolls a subject in a program; returns the enrollment. Enrolling an
 -- enrolled subject returns its enrollment, and enrolling a cancelled one
@@ -4818,6 +5147,9 @@ begin
   where x."tenant_id" = enroll.tenant and x."key" = enroll.program;
   if v_program."id" is null then
     raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if v_program."archived_at" is not null then
+    raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
   end if;
   if not v_program."enabled" then
     raise exception 'this program is turned off' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
@@ -5571,24 +5903,42 @@ as $$ select "better_supabase"."save_enrollment_program"($1, $2) $$;
 revoke execute on function "api"."save_enrollment_program"(uuid, jsonb) from public, anon;
 grant execute on function "api"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."enrollment_programs"(tenant uuid)
+create or replace function "api"."enrollment_programs"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."enrollment_programs"($1) $$;
-revoke execute on function "api"."enrollment_programs"(uuid) from public, anon;
-grant execute on function "api"."enrollment_programs"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."enrollment_programs"($1, $2) $$;
+revoke execute on function "api"."enrollment_programs"(uuid, boolean) from public, anon;
+grant execute on function "api"."enrollment_programs"(uuid, boolean) to authenticated, service_role;
 
-create or replace function "api"."delete_enrollment_program"(program_id uuid)
+create or replace function "api"."archive_enrollment_program"(program_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_enrollment_program"($1) $$;
+revoke execute on function "api"."archive_enrollment_program"(uuid) from public, anon;
+grant execute on function "api"."archive_enrollment_program"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_enrollment_program"(program_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_enrollment_program"($1) $$;
+revoke execute on function "api"."restore_enrollment_program"(uuid) from public, anon;
+grant execute on function "api"."restore_enrollment_program"(uuid) to authenticated, service_role;
+
+create or replace function "api"."purge_enrollment_program"(program_id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."delete_enrollment_program"($1) $$;
-revoke execute on function "api"."delete_enrollment_program"(uuid) from public, anon;
-grant execute on function "api"."delete_enrollment_program"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."purge_enrollment_program"($1) $$;
+revoke execute on function "api"."purge_enrollment_program"(uuid) from public, anon;
+grant execute on function "api"."purge_enrollment_program"(uuid) to authenticated, service_role;
 
 create or replace function "api"."enroll"(tenant uuid, program text, subject_type text, subject_id text)
 returns jsonb
@@ -5720,7 +6070,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:75a144ee3954facd1b22e3ef8ede6fdaf72eb19827664677c58aefb25d7dab70
+-- @bsb-hash sha256:3021322005884cad08ade793b5bff7264536441346e0fd365ef44374136545d6
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5735,6 +6085,7 @@ alter table "better_supabase"."enrollment_programs" add column if not exists "su
 alter table "better_supabase"."enrollment_programs" add column if not exists "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array');
 alter table "better_supabase"."enrollment_programs" add column if not exists "enabled" boolean not null default true;
 alter table "better_supabase"."enrollment_programs" add column if not exists "version" integer not null default 1;
+alter table "better_supabase"."enrollment_programs" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."enrollment_programs" add column if not exists "created_by" uuid;
 alter table "better_supabase"."enrollment_programs" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."enrollment_programs" add column if not exists "updated_at" timestamptz not null default now();
@@ -6136,6 +6487,9 @@ begin
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
     end if;
+    if v_old."archived_at" is not null then
+      raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
+    end if;
     if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
@@ -6235,14 +6589,16 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
--- The organization's programs by key.
-create or replace function "better_supabase"."enrollment_programs"(tenant uuid)
+-- The organization's programs by key; archived ones stay out unless
+-- include_archived is true.
+
+create or replace function "better_supabase"."enrollment_programs"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -6254,16 +6610,82 @@ begin
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'archivedAt', x."archived_at", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
     from "better_supabase"."enrollment_programs" x where x."tenant_id" = enrollment_programs.tenant
+      and (coalesce(enrollment_programs.include_archived, false) or x."archived_at" is null)
   ), '[]'::jsonb);
 end;
 $$;
-revoke execute on function "better_supabase"."enrollment_programs"(uuid) from public, anon;
-grant execute on function "better_supabase"."enrollment_programs"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."enrollment_programs"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."enrollment_programs"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a program with its enrollments; false when it was already gone.
-create or replace function "better_supabase"."delete_enrollment_program"(program_id uuid)
+create or replace function "better_supabase"."archive_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = archive_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."enrollment_programs" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_enrollment_program"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = restore_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."enrollment_programs" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_enrollment_program"(uuid) to authenticated, service_role;
+
+-- Deletes a program with its enrollments for good, once it is archived; false when it was already gone.
+
+create or replace function "better_supabase"."purge_enrollment_program"(program_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -6275,12 +6697,15 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = delete_enrollment_program.program_id for update;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = purge_enrollment_program.program_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.manage'), false))) then
-    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+    raise exception 'not allowed to purge enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    raise exception 'archive the program before purging it' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_NOT_ARCHIVED';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = v_row."key";
   delete from "better_supabase"."enrollment_programs" x where x."id" = v_row."id";
@@ -6288,8 +6713,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_enrollment_program"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_enrollment_program"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_enrollment_program"(uuid) to authenticated, service_role;
 
 -- Enrolls a subject in a program; returns the enrollment. Enrolling an
 -- enrolled subject returns its enrollment, and enrolling a cancelled one
@@ -6317,6 +6742,9 @@ begin
   where x."tenant_id" = enroll.tenant and x."key" = enroll.program;
   if v_program."id" is null then
     raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if v_program."archived_at" is not null then
+    raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
   end if;
   if not v_program."enabled" then
     raise exception 'this program is turned off' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';
@@ -7074,7 +7502,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:955c7b683c0322d224a2b0fa4e6a8ced45e37ad7c5999ecab2157718104f39a1
+-- @bsb-hash sha256:570a04418551db79bdc12a27d98c4a91efb83bfcf96c762a9265100ac4c1086d
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7091,6 +7519,7 @@ create table "better_supabase"."enrollment_programs" (
   "steps" jsonb not null default '[]'::jsonb constraint bsb_enrollment_programs_steps_check check (jsonb_typeof("steps") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
+  "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -7501,6 +7930,9 @@ begin
     if v_old."id" is null then
       raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
     end if;
+    if v_old."archived_at" is not null then
+      raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
+    end if;
     if save_enrollment_program.program ? 'version' and (save_enrollment_program.program ->> 'version')::integer is distinct from v_old."version" then
       raise exception 'the program changed since you read it' using errcode = '40001', hint = 'ENROLLMENTS_PROGRAM_CONFLICT';
     end if;
@@ -7600,14 +8032,16 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_enrollment_program"(uuid, jsonb) to authenticated, service_role;
 
--- The organization's programs by key.
-create or replace function "better_supabase"."enrollment_programs"(tenant uuid)
+-- The organization's programs by key; archived ones stay out unless
+-- include_archived is true.
+
+create or replace function "better_supabase"."enrollment_programs"(tenant uuid, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -7619,16 +8053,82 @@ begin
     raise exception 'not allowed to read enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'description', x."description", 'subjectTypes', to_jsonb(x."subject_types"), 'steps', x."steps", 'enabled', x."enabled", 'archivedAt', x."archived_at", 'version', x."version", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."key")
     from "better_supabase"."enrollment_programs" x where x."org_id" = enrollment_programs.tenant
+      and (coalesce(enrollment_programs.include_archived, false) or x."archived_at" is null)
   ), '[]'::jsonb);
 end;
 $$;
-revoke execute on function "better_supabase"."enrollment_programs"(uuid) from public, anon;
-grant execute on function "better_supabase"."enrollment_programs"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."enrollment_programs"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."enrollment_programs"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a program with its enrollments; false when it was already gone.
-create or replace function "better_supabase"."delete_enrollment_program"(program_id uuid)
+create or replace function "better_supabase"."archive_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = archive_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."enrollment_programs" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_enrollment_program"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."restore_enrollment_program"(program_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."enrollment_programs";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = restore_enrollment_program.program_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.manage'), false))) then
+    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."enrollment_programs" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'archivedAt', v_row."archived_at", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_enrollment_program"(uuid) to authenticated, service_role;
+
+-- Deletes a program with its enrollments for good, once it is archived; false when it was already gone.
+
+create or replace function "better_supabase"."purge_enrollment_program"(program_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -7640,12 +8140,15 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = delete_enrollment_program.program_id for update;
+  select * into v_row from "better_supabase"."enrollment_programs" x where x."id" = purge_enrollment_program.program_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'enrollments.manage'), false))) then
-    raise exception 'not allowed to manage enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+    raise exception 'not allowed to purge enrollment programs' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    raise exception 'archive the program before purging it' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_NOT_ARCHIVED';
   end if;
   delete from "better_supabase"."enrollments" x where x."org_id" = v_row."org_id" and x."program" = v_row."key";
   delete from "better_supabase"."enrollment_programs" x where x."id" = v_row."id";
@@ -7653,8 +8156,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_enrollment_program"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_enrollment_program"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_enrollment_program"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_enrollment_program"(uuid) to authenticated, service_role;
 
 -- Enrolls a subject in a program; returns the enrollment. Enrolling an
 -- enrolled subject returns its enrollment, and enrolling a cancelled one
@@ -7682,6 +8185,9 @@ begin
   where x."org_id" = enroll.tenant and x."key" = enroll.program;
   if v_program."id" is null then
     raise exception 'enrollment program not found' using errcode = 'P0002', hint = 'ENROLLMENTS_PROGRAM_NOT_FOUND';
+  end if;
+  if v_program."archived_at" is not null then
+    raise exception 'program is archived; restore it first' using errcode = '55000', hint = 'ENROLLMENTS_PROGRAM_ARCHIVED';
   end if;
   if not v_program."enabled" then
     raise exception 'this program is turned off' using errcode = '22023', hint = 'ENROLLMENTS_INVALID';

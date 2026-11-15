@@ -5809,6 +5809,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "subjectTypes": "subject_types",
               "steps": "steps",
               "enabled": "enabled",
+              "archivedAt": "archived_at",
               "version": "version",
               "createdBy": "created_by",
               "createdAt": "created_at",
@@ -17230,7 +17231,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "enrollment_program.created",
           "enrollment_program.updated",
-          "enrollment_program.deleted",
+          "enrollment_program.archived",
+          "enrollment_program.restored",
+          "enrollment_program.purged",
           "enrollment.created",
           "enrollment.step_completed",
           "enrollment.paused",

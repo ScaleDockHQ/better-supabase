@@ -60,7 +60,10 @@ number, migration and pgTAP test:
 
 ## Consequences
 
-ADR 1041's table lists the seventeen. EX-1207 counts them as decided and the six
-stay open until their slices merge. The slices rename the delete method to
+ADR 1041's table lists the seventeen. EX-1207 counts them as decided. The six
+slices are done: `score_model` (ADR 1053), `care_rule` (ADR 1054), `agent`
+(ADR 1080), `field_definition` (ADR 1083), `drive` (ADR 1084) and
+`enrollment_program` (ADR 1085). The slices rename the delete method to
 `purge`, so each lists old and new names in its changeset and the 0.66 to 0.67
-migration guide.
+migration guide. The revoke semantics of a credential, a hostname and an OAuth
+client are tested in `supabase/tests/database/credential_hostname_oauth_revoke.test.sql`.

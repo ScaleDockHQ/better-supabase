@@ -163,7 +163,33 @@ describe.skipIf(!live)("enrollments", () => {
       );
 
       await s.as(owner);
-      expect(await enrollments.deleteProgram(program.id).orThrow()).toBe(true);
+      const archived = await enrollments.archiveProgram(program.id).orThrow();
+
+      expect(archived.archivedAt).toBeDefined();
+      expect(
+        (await enrollments.programs().orThrow()).map((row) => row.id),
+      ).not.toContain(program.id);
+      expect(
+        (await enrollments.programs({ includeArchived: true }).orThrow()).map(
+          (row) => row.id,
+        ),
+      ).toContain(program.id);
+
+      const refused = await enrollments.enroll({
+        program: program.key,
+        subject: { type: "user", id: owner.id },
+      });
+
+      expect(refused.ok).toBe(false);
+      expect(
+        (await enrollments.restoreProgram(program.id).orThrow()).archivedAt,
+      ).toBeUndefined();
+      const early = await enrollments.purgeProgram(program.id);
+
+      expect(early.ok).toBe(false);
+      expect(early.error?.code).toBe("55000");
+      await enrollments.archiveProgram(program.id).orThrow();
+      expect(await enrollments.purgeProgram(program.id).orThrow()).toBe(true);
     } finally {
       await s.close();
     }
