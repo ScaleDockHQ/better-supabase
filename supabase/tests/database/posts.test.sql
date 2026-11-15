@@ -2,7 +2,7 @@
 -- opens a feedback board, the member (…00a2) posts, replies and votes, the
 -- owner locks, merges and moderates, and Globex (…0002) sees nothing.
 begin;
-select plan(22);
+select plan(27);
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated, anon, service_role;
@@ -181,6 +181,9 @@ select set_config(
   true
 );
 
+insert into ids
+select 'keep', (api.create_post((select id from ids where name = 'board'), '{"title":"Keep me"}') ->> 'id')::uuid;
+
 select throws_ok(
   $$select api.vote_on_post((select id from ids where name = 'dark'), -1)$$,
   'P0002',
@@ -220,10 +223,38 @@ select throws_ok(
   null,
   'a banned member can''t post'
 );
+select isnt(
+  api.archive_post((select id from ids where name = 'keep')) ->> 'archivedAt',
+  null,
+  'the author archives their post'
+);
 select is(
-  api.delete_post((select id from ids where name = 'night')),
-  true,
-  'the author deletes their post'
+  (select count(*)::int from jsonb_array_elements(api.list_posts('00000000-0000-4000-8000-000000000001', '{}')) e
+   where e ->> 'id' = (select id::text from ids where name = 'keep')),
+  0,
+  'an archived post leaves the list'
+);
+select is(
+  (select count(*)::int from jsonb_array_elements(api.list_posts('00000000-0000-4000-8000-000000000001', '{"archived":true}')) e
+   where e ->> 'id' = (select id::text from ids where name = 'keep')),
+  1,
+  'the archived filter lists it'
+);
+select throws_ok(
+  $$select api.vote_on_post((select id from ids where name = 'keep'), 1)$$,
+  '42501',
+  null,
+  'an archived post takes no votes'
+);
+select is(
+  api.restore_post((select id from ids where name = 'keep')) ->> 'archivedAt',
+  null,
+  'the author restores it'
+);
+select is(
+  api.purge_post((select id from ids where name = 'night')) ->> 'id',
+  (select id::text from ids where name = 'night'),
+  'the author purges their post'
 );
 
 select * from finish();

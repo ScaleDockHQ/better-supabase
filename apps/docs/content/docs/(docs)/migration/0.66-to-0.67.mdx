@@ -219,6 +219,9 @@ the `archived_at` column and replaces the delete function with `purge`.
 | `meetings`      | `meetings.list()` shows every meeting                     | hides archived meetings; `list({ archived: true })` lists only them                               |
 | `courses`       | `courses.delete(id)`, `delete_course()`                   | `courses.purge(id)`, `purge_course()`, plus `archive` and `restore`                               |
 | `courses`       | event `course.deleted`                                    | `course.purged`, plus `archived` and `restored`                                                   |
+| `posts`         | `posts.delete(id)`, `delete_post()`                       | `posts.purge(id)`, `purge_post()`, plus `archive` and `restore`                                   |
+| `posts`         | event `post.deleted`                                      | `post.purged`, plus `archived` and `restored`                                                     |
+| `posts`         | `posts.list()` shows every post                           | hides archived posts; `list({ archived: true })` lists only them                                  |
 
 ## Team purge
 

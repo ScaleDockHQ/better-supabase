@@ -7868,6 +7868,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "moderation": "moderation_status",
               "pinnedAt": "pinned_at",
               "lockedAt": "locked_at",
+              "archivedAt": "archived_at",
               "mergedInto": "merged_into_id",
               "replyCount": "reply_count",
               "lastActivityAt": "last_activity_at",
@@ -21502,7 +21503,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "post.status_changed",
           "post.moderated",
           "post.merged",
-          "post.deleted"
+          "post.archived",
+          "post.restored",
+          "post.purged"
         ]
       }
     },

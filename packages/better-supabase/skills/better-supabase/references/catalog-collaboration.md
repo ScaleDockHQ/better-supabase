@@ -149,7 +149,7 @@ Forum threads and feedback posts on boards. Replies are comments on the messagin
 - Entities: `post_board`, `post`
 - Tables: `post_boards`, `posts`
 - Permission keys: `posts.read`, `posts.write`, `posts.moderate`, `posts.manage`
-- Events (`PostsEvents`): `post.created`, `post.deleted`, `post.merged`, `post.moderated`, `post.status_changed`, `post.updated`, `post_board.created`, `post_board.updated`
+- Events (`PostsEvents`): `post.archived`, `post.created`, `post.merged`, `post.moderated`, `post.purged`, `post.restored`, `post.status_changed`, `post.updated`, `post_board.created`, `post_board.updated`
 
 ## acknowledgements
 

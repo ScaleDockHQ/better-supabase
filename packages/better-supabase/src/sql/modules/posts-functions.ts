@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { archiveRestoreFunctions } from "../archive-sql.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import {
   pageSize,
@@ -150,6 +151,11 @@ function postWrites(ctx: BlockSqlContext): string {
   const { fn, b, p, boards, posts, subject, invalid, forbidden, postMissing } =
     q;
 
+  const purgeKey =
+    ctx.config.permissions["purge"] === undefined
+      ? undefined
+      : sqlString(ctx.config.permissions["purge"]);
+
   const track = q.moderation.fn("moderation_track");
   const banned = q.moderation.fn("moderation_banned");
   const initial = q.mode === "pre" ? "'pending'" : "'visible'";
@@ -259,7 +265,14 @@ begin
   end if;
   if jsonb_typeof(update_post.attrs) is distinct from 'object' then
     ${invalid("attrs must be an object")}
-  end if;
+  end if;${
+    q.hasPost("archivedAt")
+      ? `
+  if v_row.${p("archivedAt")} is not null then
+    ${invalid("the post is archived; restore it first")}
+  end if;`
+      : ""
+  }
   v_title := case when update_post.attrs ? 'title' then trim(update_post.attrs ->> 'title') else v_row.${p("title")} end;
   v_body := case when update_post.attrs ? 'body' then coalesce(update_post.attrs ->> 'body', '') else v_row.${p("body")} end;
   if coalesce(length(v_title), 0) not between 1 and 300 then
@@ -349,7 +362,7 @@ begin
   if not ${moderator("v_row")} then
     ${forbidden("not allowed to moderate posts")}
   end if;
-  if v_target.${p("id")} = v_row.${p("id")} or v_target.${p("mergedInto")} is not null then
+  if v_target.${p("id")} = v_row.${p("id")} or v_target.${p("mergedInto")} is not null${q.hasPost("archivedAt") ? ` or v_target.${p("archivedAt")} is not null` : ""} then
     ${invalid("merge into another post that wasn't merged itself")}
   end if;
   ${mergeVotes(ctx, "v_row", "v_target")}
@@ -364,10 +377,38 @@ end;
 $$;
 ${userGrant(`${fn("merge_posts")}(uuid, uuid)`)}
 
--- Deletes a post with its votes: its author, or a moderator. False when
--- there was none.
-create or replace function ${fn("delete_post")}(post_id uuid)
-returns boolean
+${
+  q.hasPost("archivedAt")
+    ? archiveRestoreFunctions(ctx, {
+        entity: "post",
+        arg: "post_id",
+        rowType: posts,
+        table: posts,
+        id: p("id"),
+        archivedAt: p("archivedAt"),
+        ...(q.hasPost("updatedAt") ? { updatedAt: p("updatedAt") } : {}),
+        json: json("v_row"),
+        archiveNote:
+          "Archives a post: it leaves list_posts and keeps its replies and votes, but takes no new votes or replies. Its author or a moderator.",
+        restoreNote:
+          "Brings an archived post back to list_posts. Its author or a moderator.",
+        load: (name) => `${load(name, "post_id")}
+  if not (${moderator("v_row")} or coalesce(v_row.${p("author")} = auth.uid(), false)) then
+    ${forbidden("not allowed to change this post")}
+  end if;`,
+        record: (type) =>
+          q.record(
+            type,
+            "v_row",
+            `post ${type.endsWith("archived") ? "archived" : "restored"}`,
+          ),
+      })
+    : ""
+}
+-- Removes a post for good, with its votes. Needs permissions.purge when the
+-- app sets it; otherwise the post's author or a moderator.
+create or replace function ${fn("purge_post")}(post_id uuid)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -376,19 +417,16 @@ as $$
 declare
   v_row ${posts};
 begin
-  select * into v_row from ${posts} x where x.${p("id")} = delete_post.post_id for update;
-  if not found then
-    return false;
-  end if;
-  if not (${moderator("v_row")} or coalesce(v_row.${p("author")} = auth.uid(), false)) then
-    ${forbidden("not allowed to delete this post")}
+  ${load("purge_post", "post_id")}
+  if not ${purgeKey === undefined ? `(${moderator("v_row")} or coalesce(v_row.${p("author")} = auth.uid(), false))` : q.allowed(`v_row.${p("tenant")}`, purgeKey)} then
+    ${forbidden("not allowed to purge this post")}
   end if;
   delete from ${posts} x where x.${p("id")} = v_row.${p("id")};
-  ${q.record("post.deleted", "v_row", "deleted a post")}
-  return true;
+  ${q.record("post.purged", "v_row", "post purged")}
+  return ${json("v_row")};
 end;
 $$;
-${userGrant(`${fn("delete_post")}(uuid)`)}
+${userGrant(`${fn("purge_post")}(uuid)`)}
 `;
 }
 
@@ -455,9 +493,10 @@ $$;
 ${userGrant(`${fn("get_post")}(uuid)`)}
 
 -- Posts the caller reads. filter is { boardId?, status?, authorId?, sort?,
--- merged?, limit?, offset? }: sort active (pinned first, then the latest
+-- merged?, archived?, limit?, offset? }: sort active (pinned first, then the latest
 -- activity; the default), new or top (most votes). Merged posts only with
--- merged true.
+-- merged true; archived posts are hidden unless archived is set (true lists
+-- only the archived ones).
 create or replace function ${fn("list_posts")}(tenant ${ctx.idType}, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -486,7 +525,12 @@ ${q.hasPost("pinnedAt") ? `          case when v_sort = 'active' then x.${p("pin
         and (v_filter ->> 'boardId' is null or x.${p("board")} = (v_filter ->> 'boardId')::uuid)
         and (v_filter ->> 'status' is null or ${asText(ctx, "posts", `x.${p("status")}`)} = v_filter ->> 'status')
         and (v_filter ->> 'authorId' is null or x.${p("author")} = (v_filter ->> 'authorId')::uuid)
-        and (coalesce((v_filter ->> 'merged')::boolean, false) or x.${p("mergedInto")} is null)
+        and (coalesce((v_filter ->> 'merged')::boolean, false) or x.${p("mergedInto")} is null)${
+          q.hasPost("archivedAt")
+            ? `
+        and (case when v_filter ? 'archived' then (x.${p("archivedAt")} is not null) = (v_filter ->> 'archived')::boolean else x.${p("archivedAt")} is null end)`
+            : ""
+        }
       order by n
       limit ${pageSize("(v_filter ->> 'limit')::integer", 50, 200)}
       offset greatest(coalesce((v_filter ->> 'offset')::integer, 0), 0)
@@ -497,7 +541,7 @@ $$;
 ${userGrant(`${fn("list_posts")}(${ctx.idType}, jsonb)`)}
 
 -- Sets the caller's vote on a post they read: 1 up, -1 down, 0 clears it.
--- Returns the post's tally. A merged post takes no votes.
+-- Returns the post's tally. A merged or archived post takes no votes.
 create or replace function ${fn("vote_on_post")}(post_id uuid, value integer)
 returns jsonb
 language plpgsql
@@ -507,9 +551,9 @@ as $$
 #variable_conflict use_variable
 declare
   v_tenant ${ctx.idType};
-  v_merged uuid;
+  v_merged uuid;${q.hasPost("archivedAt") ? "\n  v_archived timestamptz;" : ""}
 begin
-  select x.${p("tenant")}, x.${p("mergedInto")} into v_tenant, v_merged
+  select x.${p("tenant")}, x.${p("mergedInto")}${q.hasPost("archivedAt") ? `, x.${p("archivedAt")}` : ""} into v_tenant, v_merged${q.hasPost("archivedAt") ? ", v_archived" : ""}
   from ${posts} x where x.${p("id")} = vote_on_post.post_id and x.${p("moderation")} = 'visible';
   if not found then
     ${postMissing}
@@ -517,7 +561,14 @@ begin
   if v_merged is not null then
     ${forbidden("the post was merged; vote on the post it was merged into")}
   end if;
-  return ${reactions.fn("vote")}(v_tenant, ${subject}, vote_on_post.post_id::text, vote_on_post.value);
+${
+  q.hasPost("archivedAt")
+    ? `  if v_archived is not null then
+    ${forbidden("the post is archived")}
+  end if;
+`
+    : ""
+}  return ${reactions.fn("vote")}(v_tenant, ${subject}, vote_on_post.post_id::text, vote_on_post.value);
 end;
 $$;
 ${userGrant(`${fn("vote_on_post")}(uuid, integer)`)}

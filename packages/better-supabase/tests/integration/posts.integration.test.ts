@@ -229,7 +229,19 @@ describe.skipIf(!live)("posts module in Postgres", () => {
       (post) => post.mine && post.id !== dark,
     );
 
-    expect(await mine.delete(night!.id).orThrow()).toBe(true);
-    expect(await mine.delete(night!.id).orThrow()).toBe(false);
+    expect((await mine.archive(night!.id).orThrow()).archivedAt).toBeDefined();
+    expect(
+      (await mine.list({ merged: true }).orThrow()).some(
+        (post) => post.id === night!.id,
+      ),
+    ).toBe(false);
+    expect((await mine.vote({ postId: night!.id, value: 1 })).error?.hint).toBe(
+      "POST_FORBIDDEN",
+    );
+    expect(
+      (await mine.restore(night!.id).orThrow()).archivedAt,
+    ).toBeUndefined();
+    expect((await mine.purge(night!.id).orThrow()).id).toBe(night!.id);
+    expect((await mine.purge(night!.id)).error?.hint).toBe("POST_NOT_FOUND");
   });
 });
