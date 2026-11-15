@@ -319,3 +319,21 @@ describe("createForecasts", () => {
     expect(forecastsBlock.events.types).toEqual(["forecast_snapshot.created"]);
   });
 });
+
+describe("forecasts page", () => {
+  it("maps the rows of a page", async () => {
+    const { transport } = fakeTransport({
+      page_forecast_snapshots: {
+        items: [snapshotRow("f1")],
+        hasMore: false,
+        nextCursor: null,
+      },
+    });
+
+    const page = await createForecasts({ transport })
+      .page({ organizationId: "org" })
+      .orThrow();
+
+    expect(page.items.map((row) => row.id)).toEqual(["f1"]);
+  });
+});

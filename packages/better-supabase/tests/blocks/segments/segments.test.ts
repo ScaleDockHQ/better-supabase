@@ -185,3 +185,19 @@ describe("createSegments", () => {
     expect(segmentsBlock.name).toBe("segments");
   });
 });
+
+describe("segments page and get", () => {
+  it("maps the rows of a page and a get", async () => {
+    const { transport } = fakeTransport({
+      ...answers,
+      page_segments: { items: [segmentRow], hasMore: false, nextCursor: null },
+    });
+
+    const segments = createSegments({ transport });
+    const page = await segments.page({ organizationId: "org" }).orThrow();
+    const one = await segments.getSegment("s1").orThrow();
+
+    expect(page.items.map((segment) => segment.id)).toEqual(["s1"]);
+    expect(one.description).toBe("Software");
+  });
+});

@@ -577,3 +577,21 @@ describe("contracts block", () => {
     ).toBeDefined();
   });
 });
+
+describe("contracts page", () => {
+  it("maps the rows of a page", async () => {
+    const t = fieldsTransport({
+      page_contracts: () => ({
+        items: [MINIMAL],
+        hasMore: false,
+        nextCursor: null,
+      }),
+    });
+
+    const page = await createContracts({ transport: t })
+      .page({ organizationId: "o" })
+      .orThrow();
+
+    expect(page.items).toHaveLength(1);
+  });
+});

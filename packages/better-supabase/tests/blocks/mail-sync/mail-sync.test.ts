@@ -760,3 +760,34 @@ describe("createMailSync", () => {
     ).toBeDefined();
   });
 });
+
+describe("mail-sync pages and gets", () => {
+  it("maps the rows of the account and thread pages and gets", async () => {
+    const { transport } = fakeTransport({
+      page_mail_accounts: {
+        items: [accountRow],
+        hasMore: false,
+        nextCursor: null,
+      },
+      page_mail_threads: {
+        items: [threadRow],
+        hasMore: false,
+        nextCursor: null,
+      },
+      get_mail_account: accountRow,
+    });
+
+    const mail = createMailSync({ transport });
+
+    const accounts = await mail
+      .accountPage({ organizationId: "org" })
+      .orThrow();
+
+    const threads = await mail.threadPage({ organizationId: "org" }).orThrow();
+    const account = await mail.getAccount("a1").orThrow();
+
+    expect(accounts.items.map((row) => row.id)).toEqual(["a1"]);
+    expect(threads.items.map((row) => row.id)).toEqual(["t1"]);
+    expect(account.id).toBe("a1");
+  });
+});
