@@ -9957,6 +9957,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "startedAt": "started_at",
               "heldAt": "held_at",
+              "archivedAt": "archived_at",
               "summary": "summary",
               "createdBy": "created_by",
               "createdAt": "created_at",
@@ -21043,7 +21044,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "course.created",
           "course.updated",
-          "course.deleted",
+          "course.archived",
+          "course.restored",
+          "course.purged",
           "course.enrolled",
           "course.unenrolled",
           "course.completed",
@@ -23779,7 +23782,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "meeting.started",
           "meeting.concluded",
           "meeting.cancelled",
-          "meeting.deleted",
+          "meeting.archived",
+          "meeting.restored",
+          "meeting.purged",
           "meeting_decision.recorded",
           "meeting_decision.decided",
           "meeting_action_item.created"
@@ -23800,7 +23805,8 @@ export const PRESET_CATALOG: PresetCatalog = {
             "status",
             "from",
             "to",
-            "attendeeId"
+            "attendeeId",
+            "archived"
           ],
           "search": true
         }

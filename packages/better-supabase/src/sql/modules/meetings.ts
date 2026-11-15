@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { archiveRestoreContract } from "../archive-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, schemaPreamble, userGrant } from "../shared.ts";
 import { meetingFunctions } from "./meetings-functions.ts";
@@ -42,7 +43,9 @@ const EVENTS: BlockSqlEvents<MeetingsEvents> = {
   "meeting.started": meeting,
   "meeting.concluded": meeting,
   "meeting.cancelled": { subject: "meetings", payload: [...MEETING, "reason"] },
-  "meeting.deleted": meeting,
+  "meeting.archived": meeting,
+  "meeting.restored": meeting,
+  "meeting.purged": meeting,
   "meeting_decision.recorded": decision,
   "meeting_decision.decided": decision,
   "meeting_action_item.created": {
@@ -100,12 +103,13 @@ const NAMES: BlockSqlNames = {
         status: "status",
         startedAt: "started_at",
         heldAt: "held_at",
+        archivedAt: "archived_at",
         summary: "summary",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["location", "summary", "createdBy"],
+      optional: ["location", "summary", "archivedAt", "createdBy"],
     },
     attendees: {
       name: "meeting_attendees",
@@ -230,7 +234,7 @@ create table if not exists ${meetings} (
   ${m("endsAt")} timestamptz,
   ${m("status")} text not null default 'planned' check (${m("status")} in (${list(MEETING_STATUSES)})),
   ${m("startedAt")} timestamptz,
-  ${m("heldAt")} timestamptz,${opt("meetings", "summary", () => text(m("summary"), 20_000))}${opt("meetings", "createdBy", () => `${m("createdBy")} uuid`)}
+  ${m("heldAt")} timestamptz,${opt("meetings", "archivedAt", () => `${m("archivedAt")} timestamptz`)}${opt("meetings", "summary", () => text(m("summary"), 20_000))}${opt("meetings", "createdBy", () => `${m("createdBy")} uuid`)}
   ${m("createdAt")} timestamptz not null default now(),
   ${m("updatedAt")} timestamptz not null default now(),
   unique (${m("tenant")}, ${m("id")}),
@@ -351,14 +355,17 @@ ${meetingReads(ctx)}
 ${meetingIntegrations(ctx)}`;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     { name: "create_meeting", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "update_meeting", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "start_meeting", args: ["uuid"], returns: "jsonb" },
     { name: "hold_meeting", args: ["uuid", "text"], returns: "jsonb" },
     { name: "cancel_meeting", args: ["uuid", "text"], returns: "jsonb" },
-    { name: "delete_meeting", args: ["uuid"], returns: "jsonb" },
+    ...(ctx.has("meetings", "archivedAt")
+      ? archiveRestoreContract("meeting")
+      : []),
+    { name: "purge_meeting", args: ["uuid"], returns: "jsonb" },
     {
       name: "set_meeting_attendee",
       args: ["uuid", "uuid", "text", "text"],

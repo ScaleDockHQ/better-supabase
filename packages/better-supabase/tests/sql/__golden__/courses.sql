@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:8400dc8d40943423d9dca3f228a4d42cb08a17f1293e8c5c2039edaa77b8e718
+-- @bsb-hash sha256:ea485a14d0dc08d9aa928d96a788b6e3bf344465fc4c7fafcb7c345c742fe54c
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -328,9 +328,77 @@ $$;
 revoke execute on function "better_supabase"."save_course"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_course"(uuid, jsonb) to authenticated, service_role;
 
--- Deletes a course with its modules, lessons, enrollments, progress and
--- certificates; false when it was already gone.
-create or replace function "better_supabase"."delete_course"(course_id uuid)
+-- Archives a course: it takes status archived, which hides it from everyone
+-- without courses.manage, and records course.archived. Enrollments and
+-- progress stay. Does nothing when it is archived already.
+create or replace function "better_supabase"."archive_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."courses" x where x."id" = archive_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    update "better_supabase"."courses" x set "status" = 'archived', "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    null;
+  end if;
+  return "better_supabase"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_course"(uuid) to authenticated, service_role;
+
+-- Brings an archived course back as a draft, so it is published again on
+-- purpose, and records course.restored. Does nothing when it is not archived.
+create or replace function "better_supabase"."restore_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."courses" x where x."id" = restore_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" = 'archived' then
+    update "better_supabase"."courses" x set "status" = 'draft', "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    null;
+  end if;
+  return "better_supabase"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_course"(uuid) to authenticated, service_role;
+
+-- Removes a course for good, with its modules, lessons, enrollments, progress
+-- and certificates; false when it was already gone. Needs permissions.purge,
+-- which falls back to courses.manage.
+create or replace function "better_supabase"."purge_course"(course_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -342,12 +410,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."courses" x where x."id" = delete_course.course_id for update;
+  select * into v_row from "better_supabase"."courses" x where x."id" = purge_course.course_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
-    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+    raise exception 'not allowed to purge courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = ('course:' || v_row."id"::text);
   delete from "better_supabase"."courses" x where x."id" = v_row."id";
@@ -355,8 +423,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_course"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_course"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_course"(uuid) to authenticated, service_role;
 
 -- The organization's courses by title. Without courses.manage only the
 -- published ones. filters is { status (a value or a list of them), sort,
@@ -1329,7 +1397,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:00640a00a736f206368a9e35dd6fd0f265d10eed02e855f562ef6e8d11fe223d
+-- @bsb-hash sha256:cece24cb4bbdf30cef4bb906f18c3dd29bcf620fd93ab1aae56349cc1a33a709
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1696,9 +1764,97 @@ $$;
 revoke execute on function "better_supabase"."save_course"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_course"(uuid, jsonb) to authenticated, service_role;
 
--- Deletes a course with its modules, lessons, enrollments, progress and
--- certificates; false when it was already gone.
-create or replace function "better_supabase"."delete_course"(course_id uuid)
+-- Archives a course: it takes status archived, which hides it from everyone
+-- without courses.manage, and records course.archived. Enrollments and
+-- progress stay. Does nothing when it is archived already.
+create or replace function "better_supabase"."archive_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."courses" x where x."id" = archive_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    update "better_supabase"."courses" x set "status" = 'archived', "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    perform "better_supabase".emit_event('course.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'courses/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/courses');
+  perform better_supabase.audit_event(
+    event_type => 'course.archived',
+    category => 'data',
+    target_type => 'course',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'archived a course',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
+  );
+  end if;
+  return "better_supabase"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_course"(uuid) to authenticated, service_role;
+
+-- Brings an archived course back as a draft, so it is published again on
+-- purpose, and records course.restored. Does nothing when it is not archived.
+create or replace function "better_supabase"."restore_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."courses" x where x."id" = restore_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" = 'archived' then
+    update "better_supabase"."courses" x set "status" = 'draft', "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    perform "better_supabase".emit_event('course.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'courses/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/courses');
+  perform better_supabase.audit_event(
+    event_type => 'course.restored',
+    category => 'data',
+    target_type => 'course',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'restored a course',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
+  );
+  end if;
+  return "better_supabase"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_course"(uuid) to authenticated, service_role;
+
+-- Removes a course for good, with its modules, lessons, enrollments, progress
+-- and certificates; false when it was already gone. Needs permissions.purge,
+-- which falls back to courses.manage.
+create or replace function "better_supabase"."purge_course"(course_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1710,31 +1866,31 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."courses" x where x."id" = delete_course.course_id for update;
+  select * into v_row from "better_supabase"."courses" x where x."id" = purge_course.course_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
-    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+    raise exception 'not allowed to purge courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = ('course:' || v_row."id"::text);
   delete from "better_supabase"."courses" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('course.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'courses/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/courses');
+  perform "better_supabase".emit_event('course.purged', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'courses/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/courses');
   perform better_supabase.audit_event(
-    event_type => 'course.deleted',
+    event_type => 'course.purged',
     category => 'data',
     target_type => 'course',
     record_id => v_row."id"::text,
     target_label => v_row."title",
-    summary => 'deleted a course',
+    summary => 'purged a course',
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
   );
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_course"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_course"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_course"(uuid) to authenticated, service_role;
 
 -- The organization's courses by title. Without courses.manage only the
 -- published ones. filters is { status (a value or a list of them), sort,
@@ -2796,7 +2952,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:89f28f0480922e1bf897859012b759b908f61b36ac93c2cd17189ed22702172b
+-- @bsb-hash sha256:91042e1ee9c3b6007f20a059b1aa75d2d4a752846ba2baec479551185b3d179e
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3128,9 +3284,77 @@ $$;
 revoke execute on function "app_private"."save_course"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."save_course"(uuid, jsonb) to authenticated, service_role;
 
--- Deletes a course with its modules, lessons, enrollments, progress and
--- certificates; false when it was already gone.
-create or replace function "app_private"."delete_course"(course_id uuid)
+-- Archives a course: it takes status archived, which hides it from everyone
+-- without courses.manage, and records course.archived. Enrollments and
+-- progress stay. Does nothing when it is archived already.
+create or replace function "app_private"."archive_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."courses" x where x."id" = archive_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    update "app_private"."courses" x set "status" = 'archived', "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    null;
+  end if;
+  return "app_private"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "app_private"."archive_course"(uuid) from public, anon;
+grant execute on function "app_private"."archive_course"(uuid) to authenticated, service_role;
+
+-- Brings an archived course back as a draft, so it is published again on
+-- purpose, and records course.restored. Does nothing when it is not archived.
+create or replace function "app_private"."restore_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."courses" x where x."id" = restore_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" = 'archived' then
+    update "app_private"."courses" x set "status" = 'draft', "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    null;
+  end if;
+  return "app_private"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "app_private"."restore_course"(uuid) from public, anon;
+grant execute on function "app_private"."restore_course"(uuid) to authenticated, service_role;
+
+-- Removes a course for good, with its modules, lessons, enrollments, progress
+-- and certificates; false when it was already gone. Needs permissions.purge,
+-- which falls back to courses.manage.
+create or replace function "app_private"."purge_course"(course_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -3142,12 +3366,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."courses" x where x."id" = delete_course.course_id for update;
+  select * into v_row from "app_private"."courses" x where x."id" = purge_course.course_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
-    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+    raise exception 'not allowed to purge courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = ('course:' || v_row."id"::text);
   delete from "app_private"."courses" x where x."id" = v_row."id";
@@ -3155,8 +3379,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "app_private"."delete_course"(uuid) from public, anon;
-grant execute on function "app_private"."delete_course"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."purge_course"(uuid) from public, anon;
+grant execute on function "app_private"."purge_course"(uuid) to authenticated, service_role;
 
 -- The organization's courses by title. Without courses.manage only the
 -- published ones. filters is { status (a value or a list of them), sort,
@@ -4129,7 +4353,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:869258e8ad5fc8f98a096b1ebe4f76ae720cd00216ec1de3bb2afe3c04442471
+-- @bsb-hash sha256:671fb721e549e92931eabb9e362f1008f05cdf485f50ab192aadf1bc8c54228c
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4456,9 +4680,77 @@ $$;
 revoke execute on function "better_supabase"."save_course"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_course"(uuid, jsonb) to authenticated, service_role;
 
--- Deletes a course with its modules, lessons, enrollments, progress and
--- certificates; false when it was already gone.
-create or replace function "better_supabase"."delete_course"(course_id uuid)
+-- Archives a course: it takes status archived, which hides it from everyone
+-- without courses.manage, and records course.archived. Enrollments and
+-- progress stay. Does nothing when it is archived already.
+create or replace function "better_supabase"."archive_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."courses" x where x."id" = archive_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    update "better_supabase"."courses" x set "status" = 'archived', "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    null;
+  end if;
+  return "better_supabase"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_course"(uuid) to authenticated, service_role;
+
+-- Brings an archived course back as a draft, so it is published again on
+-- purpose, and records course.restored. Does nothing when it is not archived.
+create or replace function "better_supabase"."restore_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."courses" x where x."id" = restore_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" = 'archived' then
+    update "better_supabase"."courses" x set "status" = 'draft', "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    null;
+  end if;
+  return "better_supabase"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_course"(uuid) to authenticated, service_role;
+
+-- Removes a course for good, with its modules, lessons, enrollments, progress
+-- and certificates; false when it was already gone. Needs permissions.purge,
+-- which falls back to courses.manage.
+create or replace function "better_supabase"."purge_course"(course_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -4470,12 +4762,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."courses" x where x."id" = delete_course.course_id for update;
+  select * into v_row from "better_supabase"."courses" x where x."id" = purge_course.course_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
-    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+    raise exception 'not allowed to purge courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = ('course:' || v_row."id"::text);
   delete from "better_supabase"."courses" x where x."id" = v_row."id";
@@ -4483,8 +4775,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_course"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_course"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_course"(uuid) to authenticated, service_role;
 
 -- The organization's courses by title. Without courses.manage only the
 -- published ones. filters is { status (a value or a list of them), sort,
@@ -5453,14 +5745,32 @@ as $$ select "better_supabase"."save_course"($1, $2) $$;
 revoke execute on function "api"."save_course"(uuid, jsonb) from public, anon;
 grant execute on function "api"."save_course"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."delete_course"(course_id uuid)
+create or replace function "api"."archive_course"(course_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_course"($1) $$;
+revoke execute on function "api"."archive_course"(uuid) from public, anon;
+grant execute on function "api"."archive_course"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_course"(course_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_course"($1) $$;
+revoke execute on function "api"."restore_course"(uuid) from public, anon;
+grant execute on function "api"."restore_course"(uuid) to authenticated, service_role;
+
+create or replace function "api"."purge_course"(course_id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."delete_course"($1) $$;
-revoke execute on function "api"."delete_course"(uuid) from public, anon;
-grant execute on function "api"."delete_course"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."purge_course"($1) $$;
+revoke execute on function "api"."purge_course"(uuid) from public, anon;
+grant execute on function "api"."purge_course"(uuid) to authenticated, service_role;
 
 create or replace function "api"."list_courses"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -5620,7 +5930,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:afd2d4641826a84b3180d9d7c43a8cfeaa0398229f7731d5aa508f3b21b47c1e
+-- @bsb-hash sha256:758aa296a31ae898e9d4e3946874f14bbfa5716404cecb3892d397a92f2687bb
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5933,9 +6243,77 @@ $$;
 revoke execute on function "better_supabase"."save_course"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_course"(uuid, jsonb) to authenticated, service_role;
 
--- Deletes a course with its modules, lessons, enrollments, progress and
--- certificates; false when it was already gone.
-create or replace function "better_supabase"."delete_course"(course_id uuid)
+-- Archives a course: it takes status archived, which hides it from everyone
+-- without courses.manage, and records course.archived. Enrollments and
+-- progress stay. Does nothing when it is archived already.
+create or replace function "better_supabase"."archive_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."courses" x where x."id" = archive_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    update "better_supabase"."courses" x set "status" = better_supabase.as_column_type('archived', (null::"better_supabase"."courses")."status"), "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    null;
+  end if;
+  return "better_supabase"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_course"(uuid) to authenticated, service_role;
+
+-- Brings an archived course back as a draft, so it is published again on
+-- purpose, and records course.restored. Does nothing when it is not archived.
+create or replace function "better_supabase"."restore_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."courses" x where x."id" = restore_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" = 'archived' then
+    update "better_supabase"."courses" x set "status" = better_supabase.as_column_type('draft', (null::"better_supabase"."courses")."status"), "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    null;
+  end if;
+  return "better_supabase"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_course"(uuid) to authenticated, service_role;
+
+-- Removes a course for good, with its modules, lessons, enrollments, progress
+-- and certificates; false when it was already gone. Needs permissions.purge,
+-- which falls back to courses.manage.
+create or replace function "better_supabase"."purge_course"(course_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -5947,12 +6325,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."courses" x where x."id" = delete_course.course_id for update;
+  select * into v_row from "better_supabase"."courses" x where x."id" = purge_course.course_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.manage'), false))) then
-    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+    raise exception 'not allowed to purge courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."tenant_id" = v_row."tenant_id" and x."program" = ('course:' || v_row."id"::text);
   delete from "better_supabase"."courses" x where x."id" = v_row."id";
@@ -5960,8 +6338,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_course"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_course"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_course"(uuid) to authenticated, service_role;
 
 -- The organization's courses by title. Without courses.manage only the
 -- published ones. filters is { status (a value or a list of them), sort,
@@ -6934,7 +7312,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:b38d4af33377c3c430abb7dad9fdafd0e9dfa6b605ae913fd0f94dfb99fed320
+-- @bsb-hash sha256:9ee339ef6eed67a04040f2c4fa06c6ebeeebfafe0107aafb29ca4ff0269d54ed
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7261,9 +7639,77 @@ $$;
 revoke execute on function "better_supabase"."save_course"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."save_course"(uuid, jsonb) to authenticated, service_role;
 
--- Deletes a course with its modules, lessons, enrollments, progress and
--- certificates; false when it was already gone.
-create or replace function "better_supabase"."delete_course"(course_id uuid)
+-- Archives a course: it takes status archived, which hides it from everyone
+-- without courses.manage, and records course.archived. Enrollments and
+-- progress stay. Does nothing when it is archived already.
+create or replace function "better_supabase"."archive_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."courses" x where x."id" = archive_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'archived' then
+    update "better_supabase"."courses" x set "status" = 'archived', "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    null;
+  end if;
+  return "better_supabase"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_course"(uuid) to authenticated, service_role;
+
+-- Brings an archived course back as a draft, so it is published again on
+-- purpose, and records course.restored. Does nothing when it is not archived.
+create or replace function "better_supabase"."restore_course"(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."courses";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."courses" x where x."id" = restore_course.course_id for update;
+  if v_row."id" is null then
+    raise exception 'course not found' using errcode = 'P0002', hint = 'COURSE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'courses.manage'), false))) then
+    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+  end if;
+  if v_row."status" = 'archived' then
+    update "better_supabase"."courses" x set "status" = 'draft', "updated_at" = now()
+    where x."id" = v_row."id"
+    returning * into v_row;
+    null;
+  end if;
+  return "better_supabase"."course_json"(v_row."id");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_course"(uuid) to authenticated, service_role;
+
+-- Removes a course for good, with its modules, lessons, enrollments, progress
+-- and certificates; false when it was already gone. Needs permissions.purge,
+-- which falls back to courses.manage.
+create or replace function "better_supabase"."purge_course"(course_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -7275,12 +7721,12 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."courses" x where x."id" = delete_course.course_id for update;
+  select * into v_row from "better_supabase"."courses" x where x."id" = purge_course.course_id for update;
   if v_row."id" is null then
     return false;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'courses.manage'), false))) then
-    raise exception 'not allowed to manage courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
+    raise exception 'not allowed to purge courses' using errcode = '42501', hint = 'COURSE_FORBIDDEN';
   end if;
   delete from "better_supabase"."enrollments" x where x."org_id" = v_row."org_id" and x."program" = ('course:' || v_row."id"::text);
   delete from "better_supabase"."courses" x where x."id" = v_row."id";
@@ -7288,8 +7734,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_course"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_course"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_course"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_course"(uuid) to authenticated, service_role;
 
 -- The organization's courses by title. Without courses.manage only the
 -- published ones. filters is { status (a value or a list of them), sort,
