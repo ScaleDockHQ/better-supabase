@@ -319,8 +319,8 @@ export const MANIFEST_OUTPUT: EntityPageOutput = {
  * `pages/coverage.ts`: the routes of every block's declared pages, keyed by
  * block. The app merges it into its coverage map, so a page's route is written
  * once, in the descriptor. A page of an app entity (`app.<key>`) belongs to no
- * block and writes no entry. The file imports nothing, so a Node script can
- * load it.
+ * block, so it writes an entry only under the blocks its `app.blocks` names.
+ * The file imports nothing, so a Node script can load it.
  */
 export const COVERAGE_OUTPUT: EntityPageOutput = {
   apiVersion: 1,
@@ -329,18 +329,21 @@ export const COVERAGE_OUTPUT: EntityPageOutput = {
     const byBlock = new Map<string, string[]>();
 
     for (const entry of context.pages) {
-      if (entry.page.app !== undefined) {
-        continue;
-      }
-
       const route = entry.page.route.replace(/(.)\/$/, "$1");
-      const routes = byBlock.get(entry.block) ?? [];
 
-      if (!routes.includes(route)) {
-        routes.push(route);
+      const blocks = entry.page.app
+        ? (entry.page.app.blocks ?? [])
+        : [entry.block];
+
+      for (const block of blocks) {
+        const routes = byBlock.get(block) ?? [];
+
+        if (!routes.includes(route)) {
+          routes.push(route);
+        }
+
+        byBlock.set(block, routes);
       }
-
-      byBlock.set(entry.block, routes);
     }
 
     if (byBlock.size === 0) {

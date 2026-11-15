@@ -24,6 +24,7 @@ interface EntityPageInput {
             }
           | undefined;
         reads: { module: string; export: string };
+        blocks?: string[] | undefined;
       }
     | undefined;
   methods?:
@@ -86,6 +87,7 @@ export const entityPageSchema: v.GenericSchema<EntityPageInput> =
           }),
         ),
         reads: v.strictObject({ module: v.string(), export: v.string() }),
+        blocks: v.optional(v.array(v.string())),
       }),
     ),
     methods: v.optional(
