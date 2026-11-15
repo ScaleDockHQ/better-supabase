@@ -7,6 +7,7 @@ import {
   CARE_ALERT_SEVERITIES,
   CARE_RULE_KINDS,
 } from "./clinical-decision-support-values.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 
 const list = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
@@ -17,6 +18,13 @@ export function decisionSupportFunctions(ctx: BlockSqlContext): string {
   const { fn, r, a, rules, alerts, medications } = sql;
   const idType = ctx.idType;
   const m = (column: string): string => medications.col("medications", column);
+  const archivable = ctx.has("rules", "archivedAt");
+
+  const purge = ctx.permission(
+    "purge",
+    OPERATIONS["clinical-decision-support.manage"],
+  );
+
   const catalog = medications.table("medications");
 
   return `
@@ -96,7 +104,15 @@ begin
       returning * into v_row;
       v_created := true;
     else
-      update ${rules} x set ${r("kind")} = v_kind, ${r("medicationIds")} = v_ids, ${r("minDose")} = v_min, ${r("maxDose")} = v_max,
+${
+  archivable
+    ? `      perform 1 from ${rules} x where x.${r("id")} = v_id and x.${r("tenant")} = save_care_rule.tenant and x.${r("archivedAt")} is not null;
+      if found then
+        ${fail("DECISION_SUPPORT_RULE_ARCHIVED", "the rule is archived; restore it first", "55000")}
+      end if;
+`
+    : ""
+}      update ${rules} x set ${r("kind")} = v_kind, ${r("medicationIds")} = v_ids, ${r("minDose")} = v_min, ${r("maxDose")} = v_max,
         ${r("maxPerDay")} = v_day, ${r("severity")} = v_severity, ${r("message")} = v_message, ${r("active")} = v_active, ${r("updatedAt")} = now()
       where x.${r("id")} = v_id and x.${r("tenant")} = save_care_rule.tenant
       returning * into v_row;
@@ -117,9 +133,15 @@ end;
 $$;
 ${userGrant(`${fn("save_care_rule")}(${idType}, jsonb)`)}
 
--- Deletes a rule. Alerts it raised stay until the next evaluation resolves
--- them. Needs clinical_decision_support.manage.
-create or replace function ${fn("delete_care_rule")}(rule_id uuid)
+${
+  archivable
+    ? ["archive", "restore"]
+        .map((verb) => {
+          const name = `${verb}_care_rule`;
+          const past = verb === "archive" ? "archived" : "restored";
+
+          return `-- ${verb === "archive" ? "Archives a rule: it leaves the list and the evaluation, and it can't be saved until it is restored. Alerts it raised stay until the next evaluation resolves them." : "Restores an archived rule; it keeps its active flag and takes part in the next evaluation."} Needs clinical_decision_support.manage; ${verb === "archive" ? "archiving an archived rule" : "restoring one that is not archived"} returns it unchanged.
+create or replace function ${fn(name)}(rule_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -129,22 +151,64 @@ as $$
 declare
   v_row ${rules};
 begin
-  select * into v_row from ${rules} x where x.${r("id")} = delete_care_rule.rule_id for update;
+  select * into v_row from ${rules} x where x.${r("id")} = ${name}.rule_id for update;
   if not found or not ${sql.allowed(`v_row.${r("tenant")}`, sql.read)} then
     ${sql.ruleMissing}
   end if;
   if not ${sql.allowed(`v_row.${r("tenant")}`, sql.manage)} then
     ${sql.forbidden("not allowed to change care rules")}
   end if;
-  delete from ${rules} x where x.${r("id")} = v_row.${r("id")};
-  ${sql.recordRule("care_rule.deleted", "v_row", "care rule deleted")}
+  if (v_row.${r("archivedAt")} is not null) = ${verb === "archive" ? "true" : "false"} then
+    return ${sql.ruleJson("v_row")};
+  end if;
+  update ${rules} x set ${r("archivedAt")} = ${verb === "archive" ? "now()" : "null"}, ${r("updatedAt")} = now()
+  where x.${r("id")} = v_row.${r("id")}
+  returning * into v_row;
+  ${sql.recordRule(`care_rule.${past}`, "v_row", `care rule ${past}`)}
   return ${sql.ruleJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("delete_care_rule")}(uuid)`)}
+${userGrant(`${fn(name)}(uuid)`)}
 
--- The organization's rules, by kind. Needs clinical_decision_support.read.
-create or replace function ${fn("list_care_rules")}(tenant ${idType})
+`;
+        })
+        .join("")
+    : ""
+}-- Deletes a rule for good. Archive keeps it. Alerts it raised stay until the
+-- next evaluation resolves them. Needs clinical_decision_support.purge, which
+-- falls back to manage.
+drop function if exists ${fn("delete_care_rule")}(uuid);
+create or replace function ${fn("purge_care_rule")}(rule_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${rules};
+begin
+  select * into v_row from ${rules} x where x.${r("id")} = purge_care_rule.rule_id for update;
+  if not found or not ${sql.allowed(`v_row.${r("tenant")}`, sql.read)} then
+    ${sql.ruleMissing}
+  end if;
+  if not ${sql.allowed(`v_row.${r("tenant")}`, purge)} then
+    ${sql.forbidden("not allowed to purge care rules")}
+  end if;
+  delete from ${rules} x where x.${r("id")} = v_row.${r("id")};
+  ${sql.recordRule("care_rule.purged", "v_row", "care rule purged")}
+  return ${sql.ruleJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("purge_care_rule")}(uuid)`)}
+
+-- The organization's rules, by kind. Archived rules stay out unless
+-- include_archived is true. Needs clinical_decision_support.read.${
+    archivable
+      ? `\ndrop function if exists ${fn("list_care_rules")}(${idType});`
+      : ""
+  }
+create or replace function ${fn("list_care_rules")}(tenant ${idType}${archivable ? ", include_archived boolean default false" : ""})
 returns jsonb
 language plpgsql
 stable
@@ -159,11 +223,16 @@ begin
   return coalesce((
     select jsonb_agg(${sql.ruleJson("y")} order by y.${r("kind")}, y.${r("createdAt")}, y.${r("id")})
     from ${rules} y
-    where y.${r("tenant")} = list_care_rules.tenant
+    where y.${r("tenant")} = list_care_rules.tenant${
+      archivable
+        ? `
+      and (coalesce(list_care_rules.include_archived, false) or y.${r("archivedAt")} is null)`
+        : ""
+    }
   ), '[]'::jsonb);
 end;
 $$;
-${userGrant(`${fn("list_care_rules")}(${idType})`)}
+${userGrant(`${fn("list_care_rules")}(${idType}${archivable ? ", boolean" : ""})`)}
 
 -- Acknowledges or overrides an open alert. Overriding, and any decision on a
 -- critical alert, needs a reason. The decision is audited and stays on the
