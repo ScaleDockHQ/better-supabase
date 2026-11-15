@@ -30,7 +30,6 @@ export const driveBlock: BlockOf<
     drive_document: {
       ...driveDocumentListSurface,
       mutability: "state-machine",
-      emits: { create: false },
     },
   },
   concerns: ["lifecycle"],

@@ -26,7 +26,6 @@ export const formsBlock: BlockOf<"forms", typeof createForms, FormsEvents> =
       form_submission: {
         ...formSubmissionListSurface,
         mutability: "state-machine",
-        emits: { create: false },
       },
     },
     concerns: ["lifecycle", "search"],
