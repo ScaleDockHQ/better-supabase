@@ -61,7 +61,7 @@ export interface DriveGrantInput {
   readonly expiresAt?: Temporal.Instant;
 }
 
-/** One node of `drive.bulkShare` with the grants to give on it (ADR 1036). */
+/** One node of `drive.bulkShare` with the grants to give on it (ADR 1075). */
 export interface DriveBulkShareItem {
   /** The node's id; the report names the item by it. */
   readonly id: string;
@@ -108,7 +108,7 @@ export interface DriveHelpers<F extends object = Record<never, never>> {
     fields?: Readonly<Record<string, unknown>>;
   }): AsyncResult<DriveNode<F>>;
   /**
-   * Gives each node its own grants and reports per node (ADR 1036): a node
+   * Gives each node its own grants and reports per node (ADR 1075): a node
    * whose grant fails lands in `failed` with the first error, and the other
    * nodes still run. A grant is idempotent, so a retry finishes the rest. Takes
    * at most 500 nodes.
@@ -338,7 +338,7 @@ export function driveHelpers(
         (item) => shareGrants(self(), item.id, item.grants),
         bulkOptions,
       ),
-    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1036)
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1075)
     shareMany: ({ ids, grants }) =>
       AsyncResult.from(async () => {
         const given: DriveGrant[] = [];

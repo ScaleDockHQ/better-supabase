@@ -43,7 +43,7 @@ export interface Filespace {
     send: (upload: DriveUpload) => PromiseLike<void>;
   }): AsyncResult<DriveNode>;
   /**
-   * Shares one node with each principal and reports per principal (ADR 1036):
+   * Shares one node with each principal and reports per principal (ADR 1075):
    * the report names a principal as `type:id`, so a refused principal lands in
    * `failed` and the others still run. Takes at most 500 principals.
    */
@@ -127,7 +127,7 @@ export function createFilespace(options: FilespaceOptions): Filespace {
         options,
       ),
 
-    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1036)
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1075)
     shareMany: ({ id, principals, expiresAt }) =>
       Async.from(async () => {
         const grants: DriveGrant[] = [];

@@ -331,7 +331,7 @@ const values = await fields.readValues(customer).orThrow();
 
 ## Set several values
 
-`bulkSet({ subject, inputs }, options)` calls `setField` for each input in order and returns `{ succeeded, failed }` named by field key (ADR 1036). A refused field lands in `failed` and the others still run. It takes at most 500 inputs, each key once; a repeated key fails with `BULK_DUPLICATE_ID`.
+`bulkSet({ subject, inputs }, options)` calls `setField` for each input in order and returns `{ succeeded, failed }` named by field key (ADR 1075). A refused field lands in `failed` and the others still run. It takes at most 500 inputs, each key once; a repeated key fails with `BULK_DUPLICATE_ID`.
 
 ```ts
 const report = await customFields
