@@ -19,6 +19,10 @@ select set_config(
 );
 set local role authenticated;
 
+-- The local stack may hold seeded models, so the lists are compared to this count.
+select set_config('test.base',
+  jsonb_array_length(better_supabase.list_score_models('00000000-0000-4000-8000-000000000001'))::text, true);
+
 select set_config('test.model', better_supabase.save_score_model(
   '00000000-0000-4000-8000-000000000001',
   '{"key": "size", "name": "Size", "subjectType": "lead",
@@ -30,7 +34,7 @@ select better_supabase.compute_score(
 );
 
 select is(
-  jsonb_array_length(better_supabase.list_score_models('00000000-0000-4000-8000-000000000001')), 1,
+  jsonb_array_length(better_supabase.list_score_models('00000000-0000-4000-8000-000000000001')), current_setting('test.base')::integer + 1,
   'the model is listed before an archive'
 );
 
@@ -40,11 +44,11 @@ select isnt(
 );
 select is(pg_temp.n('score_model.archived'), 1, 'archiving records score_model.archived');
 select is(
-  jsonb_array_length(better_supabase.list_score_models('00000000-0000-4000-8000-000000000001')), 0,
+  jsonb_array_length(better_supabase.list_score_models('00000000-0000-4000-8000-000000000001')), current_setting('test.base')::integer,
   'the archived model leaves the list'
 );
 select is(
-  jsonb_array_length(better_supabase.list_score_models('00000000-0000-4000-8000-000000000001', null, true)), 1,
+  jsonb_array_length(better_supabase.list_score_models('00000000-0000-4000-8000-000000000001', null, true)), current_setting('test.base')::integer + 1,
   'include_archived lists it again'
 );
 select is(
