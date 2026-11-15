@@ -321,7 +321,7 @@
   },
   "/[locale]/(app)/crm/forecasts/page": {
     "raw": 3160332,
-    "gzip": 959641,
+    "gzip": 962049,
     "brotli": 798618
   },
   "/[locale]/(app)/crm/page": {
@@ -1112,12 +1112,12 @@
   "/[locale]/(app)/shop/inventory/lots/page": {
     "raw": 3134578,
     "gzip": 951013,
-    "brotli": 790258
+    "brotli": 792347
   },
   "/[locale]/(app)/shop/inventory/movements/page": {
     "raw": 3134635,
     "gzip": 951023,
-    "brotli": 790242
+    "brotli": 792334
   },
   "/[locale]/(app)/shop/inventory/page": {
     "raw": 3148864,
@@ -1821,7 +1821,7 @@
   },
   "/api/workflows/hooks/[token]/route": {
     "raw": 3245754,
-    "gzip": 992711,
+    "gzip": 995194,
     "brotli": 842716
   },
   "/api/workflows/runs/list/route": {
