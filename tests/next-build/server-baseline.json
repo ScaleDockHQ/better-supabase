@@ -220,9 +220,9 @@
     "brotli": 788059
   },
   "/[locale]/(app)/cases/page": {
-    "raw": 3129945,
-    "gzip": 949544,
-    "brotli": 790018
+    "raw": 3133234,
+    "gzip": 952097,
+    "brotli": 792280
   },
   "/[locale]/(app)/chat/page": {
     "raw": 3641621,
@@ -415,7 +415,7 @@
     "brotli": 785317
   },
   "/[locale]/(app)/deadlines/page": {
-    "raw": 3122021,
+    "raw": 3123356,
     "gzip": 947600,
     "brotli": 788513
   },
@@ -430,23 +430,23 @@
     "brotli": 785730
   },
   "/[locale]/(app)/documents/register/[id]/page": {
-    "raw": 3640104,
+    "raw": 3640828,
     "gzip": 1084774,
     "brotli": 903793
   },
   "/[locale]/(app)/documents/register/page": {
-    "raw": 3627188,
+    "raw": 3628381,
     "gzip": 1080915,
     "brotli": 899684
   },
   "/[locale]/(app)/documents/templates/[id]/page": {
-    "raw": 3125401,
-    "gzip": 947525,
-    "brotli": 789316
+    "raw": 3128645,
+    "gzip": 951130,
+    "brotli": 791391
   },
   "/[locale]/(app)/documents/templates/page": {
-    "raw": 3123996,
-    "gzip": 947276,
+    "raw": 3125443,
+    "gzip": 950093,
     "brotli": 788807
   },
   "/[locale]/(app)/drive/[folderId]/page": {
@@ -460,19 +460,19 @@
     "brotli": 906044
   },
   "/[locale]/(app)/field/day/page": {
-    "raw": 3136220,
-    "gzip": 953274,
-    "brotli": 793471
+    "raw": 3139500,
+    "gzip": 955913,
+    "brotli": 795559
   },
   "/[locale]/(app)/field/dispatch/page": {
-    "raw": 3140823,
-    "gzip": 953890,
-    "brotli": 793963
+    "raw": 3144103,
+    "gzip": 956528,
+    "brotli": 796062
   },
   "/[locale]/(app)/field/shipments/page": {
-    "raw": 3139944,
-    "gzip": 953626,
-    "brotli": 793729
+    "raw": 3143224,
+    "gzip": 956263,
+    "brotli": 795831
   },
   "/[locale]/(app)/finance/accounting/[id]/page": {
     "raw": 3170618,
@@ -735,9 +735,9 @@
     "brotli": 803590
   },
   "/[locale]/(app)/people/[id]/page": {
-    "raw": 3129219,
-    "gzip": 949319,
-    "brotli": 790053
+    "raw": 3132499,
+    "gzip": 951932,
+    "brotli": 792093
   },
   "/[locale]/(app)/people/encryption/page": {
     "raw": 3130218,
@@ -745,34 +745,34 @@
     "brotli": 789862
   },
   "/[locale]/(app)/people/hiring/page": {
-    "raw": 3135402,
-    "gzip": 952175,
-    "brotli": 792507
+    "raw": 3138682,
+    "gzip": 954785,
+    "brotli": 794539
   },
   "/[locale]/(app)/people/leave/[id]/page": {
-    "raw": 3129625,
-    "gzip": 950259,
-    "brotli": 790865
+    "raw": 3133286,
+    "gzip": 952958,
+    "brotli": 793044
   },
   "/[locale]/(app)/people/leave/page": {
-    "raw": 3129869,
+    "raw": 3131655,
     "gzip": 950471,
     "brotli": 791039
   },
   "/[locale]/(app)/people/onboarding/page": {
-    "raw": 3124825,
+    "raw": 3126225,
     "gzip": 948411,
     "brotli": 789158
   },
   "/[locale]/(app)/people/page": {
-    "raw": 3125958,
+    "raw": 3127436,
     "gzip": 948663,
     "brotli": 789457
   },
   "/[locale]/(app)/people/time/page": {
-    "raw": 3141132,
-    "gzip": 953545,
-    "brotli": 793715
+    "raw": 3144412,
+    "gzip": 956158,
+    "brotli": 795735
   },
   "/[locale]/(app)/prescriptions/page": {
     "raw": 3116296,
@@ -1515,17 +1515,17 @@
     "brotli": 291066
   },
   "/api/deadlines/list/route": {
-    "raw": 2732833,
+    "raw": 2734201,
     "gzip": 824391,
     "brotli": 700794
   },
   "/api/document-templates/list/route": {
-    "raw": 2733306,
+    "raw": 2734911,
     "gzip": 824552,
     "brotli": 701042
   },
   "/api/documents/register/list/route": {
-    "raw": 3243774,
+    "raw": 3244538,
     "gzip": 959627,
     "brotli": 815130
   },
@@ -1540,7 +1540,7 @@
     "brotli": 698561
   },
   "/api/employees/list/route": {
-    "raw": 2731087,
+    "raw": 2732695,
     "gzip": 823624,
     "brotli": 700120
   },
@@ -1635,7 +1635,7 @@
     "brotli": 698914
   },
   "/api/leave/list/route": {
-    "raw": 2734315,
+    "raw": 2736209,
     "gzip": 825130,
     "brotli": 701452
   },
@@ -1665,7 +1665,7 @@
     "brotli": 301448
   },
   "/api/onboarding/list/route": {
-    "raw": 2733235,
+    "raw": 2734688,
     "gzip": 824603,
     "brotli": 701109
   },
