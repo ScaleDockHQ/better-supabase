@@ -6,7 +6,7 @@ import { useExtracted } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 
-import type { RecordListColumns } from "./record-list-grid";
+import type { RecordListColumns, RecordListSorting } from "./record-list-grid";
 import type {
   RecordListFacet,
   RecordListPage,
@@ -18,6 +18,14 @@ import { RecordListFacetsLazy } from "./record-list-facets-lazy";
 import { RecordListGrid } from "./record-list-grid";
 import { RecordListToolbar } from "./record-list-toolbar";
 import { useRecordListPage } from "./use-record-list-page";
+
+/**
+ * The column the first term of a `sort` value names (`number:asc,title` is
+ * `number`).
+ */
+function firstSortOf(sort: string): string {
+  return sort.split(",")[0]?.split(":")[0] ?? sort;
+}
 
 /**
  * The overview kit: a toolbar, a read-only grid and cursor paging over one list
@@ -37,6 +45,7 @@ export function RecordListView<Row extends RowData & { readonly id: string }>({
   emptyTitle,
   emptyDescription,
   emptyAction,
+  sorting,
 }: {
   list: RecordListUrl;
   /** The list route, such as `/api/customers/list`. */
@@ -52,6 +61,8 @@ export function RecordListView<Row extends RowData & { readonly id: string }>({
   emptyDescription: string;
   /** Shown beside Reset when the filters match nothing; omit for Reset alone. */
   emptyAction?: React.ReactNode;
+  /** Header sorting; the toolbar select then follows the first term. */
+  sorting?: RecordListSorting;
 }) {
   const t = useExtracted("recordList");
 
@@ -71,7 +82,7 @@ export function RecordListView<Row extends RowData & { readonly id: string }>({
       <RecordListToolbar
         q={list.query.q ?? ""}
         searchLabel={searchLabel}
-        sort={list.query.sort}
+        sort={firstSortOf(list.query.sort)}
         sorts={sorts}
         filters={
           facets.length > 0 ? (
@@ -117,6 +128,7 @@ export function RecordListView<Row extends RowData & { readonly id: string }>({
             {emptyAction}
           </div>
         }
+        sorting={sorting}
         onRetry={retry}
       />
       {list.query.after !== undefined || page?.nextCursor ? (

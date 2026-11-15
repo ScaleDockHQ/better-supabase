@@ -18,6 +18,19 @@ describe("seed-entity-pages", () => {
     ]);
   });
 
+  it("opens incidents through open_incident with the row as attrs", () => {
+    const incidents = TARGETS.find(
+      (each) => each.seed.entity === "incidents.incident",
+    );
+
+    expect(incidents).toBeDefined();
+
+    const [call] = seedCalls(incidents!, "tenant-1");
+
+    expect(call?.sql).toContain("better_supabase.open_incident");
+    expect(call?.values[1]).toBe(JSON.stringify({ title: "Title 1" }));
+  });
+
   it("adds nothing for a tier the seed does not belong to", () => {
     expect(seedCalls(target!, "tenant-1", "l")).toEqual([]);
   });

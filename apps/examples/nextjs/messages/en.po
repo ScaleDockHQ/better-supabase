@@ -2231,6 +2231,11 @@ msgctxt "recordList.62nsdy"
 msgid "Retry"
 msgstr "Retry"
 
+#: src/components/record-list/record-list-sort-header.tsx
+msgctxt "recordList.HNlOoj"
+msgid "Shift-click adds this column to the sort"
+msgstr "Shift-click adds this column to the sort"
+
 #: src/components/record-list/record-list-toolbar.tsx
 msgctxt "recordList.hDI-JM"
 msgid "Sort by"

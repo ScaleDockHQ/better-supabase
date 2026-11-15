@@ -8,11 +8,10 @@ import type { RecordListUrlQuery } from "@/components/record-list/record-list-ty
 
 import { risksList } from "@/lib/supabase/pages/risks.list";
 
+import { formatRiskSort, parseRiskSort, RISK_DEFAULT_SORT } from "./risk-sort";
+
 /** The facets of the risk list, each one a single value in the block's page. */
 const RISK_FACETS = ["status", "category", "band"] as const;
-
-/** The sort the block applies without one: the highest residual score first. */
-const RISK_DEFAULT_SORT = "residualScore";
 
 type DraftQuery = {
   -readonly [K in keyof RecordListUrlQuery]: RecordListUrlQuery[K];
@@ -65,7 +64,15 @@ export function riskPageOptions(
   }
 
   if (query.sort !== undefined && query.sort !== RISK_DEFAULT_SORT) {
-    options.sort = { by: query.sort };
+    const terms = parseRiskSort(query.sort);
+
+    const [only] = terms;
+
+    if (terms.length > 1) {
+      options.sort = terms;
+    } else if (only !== undefined) {
+      options.sort = only;
+    }
   }
 
   if (Object.keys(filters).length > 0) {
@@ -98,8 +105,8 @@ export const riskList: RecordListUrl<RecordListUrlQuery> = {
     const { q, sort, filters, after } = parsed.value;
 
     const value: DraftQuery = {
-      // The risk list sorts by one column: the first term of a list.
-      sort: sortsOf(sort)[0]?.by ?? RISK_DEFAULT_SORT,
+      // The URL's `sort` as written (`residualScore:desc,number`): the register reads every term.
+      sort: formatRiskSort(sortsOf(sort)) || RISK_DEFAULT_SORT,
       facets: Object.fromEntries(
         RISK_FACETS.map((key) => [key, filters?.[key]]),
       ),
