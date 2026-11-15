@@ -3,6 +3,7 @@ import type { ReviewsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { reviewsEvents } from "./events.ts";
+import { reviewListSurface } from "./lists.ts";
 import { reviewsSqlOptions } from "./options.ts";
 import { createReviews } from "./reviews.ts";
 
@@ -20,6 +21,7 @@ export const reviewsBlock: BlockOf<
   category: "commerce",
   entities: {
     review: {
+      ...reviewListSurface,
       mutability: "state-machine",
       emits: { create: false, delete: true },
     },

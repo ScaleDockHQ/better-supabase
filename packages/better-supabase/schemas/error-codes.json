@@ -1444,7 +1444,7 @@
   },
   {
     "code": "CUSTOM_FIELD_FORBIDDEN",
-    "message": "not allowed to set custom fields"
+    "message": "not allowed to manage custom fields"
   },
   {
     "code": "CUSTOM_FIELD_NOT_FOUND",
@@ -4758,7 +4758,7 @@
   },
   {
     "code": "REVIEW_INVALID",
-    "message": "the reviews table has no reply column"
+    "message": "filters must name one subjectType and one subjectId"
   },
   {
     "code": "REVIEW_NOT_FOUND",

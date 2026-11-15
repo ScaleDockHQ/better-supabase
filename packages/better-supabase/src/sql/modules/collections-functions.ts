@@ -1,6 +1,13 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import type { BlockSqlScope } from "../scope.ts";
 
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
   extraFieldsArg,
@@ -109,6 +116,47 @@ export function collectionFunctions(
     'updatedAt', ${colOrNull(ctx, "collections", alias, "updatedAt")}${extraFieldsJson(alias, extras)})`;
 
   const has = (column: string): boolean => ctx.has("collections", column);
+
+  const collectionKeys = (
+    first: "name" | "createdAt",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => [
+    first === "name"
+      ? { expr: `lower(x.${co("name")})`, dir: "asc", type: "text" }
+      : { expr: `x.${co("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${co("id")}`, dir: "asc", type: "uuid" },
+  ];
+
+  const collectionPage = {
+    name: "page_collections",
+    from: t("collections"),
+    alias: "x",
+    where: [
+      `x.${co("tenant")} = page_collections.tenant`,
+      filterAny("subjectType", `x.${co("subjectType")}`),
+      filterAny("scope", `x.${co("scope")}::text`),
+      `(${filterFlag("includeArchived")} or x.${co("archivedAt")} is null)`,
+      `(v_search is null or x.${co("name")} ilike v_search${has("description") ? ` or coalesce(x.${co("description")}, '') ilike v_search` : ""})`,
+    ],
+    keys: collectionKeys("name"),
+    sorts: {
+      name: collectionKeys("name"),
+      createdAt: collectionKeys("createdAt"),
+    },
+    facets: {
+      subjectType: `x.${co("subjectType")}`,
+      scope: `x.${co("scope")}::text`,
+    },
+    rowJson: json("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string): string =>
+      fail("COLLECTION_INVALID", message, "22023"),
+  } as const;
+
   const touched = has("updatedAt") ? `,\n    ${co("updatedAt")} = now()` : "";
 
   const entryRecord = (event: string): string =>
@@ -293,6 +341,42 @@ as $$
     and (coalesce(list_collections.include_archived, false) or x.${co("archivedAt")} is null)
 $$;
 ${userGrant(`${fn("list_collections")}(${ctx.idType}, text, boolean)`)}
+
+-- The collections the caller sees as a keyset page, by name (ADR 1077). filters
+-- is { subjectType, scope (each a value or a list), includeArchived (true),
+-- search, sort (name, createdAt), direction, facet, count, limit, after,
+-- offset, paged, total, totalCap }. Row security decides what is visible.
+create or replace function ${fn("page_collections")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_collections.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(collectionPage)}
+begin
+  ${listBody(collectionPage)}
+end;
+$$;
+${userGrant(`${fn("page_collections")}(${ctx.idType}, jsonb)`)}
+
+-- One collection the caller sees (row security decides), or null.
+create or replace function ${fn("get_collection")}(collection uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select ${json("x")}
+  from ${t("collections")} x
+  where x.${co("id")} = get_collection.collection
+$$;
+${userGrant(`${fn("get_collection")}(uuid)`)}
 
 -- Adds records to the end of a collection, in the order given. Ids already
 -- in it are skipped; one the caller can't read fails the whole call.

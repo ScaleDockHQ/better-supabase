@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated array method until 0.70 (ADR 1077). 2 findings. */
 import { describe, expect, it } from "vitest";
 
 import { createCollections } from "../../../src/blocks/collections/index.ts";
@@ -161,6 +162,44 @@ describe("collections block", () => {
     expect(
       await collections.listsOf({ type: "company", id: "a" }).orThrow(),
     ).toHaveLength(1);
+  });
+
+  it("pages collections and gets one, or reports not_found", async () => {
+    const t = transport({
+      page_collections: () => ({ items: [LIST], hasMore: false }),
+      get_collection: ({ collection }) => (collection === "c1" ? LIST : null),
+    });
+
+    const collections = createCollections({ transport: t });
+
+    const page = await collections
+      .collectionPage({
+        organizationId: "o",
+        sort: { by: "createdAt" },
+        filters: {
+          subjectType: ["company", "deal"],
+          includeArchived: ["true"],
+        },
+        q: "key",
+      })
+      .orThrow();
+
+    expect(page.items.map((item) => item.name)).toEqual(["Key accounts"]);
+    expect(t.calls[0]).toEqual([
+      "page_collections",
+      {
+        tenant: "o",
+        filters: {
+          sort: "createdAt",
+          subjectType: ["company", "deal"],
+          includeArchived: ["true"],
+          search: "key",
+          paged: true,
+        },
+      },
+    ]);
+    expect((await collections.get("c1").orThrow()).id).toBe("c1");
+    expect((await collections.get("c2")).error?.kind).toBe("not_found");
   });
 
   it("adds, removes, reorders and pages entries", async () => {

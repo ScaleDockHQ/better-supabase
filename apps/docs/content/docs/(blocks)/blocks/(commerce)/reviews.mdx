@@ -69,7 +69,7 @@ export default defineConfig({
 
 ## The product page
 
-`list` returns a subject's published reviews, newest first, without author ids. Anonymous visitors can call it for products on a public storefront. `summary` returns the count, mean rating and histogram of up to 200 subjects of one type, read from the `review_stats` table the module keeps current, so a product grid costs one call.
+`reviewPage` pages a subject's published reviews by keyset (ADR 1077), newest first, without author ids. `list` stays as the capped convenience list and is deprecated. Anonymous visitors can call it for products on a public storefront. `summary` returns the count, mean rating and histogram of up to 200 subjects of one type, read from the `review_stats` table the module keeps current, so a product grid costs one call.
 
 ```ts
 const page = await reviews
@@ -82,7 +82,35 @@ const stats = await reviews
 // stats[productId]: { count: 12, average: 4.25, histogram: { 5: 7, 4: 3, 3: 2 } }
 ```
 
-Subjects without a published review are left out of `summary`. `mine` returns the caller's own review in any status, with the rejection reason, so the product page can show it next to the form.
+Subjects without a published review are left out of `summary`.
+
+## Paging reviews
+
+`reviewPage({ organizationId, subjectType, subjectId })` returns `{ items, hasMore, nextCursor }`. Sorts are `publishedAt` (the default, newest first) and `rating`. Filters are `rating` and `verified` (lists of values, a review matches any of them), facets are `rating` and `verified`, and `q` searches the title and the body. `reviewFacets` counts the values of each facet under the same filters, `reviewCount` returns `{ value, exact }`, and `get(reviewId)` returns the caller's own review in any status or a published review of a subject the caller can read, or a `not_found` error. Anonymous visitors can page the reviews of a public storefront's products. The SQL functions are `page_reviews` and `get_review`.
+
+```ts
+const page = await reviews
+  .reviewPage({
+    organizationId,
+    subjectType: "product",
+    subjectId: productId,
+    filters: { rating: ["4", "5"], verified: ["true"] },
+    sort: { by: "rating" },
+    q: "battery",
+    limit: 20,
+  })
+  .orThrow();
+
+const facets = await reviews
+  .reviewFacets({
+    organizationId,
+    subjectType: "product",
+    subjectId: productId,
+  })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares. `mine` returns the caller's own review in any status, with the rejection reason, so the product page can show it next to the form.
 
 ## Moderation
 
