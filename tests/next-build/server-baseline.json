@@ -406,7 +406,7 @@
   },
   "/[locale]/(app)/customers/page": {
     "raw": 3111835,
-    "gzip": 944938,
+    "gzip": 947316,
     "brotli": 786426
   },
   "/[locale]/(app)/dam/page": {
@@ -421,7 +421,7 @@
   },
   "/[locale]/(app)/documents/[id]/page": {
     "raw": 3098777,
-    "gzip": 939873,
+    "gzip": 942259,
     "brotli": 782076
   },
   "/[locale]/(app)/documents/page": {
@@ -1621,7 +1621,7 @@
   },
   "/api/jobs/drain/route": {
     "raw": 4737817,
-    "gzip": 1426726,
+    "gzip": 1430361,
     "brotli": 1203822
   },
   "/api/jobs/list/route": {
