@@ -161,7 +161,7 @@
   },
   "/[locale]/(app)/banking/accounts/page": {
     "raw": 3160691,
-    "gzip": 958801,
+    "gzip": 961281,
     "brotli": 798901
   },
   "/[locale]/(app)/banking/page": {
@@ -431,7 +431,7 @@
   },
   "/[locale]/(app)/documents/register/[id]/page": {
     "raw": 3627278,
-    "gzip": 1080733,
+    "gzip": 1083475,
     "brotli": 901423
   },
   "/[locale]/(app)/documents/register/page": {
@@ -481,7 +481,7 @@
   },
   "/[locale]/(app)/finance/accounting/page": {
     "raw": 3160687,
-    "gzip": 958797,
+    "gzip": 961274,
     "brotli": 798917
   },
   "/[locale]/(app)/finance/billable-time/[id]/page": {
@@ -501,7 +501,7 @@
   },
   "/[locale]/(app)/finance/expenses/page": {
     "raw": 3160676,
-    "gzip": 958792,
+    "gzip": 961271,
     "brotli": 798924
   },
   "/[locale]/(app)/finance/invoices/[id]/page": {
@@ -511,12 +511,12 @@
   },
   "/[locale]/(app)/finance/invoices/page": {
     "raw": 3160678,
-    "gzip": 958792,
+    "gzip": 961270,
     "brotli": 798929
   },
   "/[locale]/(app)/finance/ledger/[id]/page": {
     "raw": 3160733,
-    "gzip": 958806,
+    "gzip": 961285,
     "brotli": 798955
   },
   "/[locale]/(app)/finance/ledger/page": {
@@ -561,7 +561,7 @@
   },
   "/[locale]/(app)/finance/tax/[id]/page": {
     "raw": 3160711,
-    "gzip": 958798,
+    "gzip": 961276,
     "brotli": 798949
   },
   "/[locale]/(app)/finance/tax/page": {
@@ -586,7 +586,7 @@
   },
   "/[locale]/(app)/funding/[id]/page": {
     "raw": 3160677,
-    "gzip": 958806,
+    "gzip": 961283,
     "brotli": 798902
   },
   "/[locale]/(app)/funding/page": {
@@ -896,7 +896,7 @@
   },
   "/[locale]/(app)/settings/domains/page": {
     "raw": 3113293,
-    "gzip": 944723,
+    "gzip": 947118,
     "brotli": 788990
   },
   "/[locale]/(app)/settings/flags/page": {
@@ -966,7 +966,7 @@
   },
   "/[locale]/(app)/settings/option-sets/[id]/page": {
     "raw": 3126198,
-    "gzip": 949328,
+    "gzip": 951775,
     "brotli": 790765
   },
   "/[locale]/(app)/settings/option-sets/page": {
