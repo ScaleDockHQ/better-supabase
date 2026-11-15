@@ -637,7 +637,7 @@
   "/[locale]/(app)/legal-entities/page": {
     "raw": 3181156,
     "gzip": 968091,
-    "brotli": 803727
+    "brotli": 805745
   },
   "/[locale]/(app)/lims/[id]/page": {
     "raw": 3147594,
