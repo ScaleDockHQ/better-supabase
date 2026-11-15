@@ -1,0 +1,58 @@
+---
+title: The block list contract
+description: What every block list offers, how a block gets it and how to prove it with testBlockList.
+---
+
+Every block list is one entity with the same reads, so an app writes one table,
+one filter bar and one detail page for any block. The generated entity page
+([the list kit](/docs/platform/list)) and an `app.reads` entity read the same
+options.
+
+| Read              | What it does                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `page(options)`   | One keyset page: `items`, `hasMore` and `nextCursor`, which is `null` exactly when `hasMore` is `false`                        |
+| `q`               | Free text over the entity's search columns; an entity without `search` returns `invalid_input`                                 |
+| `sort`            | One declared sort or a list of up to three; the page's `sorted` lists the terms it applied and the ones it ignored             |
+| `filters`         | Column to a list of values; a row matches any of them, and an empty list leaves the filter off                                 |
+| `after`, `limit`  | The previous page's `nextCursor`, valid for the sort it came from, and the page size                                           |
+| `facets(options)` | The values of each declared facet and their counts under the same `q` and filters                                              |
+| `count(options)`  | `{ value, exact }` under the same `q` and filters; `exact` is `false` when the count stopped at a cap or came from an estimate |
+| `get(id)`         | The row the list returns for that id, or a `not_found` error                                                                   |
+
+A block builds `page`, `facets` and `count` with `entityList`, so they read
+one SQL list function. The steps to give a block the contract are in
+[the list contract](/docs/extending/blocks#the-list-contract). The decision is
+ADR 1077, and adopting it never renames a call: a block that returned an array
+keeps `list` and adds `page`.
+
+## Prove a list with testBlockList
+
+`testBlockList` from `better-supabase/testing` runs against rows you seeded in
+the tenant the list reads and throws a `ConformanceError` that lists every
+failed check.
+
+```ts title="leave.test.ts"
+import { testBlockList } from "better-supabase/testing";
+import { it } from "vitest";
+
+it("leave requests follow the list contract", () =>
+  testBlockList({
+    name: "leave.requests",
+    target: {
+      page: (options) => leave.requests.page(options),
+      count: (options) => leave.requests.count(options),
+      facets: (options) => leave.requests.facets(options),
+      get: (id) => leave.requests.get(id),
+    },
+    rows: 6,
+    sorts: ["start", "created"],
+    facets: { status: { pending: 2, approved: 3, rejected: 1 } },
+    arrayFilter: { column: "status", values: ["pending", "approved"] },
+    search: "holiday",
+  }));
+```
+
+Only `page` is required. Leave out `count`, `facets` or `get` when the entity
+has none, and leave out `sorts`, `facets`, `arrayFilter` or `search` for what
+it does not declare. Seed at least three rows so a page of one crosses a
+boundary.
