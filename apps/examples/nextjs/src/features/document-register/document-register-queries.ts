@@ -10,6 +10,7 @@ import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
 import { DRIVE_TAG } from "@/features/drive/drive-cache";
 import { driveOf } from "@/features/drive/drive-client";
 import { settle } from "@/features/people/people-queries";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type { RegisterRow } from "./document-register-list";
@@ -21,7 +22,9 @@ export async function readRegisterRows(
   db: Db,
   organizationId: string,
 ): Promise<readonly RegisterRow[]> {
-  const documents = await driveOf(db).documents({ organizationId }).orThrow();
+  const documents = await readAllPages((page) =>
+    driveOf(db).documentPage({ organizationId, ...page }),
+  );
 
   return documents.flatMap((node): RegisterRow[] =>
     node.document === undefined
@@ -80,8 +83,13 @@ async function loadDocument(
   }
 
   const drive = driveOf(db);
-  const documents = await drive.documents({ organizationId: tenant }).orThrow();
-  const node = documents.find((entry) => entry.id === id);
+  const found = await drive.getDocument(id);
+
+  if (!found.ok && found.error.kind !== "not_found") {
+    throw new Error(found.error.message);
+  }
+
+  const node = found.ok ? found.data : null;
 
   if (node?.document === undefined) {
     return "not-found";

@@ -24,7 +24,7 @@ import {
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { DURATION } from "./approvals-policies.ts";
 import { archiveFunctions } from "./forms-archive.ts";
-import { formListFunction } from "./forms-list.ts";
+import { formListFunction, formSubmissionPageFunction } from "./forms-list.ts";
 import { formNpsFunction } from "./forms-nps.ts";
 import { formSchemaFunctions, formScoringFunctions } from "./forms-schema.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -694,6 +694,8 @@ ${userGrant(`${fn("get_form_version")}(uuid)`)}
 
 ${formListFunction(ctx, formJson)}
 
+${formSubmissionPageFunction(ctx, submissionJson)}
+
 -- Writes a submission against the form's current version, validating the
 -- answers unless it is a draft. Only definer functions of this module call it.
 create or replace function ${fn("form_submission_save")}(form_id uuid, answers jsonb, subject_type text, subject_id text, respondent uuid, source text, draft boolean, submission_id uuid)
@@ -1023,6 +1025,11 @@ function contract(): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "get_form_submission", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "page_form_submissions",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
   ];
 }
 

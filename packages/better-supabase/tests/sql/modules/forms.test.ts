@@ -134,6 +134,7 @@ describe("forms module", () => {
       "get_form",
       "submit_form",
       "get_form_submission",
+      "page_form_submissions",
     ]);
   });
 

@@ -9,6 +9,7 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 
 import { readMemberNames } from "@/features/people/member-names";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type { QualificationTypeRow } from "./qualifications-types-list";
@@ -63,12 +64,14 @@ async function loadMatrix(): Promise<Matrix | null> {
   }
 
   const [types, gaps] = await Promise.all([
-    db.qualifications.types({ organizationId: tenant }).orThrow(),
+    db.qualifications
+      .typeCount({ organizationId: tenant, filters: { state: ["active"] } })
+      .orThrow(),
     db.qualifications.gaps({ organizationId: tenant }).orThrow(),
   ]);
 
   return {
-    types: types.length,
+    types: types.value,
     gaps: gaps.map((gap) => ({
       key: `${gap.holderId}:${gap.typeKey}`,
       holderId: gap.holderId,
@@ -155,9 +158,9 @@ export async function readQualificationTypeRows(
   db: Db,
   organizationId: string,
 ): Promise<readonly QualificationTypeRow[]> {
-  const types = await db.qualifications
-    .types({ organizationId, includeArchived: true })
-    .orThrow();
+  const types = await readAllPages((page) =>
+    db.qualifications.typePage({ organizationId, ...page }),
+  );
 
   return types.map((type): QualificationTypeRow => ({
     id: type.id,
@@ -216,11 +219,13 @@ async function loadType(
     return null;
   }
 
-  const types = await db.qualifications
-    .types({ organizationId: tenant, includeArchived: true })
-    .orThrow();
+  const found = await db.qualifications.getType(id);
 
-  const type = types.find((entry) => entry.id === id);
+  if (!found.ok && found.error.kind !== "not_found") {
+    throw new Error(found.error.message);
+  }
+
+  const type = found.ok ? found.data : undefined;
 
   if (!type) {
     return "not-found";

@@ -73,6 +73,7 @@ describe("signatures module", () => {
       "create_signature_request",
       "sign_signature",
       "get_signature_request",
+      "page_signature_requests",
     ]);
   });
 

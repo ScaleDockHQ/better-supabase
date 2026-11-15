@@ -50,6 +50,18 @@ holdings. Everything else needs a permission:
 
 Admins have all three; members get none by default.
 
+## Paging types
+
+`typePage` pages the qualification types by name (ADR 1077) with `typeFacets`, `typeCount` and `getType`. Sorts are `name` (the default) and `key`. Filters are `state` and `expiry`, each a list. `q` searches the name and the key. `getType` returns a `not_found` error for a type that does not exist.
+
+```ts
+const types = await qualifications
+  .typePage({ organizationId, q: "cal", limit: 25 })
+  .orThrow();
+```
+
+`types` keeps working and is deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Types and requirements
 
 ```ts

@@ -105,6 +105,8 @@ describe("blocks.<name>.entities in the SQL", () => {
     hiring: ["'interviews[]'", "'interviews'"],
     inbox: ["'inbox_id'"],
     inventory: ["'purchaseOrderId'"],
+    // The submission list filters by `formId`, a key the client sends.
+    forms: ["'formId'"],
     manufacturing: [
       "'bomId'",
       "'workCenterId'",

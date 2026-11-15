@@ -67,6 +67,7 @@ export const attachmentsBinding: RecordBinding<
   AttachmentsWrites
 > = defineRecordBinding({
   permissions: { read: "read", write: "upload" },
+  // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
   load: (client: Attachments, subject) => client.list(subject),
   timeline: (attachments) =>
     attachments.map((attachment) => ({

@@ -10,6 +10,7 @@ import { BILLING_TAG } from "@/features/billing/billing-cache";
 import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
 import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { settle } from "@/features/shop/shop-queries";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type { LotRow, MovementRow, StockRow } from "./inventory-list";
@@ -73,16 +74,14 @@ export async function readStockRows(
         { returns: StockLevels },
       )
       .orThrow(),
-    db.inventory.levels({ organizationId }),
+    readAllPages((page) => db.inventory.levelPage({ organizationId, ...page })),
   ]);
 
   const incomingBy = new Map(
-    incoming.ok
-      ? incoming.data.map((level) => [
-          `${level.variantId}:${level.locationId}`,
-          Number(level.incoming),
-        ])
-      : [],
+    incoming.map((level) => [
+      `${level.variantId}:${level.locationId}`,
+      Number(level.incoming),
+    ]),
   );
 
   const locationName = new Map(
@@ -127,16 +126,14 @@ export async function readMovementRows(
 }> {
   const [stock, movements] = await Promise.all([
     readStockRows(db, organizationId),
-    db.inventory.movements({
-      organizationId,
-      variantId: filter.variantId,
-      limit: MOVEMENT_LIMIT,
-    }),
+    db.inventory
+      .movementPage({
+        organizationId,
+        filters: { variantId: filter.variantId ? [filter.variantId] : [] },
+        limit: MOVEMENT_LIMIT,
+      })
+      .orThrow(),
   ]);
-
-  if (!movements.ok) {
-    throw new Error("The stock movements did not load");
-  }
 
   const product = new Map(
     stock.rows.map((row) => [row.variantId, row] as const),
@@ -146,7 +143,7 @@ export async function readMovementRows(
 
   return {
     locations: stock.locations,
-    rows: movements.data.map((movement): MovementRow => {
+    rows: movements.items.map((movement): MovementRow => {
       const named =
         movement.variantId === null
           ? undefined

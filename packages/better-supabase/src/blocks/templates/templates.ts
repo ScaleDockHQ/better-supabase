@@ -3,8 +3,19 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
@@ -20,6 +31,7 @@ import type { TemplateJobs, TemplateRecurring } from "./recurring.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
@@ -37,6 +49,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { templateListSurface } from "./lists.ts";
 import { renderMergeFields } from "./merge-fields.ts";
 import { createTemplateRecurring } from "./recurring.ts";
 
@@ -237,6 +250,9 @@ export interface Templates<F extends object = Record<never, never>> {
   /**
    * The organization's templates and the system ones (only those with `null`),
    * defaults first.
+   *
+   * @deprecated Use `templatePage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
    */
   list(input: {
     organizationId: string | null;
@@ -248,6 +264,31 @@ export interface Templates<F extends object = Record<never, never>> {
         }
       | undefined;
   }): AsyncResult<readonly Template<F>[]>;
+  /**
+   * One keyset page of the templates an organization sees (its own, its brand's
+   * and the system starters), by name. `filters` takes `type`, `language`,
+   * `scope` and `isDefault` as lists; `q` searches the name and the key. Row
+   * security decides what the caller sees.
+   */
+  templatePage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Template<F>>>;
+  /**
+   * The values of each facet (`type`, `language`, `scope`) under the page's
+   * filters.
+   */
+  templateFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many templates match the page's filters. */
+  templateCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /**
+   * One template with its versions, or a `not_found` error when the caller
+   * can't read it.
+   */
+  getTemplate(id: string): AsyncResult<TemplateDetail<F>>;
   /**
    * With its newest published version and its draft; `undefined` when the
    * caller can't read it.
@@ -536,6 +577,16 @@ export function createTemplates<
       detail === undefined ? AsyncResult.ok(undefined) : fields.row(detail),
     );
 
+  // SAFETY: `templateOf` reads the extra columns as a record; `fields.rows` types them next.
+  const templates = entityList<Template<F>, RequiredTenantOption>({
+    entity: "template",
+    surface: templateListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_templates",
+    rowOf: (row) => templateOf(row) as Template<F>,
+  });
+
   const getMany = (
     ids: readonly string[],
   ): AsyncResult<readonly TemplateDetail<F>[]> =>
@@ -690,6 +741,7 @@ export function createTemplates<
           (value) => templateOf(recordOf(value, "save_template")),
         ).andThen(fields.row);
       }),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, filter = {} }) =>
       call(
         "templates_list",
@@ -706,6 +758,24 @@ export function createTemplates<
             : rows.slice(0, filter.limit);
         },
       ).andThen(fields.rows),
+    templatePage: (page) =>
+      templates
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    templateFacets: templates.facets,
+    templateCount: templates.count,
+    getTemplate: (id) =>
+      get(id).andThen((detail) =>
+        detail === undefined
+          ? AsyncResult.err(
+              dbError("not_found", "No template you can read has this id", {
+                hint: "TEMPLATE_NOT_FOUND",
+              }),
+            )
+          : AsyncResult.ok(detail),
+      ),
     get,
     getMany,
     remove: (id) =>

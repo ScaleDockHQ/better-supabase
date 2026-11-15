@@ -1,10 +1,27 @@
-import type { BlockCall } from "../../core/block-helpers.ts";
+import type {
+  BlockCall,
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ReadType } from "../../core/read-type.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { InventoryOverview } from "../../sql/modules/inventory-reads.ts";
 
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { decodeRead } from "../../core/read-type.ts";
 import { INVENTORY_OVERVIEW_RESULT } from "../../sql/modules/inventory-reads.ts";
+import {
+  stockLevelListSurface,
+  stockLotListSurface,
+  stockMovementListSurface,
+} from "./lists.ts";
 
 export type {
   InventoryExpiringLot,
@@ -41,6 +58,63 @@ export interface StockMovementRead {
   readonly documentId: string | null;
   readonly effectiveAt: string;
 }
+
+/** One stock level on a page: the level plus its `variant:location` id. */
+export interface StockLevelPageRead extends StockLevelRead {
+  readonly id: string;
+}
+
+/** One lot's stock at a location and bin, as `inventory.lotPage` reads it. */
+export interface StockLotRead {
+  /** `lot:location:bin`; the bin part is empty without a bin. */
+  readonly id: string;
+  readonly lotId: string;
+  readonly code: string;
+  readonly variantId: string;
+  readonly locationId: string;
+  readonly binId: string | null;
+  /** A date, or `null` for a lot that does not expire. */
+  readonly expiresOn: string | null;
+  readonly onHand: string;
+  readonly expiry: "expired" | "soon" | "later" | "none";
+}
+
+const LEVEL_PAGE_ROW: ReadType = {
+  id: "text",
+  variantId: "text",
+  locationId: "text",
+  onHand: "text",
+  allocated: "text",
+  available: "text",
+  incoming: "text",
+  reorderPoint: "text?",
+  status: "text",
+};
+
+const MOVEMENT_ROW: ReadType = {
+  id: "text",
+  kind: "text",
+  variantId: "text?",
+  locationId: "text?",
+  binId: "text?",
+  lotId: "text?",
+  quantity: "text?",
+  documentType: "text?",
+  documentId: "text?",
+  effectiveAt: "text",
+};
+
+const LOT_ROW: ReadType = {
+  id: "text",
+  lotId: "text",
+  code: "text",
+  variantId: "text",
+  locationId: "text",
+  binId: "text?",
+  expiresOn: "text?",
+  onHand: "text",
+  expiry: "text",
+};
 
 const STOCK_LEVELS_RESULT: ReadType = [
   {
@@ -83,6 +157,60 @@ export interface InventoryReads {
     expiryDays?: number | undefined;
   }): AsyncResult<InventoryOverview>;
   /**
+   * One keyset page of the stock levels, emptiest first. `filters` takes
+   * `status` (`in_stock`, `low`, `out`), `variantId` and `locationId` as lists;
+   * `q` matches a variant or location id. Quantities are text.
+   */
+  levelPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<StockLevelPageRead>>;
+  /** The values of each facet (`status`, `locationId`) under the page's filters. */
+  levelFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many stock levels match the page's filters. */
+  levelCount(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One stock level by its `variant:location` id, or a `not_found` error. */
+  getLevel(id: string): AsyncResult<StockLevelPageRead>;
+  /**
+   * One keyset page of the `stock.*` ledger movements, newest first. `filters`
+   * takes `kind`, `variantId`, `locationId`, `binId`, `lotId`, `documentType`
+   * and `documentId` as lists; `q` matches the kind and the document id.
+   */
+  movementPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<StockMovementRead>>;
+  /** The values of each facet (`kind`, `locationId`) under the page's filters. */
+  movementFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many movements match the page's filters. */
+  movementCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /** One movement by id, or a `not_found` error. */
+  getMovement(id: string): AsyncResult<StockMovementRead>;
+  /**
+   * One keyset page of the lots that hold stock, soonest expiry first, one row
+   * per lot, location and bin. `filters` takes `expiry` (`expired`, `soon`,
+   * `later`, `none`), `variantId` and `locationId` as lists; `q` matches the
+   * lot code.
+   */
+  lotPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<StockLotRead>>;
+  /** The values of each facet (`expiry`, `locationId`) under the page's filters. */
+  lotFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many lot rows match the page's filters. */
+  lotCount(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One lot's stock by `lot:location:bin` id, or a `not_found` error. */
+  getLot(id: string): AsyncResult<StockLotRead>;
+  /**
+   * @deprecated Use `levelPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   *
    * Stock levels in one call. `variantIds` reads those variants by the level
    * primary key, so a page of 50 products is one query and not 50. Leave it out
    * to read every level, and pass `locationId` to read one location.
@@ -93,6 +221,8 @@ export interface InventoryReads {
     locationId?: string | undefined;
   }): AsyncResult<readonly StockLevelRead[]>;
   /**
+   * @deprecated Use `movementPage` (ADR 1077).
+   *
    * Ledger movements of kind `stock.*`, newest first, filtered by variant,
    * location, bin, lot or document. `limit` defaults to 50 and is capped at 200.
    */
@@ -110,7 +240,63 @@ export interface InventoryReads {
 }
 
 export function inventoryReads(call: BlockCall): InventoryReads {
+  const levelRows = entityList<StockLevelPageRead, RequiredTenantOption>({
+    entity: "inventory_level",
+    surface: stockLevelListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_inventory_levels",
+    rowOf: (row, fn) => decodeRead<StockLevelPageRead>(LEVEL_PAGE_ROW, row, fn),
+  });
+
+  const movementRows = entityList<StockMovementRead, RequiredTenantOption>({
+    entity: "inventory_movement",
+    surface: stockMovementListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_inventory_movements",
+    rowOf: (row, fn) => decodeRead<StockMovementRead>(MOVEMENT_ROW, row, fn),
+  });
+
+  const lotRows = entityList<StockLotRead, RequiredTenantOption>({
+    entity: "inventory_lot",
+    surface: stockLotListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_inventory_lots",
+    rowOf: (row, fn) => decodeRead<StockLotRead>(LOT_ROW, row, fn),
+  });
+
   return {
+    levelPage: levelRows.page,
+    levelFacets: levelRows.facets,
+    levelCount: levelRows.count,
+    getLevel: (id) =>
+      call("get_inventory_level", { level_id: id }, (value) =>
+        decodeRead<StockLevelPageRead>(
+          LEVEL_PAGE_ROW,
+          value,
+          "get_inventory_level",
+        ),
+      ),
+    movementPage: movementRows.page,
+    movementFacets: movementRows.facets,
+    movementCount: movementRows.count,
+    getMovement: (id) =>
+      call("get_inventory_movement", { movement_id: id }, (value) =>
+        decodeRead<StockMovementRead>(
+          MOVEMENT_ROW,
+          value,
+          "get_inventory_movement",
+        ),
+      ),
+    lotPage: lotRows.page,
+    lotFacets: lotRows.facets,
+    lotCount: lotRows.count,
+    getLot: (id) =>
+      call("get_inventory_lot", { lot_id: id }, (value) =>
+        decodeRead<StockLotRead>(LOT_ROW, value, "get_inventory_lot"),
+      ),
     overview: ({ organizationId, limit, expiryDays }) =>
       call(
         "inventory_overview",
@@ -126,6 +312,7 @@ export function inventoryReads(call: BlockCall): InventoryReads {
             "inventory_overview",
           ),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     levels: ({ organizationId, variantIds, locationId }) =>
       call(
         "inventory_levels",
@@ -136,6 +323,7 @@ export function inventoryReads(call: BlockCall): InventoryReads {
         },
         (value) => decodeRead(STOCK_LEVELS_RESULT, value, "levels"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     movements: (input) =>
       call(
         "list_inventory_movements",

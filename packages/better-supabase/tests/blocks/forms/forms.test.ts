@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 5 findings. */
 import { describe, expect, it, vi } from "vitest";
 
 import { createForms, formSchema } from "../../../src/blocks/forms/index.ts";
@@ -440,5 +441,21 @@ describe("forms client", () => {
     expect(
       (await forms.page({ organizationId: "o", sort: { by: "nope" } })).ok,
     ).toBe(false);
+  });
+});
+
+describe("forms submission page", () => {
+  it("maps the rows of one page", async () => {
+    const fake = transport({
+      page_form_submissions: () => ({ items: [SUBMISSION], hasMore: false }),
+    });
+
+    const forms = createForms({ transport: fake, schema: "app" });
+
+    const page = await forms
+      .submissionPage({ organizationId: "o", filters: { formId: ["f1"] } })
+      .orThrow();
+
+    expect(page.items.map((submission) => submission.id)).toEqual(["s1"]);
   });
 });

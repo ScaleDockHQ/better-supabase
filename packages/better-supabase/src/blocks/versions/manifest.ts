@@ -3,6 +3,7 @@ import type { VersionsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { versionsEvents } from "./events.ts";
+import { versionListSurface } from "./lists.ts";
 import { versionsSqlOptions } from "./options.ts";
 import { versionsBinding } from "./record-binding.ts";
 import { createVersions } from "./versions.ts";
@@ -25,6 +26,7 @@ export const versionsBlock: BlockOf<
   category: "database",
   entities: {
     version: {
+      ...versionListSurface,
       mutability: "state-machine",
       emits: { create: true, delete: true },
     },

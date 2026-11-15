@@ -46,6 +46,30 @@ roles: {
 Checkout code that runs as the customer usually reserves through a service
 transport instead of granting `inventory.reserve` to every member.
 
+## Paging stock
+
+Three lists follow the block list contract (ADR 1077) and take `organizationId`:
+
+| Method                                                           | Rows                                       | Sorts                                        | Filters                                                                           | `q` searches                 |
+| ---------------------------------------------------------------- | ------------------------------------------ | -------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------- |
+| `levelPage`, `levelFacets`, `levelCount`, `getLevel`             | stock per variant and location             | `available` (default), `onHand`, `variantId` | `status` (`in_stock`, `low`, `out`), `variantId`, `locationId`                    | a variant or location id     |
+| `movementPage`, `movementFacets`, `movementCount`, `getMovement` | `stock.*` ledger movements, newest first   | `effectiveAt` (default), `quantity`          | `kind`, `variantId`, `locationId`, `binId`, `lotId`, `documentType`, `documentId` | the kind and the document id |
+| `lotPage`, `lotFacets`, `lotCount`, `getLot`                     | lots that hold stock, per location and bin | `expiresOn` (default), `onHand`, `code`      | `expiry` (`expired`, `soon`, `later`, `none`), `variantId`, `locationId`          | the lot code                 |
+
+Every filter is a list of values and a row matches any of them. Quantities stay text. A `soon` lot expires within 30 days. The block holds no product titles, so a search by product name resolves the variants in the catalog first and passes them as `variantId`.
+
+```ts
+const low = await inventory
+  .levelPage({ organizationId, filters: { status: ["low", "out"] }, limit: 50 })
+  .orThrow();
+
+const expiring = await inventory
+  .lotPage({ organizationId, filters: { expiry: ["expired", "soon"] } })
+  .orThrow();
+```
+
+`levels` and `movements` keep working and are deprecated. A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Locations
 
 Server code calls the `inventory` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
