@@ -2,6 +2,11 @@ import * as v from "valibot";
 
 type SeedValue = string | number | boolean | null;
 
+type SeedJson =
+  | SeedValue
+  | readonly SeedJson[]
+  | { readonly [key: string]: SeedJson };
+
 interface EntityPageInput {
   apiVersion: 1;
   entity: string;
@@ -44,7 +49,7 @@ interface EntityPageInput {
         demo?: number | undefined;
         tiers?: string[] | undefined;
         fields?: Record<string, SeedValue | SeedValue[]> | undefined;
-        rows?: Record<string, SeedValue>[] | undefined;
+        rows?: Record<string, SeedJson>[] | undefined;
         table?: string | undefined;
         tenant?: string | undefined;
       }
@@ -61,6 +66,14 @@ interface EntityPageInput {
 const positive = v.pipe(v.number(), v.integer(), v.minValue(1));
 
 const seedValue = v.union([v.string(), v.number(), v.boolean(), v.null()]);
+
+/**
+ * A scalar, or nested lists and objects of them (a `jsonb` argument or a
+ * marker).
+ */
+const seedJson: v.GenericSchema<SeedJson> = v.lazy(() =>
+  v.union([seedValue, v.array(seedJson), v.record(v.string(), seedJson)]),
+);
 
 /**
  * One `defineEntityPage` descriptor in `gen.entityPages.pages`. It names every
@@ -124,7 +137,7 @@ export const entityPageSchema: v.GenericSchema<EntityPageInput> =
         fields: v.optional(
           v.record(v.string(), v.union([seedValue, v.array(seedValue)])),
         ),
-        rows: v.optional(v.array(v.record(v.string(), seedValue))),
+        rows: v.optional(v.array(v.record(v.string(), seedJson))),
         table: v.optional(v.string()),
         tenant: v.optional(v.string()),
       }),

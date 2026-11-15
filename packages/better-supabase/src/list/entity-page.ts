@@ -8,7 +8,7 @@ import type {
 import type { EntityListSurface } from "../core/entity-list.ts";
 import type { DbError, ValidationIssue } from "../core/errors.ts";
 import type { PageSort } from "../core/page-sort.ts";
-import type { EntitySeedValue } from "./entity-ui.ts";
+import type { EntitySeedJson, EntitySeedValue } from "./entity-ui.ts";
 
 import { MAX_PAGE_SORTS, sortsOf } from "../core/page-sort.ts";
 import { AsyncResult, err, ok } from "../core/result.ts";
@@ -138,9 +138,12 @@ export interface EntityPage {
     /**
      * Explicit rows, for a page whose block exports no input schema that fits.
      * They replace the generated rows, so `demo` and `fields` stay unset. A key
-     * is what the app's insert call reads, usually a database column.
+     * is what the app's insert call reads, usually a database column. A value
+     * may be nested JSON, `seedRef(entity, name)` (the id of a row another page
+     * seeds, which `gen` orders first) or `seedDate(days)` (a day counted from
+     * the day the seed runs; ADR 1035).
      */
-    readonly rows?: readonly Readonly<Record<string, EntitySeedValue>>[];
+    readonly rows?: readonly Readonly<Record<string, EntitySeedJson>>[];
     /**
      * The table of the rows as `schema.table`, for a page whose block declares
      * none. Default: the entity's table.
