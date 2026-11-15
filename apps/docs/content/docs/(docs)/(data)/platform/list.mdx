@@ -670,7 +670,7 @@ the block's input schema that are columns of the table, filled from each field's
 (enum values in turn, dates counting forward from a fixed day). The same descriptor gives the same
 rows. A larger load stays with `pnpm db:seed:scale`.
 
-Three more keys of `seed` cover what a generated value cannot know (ADR 1030):
+Three more keys of `seed` cover what a generated value cannot know (ADR 1031):
 
 - `fields` sets the value of an input field by its name. A scalar is the value of every row and a list
   gives row `i` the value at `i` modulo its length, so a risk's `category` can take the block's configured

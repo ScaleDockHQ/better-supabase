@@ -3309,6 +3309,7 @@
       "ListOptions",
       "MailCategory",
       "NotificationActor",
+      "NotificationBulkAction",
       "NotificationChannel",
       "NotificationCounts",
       "NotificationDigest",

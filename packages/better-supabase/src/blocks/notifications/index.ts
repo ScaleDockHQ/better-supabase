@@ -92,6 +92,7 @@ export type {
   NotificationCounts,
   NotificationFilterGroup,
   NotificationOf,
+  NotificationBulkAction,
   NotificationOrder,
   NotificationPage,
   NotificationPreference,

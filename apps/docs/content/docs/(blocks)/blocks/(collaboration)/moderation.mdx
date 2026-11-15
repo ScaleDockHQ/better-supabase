@@ -48,6 +48,21 @@ const queue = await db.moderation.queue().orThrow();
 await db.moderation.decide(queue[0].id, "hide", { reason: "Spam" }).orThrow();
 ```
 
+`bulk(ids, decision, options)` applies one decision (`approve`, `hide`,
+`remove`, `restore` or `ban`) to many items, as the shape every block with a
+bulk call shares (ADR 0854). Each item runs through `decide`, so a refused item
+is in `failed` with its error and the others still apply. More ids than
+`options.limit` (500 by default) fail with `BULK_TOO_MANY`.
+
+```ts
+const { succeeded, failed } = await db.moderation
+  .bulk(
+    queue.map((item) => item.id),
+    "hide",
+  )
+  .orThrow();
+```
+
 ```tsx title="src/features/moderation/list.tsx"
 "use client";
 

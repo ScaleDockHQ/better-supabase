@@ -226,7 +226,7 @@ where p.key = 'sales' and p.tenant_id = '00000000-0000-4000-8000-000000000001';
 
 -- Commission plans, their assignments per rep, and one referral code. The accrued
 -- commissions and the referral attributed to the code are generated seeds of the
--- commissions and referrals pages (`pnpm db:seed:pages`, ADR 1030).
+-- commissions and referrals pages (`pnpm db:seed:pages`, ADR 1031).
 select better_supabase.save_commission_plan('00000000-0000-4000-8000-000000000001', 'Standard 5 percent', 'flat', 500, null, null, false);
 select better_supabase.save_commission_plan('00000000-0000-4000-8000-000000000001', 'Tiered quota', 'tiered', null,
   '[{"upTo": 1000000, "bps": 300}, {"bps": 600}]'::jsonb, null, false);
