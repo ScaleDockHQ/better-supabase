@@ -731,7 +731,7 @@ export interface BlockNameRegistry {
       readonly "progress": "enrollment" | "lesson" | "tenant" | "course" | "user" | "startedAt" | "completedAt" | "attempts" | "submission" | "score" | "maxScore" | "passed" | "updatedAt";
       readonly "certificates": "id" | "tenant" | "course" | "enrollment" | "user" | "code" | "issuedAt" | "expiresAt" | "revokedAt";
     };
-    readonly functions: "complete_course_lesson" | "course_finish" | "course_json" | "course_learner_json" | "course_lesson" | "course_lesson_done" | "course_outline" | "course_progress" | "course_steps" | "course_sync" | "delete_course" | "delete_course_lesson" | "delete_course_module" | "enroll_in_course" | "enrollment_ensure" | "enrollment_mark" | "list_course_learners" | "list_courses" | "revoke_course_certificate" | "save_course" | "save_course_lesson" | "save_course_module" | "start_course_lesson" | "unenroll_from_course" | "verify_course_certificate";
+    readonly functions: "archive_course" | "complete_course_lesson" | "course_finish" | "course_json" | "course_learner_json" | "course_lesson" | "course_lesson_done" | "course_outline" | "course_progress" | "course_steps" | "course_sync" | "delete_course_lesson" | "delete_course_module" | "enroll_in_course" | "enrollment_ensure" | "enrollment_mark" | "list_course_learners" | "list_courses" | "purge_course" | "restore_course" | "revoke_course_certificate" | "save_course" | "save_course_lesson" | "save_course_module" | "start_course_lesson" | "unenroll_from_course" | "verify_course_certificate";
     readonly actions: "read" | "enroll" | "manage";
     readonly hooks: never;
     readonly entities: {
@@ -1541,17 +1541,17 @@ export interface BlockNameRegistry {
   };
   readonly "meetings": {
     readonly tables: {
-      readonly "meetings": "id" | "tenant" | "kind" | "title" | "location" | "startsAt" | "endsAt" | "status" | "startedAt" | "heldAt" | "summary" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "meetings": "id" | "tenant" | "kind" | "title" | "location" | "startsAt" | "endsAt" | "status" | "startedAt" | "heldAt" | "archivedAt" | "summary" | "createdBy" | "createdAt" | "updatedAt";
       readonly "attendees": "meeting" | "tenant" | "user" | "role" | "attendance" | "createdAt";
       readonly "agenda": "id" | "tenant" | "meeting" | "ordinal" | "title" | "notes" | "presenter" | "minutes" | "status" | "outcome" | "createdAt";
       readonly "decisions": "id" | "tenant" | "meeting" | "agendaItem" | "title" | "body" | "status" | "decidedBy" | "decidedAt" | "createdAt";
       readonly "actions": "task" | "tenant" | "meeting" | "agendaItem" | "decision" | "createdAt";
     };
-    readonly functions: "add_meeting_action_item" | "cancel_meeting" | "create_meeting" | "decide_meeting_decision" | "delete_meeting" | "delete_meeting_agenda_item" | "get_meeting" | "hold_meeting" | "list_meetings" | "meeting_role" | "meeting_set_attendees" | "record_meeting_decision" | "remove_meeting_attendee" | "save_meeting_agenda_item" | "set_meeting_attendee" | "start_meeting" | "update_meeting";
+    readonly functions: "add_meeting_action_item" | "archive_meeting" | "cancel_meeting" | "create_meeting" | "decide_meeting_decision" | "delete_meeting_agenda_item" | "get_meeting" | "hold_meeting" | "list_meetings" | "meeting_role" | "meeting_set_attendees" | "purge_meeting" | "record_meeting_decision" | "remove_meeting_attendee" | "restore_meeting" | "save_meeting_agenda_item" | "set_meeting_attendee" | "start_meeting" | "update_meeting";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_meeting_create" | "after_meeting_create" | "before_meeting_hold" | "after_meeting_hold" | "after_meeting_decision";
     readonly entities: {
-      readonly "meeting": "id" | "tenant_id" | "kind" | "title" | "location" | "starts_at" | "ends_at" | "status" | "started_at" | "held_at" | "summary" | "created_by" | "created_at" | "updated_at";
+      readonly "meeting": "id" | "tenant_id" | "kind" | "title" | "location" | "starts_at" | "ends_at" | "status" | "started_at" | "held_at" | "archived_at" | "summary" | "created_by" | "created_at" | "updated_at";
       readonly "meeting_attendee": "meeting_id" | "tenant_id" | "user_id" | "role" | "attendance" | "created_at";
       readonly "meeting_agenda_item": "id" | "tenant_id" | "meeting_id" | "ordinal" | "title" | "notes" | "presenter_id" | "minutes" | "status" | "outcome" | "created_at";
       readonly "meeting_decision": "id" | "tenant_id" | "meeting_id" | "agenda_item_id" | "title" | "body" | "status" | "decided_by" | "decided_at" | "created_at";

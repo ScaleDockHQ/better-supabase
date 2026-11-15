@@ -34,7 +34,13 @@ export const meetingsBlock: BlockOf<
     meeting: {
       ...meetingListSurface,
       mutability: "editable",
-      emits: { create: true, update: true, delete: true },
+      emits: {
+        create: true,
+        update: true,
+        archive: true,
+        restore: true,
+        purge: true,
+      },
     },
     meeting_attendee: {
       mutability: "editable",
