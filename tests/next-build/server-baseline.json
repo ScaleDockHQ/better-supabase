@@ -1471,7 +1471,7 @@
   },
   "/api/commissions/list/route": {
     "raw": 2598993,
-    "gzip": 787175,
+    "gzip": 787464,
     "brotli": 670476
   },
   "/api/credits/list/route": {
@@ -1597,12 +1597,12 @@
   "/api/inventory/lots/list/route": {
     "raw": 2724594,
     "gzip": 823296,
-    "brotli": 700074
+    "brotli": 700958
   },
   "/api/inventory/movements/list/route": {
     "raw": 2724612,
     "gzip": 823301,
-    "brotli": 700072
+    "brotli": 700959
   },
   "/api/invitations/list/route": {
     "raw": 2598988,
@@ -1677,7 +1677,7 @@
   "/api/outbox/route": {
     "raw": 4674420,
     "gzip": 1410911,
-    "brotli": 1186480
+    "brotli": 1187347
   },
   "/api/passes/list/route": {
     "raw": 2711980,
@@ -1736,7 +1736,7 @@
   },
   "/api/referrals/list/route": {
     "raw": 2598960,
-    "gzip": 787161,
+    "gzip": 787450,
     "brotli": 670502
   },
   "/api/reviews/list/route": {
@@ -1811,7 +1811,7 @@
   },
   "/api/work-orders/list/route": {
     "raw": 2599031,
-    "gzip": 787210,
+    "gzip": 787498,
     "brotli": 670558
   },
   "/api/workflows/definitions/list/route": {

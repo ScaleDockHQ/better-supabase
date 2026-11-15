@@ -65,11 +65,16 @@ const validate = (
 ) => schema["~standard"].validate(value) as { issues?: unknown[] };
 
 describe("createClinicalDecisionSupport", () => {
-  it("saves, lists and deletes rules", async () => {
+  it("saves, lists, archives, restores and purges rules", async () => {
     const t = fieldsTransport({
       save_care_rule: () => RULE,
       list_care_rules: () => [RULE],
-      delete_care_rule: () => RULE,
+      archive_care_rule: () => ({
+        ...RULE,
+        archivedAt: "2026-02-01T00:00:00Z",
+      }),
+      restore_care_rule: () => RULE,
+      purge_care_rule: () => RULE,
     });
 
     const cds = createClinicalDecisionSupport({
@@ -82,11 +87,15 @@ describe("createClinicalDecisionSupport", () => {
       .orThrow();
 
     const listed = await cds.rules().orThrow();
-    const deleted = await cds.deleteRule("r1").orThrow();
+    const archived = await cds.archiveRule("r1").orThrow();
+    const restored = await cds.restoreRule("r1").orThrow();
+    const purged = await cds.purgeRule("r1").orThrow();
 
     expect(saved).toMatchObject({ kind: "dose_range", maxPerDay: 4000 });
     expect(listed).toHaveLength(1);
-    expect(deleted.id).toBe("r1");
+    expect(archived.archivedAt?.toString()).toBe("2026-02-01T00:00:00Z");
+    expect(restored.archivedAt).toBeUndefined();
+    expect(purged.id).toBe("r1");
   });
 
   it("evaluates the built-in rules, then the engines, and lists the alerts", async () => {
