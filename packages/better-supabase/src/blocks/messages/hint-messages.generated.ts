@@ -682,6 +682,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "ENROLLMENTS_PROGRAM_EXISTS": "A program with this key already exists.",
   "ENROLLMENTS_PROGRAM_NOT_ARCHIVED": "Archive the program before purging it.",
   "ENROLLMENTS_PROGRAM_NOT_FOUND": "Enrollment program not found.",
+  "EVAL_INVALID": "Id is a uuid.",
   "EVIDENCE_TASK_NOT_FOUND": "The evidence task isn't a task of this control.",
   "EXPENSES_FORBIDDEN": "Not allowed to manage expense categories.",
   "EXPENSE_CATEGORY_INVALID": "A key is lowercase letters, digits and underscores.",

@@ -87,6 +87,7 @@ export function createEvalJob(
     const deadline =
       options.budgetMs === undefined ? Infinity : Date.now() + options.budgetMs;
 
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     const found = await options.evals.runs.get(runId).orThrow();
 
     if (found === undefined) {

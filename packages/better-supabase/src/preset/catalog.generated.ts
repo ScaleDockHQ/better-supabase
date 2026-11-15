@@ -13794,7 +13794,44 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/ai-evals"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "entityLists": {
+        "ai_eval": {
+          "sorts": [
+            "name",
+            "createdAt",
+            "lastRunAt"
+          ],
+          "facets": [],
+          "filters": [
+            "id"
+          ],
+          "search": [
+            "name"
+          ]
+        },
+        "ai_eval_run": {
+          "sorts": [
+            "createdAt",
+            "finishedAt"
+          ],
+          "facets": [
+            "status",
+            "model",
+            "promptName"
+          ],
+          "filters": [
+            "datasetId",
+            "status",
+            "model",
+            "promptName"
+          ],
+          "search": [
+            "promptName",
+            "model"
+          ]
+        }
+      }
     },
     {
       "name": "ai-files",
@@ -13871,6 +13908,44 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "guardrail.blocked"
         ]
+      },
+      "entityLists": {
+        "guardrail": {
+          "sorts": [
+            "agent",
+            "updatedAt"
+          ],
+          "facets": [
+            "stage",
+            "enabled"
+          ],
+          "filters": [
+            "agent",
+            "stage",
+            "enabled"
+          ],
+          "search": [
+            "agent"
+          ]
+        },
+        "guardrail_decision": {
+          "sorts": [
+            "createdAt",
+            "agent"
+          ],
+          "facets": [
+            "decision",
+            "stage"
+          ],
+          "filters": [
+            "agent",
+            "decision",
+            "stage"
+          ],
+          "search": [
+            "agent"
+          ]
+        }
       }
     },
     {

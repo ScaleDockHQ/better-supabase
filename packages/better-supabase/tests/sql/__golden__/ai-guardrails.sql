@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:341cbd6950c4e410eb8a76a3b37d3696a35f82a80bca1502efb1fc1a16cf5c5d
+-- @bsb-hash sha256:b861c96fa93d185cbd01095c5ce078506f1d16266835fdb51d464c5ab7ace578
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -189,6 +189,486 @@ $$;
 revoke execute on function "better_supabase"."list_guardrail_decisions"(text, text, uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_guardrail_decisions"(text, text, uuid, integer) to service_role;
 
+-- The policies a tenant has saved (the system's when tenant is null) as a
+-- keyset page (ADR 1077), by agent and stage. filters is { agent, stage,
+-- enabled (a value or a list), search (agent), sort (agent, updatedAt),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_guardrail_policies"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_policies.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('stage', 'enabled') then
+      raise exception 'facet is one of stage, enabled' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'stage' then (x."stage")::text when 'enabled' then (x."enabled")::text end) as v
+      from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('agent', 'updatedAt') then
+    raise exception 'sort is one of agent, updatedAt' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_guardrail_policies"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_guardrail_policies"(uuid, jsonb) to service_role;
+
+-- The decision log as a keyset page (ADR 1077), newest first. A tenant reads
+-- its own decisions; null reads every tenant's. filters is { agent, decision,
+-- stage (a value or a list), search (agent), sort (createdAt, agent),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_guardrail_decisions"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_decisions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'decision') = 'array' then v_filters -> 'decision' when jsonb_typeof(v_filters -> 'decision') in ('string', 'number') then jsonb_build_array(v_filters -> 'decision') else '[]'::jsonb end) s where s not in ('allow', 'redact', 'block')) then
+    raise exception 'decision is one of allow, redact, block' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('decision', 'stage') then
+      raise exception 'facet is one of decision, stage' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'decision' then (x."decision")::text when 'stage' then (x."stage")::text end) as v
+      from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'agent') then
+    raise exception 'sort is one of createdAt, agent' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."agent" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."agent" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_guardrail_decisions"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_guardrail_decisions"(uuid, jsonb) to service_role;
+
+-- One saved policy by id, or null.
+create or replace function "better_supabase"."get_guardrail_policy_by_id"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") from "better_supabase"."guardrail_policies" x where x."id" = get_guardrail_policy_by_id.id
+$$;
+revoke execute on function "better_supabase"."get_guardrail_policy_by_id"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_guardrail_policy_by_id"(uuid) to service_role;
+
 -- Deletes decisions older than the retention (90 days) and returns how many.
 create or replace function "better_supabase"."purge_guardrail_decisions"()
 returns integer
@@ -224,7 +704,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:8d1643c6f9465cf554906d4d529c7239325ce227ee75de90ab222bda0fc58001
+-- @bsb-hash sha256:5d413a46e9d7a767cb4d3181ec7ff665448bac797cf47b584e35ede239e7fc99
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -421,6 +901,486 @@ $$;
 revoke execute on function "better_supabase"."list_guardrail_decisions"(text, text, uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_guardrail_decisions"(text, text, uuid, integer) to service_role;
 
+-- The policies a tenant has saved (the system's when tenant is null) as a
+-- keyset page (ADR 1077), by agent and stage. filters is { agent, stage,
+-- enabled (a value or a list), search (agent), sort (agent, updatedAt),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_guardrail_policies"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_policies.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('stage', 'enabled') then
+      raise exception 'facet is one of stage, enabled' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'stage' then (x."stage")::text when 'enabled' then (x."enabled")::text end) as v
+      from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('agent', 'updatedAt') then
+    raise exception 'sort is one of agent, updatedAt' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_guardrail_policies"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_guardrail_policies"(uuid, jsonb) to service_role;
+
+-- The decision log as a keyset page (ADR 1077), newest first. A tenant reads
+-- its own decisions; null reads every tenant's. filters is { agent, decision,
+-- stage (a value or a list), search (agent), sort (createdAt, agent),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_guardrail_decisions"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_decisions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'decision') = 'array' then v_filters -> 'decision' when jsonb_typeof(v_filters -> 'decision') in ('string', 'number') then jsonb_build_array(v_filters -> 'decision') else '[]'::jsonb end) s where s not in ('allow', 'redact', 'block')) then
+    raise exception 'decision is one of allow, redact, block' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('decision', 'stage') then
+      raise exception 'facet is one of decision, stage' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'decision' then (x."decision")::text when 'stage' then (x."stage")::text end) as v
+      from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'agent') then
+    raise exception 'sort is one of createdAt, agent' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."agent" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."agent" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_guardrail_decisions"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_guardrail_decisions"(uuid, jsonb) to service_role;
+
+-- One saved policy by id, or null.
+create or replace function "better_supabase"."get_guardrail_policy_by_id"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") from "better_supabase"."guardrail_policies" x where x."id" = get_guardrail_policy_by_id.id
+$$;
+revoke execute on function "better_supabase"."get_guardrail_policy_by_id"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_guardrail_policy_by_id"(uuid) to service_role;
+
 -- Deletes decisions older than the retention (90 days) and returns how many.
 create or replace function "better_supabase"."purge_guardrail_decisions"()
 returns integer
@@ -456,7 +1416,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:b47c22988f38c96335c35a12fbf75768d5a63f4b11283a0fe11dde2360ac78f4
+-- @bsb-hash sha256:f2736cd26bf6fd6160f0eb6b2c7690f9fa98fe63751349157d9dd2b710436b65
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -649,6 +1609,486 @@ $$;
 revoke execute on function "app_private"."list_guardrail_decisions"(text, text, uuid, integer) from public, anon, authenticated;
 grant execute on function "app_private"."list_guardrail_decisions"(text, text, uuid, integer) to service_role;
 
+-- The policies a tenant has saved (the system's when tenant is null) as a
+-- keyset page (ADR 1077), by agent and stage. filters is { agent, stage,
+-- enabled (a value or a list), search (agent), sort (agent, updatedAt),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_guardrail_policies"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_policies.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('stage', 'enabled') then
+      raise exception 'facet is one of stage, enabled' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'stage' then (x."stage")::text when 'enabled' then (x."enabled")::text end) as v
+      from "app_private"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('agent', 'updatedAt') then
+    raise exception 'sort is one of agent, updatedAt' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_guardrail_policies"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."page_guardrail_policies"(uuid, jsonb) to service_role;
+
+-- The decision log as a keyset page (ADR 1077), newest first. A tenant reads
+-- its own decisions; null reads every tenant's. filters is { agent, decision,
+-- stage (a value or a list), search (agent), sort (createdAt, agent),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "app_private"."page_guardrail_decisions"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_decisions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'decision') = 'array' then v_filters -> 'decision' when jsonb_typeof(v_filters -> 'decision') in ('string', 'number') then jsonb_build_array(v_filters -> 'decision') else '[]'::jsonb end) s where s not in ('allow', 'redact', 'block')) then
+    raise exception 'decision is one of allow, redact, block' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('decision', 'stage') then
+      raise exception 'facet is one of decision, stage' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'decision' then (x."decision")::text when 'stage' then (x."stage")::text end) as v
+      from "app_private"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'agent') then
+    raise exception 'sort is one of createdAt, agent' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."agent" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."agent" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_guardrail_decisions"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "app_private"."page_guardrail_decisions"(uuid, jsonb) to service_role;
+
+-- One saved policy by id, or null.
+create or replace function "app_private"."get_guardrail_policy_by_id"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") from "app_private"."guardrail_policies" x where x."id" = get_guardrail_policy_by_id.id
+$$;
+revoke execute on function "app_private"."get_guardrail_policy_by_id"(uuid) from public, anon, authenticated;
+grant execute on function "app_private"."get_guardrail_policy_by_id"(uuid) to service_role;
+
 -- Deletes decisions older than the retention (90 days) and returns how many.
 create or replace function "app_private"."purge_guardrail_decisions"()
 returns integer
@@ -684,7 +2124,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:a28a1c75f05ae442b22888cf9131912abf153ed0c256827c6a489c17aa29437b
+-- @bsb-hash sha256:8833ff54ba88d9ea96bf791816f2f16f5491cefbdba49e266ef967cba1f9a2eb
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -872,6 +2312,486 @@ $$;
 revoke execute on function "better_supabase"."list_guardrail_decisions"(text, text, uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_guardrail_decisions"(text, text, uuid, integer) to service_role;
 
+-- The policies a tenant has saved (the system's when tenant is null) as a
+-- keyset page (ADR 1077), by agent and stage. filters is { agent, stage,
+-- enabled (a value or a list), search (agent), sort (agent, updatedAt),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_guardrail_policies"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_policies.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('stage', 'enabled') then
+      raise exception 'facet is one of stage, enabled' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'stage' then (x."stage")::text when 'enabled' then (x."enabled")::text end) as v
+      from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('agent', 'updatedAt') then
+    raise exception 'sort is one of agent, updatedAt' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_guardrail_policies"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_guardrail_policies"(uuid, jsonb) to service_role;
+
+-- The decision log as a keyset page (ADR 1077), newest first. A tenant reads
+-- its own decisions; null reads every tenant's. filters is { agent, decision,
+-- stage (a value or a list), search (agent), sort (createdAt, agent),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_guardrail_decisions"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_decisions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'decision') = 'array' then v_filters -> 'decision' when jsonb_typeof(v_filters -> 'decision') in ('string', 'number') then jsonb_build_array(v_filters -> 'decision') else '[]'::jsonb end) s where s not in ('allow', 'redact', 'block')) then
+    raise exception 'decision is one of allow, redact, block' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('decision', 'stage') then
+      raise exception 'facet is one of decision, stage' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'decision' then (x."decision")::text when 'stage' then (x."stage")::text end) as v
+      from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'agent') then
+    raise exception 'sort is one of createdAt, agent' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."agent" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."agent" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_guardrail_decisions"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_guardrail_decisions"(uuid, jsonb) to service_role;
+
+-- One saved policy by id, or null.
+create or replace function "better_supabase"."get_guardrail_policy_by_id"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") from "better_supabase"."guardrail_policies" x where x."id" = get_guardrail_policy_by_id.id
+$$;
+revoke execute on function "better_supabase"."get_guardrail_policy_by_id"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_guardrail_policy_by_id"(uuid) to service_role;
+
 -- Deletes decisions older than the retention (90 days) and returns how many.
 create or replace function "better_supabase"."purge_guardrail_decisions"()
 returns integer
@@ -942,6 +2862,36 @@ as $$ select "better_supabase"."list_guardrail_decisions"($1, $2, $3, $4) $$;
 revoke execute on function "api"."list_guardrail_decisions"(text, text, uuid, integer) from public, anon, authenticated;
 grant execute on function "api"."list_guardrail_decisions"(text, text, uuid, integer) to service_role;
 
+create or replace function "api"."page_guardrail_policies"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_guardrail_policies"($1, $2) $$;
+revoke execute on function "api"."page_guardrail_policies"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."page_guardrail_policies"(uuid, jsonb) to service_role;
+
+create or replace function "api"."page_guardrail_decisions"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_guardrail_decisions"($1, $2) $$;
+revoke execute on function "api"."page_guardrail_decisions"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "api"."page_guardrail_decisions"(uuid, jsonb) to service_role;
+
+create or replace function "api"."get_guardrail_policy_by_id"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_guardrail_policy_by_id"($1) $$;
+revoke execute on function "api"."get_guardrail_policy_by_id"(uuid) from public, anon, authenticated;
+grant execute on function "api"."get_guardrail_policy_by_id"(uuid) to service_role;
+
 create or replace function "api"."purge_guardrail_decisions"()
 returns integer
 language sql
@@ -968,7 +2918,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:ede7ad407a9933f0310162a14b745f03ec07485fd6601bbb852a430495c6632c
+-- @bsb-hash sha256:37aef791b3a72fb6ff3b2a46646dad24e69a289374a1807e33bdc1eb5f1748ff
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1152,6 +3102,486 @@ $$;
 revoke execute on function "better_supabase"."list_guardrail_decisions"(text, text, uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_guardrail_decisions"(text, text, uuid, integer) to service_role;
 
+-- The policies a tenant has saved (the system's when tenant is null) as a
+-- keyset page (ADR 1077), by agent and stage. filters is { agent, stage,
+-- enabled (a value or a list), search (agent), sort (agent, updatedAt),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_guardrail_policies"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_policies.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('stage', 'enabled') then
+      raise exception 'facet is one of stage, enabled' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'stage' then (x."stage")::text when 'enabled' then (x."enabled")::text end) as v
+      from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('agent', 'updatedAt') then
+    raise exception 'sort is one of agent, updatedAt' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_policies" x
+      where coalesce(x."tenant_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_guardrail_policies"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_guardrail_policies"(uuid, jsonb) to service_role;
+
+-- The decision log as a keyset page (ADR 1077), newest first. A tenant reads
+-- its own decisions; null reads every tenant's. filters is { agent, decision,
+-- stage (a value or a list), search (agent), sort (createdAt, agent),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_guardrail_decisions"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_decisions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'decision') = 'array' then v_filters -> 'decision' when jsonb_typeof(v_filters -> 'decision') in ('string', 'number') then jsonb_build_array(v_filters -> 'decision') else '[]'::jsonb end) s where s not in ('allow', 'redact', 'block')) then
+    raise exception 'decision is one of allow, redact, block' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('decision', 'stage') then
+      raise exception 'facet is one of decision, stage' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'decision' then (x."decision")::text when 'stage' then (x."stage")::text end) as v
+      from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'agent') then
+    raise exception 'sort is one of createdAt, agent' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."agent" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."agent" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."tenant_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_guardrail_decisions"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_guardrail_decisions"(uuid, jsonb) to service_role;
+
+-- One saved policy by id, or null.
+create or replace function "better_supabase"."get_guardrail_policy_by_id"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") from "better_supabase"."guardrail_policies" x where x."id" = get_guardrail_policy_by_id.id
+$$;
+revoke execute on function "better_supabase"."get_guardrail_policy_by_id"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_guardrail_policy_by_id"(uuid) to service_role;
+
 -- Deletes decisions older than the retention (90 days) and returns how many.
 create or replace function "better_supabase"."purge_guardrail_decisions"()
 returns integer
@@ -1187,7 +3617,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_183_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:95b86a2b11c729ae23fb980974b23eb2e6ce6a2b617b6834005dcdbea944412f
+-- @bsb-hash sha256:6c1df4301d37abbdbf757267ff73343d6d2d30513195ec856455b56ed5591c7e
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1374,6 +3804,486 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_guardrail_decisions"(text, text, uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_guardrail_decisions"(text, text, uuid, integer) to service_role;
+
+-- The policies a tenant has saved (the system's when tenant is null) as a
+-- keyset page (ADR 1077), by agent and stage. filters is { agent, stage,
+-- enabled (a value or a list), search (agent), sort (agent, updatedAt),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_guardrail_policies"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_policies.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('stage', 'enabled') then
+      raise exception 'facet is one of stage, enabled' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'stage' then (x."stage")::text when 'enabled' then (x."enabled")::text end) as v
+      from "better_supabase"."guardrail_policies" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_policies" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('agent', 'updatedAt') then
+    raise exception 'sort is one of agent, updatedAt' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."stage", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by x."agent" asc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."agent")::text, (x."stage")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" > (v_after ->> 1)::text) or (x."agent" = (v_after ->> 0)::text and x."stage" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by x."agent" desc, x."stage" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."updated_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'updatedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as j, jsonb_build_array((x."updated_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_policies" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."updated_at" <= (v_after ->> 0)::timestamptz and ((x."updated_at" < (v_after ->> 0)::timestamptz) or (x."updated_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."updated_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_policies" x
+      where coalesce(x."org_id"::text, '') = coalesce(page_guardrail_policies.tenant::text, '')
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (not (v_filters -> 'enabled' is not null and jsonb_typeof(v_filters -> 'enabled') <> 'null' and not (jsonb_typeof(v_filters -> 'enabled') = 'array' and jsonb_array_length(v_filters -> 'enabled') = 0)) or x."enabled"::text = any((case when jsonb_typeof(v_filters -> 'enabled') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'enabled')) else array[v_filters ->> 'enabled'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_guardrail_policies"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_guardrail_policies"(uuid, jsonb) to service_role;
+
+-- The decision log as a keyset page (ADR 1077), newest first. A tenant reads
+-- its own decisions; null reads every tenant's. filters is { agent, decision,
+-- stage (a value or a list), search (agent), sort (createdAt, agent),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_guardrail_decisions"(tenant uuid default null, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_guardrail_decisions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'stage') = 'array' then v_filters -> 'stage' when jsonb_typeof(v_filters -> 'stage') in ('string', 'number') then jsonb_build_array(v_filters -> 'stage') else '[]'::jsonb end) s where s not in ('input', 'output')) then
+    raise exception 'stage is one of input, output' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if exists (select 1 from jsonb_array_elements_text(case when jsonb_typeof(v_filters -> 'decision') = 'array' then v_filters -> 'decision' when jsonb_typeof(v_filters -> 'decision') in ('string', 'number') then jsonb_build_array(v_filters -> 'decision') else '[]'::jsonb end) s where s not in ('allow', 'redact', 'block')) then
+    raise exception 'decision is one of allow, redact, block' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('decision', 'stage') then
+      raise exception 'facet is one of decision, stage' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'decision' then (x."decision")::text when 'stage' then (x."stage")::text end) as v
+      from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."org_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."org_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'agent') then
+    raise exception 'sort is one of createdAt, agent' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."org_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."org_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."org_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."org_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."org_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."agent" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'agent' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'decision', x."decision", 'reasons', x."reasons", 'chat_id', x."chat_id", 'content_hash', x."content_hash", 'created_at', x."created_at") as j, jsonb_build_array((x."agent")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."org_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+        and (v_after is null or (x."agent" <= (v_after ->> 0)::text and ((x."agent" < (v_after ->> 0)::text) or (x."agent" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."agent" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."guardrail_decisions" x
+      where (page_guardrail_decisions.tenant is null or x."org_id" = page_guardrail_decisions.tenant)
+        and (not (v_filters -> 'agent' is not null and jsonb_typeof(v_filters -> 'agent') <> 'null' and not (jsonb_typeof(v_filters -> 'agent') = 'array' and jsonb_array_length(v_filters -> 'agent') = 0)) or x."agent" = any((case when jsonb_typeof(v_filters -> 'agent') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'agent')) else array[v_filters ->> 'agent'] end)::text[]))
+        and (not (v_filters -> 'decision' is not null and jsonb_typeof(v_filters -> 'decision') <> 'null' and not (jsonb_typeof(v_filters -> 'decision') = 'array' and jsonb_array_length(v_filters -> 'decision') = 0)) or x."decision" = any((case when jsonb_typeof(v_filters -> 'decision') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'decision')) else array[v_filters ->> 'decision'] end)::text[]))
+        and (not (v_filters -> 'stage' is not null and jsonb_typeof(v_filters -> 'stage') <> 'null' and not (jsonb_typeof(v_filters -> 'stage') = 'array' and jsonb_array_length(v_filters -> 'stage') = 0)) or x."stage" = any((case when jsonb_typeof(v_filters -> 'stage') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'stage')) else array[v_filters ->> 'stage'] end)::text[]))
+        and (v_search is null or x."agent" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_guardrail_decisions"(uuid, jsonb) from public, anon, authenticated;
+grant execute on function "better_supabase"."page_guardrail_decisions"(uuid, jsonb) to service_role;
+
+-- One saved policy by id, or null.
+create or replace function "better_supabase"."get_guardrail_policy_by_id"(id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") from "better_supabase"."guardrail_policies" x where x."id" = get_guardrail_policy_by_id.id
+$$;
+revoke execute on function "better_supabase"."get_guardrail_policy_by_id"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."get_guardrail_policy_by_id"(uuid) to service_role;
 
 -- Deletes decisions older than the retention (90 days) and returns how many.
 create or replace function "better_supabase"."purge_guardrail_decisions"()

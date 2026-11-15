@@ -1,6 +1,16 @@
-import type { ListPage } from "../../core/block-helpers.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AiAccess } from "../ai-access.ts";
@@ -10,6 +20,7 @@ import type { EvalScorer, ScorerDescription } from "./scorers.ts";
 
 import { pageRowsOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, foundOrNotFound } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { accessDenied } from "../ai-access.ts";
@@ -24,6 +35,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { datasetListSurface, runListSurface } from "./lists.ts";
 import { toPromptfooConfig } from "./promptfoo.ts";
 import { describeScorer } from "./scorers.ts";
 
@@ -169,12 +181,35 @@ export interface AiEvals {
         readonly description?: string;
       },
     ): AsyncResult<EvalDataset>;
-    /** The dataset, or `undefined` when there is none. */
+    /**
+     * The dataset, or `undefined` when there is none.
+     *
+     * @deprecated Use `getDataset`, which returns a `not_found` error (ADR
+     * 1077).
+     */
     get(datasetId: string): AsyncResult<EvalDataset | undefined>;
+    /** The dataset, or a `not_found` error. */
+    getDataset(datasetId: string): AsyncResult<EvalDataset>;
+    /**
+     * One keyset page of an organization's datasets (the system's without one),
+     * by name, with item and run counts. `filters` takes `id` as a list; `q`
+     * searches the name.
+     */
+    page(
+      options?: PageOptions & TenantOption,
+    ): AsyncResult<ListPage<EvalDatasetSummary>>;
+    /** Datasets have no facet, so this reads an empty list. */
+    facets(
+      options?: FacetOptions & TenantOption,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many datasets match the page's filters. */
+    count(options?: CountOptions & TenantOption): AsyncResult<Count>;
     /**
      * One page of an organization's datasets (the system's without one), in
      * name order, with item and run counts. `limit` defaults to 50 and is
      * capped at 200; pass `nextCursor` as `after`.
+     *
+     * @deprecated Use `page`, which takes `q`, sorts and a count (ADR 1077).
      */
     list(options?: {
       readonly organizationId?: string;
@@ -221,8 +256,32 @@ export interface AiEvals {
         readonly scorers?: readonly (EvalScorer | ScorerDescription)[];
       },
     ): AsyncResult<EvalRun>;
+    /**
+     * The run, or `undefined` when there is none.
+     *
+     * @deprecated Use `getRun`, which returns a `not_found` error (ADR 1077).
+     */
     get(runId: string): AsyncResult<EvalRun | undefined>;
-    /** The runs of a dataset, newest first. */
+    /** The run, or a `not_found` error. */
+    getRun(runId: string): AsyncResult<EvalRun>;
+    /**
+     * One keyset page of an organization's runs (the system's without one),
+     * newest first. `filters` takes `datasetId`, `status`, `model` and
+     * `promptName` as lists; `q` searches the prompt name and the model.
+     */
+    page(options?: PageOptions & TenantOption): AsyncResult<ListPage<EvalRun>>;
+    /** The values of the `status`, `model` and `promptName` facets. */
+    facets(
+      options?: FacetOptions & TenantOption,
+    ): AsyncResult<readonly FacetResult[]>;
+    /** How many runs match the page's filters. */
+    count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+    /**
+     * The runs of a dataset, newest first.
+     *
+     * @deprecated Use `page` with `filters: { datasetId: [id] }`, which pages
+     * by keyset and takes sorts and a count (ADR 1077).
+     */
     list(
       input: { datasetId: string } & { readonly limit?: number },
     ): AsyncResult<readonly EvalRun[]>;
@@ -498,8 +557,33 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const datasetPages = entityList<EvalDatasetSummary>({
+    entity: "eval_dataset",
+    surface: datasetListSurface,
+    call,
+    tenant: (organizationId) => AsyncResult.ok(organizationId),
+    fn: "page_eval_datasets",
+    rowOf: (row) => datasetSummaryOf(row),
+  });
+
+  const runPages = entityList<EvalRun>({
+    entity: "eval_run",
+    surface: runListSurface,
+    call,
+    tenant: (organizationId) => AsyncResult.ok(organizationId),
+    fn: "page_eval_runs",
+    rowOf: runOf,
+  });
+
   const client: AiEvals = {
     datasets: {
+      page: datasetPages.page,
+      facets: datasetPages.facets,
+      count: datasetPages.count,
+      getDataset: (datasetId) =>
+        call("get_eval_dataset", { dataset: datasetId }, (value) =>
+          value === null || value === undefined ? undefined : datasetOf(value),
+        ).andThen((row) => foundOrNotFound("eval_dataset", row, datasetId)),
       create: ({ name, ...createOptions }) =>
         call(
           "create_eval_dataset",
@@ -510,10 +594,12 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
           },
           datasetOf,
         ),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       get: (datasetId) =>
         call("get_eval_dataset", { dataset: datasetId }, (value) =>
           value === null || value === undefined ? undefined : datasetOf(value),
         ),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: (listOptions = {}) =>
         call(
           "list_eval_datasets",
@@ -579,10 +665,19 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
           },
           runOf,
         ),
+      page: runPages.page,
+      facets: runPages.facets,
+      count: runPages.count,
+      getRun: (runId) =>
+        call("get_eval_run", { run: runId }, (value) =>
+          value === null || value === undefined ? undefined : runOf(value),
+        ).andThen((row) => foundOrNotFound("eval_run", row, runId)),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       get: (runId) =>
         call("get_eval_run", { run: runId }, (value) =>
           value === null || value === undefined ? undefined : runOf(value),
         ),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: ({ datasetId, ...listOptions }) =>
         call(
           "list_eval_runs",
@@ -683,6 +778,7 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
       const tenants: (string | undefined)[] = [];
 
       for (const runId of named.runs ?? []) {
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
         const found = await client.runs.get(runId);
 
         if (!found.ok) {
@@ -693,6 +789,7 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
       }
 
       for (const datasetId of named.datasets ?? []) {
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
         const found = await client.datasets.get(datasetId);
 
         if (!found.ok) {
@@ -715,14 +812,41 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
 
         return denied ? AsyncResult.err(denied) : client.datasets.create(input);
       },
+      page: (options) => {
+        const denied = accessDenied(access, [options?.organizationId]);
+
+        return denied ? AsyncResult.err(denied) : client.datasets.page(options);
+      },
+      facets: (options) => {
+        const denied = accessDenied(access, [options?.organizationId]);
+
+        return denied
+          ? AsyncResult.err(denied)
+          : client.datasets.facets(options);
+      },
+      count: (options) => {
+        const denied = accessDenied(access, [options?.organizationId]);
+
+        return denied
+          ? AsyncResult.err(denied)
+          : client.datasets.count(options);
+      },
+      getDataset: (datasetId) =>
+        within({ datasets: [datasetId] }, () =>
+          client.datasets.getDataset(datasetId),
+        ),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       get: (datasetId) =>
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
         within({ datasets: [datasetId] }, () => client.datasets.get(datasetId)),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: (listOptions) => {
         const denied = accessDenied(access, [listOptions?.organizationId]);
 
         return denied
           ? AsyncResult.err(denied)
-          : client.datasets.list(listOptions);
+          : // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
+            client.datasets.list(listOptions);
       },
     },
     items: {
@@ -748,8 +872,30 @@ export function createAiEvals(options: AiEvalsOptions): AiEvals {
         within({ datasets: [input.datasetId] }, () =>
           client.runs.create(input),
         ),
-      get: (runId) => within({ runs: [runId] }, () => client.runs.get(runId)),
+      page: (options) => {
+        const denied = accessDenied(access, [options?.organizationId]);
+
+        return denied ? AsyncResult.err(denied) : client.runs.page(options);
+      },
+      facets: (options) => {
+        const denied = accessDenied(access, [options?.organizationId]);
+
+        return denied ? AsyncResult.err(denied) : client.runs.facets(options);
+      },
+      count: (options) => {
+        const denied = accessDenied(access, [options?.organizationId]);
+
+        return denied ? AsyncResult.err(denied) : client.runs.count(options);
+      },
+      getRun: (runId) =>
+        within({ runs: [runId] }, () => client.runs.getRun(runId)),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
+      get: (runId) =>
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
+        within({ runs: [runId] }, () => client.runs.get(runId)),
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
       list: (input) =>
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
         within({ datasets: [input.datasetId] }, () => client.runs.list(input)),
       record: (input) =>
         within({ runs: [input.runId] }, () => client.runs.record(input)),

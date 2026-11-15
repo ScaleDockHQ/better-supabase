@@ -116,7 +116,7 @@ export interface EntityListSpec<Item> {
    * one. A block with a `tenant` option passes `() => requireTenant(...)`; a
    * block that takes the organization per call passes `tenantOrOption`.
    */
-  readonly tenant: (organizationId?: string) => AsyncResult<string>;
+  readonly tenant: (organizationId?: string) => AsyncResult<string | undefined>;
   /** The block's SQL list function. */
   readonly fn: string;
   readonly rowOf: (row: Record<string, unknown>, fn: string) => Item;

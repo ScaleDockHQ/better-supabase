@@ -177,7 +177,7 @@ export interface BlockNameRegistry {
       readonly "runs": "id" | "dataset" | "tenant" | "promptName" | "promptVersion" | "model" | "scorers" | "status" | "summary" | "createdAt" | "finishedAt";
       readonly "results": "run" | "item" | "output" | "scores" | "passed" | "error" | "latencyMs" | "createdAt";
     };
-    readonly functions: "add_eval_items" | "add_eval_items_from_feedback" | "compare_eval_runs" | "create_eval_dataset" | "create_eval_run" | "eval_run_summary" | "finish_eval_run" | "get_eval_dataset" | "get_eval_run" | "list_eval_datasets" | "list_eval_items" | "list_eval_results" | "list_eval_runs" | "record_eval_result";
+    readonly functions: "add_eval_items" | "add_eval_items_from_feedback" | "compare_eval_runs" | "create_eval_dataset" | "create_eval_run" | "eval_run_summary" | "finish_eval_run" | "get_eval_dataset" | "get_eval_run" | "list_eval_datasets" | "list_eval_items" | "list_eval_results" | "list_eval_runs" | "page_eval_datasets" | "page_eval_runs" | "record_eval_result";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -203,7 +203,7 @@ export interface BlockNameRegistry {
       readonly "policies": "id" | "tenant" | "agent" | "stage" | "config" | "enabled" | "updatedAt";
       readonly "decisions": "id" | "tenant" | "agent" | "stage" | "decision" | "reasons" | "chat" | "contentHash" | "createdAt";
     };
-    readonly functions: "get_guardrail_policy" | "list_guardrail_decisions" | "list_guardrail_policies" | "purge_guardrail_decisions" | "record_guardrail_decision" | "set_guardrail_policy";
+    readonly functions: "get_guardrail_policy" | "get_guardrail_policy_by_id" | "list_guardrail_decisions" | "list_guardrail_policies" | "page_guardrail_decisions" | "page_guardrail_policies" | "purge_guardrail_decisions" | "record_guardrail_decision" | "set_guardrail_policy";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};

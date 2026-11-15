@@ -4,6 +4,7 @@ import type { AiGuardrailsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createAiGuardrails } from "./ai-guardrails.ts";
 import { aiGuardrailsEvents } from "./events.ts";
+import { decisionListSurface, policyListSurface } from "./lists.ts";
 import { aiGuardrailsSqlOptions } from "./options.ts";
 
 /** The `ai-guardrails` block's manifest (ADR 0029). */
@@ -18,7 +19,10 @@ export const aiGuardrailsBlock: BlockOf<
   events: aiGuardrailsEvents,
   create: createAiGuardrails,
   category: "ai",
-  entities: { guardrail: { mutability: "state-machine" } },
+  entities: {
+    guardrail: { ...policyListSurface, mutability: "state-machine" },
+    guardrail_decision: { ...decisionListSurface, mutability: "append-only" },
+  },
   description:
     "Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.",
 });
