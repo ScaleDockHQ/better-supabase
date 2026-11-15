@@ -256,7 +256,7 @@ credits. The [events page](/docs/extending/events) lists their payloads.
 
 ## Paging a list
 
-`list` is the capped convenience list. `passPage` is the full contract for passes (ADR 0749, 0779): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `validFrom` and `validUntil`, and the default order is `createdAt` (newest first); filters are `status` and `holderUserId`; facets are `status`.
+`list` is the capped convenience list, deprecated in favor of `passPage` (ADR 1077). `passPage` is the full contract for passes (ADR 0749, 0779): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `createdAt`, `validFrom` and `validUntil`, and the default order is `createdAt` (newest first); filters are `status` and `holderUserId`; facets are `status`; `q` searches the holder name and email.
 
 ```ts
 const first = await passes

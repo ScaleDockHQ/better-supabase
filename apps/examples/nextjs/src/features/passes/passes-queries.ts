@@ -1,15 +1,14 @@
 import "server-only";
 import type { Result } from "better-supabase";
-import type { PassListOptions } from "better-supabase/blocks/passes";
 
+import { ok } from "better-supabase";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
-import { Temporal } from "temporal-polyfill";
 
 import type { BlockPage } from "@/lib/block-page";
-import type { BlockListQuery, Mutable } from "@/lib/block-status-list";
+import type { BlockListQuery } from "@/lib/block-status-list";
 
-import { pageOverStatuses } from "@/lib/block-page";
+import { encodeCursor, pageOptionsOf } from "@/lib/block-page";
 import { bsb } from "@/lib/supabase/server";
 
 import type { PassRow } from "./pass-row";
@@ -23,30 +22,22 @@ const isStatus = (value: string): value is PassRow["status"] =>
   PASS_STATUSES.some((status) => status === value);
 
 /** One page of passes, shared by the page and `/api/passes/list`. */
-export function loadPassPage(
+export async function loadPassPage(
   db: Db,
   query: BlockListQuery<"newest">,
 ): Promise<Result<BlockPage<PassRow>>> {
-  const before =
-    query.after === undefined ? undefined : Temporal.Instant.from(query.after);
+  const statuses = (query.facets["status"] ?? []).filter(isStatus);
 
-  return pageOverStatuses({
-    statuses: query.facets["status"],
-    size: PASS_PAGE_SIZE,
-    fetchPage: (status, take) => {
-      const options: Mutable<PassListOptions> = { pageSize: take };
+  const result = await db.passes.passPage(
+    pageOptionsOf(query, PASS_PAGE_SIZE, { status: statuses }),
+  );
 
-      if (status !== undefined && isStatus(status)) {
-        options.status = status;
-      }
+  if (!result.ok) {
+    return result;
+  }
 
-      if (before !== undefined) {
-        options.before = before;
-      }
-
-      return db.passes.list(options);
-    },
-    map: (pass): PassRow => ({
+  return ok({
+    items: result.data.items.map((pass): PassRow => ({
       id: pass.id,
       kind: pass.kind,
       holder: pass.holderName ?? pass.holderEmail ?? null,
@@ -56,7 +47,8 @@ export function loadPassPage(
       validFrom: pass.validFrom.toString(),
       validUntil: pass.validUntil?.toString() ?? null,
       createdAt: pass.createdAt.toString(),
-    }),
+    })),
+    nextCursor: encodeCursor(result.data.nextCursor),
   });
 }
 

@@ -75,7 +75,9 @@ These stars are separate from the [search](/docs/blocks/search) module's starred
 | `reorder(id, subjectId, neighbors)`                      | Moves an entry between its neighbours' rank keys                                                            |
 | `entries(id, { limit, cursor })`                         | A page of entries in rank order (default 50, at most 200) with `rank`, `addedBy`, `addedAt`, `title`, `url` |
 | `listsOf(subject)`                                       | The active lists the caller sees that hold a record, for a record's "In lists" panel                        |
-| `list(organizationId, { subjectType, includeArchived })` | The lists the caller sees, by name                                                                          |
+| `list(organizationId, { subjectType, includeArchived })` | The lists the caller sees, by name (deprecated: use `collectionPage`)                                       |
+| `collectionPage({ organizationId, ...options })`         | One keyset page of the lists the caller sees, with `q`, sorts, list filters, facets and a count             |
+| `get(id)`                                                | One list the caller sees, or a `not_found` error                                                            |
 | `rename(id, { name, description })`                      | Changes the name or the description (`null` clears it)                                                      |
 | `archive(id, archived?)`                                 | Archives a list; an archived list keeps its entries but takes no changes                                    |
 | `restore(id)`                                            | Brings an archived list back and records `collection.restored`                                              |
@@ -85,6 +87,26 @@ These stars are separate from the [search](/docs/blocks/search) module's starred
 Who sees a list follows its scope: the owner, the team's members, or every member with `collections.read`. Anyone who sees a list and holds `collections.write` changes its entries. An entry is visible only when the caller can also read its record through the record table's own policies, so a shared list never shows a record to someone who can't open it.
 
 When a record type sets `cascade: true` in `config.recordTypes`, deleting a record deletes its entries and its stars.
+
+### Paging lists
+
+`collectionPage` returns `{ items, hasMore, nextCursor }` for the lists the caller sees (ADR 1077). Sorts are `name` (the default) and `createdAt`. Filters are `subjectType` and `scope` (lists of values, a list matches any of them) and `includeArchived: ["true"]`. Facets are `subjectType` and `scope`, and `q` searches the name and the description. `collectionFacets` and `collectionCount` read under the same options. Row security decides which lists the caller sees, and the SQL functions are `page_collections` and `get_collection`.
+
+```ts
+const page = await collections
+  .collectionPage({
+    organizationId,
+    filters: { subjectType: ["company"], scope: ["team", "tenant"] },
+    q: "accounts",
+    limit: 50,
+  })
+  .orThrow();
+
+const total = await collections.collectionCount({ organizationId }).orThrow();
+const one = await collections.get(page.items[0].id).orThrow();
+```
+
+A cursor belongs to the sort it came from. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error.
 
 ## Save for later
 

@@ -9,4 +9,5 @@ export const leaseListSurface: EntityListSurface = {
   sorts: ["startsOn", "endsOn", "createdAt"],
   facets: ["status", "unitId"],
   filters: ["status", "unitId", "partyType", "partyId"],
+  search: ["title"],
 };

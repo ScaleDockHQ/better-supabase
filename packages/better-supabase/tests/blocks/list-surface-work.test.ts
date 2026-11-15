@@ -233,14 +233,18 @@ describe("warranty get, page, facets and count", () => {
     ]);
   });
 
-  it("rejects a search, since claims declare none", async () => {
-    const warranty = createWarranty({
-      transport: fieldsTransport({}),
-      tenant: "org-1",
+  it("sends a search over the claim title", async () => {
+    const t = fieldsTransport({
+      list_warranty_claims: () => ({ items: [], hasMore: false }),
     });
 
-    const result = await warranty.page({ q: "seal" });
+    await createWarranty({ transport: t, tenant: "org-1" })
+      .page({ q: "seal" })
+      .orThrow();
 
-    expect(result.error?.kind).toBe("invalid_input");
+    expect(t.calls[0]).toEqual([
+      "list_warranty_claims",
+      { tenant: "org-1", filters: { search: "seal", paged: true } },
+    ]);
   });
 });

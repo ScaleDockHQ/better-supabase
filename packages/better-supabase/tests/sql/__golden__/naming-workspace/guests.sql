@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:8760aa96bf40897c0c64b0f8f1a6f933af5374b45c991b2aa3ede0cd47c24af3
+-- @bsb-hash sha256:5c282c0bcb5d9542ae3579cfd281fff5370f607d50af485172f16318a8e9372f
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -395,6 +395,8 @@ as $$
 #variable_conflict use_column
 declare
   v_filters jsonb := coalesce(page_guests.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -425,6 +427,7 @@ begin
       from "better_supabase"."guests" x
       where x."tenant_id" = page_guests.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."email" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -440,6 +443,7 @@ begin
       select 1 from "better_supabase"."guests" x
       where x."tenant_id" = page_guests.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."email" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -464,6 +468,7 @@ begin
       select * from "better_supabase"."guests" x
       where x."tenant_id" = page_guests.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."email" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -483,6 +488,7 @@ begin
       select * from "better_supabase"."guests" x
       where x."tenant_id" = page_guests.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."email" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -502,6 +508,7 @@ begin
       select * from "better_supabase"."guests" x
       where x."tenant_id" = page_guests.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."email" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
       order by x."created_at" asc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -521,6 +528,7 @@ begin
       select * from "better_supabase"."guests" x
       where x."tenant_id" = page_guests.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."email" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by x."created_at" desc, x."id" desc
       limit v_limit + 1 offset v_offset
@@ -540,6 +548,7 @@ begin
       select * from "better_supabase"."guests" x
       where x."tenant_id" = page_guests.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."email" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."email", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
       order by x."email" asc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -559,6 +568,7 @@ begin
       select * from "better_supabase"."guests" x
       where x."tenant_id" = page_guests.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."email" ilike v_search or x."name" ilike v_search)
         and (v_after is null or (x."email" <= (v_after ->> 0)::text and ((x."email" < (v_after ->> 0)::text) or (x."email" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
       order by x."email" desc, x."id" asc
       limit v_limit + 1 offset v_offset
@@ -573,6 +583,7 @@ begin
       select 1 from "better_supabase"."guests" x
       where x."tenant_id" = page_guests.tenant
         and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status" = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (v_search is null or x."email" ilike v_search or x."name" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;

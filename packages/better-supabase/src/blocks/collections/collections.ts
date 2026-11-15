@@ -1,6 +1,17 @@
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
@@ -15,7 +26,9 @@ import {
   extraOf,
   withFields,
 } from "../../core/block-fields.ts";
+import { notFoundError } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { isDbError } from "../../core/errors.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -33,6 +46,7 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
+import { collectionListSurface } from "./lists.ts";
 
 /** Who sees a collection: its owner, a team, or the whole organization. */
 export const COLLECTION_SCOPES = ["user", "team", "tenant"] as const;
@@ -191,10 +205,34 @@ export interface Collections<F extends object = Record<never, never>> {
   }): AsyncResult<boolean>;
   /** Brings an archived collection back and records `collection.restored`. */
   restore(id: string): AsyncResult<boolean>;
-  /** The collections the caller sees, by name. */
+  /**
+   * The collections the caller sees, by name.
+   *
+   * @deprecated Use `collectionPage`, which pages by keyset and takes `q`,
+   * sorts, array filters and a count (ADR 1077).
+   */
   list(
     input: { organizationId: string } & CollectionListOptions,
   ): AsyncResult<(Collection & F)[]>;
+  /**
+   * One keyset page of the collections the caller sees, by name. `filters`
+   * takes `subjectType` and `scope` (lists) and `includeArchived: ["true"]`;
+   * `q` searches the name and the description. The organization comes from
+   * `organizationId`.
+   */
+  collectionPage(
+    options: PageOptions & { readonly organizationId: string },
+  ): AsyncResult<ListPage<Collection & F>>;
+  /** The values of each facet (`subjectType`, `scope`) under the page's filters. */
+  collectionFacets(
+    options: FacetOptions & { readonly organizationId: string },
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many collections match the page's filters. */
+  collectionCount(
+    options: CountOptions & { readonly organizationId: string },
+  ): AsyncResult<Count>;
+  /** One collection the caller sees, or a `not_found` error. */
+  get(id: string): AsyncResult<Collection & F>;
   /**
    * Adds records to the end of a collection, in the given order (at most 1000).
    * Ids already in it are skipped; resolves to the ids added.
@@ -495,6 +533,15 @@ export function createCollections<
       return ok([...items]);
     });
 
+  const collections = entityList<readonly [unknown, Collection], TenantOption>({
+    entity: "collection",
+    surface: collectionListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_collections",
+    rowOf: (row) => [row, collectionOf(row)] as const,
+  });
+
   const client: Collections<F> = {
     create: ({ organizationId, input }) =>
       saved(
@@ -532,6 +579,7 @@ export function createCollections<
         { collection: id, archived: false },
         (value) => value === true,
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, ...listOptions }) =>
       call(
         "list_collections",
@@ -545,6 +593,23 @@ export function createCollections<
             (raw) => [raw, collectionOf(raw)] as const,
           ),
       ).andThen((rows) => allWithFields(fields, rows)),
+    collectionPage: (page) =>
+      collections
+        .page(page)
+        .andThen((read) =>
+          AsyncResult.from(() => allWithFields(fields, read.items)).map(
+            (items) => ({ ...read, items }),
+          ),
+        ),
+    collectionFacets: collections.facets,
+    collectionCount: collections.count,
+    get: (id) =>
+      call("get_collection", { collection: id }, (value) => value).andThen(
+        (value) =>
+          value === null || value === undefined
+            ? AsyncResult.err(notFoundError("collection not found"))
+            : withFields(fields, value, collectionOf(value)),
+      ),
     add: ({ id, subjectIds: ids }) =>
       call(
         "add_collection_entries",

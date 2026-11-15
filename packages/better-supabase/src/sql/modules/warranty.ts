@@ -9,7 +9,12 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
-import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -205,6 +210,7 @@ function functions(ctx: BlockSqlContext): string {
       `x.${c("tenant")} = list_warranty_claims.tenant`,
       filterAny("status", `x.${c("status")}`),
       filterAny("assetId", `x.${c("asset")}`, "uuid"),
+      `(v_search is null or x.${c("title")} ilike v_search)`,
     ],
     keys: [
       { expr: `x.${c("createdAt")}`, dir: "desc", type: "timestamptz" },
@@ -424,6 +430,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_warranty_claims.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(list)}
 begin
   if not ${q.allowed("list_warranty_claims.tenant", q.read)} then

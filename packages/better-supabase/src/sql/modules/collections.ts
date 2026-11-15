@@ -395,6 +395,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "boolean"],
       returns: "jsonb",
     },
+    { name: "page_collections", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_collection", args: ["uuid"], returns: "jsonb" },
     {
       name: "add_collection_entries",
       args: ["uuid", "text[]", "text"],

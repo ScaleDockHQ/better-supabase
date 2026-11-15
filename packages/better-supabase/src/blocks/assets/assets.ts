@@ -310,7 +310,12 @@ export interface Assets {
     patch: AssetPatch;
   }): AsyncResult<Asset>;
   asset(assetId: string): AsyncResult<AssetDetail>;
-  /** Newest first, in the block's tenant. */
+  /**
+   * Newest first, in the block's tenant.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   assets(options?: AssetListOptions): AsyncResult<readonly Asset[]>;
   /**
    * One keyset page of the block tenant's assets the caller can read, newest
@@ -747,6 +752,7 @@ export function createAssets(options: AssetsOptions): Assets {
       call("get_asset", { asset_id: assetId }, (value) =>
         assetDetailOf(value, "get_asset"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     assets: (filter = {}) =>
       tenant().andThen((organizationId) => list(organizationId, filter)),
     page: registry.page,

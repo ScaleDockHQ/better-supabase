@@ -9,4 +9,5 @@ export const guestListSurface: EntityListSurface = {
   sorts: ["createdAt", "email"],
   facets: ["status"],
   filters: ["status"],
+  search: ["email", "name"],
 };
