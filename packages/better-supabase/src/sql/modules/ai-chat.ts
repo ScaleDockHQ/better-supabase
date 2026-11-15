@@ -939,6 +939,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     fn("purge_ai_chats", ["integer"], "integer"),
     fn("get_ai_run", ["uuid"]),
     fn("list_ai_runs", ["uuid", "boolean", "integer"]),
+    fn("ai_usage_by_user", ["{id}", "timestamptz", "timestamptz", "integer"]),
     fn("attach_ai_run", ["uuid", "text"], "boolean"),
     fn("list_pending_ai_tool_approvals", ["integer"]),
     fn("record_ai_run_step", ["uuid", "jsonb"]),

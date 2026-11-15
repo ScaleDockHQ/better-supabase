@@ -658,6 +658,54 @@ describe.skipIf(!live)("ai-chat module", () => {
     }
   });
 
+  it("rolls usage up per user for an organization manager", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const { owner, member, outsider, tenant } = await setUp(s);
+      await s.as(owner);
+
+      const chat = await s.value<{ id: string }>(
+        "better_supabase.create_ai_chat($1)",
+        [tenant],
+      );
+
+      await s.service();
+      await s.rows(
+        `insert into better_supabase.ai_runs (chat_id, owner_id, status, usage, cost_micro_usd)
+         values ($1, $2, 'completed', '{"inputTokens":10,"outputTokens":4}', 700),
+                ($1, $2, 'failed', '{"inputTokens":"x"}', null),
+                ($1, $3, 'completed', '{"inputTokens":1}', 50)`,
+        [chat.id, owner.id, member.id],
+      );
+
+      await s.as(owner);
+      expect(
+        await s.value("better_supabase.ai_usage_by_user($1)", [tenant]),
+      ).toEqual([
+        expect.objectContaining({
+          user_id: owner.id,
+          runs: 2,
+          failed: 1,
+          input_tokens: 10,
+          output_tokens: 4,
+          cost_micro_usd: 700,
+        }),
+        expect.objectContaining({ user_id: member.id, cost_micro_usd: 50 }),
+      ]);
+      await s.as(member);
+      expect(
+        await s.hint("better_supabase.ai_usage_by_user($1)", [tenant]),
+      ).toBe("AI_CHAT_FORBIDDEN");
+      await s.as(outsider);
+      expect(
+        await s.hint("better_supabase.ai_usage_by_user($1)", [tenant]),
+      ).toBe("AI_CHAT_FORBIDDEN");
+    } finally {
+      await s.close();
+    }
+  });
+
   it("drives the block client over both transports", async () => {
     const s = await BlockSession.open(pool);
 

@@ -35,13 +35,13 @@ better-supabase add ai-chat   # adds tenant, access and streams as well
 | `ai_model_catalog`     | The models the app offers, with pricing and the plans that may use each                              |
 | `ai_moderation_events` | Flags, redactions and blocks with their category and score                                           |
 
-| Permission         | Lets a member                                        | Default roles              |
-| ------------------ | ---------------------------------------------------- | -------------------------- |
-| `ai_chat.read`     | read the tenant's chats shared with the organization | `owner`, `admin`, `member` |
-| `ai_chat.create`   | start chats in the tenant                            | `owner`, `admin`, `member` |
-| `ai_chat.share`    | share a chat with the organization or by link        | `owner`, `admin`, `member` |
-| `ai_chat.moderate` | read the tenant's moderation events                  | `owner`, `admin`           |
-| `ai_chat.manage`   | set tool policies and delete any chat in the tenant  | `owner`, `admin`           |
+| Permission         | Lets a member                                                            | Default roles              |
+| ------------------ | ------------------------------------------------------------------------ | -------------------------- |
+| `ai_chat.read`     | read the tenant's chats shared with the organization                     | `owner`, `admin`, `member` |
+| `ai_chat.create`   | start chats in the tenant                                                | `owner`, `admin`, `member` |
+| `ai_chat.share`    | share a chat with the organization or by link                            | `owner`, `admin`, `member` |
+| `ai_chat.moderate` | read the tenant's moderation events                                      | `owner`, `admin`           |
+| `ai_chat.manage`   | set tool policies, delete any chat in the tenant and read spend per user | `owner`, `admin`           |
 
 A chat is `private` (its owner alone), `organization` (every member holding
 `ai_chat.read`) or `shared` (its owner, its participants, the members of
@@ -77,21 +77,21 @@ const rows = useAiChat({ limit: 50 });
 `better-supabase/postgres`, pass `sqlTransport(postgres.asUser(claims))` and
 `sqlTransport(postgres.admin)`.
 
-| Group          | Methods                                                                                          |
-| -------------- | ------------------------------------------------------------------------------------------------ |
-| `chats`        | `create`, `get`, `list`, `update`, `remove`, `shareSummaries`, `purge` (expired temporary chats) |
-| `projects`     | `create`, `update`, `list`, `remove`                                                             |
-| `participants` | `add`, `remove`, `addParty`, `removeParty`, `list`                                               |
-| `links`        | `create`, `rotate`, `revoke`, `get`                                                              |
-| `messages`     | `appendUser`, `saveAssistant`, `path`, `siblings`, `switchBranch`                                |
-| `runs`         | `claim`, `release`, `stop`, `setCost`, `get`, `list`, `attach`, `steps`, `pendingApprovals`      |
-| `sandboxes`    | `register`, `touch`, `forChat`, `list`, `idle`, `finishStop`, `stopIdle`, `idleStopJob`          |
-| `approvals`    | `request`, `decide`, `list`, `setPolicy`, `policies`                                             |
-| `inputs`       | `open`, `answer`                                                                                 |
-| `feedback`     | `rate`                                                                                           |
-| `shares`       | `create`, `revoke`, `list`, `get` (by token, for anyone who has it)                              |
-| `models`       | `allowed` (what the tenant's plans allow), `upsert`                                              |
-| `moderation`   | `record`, `list`                                                                                 |
+| Group          | Methods                                                                                                    |
+| -------------- | ---------------------------------------------------------------------------------------------------------- |
+| `chats`        | `create`, `get`, `list`, `update`, `remove`, `shareSummaries`, `purge` (expired temporary chats)           |
+| `projects`     | `create`, `update`, `list`, `remove`                                                                       |
+| `participants` | `add`, `remove`, `addParty`, `removeParty`, `list`                                                         |
+| `links`        | `create`, `rotate`, `revoke`, `get`                                                                        |
+| `messages`     | `appendUser`, `saveAssistant`, `path`, `siblings`, `switchBranch`                                          |
+| `runs`         | `claim`, `release`, `stop`, `setCost`, `get`, `list`, `usageByUser`, `attach`, `steps`, `pendingApprovals` |
+| `sandboxes`    | `register`, `touch`, `forChat`, `list`, `idle`, `finishStop`, `stopIdle`, `idleStopJob`                    |
+| `approvals`    | `request`, `decide`, `list`, `setPolicy`, `policies`                                                       |
+| `inputs`       | `open`, `answer`                                                                                           |
+| `feedback`     | `rate`                                                                                                     |
+| `shares`       | `create`, `revoke`, `list`, `get` (by token, for anyone who has it)                                        |
+| `models`       | `allowed` (what the tenant's plans allow), `upsert`                                                        |
+| `moderation`   | `record`, `list`                                                                                           |
 
 Every method returns a `Result`. Database errors are `DbError` values, never
 exceptions.
@@ -274,6 +274,7 @@ const inbox = await runs.pendingApprovals().orThrow();
 | Method                       | Does                                                                  |
 | ---------------------------- | --------------------------------------------------------------------- |
 | `get`, `list`                | The caller's runs, or one chat's (`chatId`), newest first             |
+| `usageByUser`                | Runs, tokens and cost per user across an organization (see below)     |
 | `attach`                     | Records the engine's run id (service role)                            |
 | `steps.record`, `steps.list` | Records a step by its key (service role); the same key updates it     |
 | `steps.listFor`              | Steps of many runs in one call, each with its `runId`                 |
@@ -281,6 +282,30 @@ const inbox = await runs.pendingApprovals().orThrow();
 
 Members read the runs and steps of the chats they can read; only the
 service role writes them.
+
+### Spend per user
+
+`ai_runs` is readable by its owner only, so `runs.list` can't total what an
+organization spends. `runs.usageByUser` is the read that spans it. It needs
+`ai_chat.manage` in the organization (the service role may always call it)
+and fails with `AI_CHAT_FORBIDDEN` otherwise.
+
+```ts
+const spend = await runs
+  .usageByUser({
+    organizationId,
+    since: Temporal.Now.instant().subtract({ hours: 24 * 30 }),
+    limit: 20,
+  })
+  .orThrow();
+// [{ userId, runs, failed, inputTokens, outputTokens, cachedInputTokens,
+//    costMicroUsd, lastRunAt }], most expensive first
+```
+
+`since` counts runs that started at or after it and `until` runs that
+started before it. `limit` defaults to 50 and is at most 500. A usage key
+that is not a number counts as zero, and a run without a cost counts as 0
+micro-dollars.
 
 ### Harness sessions
 
