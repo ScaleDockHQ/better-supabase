@@ -6,6 +6,7 @@ import { PII_KINDS } from "better-supabase/blocks/ai-guardrails";
 import { useAction, useErrorMessage } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
+import * as v from "valibot";
 
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { present } from "@/lib/present";
 import { toast } from "@/lib/toast";
 
 import type { PolicyCard as Policy } from "../guardrails-queries";
@@ -111,7 +113,7 @@ function PolicyWizard({ policy }: { policy: Policy }) {
 
   const [topics, setTopics] = useState(() =>
     (config?.denyTopics ?? [])
-      .map((topic) => (typeof topic === "string" ? topic : topic.topic))
+      .map((topic) => (v.is(v.string(), topic) ? topic : topic.topic))
       .join(", "),
   );
 
@@ -290,17 +292,21 @@ function PolicyWizard({ policy }: { policy: Policy }) {
                     agent: policy.agent,
                     stage: policy.stage,
                     enabled: true,
-                    ...(injection === "block" || injection === "flag"
-                      ? { injection }
-                      : {}),
-                    ...(pii === "block" || pii === "redact" || pii === "flag"
-                      ? { pii: { action: pii, kinds: [...kinds] } }
-                      : {}),
+                    ...present({
+                      injection:
+                        injection === "block" || injection === "flag"
+                          ? injection
+                          : undefined,
+                      pii:
+                        pii === "block" || pii === "redact" || pii === "flag"
+                          ? { action: pii, kinds: [...kinds] }
+                          : undefined,
+                      maxToolDepth: depth === "" ? undefined : Number(depth),
+                    }),
                     denyTopics: topics
                       .split(",")
                       .map((topic) => topic.trim())
                       .filter((topic) => topic !== ""),
-                    ...(depth === "" ? {} : { maxToolDepth: Number(depth) }),
                   });
                 }}
               >

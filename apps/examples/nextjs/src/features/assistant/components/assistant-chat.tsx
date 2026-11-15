@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { present } from "@/lib/present";
 
 import type { MessageBranch, ModelOption } from "../assistant-queries";
 
@@ -48,7 +49,7 @@ function StandardPanel({
   const chat = useAssistant({
     id,
     messages,
-    ...(model === undefined ? {} : { model }),
+    ...present({ model }),
     onFinish: () => {
       router.refresh();
     },
