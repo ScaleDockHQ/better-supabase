@@ -273,11 +273,12 @@ export interface Employees<
     },
   ): AsyncResult<Employee<F>>;
   /**
-   * Deletes the employee, for one created by mistake, and moves the reports as
-   * `offboard` does. Fails with `EMPLOYEE_IN_USE` while other rows point at
-   * it.
+   * Removes the employee for good, for one created by mistake, and moves the
+   * reports as `offboard` does. `permissions.purge` gates it, falling back to
+   * the write key. Fails with `EMPLOYEE_IN_USE` while other rows point at it.
+   * Records `employee.purged`.
    */
-  delete(employeeId: string): AsyncResult<Employee<F>>;
+  purge(employeeId: string): AsyncResult<Employee<F>>;
   /** The chart under `rootId`, or under everyone without a manager. */
   orgChart(input: {
     organizationId: string;
@@ -627,8 +628,8 @@ export function createEmployees<
         },
         employeeOf,
       ).andThen(parsed),
-    delete: (employeeId) =>
-      call("delete_employee", { employee: employeeId }, employeeOf).andThen(
+    purge: (employeeId) =>
+      call("purge_employee", { employee: employeeId }, employeeOf).andThen(
         parsed,
       ),
     orgChart: ({ organizationId, rootId }) =>

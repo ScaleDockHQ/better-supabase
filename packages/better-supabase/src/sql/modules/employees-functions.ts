@@ -18,6 +18,8 @@ export interface EmployeeNames {
   /** The employees.view_sensitive key, as a SQL literal. */
   readonly sensitive: string;
   readonly create: string;
+  /** The permissions.purge key, falling back to the write key. */
+  readonly purge: string;
   readonly contractsRead: string;
   readonly contractsWrite: string | undefined;
   readonly privateDetailsWrite: string | undefined;
@@ -507,11 +509,13 @@ end;
 $$;
 ${userGrant(`${fn("offboard_employee")}(uuid, date, text)`)}
 
--- Deletes an employee with their private details and contracts. With
+-- Removes an employee for good, with their private details and contracts, for
+-- one created by mistake: offboard_employee is how an employment ends. Needs
+-- permissions.purge, which falls back to the write key. With
 -- offboarding.reports "manager", their reports move to the employee's
 -- manager; otherwise they are left without one. Fails with EMPLOYEE_IN_USE
 -- while another block's rows still refer to the employee.
-create or replace function ${fn("delete_employee")}(employee uuid)
+create or replace function ${fn("purge_employee")}(employee uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -521,22 +525,25 @@ declare
   v_row ${table};
   v_report ${table};
 begin
-  select * into v_row from ${table} x where x.${e("id")} = delete_employee.employee for update;
+  select * into v_row from ${table} x where x.${e("id")} = purge_employee.employee for update;
   if v_row.${e("id")} is null or not ${editable("v_row")} then
-    ${fail("EMPLOYEE_NOT_FOUND", "no such employee you can delete", "P0002")}
+    ${fail("EMPLOYEE_NOT_FOUND", "no such employee you can purge", "P0002")}
   end if;
-  ${ctx.hook("before_employee_delete", [["uuid", `v_row.${e("id")}`]])}${moveReports(`v_row.${e("id")}`, moveUp ? `v_row.${e("manager")}` : "null")}
+  if not (${n.service} or ${ctx.scope.can(`v_row.${e("tenant")}`, n.purge)}) then
+    ${fail("EMPLOYEE_FORBIDDEN", "not allowed to purge employees")}
+  end if;
+  ${ctx.hook("before_employee_purge", [["uuid", `v_row.${e("id")}`]])}${moveReports(`v_row.${e("id")}`, moveUp ? `v_row.${e("manager")}` : "null")}
   begin
     delete from ${table} x where x.${e("id")} = v_row.${e("id")};
   exception when foreign_key_violation then
     ${fail("EMPLOYEE_IN_USE", "other records still refer to this employee", "23503")}
   end;
-  ${record("employee.deleted", "v_row")}
-  ${ctx.hook("after_employee_delete", [["uuid", `v_row.${e("id")}`]])}
+  ${record("employee.purged", "v_row")}
+  ${ctx.hook("after_employee_purge", [["uuid", `v_row.${e("id")}`]])}
   return ${n.json("v_row")};
 end;
 $$;
-${userGrant(`${fn("delete_employee")}(uuid)`)}
+${userGrant(`${fn("purge_employee")}(uuid)`)}
 
 -- The org chart under root, or under every employee without a manager when
 -- root is null: current employees with their depth and number of direct

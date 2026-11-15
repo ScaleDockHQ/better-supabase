@@ -447,13 +447,13 @@ describe("employees block", () => {
     });
   });
 
-  it("deletes an employee through delete_employee", async () => {
-    const t = transport({ delete_employee: () => EMPLOYEE });
+  it("purges an employee through purge_employee", async () => {
+    const t = transport({ purge_employee: () => EMPLOYEE });
     const employees = createEmployees({ transport: t });
 
-    const deleted = await employees.delete("e1").orThrow();
+    const deleted = await employees.purge("e1").orThrow();
 
     expect(deleted).toMatchObject({ id: "e1" });
-    expect(t.calls[0]).toEqual(["delete_employee", { employee: "e1" }]);
+    expect(t.calls[0]).toEqual(["purge_employee", { employee: "e1" }]);
   });
 });

@@ -29,7 +29,7 @@ export const employeesBlock: BlockOf<
   entities: {
     employee: {
       mutability: "editable",
-      emits: { create: true, update: true, delete: true },
+      emits: { create: true, update: true, purge: true },
     },
   },
   links: [

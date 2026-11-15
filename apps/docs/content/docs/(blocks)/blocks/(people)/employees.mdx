@@ -138,10 +138,15 @@ An app status such as `offboarding` that `values` maps next to a label is accept
 
 `offboard(employeeId, { endDate, reason })` sets the status to `offboarded`, the end date (today by default) and the reason, and moves the employee's reports to their manager. Offboarding again returns the employee unchanged. Set `options.offboarding: { reports: "keep" }` to leave the reports with the offboarded employee, for an app that reassigns them itself.
 
-`delete(employeeId)` removes an employee that was created by mistake
-(`delete_employee` in SQL). It needs `employees.write`, moves the reports as
-offboarding does (with `reports: "keep"` they get no manager), records
-`employee.deleted`, and fails with `EMPLOYEE_IN_USE` while another row, such
+Offboarding is how an employment is archived: the employee stays in the table
+with the status `offboarded`, drops out of the org chart and `reportsOf`, and
+keeps their history. A status can't move back from `offboarded`, so there is no
+`restore`; a rehire is a new employee.
+
+`purge(employeeId)` removes an employee that was created by mistake
+(`purge_employee` in SQL). It needs `permissions.purge`, which falls back to
+`employees.write`, moves the reports as offboarding does (with
+`reports: "keep"` they get no manager), records `employee.purged`, and fails with `EMPLOYEE_IN_USE` while another row, such
 as a time entry, still points at the employee. Offboard employees who
 worked for the organization instead, so their history stays.
 
@@ -289,7 +294,7 @@ blocks: {
 | `employee.created`                        | `organizationId`, `employeeId`, `subjectType`, `subjectId`, `name`, `userId`, `managerId`, `status`       |
 | `employee.updated`, `employee.offboarded` | the same without `managerId` and `status`, with `fields` (the changed fields, or `contract`) or `endDate` |
 | `employee.manager_changed`                | the same, with `fromManagerId` and `toManagerId`; offboarding records one for each report that moves      |
-| `employee.deleted`                        | the same as `employee.updated`, without `fields`                                                          |
+| `employee.purged`                         | the same as `employee.updated`, without `fields`                                                          |
 
 Every employee event carries `userId`, the employee's user account, or `null`
 for an employee without one. A sink on `employee.offboarded` can use it to
@@ -299,7 +304,7 @@ consumer that needs it reads the employee.
 
 ## Hooks
 
-`before_employee_create`, `after_employee_create`, `before_employee_update`, `after_employee_update`, `before_employee_offboard`, `after_employee_offboard`, `before_employee_delete` and `after_employee_delete` run in the same transaction as the change. See [extending blocks](/docs/extending/blocks).
+`before_employee_create`, `after_employee_create`, `before_employee_update`, `after_employee_update`, `before_employee_offboard`, `after_employee_offboard`, `before_employee_purge` and `after_employee_purge` run in the same transaction as the change. See [extending blocks](/docs/extending/blocks).
 
 ## Errors
 

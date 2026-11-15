@@ -29800,7 +29800,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "employee.updated",
           "employee.offboarded",
           "employee.manager_changed",
-          "employee.deleted"
+          "employee.purged"
         ]
       },
       "actions": [

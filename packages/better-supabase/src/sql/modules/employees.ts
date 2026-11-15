@@ -56,7 +56,7 @@ const EVENTS: BlockSqlEvents<EmployeesEvents> = {
     subject: "employees",
     payload: [...EMPLOYEE, "fromManagerId", "toManagerId"],
   },
-  "employee.deleted": { subject: "employees", payload: EMPLOYEE },
+  "employee.purged": { subject: "employees", payload: EMPLOYEE },
 };
 
 /** The statuses, in the order an employee usually moves through them. */
@@ -101,8 +101,8 @@ const NAMES: BlockSqlNames = {
     "after_employee_update",
     "before_employee_offboard",
     "after_employee_offboard",
-    "before_employee_delete",
-    "after_employee_delete",
+    "before_employee_purge",
+    "after_employee_purge",
   ],
   options: [
     "employmentTypes",
@@ -518,6 +518,9 @@ function build(ctx: BlockSqlContext): string {
       ctx.config.permissions["create"] ??
         ctx.permissionKey("write", keys.write),
     ),
+    purge: sqlString(
+      ctx.config.permissions["purge"] ?? ctx.permissionKey("write", keys.write),
+    ),
     contractsRead: sqlString(
       ctx.config.permissions["contractsRead"] ??
         ctx.permissionKey("readSensitive", keys.readSensitive),
@@ -697,7 +700,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     { name: "create_employee", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "update_employees", args: ["jsonb", "boolean"], returns: "jsonb" },
-    { name: "delete_employee", args: ["uuid"], returns: "jsonb" },
+    { name: "purge_employee", args: ["uuid"], returns: "jsonb" },
     {
       name: "offboard_employee",
       args: ["uuid", "date", "text"],
