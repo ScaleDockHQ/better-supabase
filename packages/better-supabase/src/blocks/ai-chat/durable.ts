@@ -50,6 +50,29 @@ export interface AiRunQuery {
   readonly limit?: number;
 }
 
+/** What one user of an organization spent on runs in a range. */
+export interface AiUserUsage {
+  readonly userId: string;
+  readonly runs: number;
+  readonly failed: number;
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  readonly cachedInputTokens: number;
+  readonly costMicroUsd: number;
+  readonly lastRunAt: Temporal.Instant | undefined;
+}
+
+export interface AiUsageByUserQuery {
+  /** The organization to roll up; the caller needs `ai_chat.manage` in it. */
+  readonly organizationId: string;
+  /** Counts runs that started at or after this instant. */
+  readonly since?: Temporal.Instant;
+  /** Counts runs that started before this instant. */
+  readonly until?: Temporal.Instant;
+  /** At most 500; defaults to 50, most expensive first. */
+  readonly limit?: number;
+}
+
 export type AiRunStepStatus = "running" | "done" | "error" | "skipped";
 
 /** One step of a long run's progress, as `ai_run_steps` stores it. */
@@ -85,6 +108,12 @@ export interface AiPendingApproval extends AiToolApproval {
 export interface AiRuns {
   get(runId: string): AsyncResult<AiRun>;
   list(query?: AiRunQuery): AsyncResult<readonly AiRun[]>;
+  /**
+   * Spend per user across an organization, most expensive first. `ai_runs` is
+   * readable by its owner only, so this is the read that spans the
+   * organization; it needs `ai_chat.manage` there.
+   */
+  usageByUser(query: AiUsageByUserQuery): AsyncResult<readonly AiUserUsage[]>;
   /** Records the durable engine's run id on a claimed run (service role). */
   attach(input: { runId: string; externalRunId: string }): AsyncResult<boolean>;
   readonly steps: {
@@ -161,6 +190,27 @@ function runOf(value: unknown): AiRun {
   };
 }
 
+const count = (value: unknown): number => {
+  const parsed = Number(value ?? 0);
+
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+function userUsageOf(value: unknown): AiUserUsage {
+  const row = recordOf(value, "ai_usage_by_user");
+
+  return {
+    userId: textOf(row["user_id"]),
+    runs: count(row["runs"]),
+    failed: count(row["failed"]),
+    inputTokens: count(row["input_tokens"]),
+    outputTokens: count(row["output_tokens"]),
+    cachedInputTokens: count(row["cached_input_tokens"]),
+    costMicroUsd: count(row["cost_micro_usd"]),
+    lastRunAt: optionalInstant(row["last_run_at"]),
+  };
+}
+
 function stepOf(value: unknown): AiRunStep {
   const row = recordOf(value, "ai_run_step");
 
@@ -199,6 +249,17 @@ export function aiRunLookups(
         "list_ai_runs",
         { chat: query.chatId, active: query.active, size: pageOf(query).limit },
         (value) => recordsOf(value, "list_ai_runs").map(runOf),
+      ),
+    usageByUser: ({ organizationId, since, until, limit }) =>
+      call(
+        "ai_usage_by_user",
+        {
+          tenant: organizationId,
+          since: since?.toString(),
+          until: until?.toString(),
+          size: limit,
+        },
+        (value) => recordsOf(value, "ai_usage_by_user").map(userUsageOf),
       ),
     attach: ({ runId, externalRunId }) =>
       service(
