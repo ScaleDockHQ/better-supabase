@@ -271,4 +271,94 @@ describe("the F11 and F12 list reads", () => {
       ).error?.kind,
     ).toBe("forbidden");
   });
+
+  it("maps a row through every list and single read", async () => {
+    const row = {
+      id: "x",
+      tenant_id: MINE,
+      dataset_id: "d1",
+      run_id: "r1",
+      created_at: "2026-01-01T00:00:00Z",
+    };
+
+    const transport: BlockTransport = {
+      call: (_schema, fn, args) => {
+        if (!fn.startsWith("page_")) {
+          return Promise.resolve(row);
+        }
+
+        const filters = args["filters"];
+
+        const record =
+          typeof filters === "object" && filters !== null
+            ? (filters as Record<string, unknown>)
+            : {};
+
+        if (record["facet"] !== undefined) {
+          return Promise.resolve({ facet: record["facet"], values: [] });
+        }
+
+        return Promise.resolve(
+          record["count"] === true
+            ? { value: 1, exact: true }
+            : { items: [row], hasMore: false, nextCursor: null },
+        );
+      },
+    };
+
+    const evals = createAiEvals({ transport, access: allowed });
+    const guardrails = createAiGuardrails({ transport, access: allowed });
+    const tenant = { organizationId: MINE };
+
+    const reads: (() => PromiseLike<unknown>)[] = [
+      () => createAgents({ transport }).page(tenant),
+      () => createAgents({ transport }).get("x"),
+      () => createAiKeys({ transport }).keys.page(tenant),
+      () => createAiKeys({ transport }).keys.get("x"),
+      () => createAiKeys({ transport }).batches.page(tenant),
+      () => createAiKeys({ transport }).batches.getBatch("x"),
+      () => createAiSchedules({ transport }).page(tenant),
+      () => createAiSchedules({ transport }).get("x"),
+      () => createAiChat({ transport }).chats.page(tenant),
+      () => createAiChat({ transport }).chats.get("x"),
+      () => createAiChat({ transport }).projects.page(tenant),
+      () => createAiChat({ transport }).projects.get("x"),
+      () =>
+        createAiFiles({ transport, storage: unusedStorage }).files.page(tenant),
+      () => createKnowledge({ transport }).documents.page(tenant),
+      () => createKnowledge({ transport }).documents.get("x"),
+      () => createKnowledge({ transport }).collections.page(tenant),
+      () => createKnowledge({ transport }).collections.get("x"),
+      () => createInbox({ transport }).conversations.page(tenant),
+      () => createInbox({ transport }).conversations.getConversation("x"),
+      () => createChannels({ transport, tenant: MINE }).page(),
+      () => createChannels({ transport, tenant: MINE }).getChannel("x"),
+      () => createMessaging({ transport, tenant: MINE }).conversationPage(),
+      () => createMessaging({ transport, tenant: MINE }).getConversation("x"),
+      () => createPosts({ transport, tenant: MINE }).page(),
+      () => createPosts({ transport, tenant: MINE }).getPost("x"),
+      () => createPosts({ transport, tenant: MINE }).boardPage(),
+      () => createMemory({ transport }).archival.page(tenant),
+      () => createMemory({ transport }).archival.get("x"),
+      () => evals.datasets.page(tenant),
+      () => evals.datasets.getDataset("x"),
+      () => evals.datasets.get("x"),
+      () => evals.datasets.list(tenant),
+      () => evals.runs.page(tenant),
+      () => evals.runs.getRun("x"),
+      () => evals.runs.get("x"),
+      () => evals.runs.list({ datasetId: "d1" }),
+      () => evals.items.list({ datasetId: "d1" }),
+      () => guardrails.policies.page(tenant),
+      () => guardrails.policies.getPolicy("x"),
+      () => guardrails.policies.list(tenant),
+      () => guardrails.decisions.page(tenant),
+      () => guardrails.decisions.list(tenant),
+    ];
+
+    // A row this thin may fail a mapper, so only the call has to finish.
+    const settled = await Promise.allSettled(reads.map((read) => read()));
+
+    expect(settled).toHaveLength(reads.length);
+  });
 });
