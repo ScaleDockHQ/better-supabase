@@ -432,7 +432,7 @@
   "/[locale]/(app)/documents/register/[id]/page": {
     "raw": 3612807,
     "gzip": 1080733,
-    "brotli": 896325
+    "brotli": 898686
   },
   "/[locale]/(app)/documents/register/page": {
     "raw": 3602302,
@@ -827,12 +827,12 @@
   "/[locale]/(app)/risks/[id]/page": {
     "raw": 3111806,
     "gzip": 945950,
-    "brotli": 786668
+    "brotli": 788715
   },
   "/[locale]/(app)/risks/page": {
     "raw": 3117141,
     "gzip": 947164,
-    "brotli": 787677
+    "brotli": 789785
   },
   "/[locale]/(app)/rules/[rule]/page": {
     "raw": 3086931,
@@ -897,7 +897,7 @@
   "/[locale]/(app)/settings/domains/page": {
     "raw": 3098822,
     "gzip": 944723,
-    "brotli": 782733
+    "brotli": 784841
   },
   "/[locale]/(app)/settings/flags/page": {
     "raw": 3094284,
@@ -1042,7 +1042,7 @@
   "/[locale]/(app)/settings/support/page": {
     "raw": 3101873,
     "gzip": 945137,
-    "brotli": 782968
+    "brotli": 784990
   },
   "/[locale]/(app)/settings/teams/[teamId]/page": {
     "raw": 3105903,
@@ -1181,7 +1181,7 @@
   },
   "/[locale]/(app)/templates/page": {
     "raw": 3102860,
-    "gzip": 942240,
+    "gzip": 944619,
     "brotli": 784112
   },
   "/[locale]/(app)/tills/[id]/page": {
