@@ -19,17 +19,24 @@ import { createGuests } from "../../src/blocks/guests/index.ts";
 import { createInventory } from "../../src/blocks/inventory/index.ts";
 import { createLeases } from "../../src/blocks/leases/index.ts";
 import { createLeave } from "../../src/blocks/leave/index.ts";
+import { createLims } from "../../src/blocks/lims/index.ts";
 import { createMailSync } from "../../src/blocks/mail-sync/index.ts";
+import { createMaintenance } from "../../src/blocks/maintenance/index.ts";
+import { createManufacturing } from "../../src/blocks/manufacturing/index.ts";
 import { createPasses } from "../../src/blocks/passes/index.ts";
 import { createPayrollExport } from "../../src/blocks/payroll-export/index.ts";
 import { createPipelines } from "../../src/blocks/pipelines/index.ts";
 import { createQualifications } from "../../src/blocks/qualifications/index.ts";
 import { createQuotes } from "../../src/blocks/quotes/index.ts";
+import { createRfqs } from "../../src/blocks/rfqs/index.ts";
 import { createSegments } from "../../src/blocks/segments/index.ts";
 import { createSequences } from "../../src/blocks/sequences/index.ts";
+import { createShipments } from "../../src/blocks/shipments/index.ts";
 import { createSignatures } from "../../src/blocks/signatures/index.ts";
 import { createTemplates } from "../../src/blocks/templates/index.ts";
+import { createTills } from "../../src/blocks/tills/index.ts";
 import { createVersions } from "../../src/blocks/versions/index.ts";
+import { createWarehouse } from "../../src/blocks/warehouse/index.ts";
 import { fieldsTransport } from "./fields-transport.ts";
 
 interface Case {
@@ -635,6 +642,260 @@ const CASES: readonly Case[] = [
       };
     },
   },
+  {
+    label: "tills",
+    searchable: true,
+    fn: "list_tills",
+    sort: "name",
+    filter: "currency",
+    facet: "currency",
+    list: (transport) => {
+      const client = createTills(options(transport));
+
+      return {
+        page: (page) => client.tillPage(page),
+        facets: (facets) => client.tillFacets(facets),
+        count: (count) => client.tillCount(count),
+      };
+    },
+  },
+  {
+    label: "till sessions",
+    searchable: true,
+    fn: "list_till_sessions",
+    sort: "openedAt",
+    filter: "status",
+    facet: "status",
+    list: (transport) => {
+      const client = createTills(options(transport));
+
+      return {
+        page: (page) => client.sessionPage(page),
+        facets: (facets) => client.sessionFacets(facets),
+        count: (count) => client.sessionCount(count),
+      };
+    },
+  },
+  {
+    label: "lims methods",
+    searchable: true,
+    fn: "page_lims_methods",
+    sort: "key",
+    filter: "unit",
+    facet: "unit",
+    list: (transport) => {
+      const client = createLims(options(transport));
+
+      return {
+        page: (page) => client.methodPage(page),
+        facets: (facets) => client.methodFacets(facets),
+        count: (count) => client.methodCount(count),
+      };
+    },
+  },
+  {
+    label: "lims samples",
+    searchable: true,
+    fn: "list_samples",
+    sort: "number",
+    filter: "status",
+    facet: "status",
+    list: (transport) => {
+      const client = createLims(options(transport));
+
+      return {
+        page: (page) => client.samplePage(page),
+        facets: (facets) => client.sampleFacets(facets),
+        count: (count) => client.sampleCount(count),
+      };
+    },
+  },
+  {
+    label: "maintenance meters",
+    searchable: true,
+    fn: "page_maintenance_meters",
+    sort: "name",
+    filter: "unit",
+    facet: "unit",
+    list: (transport) => {
+      const client = createMaintenance(options(transport));
+
+      return {
+        page: (page) => client.meterPage(page),
+        facets: (facets) => client.meterFacets(facets),
+        count: (count) => client.meterCount(count),
+      };
+    },
+  },
+  {
+    label: "maintenance plans",
+    searchable: true,
+    fn: "list_maintenance_plans",
+    sort: "nextDueAt",
+    filter: "status",
+    facet: "status",
+    list: (transport) => {
+      const client = createMaintenance(options(transport));
+
+      return {
+        page: (page) => client.planPage(page),
+        facets: (facets) => client.planFacets(facets),
+        count: (count) => client.planCount(count),
+      };
+    },
+  },
+  {
+    label: "maintenance calibrations",
+    searchable: true,
+    fn: "list_calibrations",
+    sort: "performedAt",
+    filter: "assetId",
+    facet: "result",
+    list: (transport) => {
+      const client = createMaintenance(options(transport));
+
+      return {
+        page: (page) => client.calibrationPage(page),
+        facets: (facets) => client.calibrationFacets(facets),
+        count: (count) => client.calibrationCount(count),
+      };
+    },
+  },
+  {
+    label: "pick waves",
+    searchable: true,
+    fn: "page_pick_waves",
+    sort: "createdAt",
+    filter: "status",
+    facet: "status",
+    list: (transport) => {
+      const client = createWarehouse(options(transport));
+
+      return {
+        page: (page) => client.pickWavePage(page),
+        facets: (facets) => client.pickWaveFacets(facets),
+        count: (count) => client.pickWaveCount(count),
+      };
+    },
+  },
+  {
+    label: "putaway rules",
+    fn: "list_putaway_rules",
+    sort: "priority",
+    filter: "locationId",
+    facet: "active",
+    list: (transport) => {
+      const client = createWarehouse(options(transport));
+
+      return {
+        page: (page) => client.putawayRulePage(page),
+        facets: (facets) => client.putawayRuleFacets(facets),
+        count: (count) => client.putawayRuleCount(count),
+      };
+    },
+  },
+  {
+    label: "count plans",
+    searchable: true,
+    fn: "page_count_plans",
+    sort: "nextRunOn",
+    filter: "active",
+    facet: "active",
+    list: (transport) => {
+      const client = createWarehouse(options(transport));
+
+      return {
+        page: (page) => client.countPlanPage(page),
+        facets: (facets) => client.countPlanFacets(facets),
+        count: (count) => client.countPlanCount(count),
+      };
+    },
+  },
+  {
+    label: "boms",
+    searchable: true,
+    fn: "page_boms",
+    sort: "variant",
+    filter: "status",
+    facet: "status",
+    list: (transport) => {
+      const client = createManufacturing(options(transport));
+
+      return {
+        page: (page) => client.bomPage(page),
+        facets: (facets) => client.bomFacets(facets),
+        count: (count) => client.bomCount(count),
+      };
+    },
+  },
+  {
+    label: "work centers",
+    searchable: true,
+    fn: "page_work_centers",
+    sort: "name",
+    filter: "currency",
+    facet: "currency",
+    list: (transport) => {
+      const client = createManufacturing(options(transport));
+
+      return {
+        page: (page) => client.workCenterPage(page),
+        facets: (facets) => client.workCenterFacets(facets),
+        count: (count) => client.workCenterCount(count),
+      };
+    },
+  },
+  {
+    label: "production orders",
+    searchable: true,
+    fn: "list_production_orders",
+    sort: "dueOn",
+    filter: "status",
+    facet: "status",
+    list: (transport) => {
+      const client = createManufacturing(options(transport));
+
+      return {
+        page: (page) => client.orderPage(page),
+        facets: (facets) => client.orderFacets(facets),
+        count: (count) => client.orderCount(count),
+      };
+    },
+  },
+  {
+    label: "rfqs",
+    searchable: true,
+    fn: "list_rfqs",
+    sort: "number",
+    filter: "status",
+    facet: "status",
+    list: (transport) => {
+      const client = createRfqs(options(transport));
+
+      return {
+        page: (page) => client.rfqPage(page),
+        facets: (facets) => client.rfqFacets(facets),
+        count: (count) => client.rfqCount(count),
+      };
+    },
+  },
+  {
+    label: "shipments",
+    searchable: true,
+    fn: "list_shipments",
+    sort: "createdAt",
+    filter: "status",
+    facet: "status",
+    list: (transport) => {
+      const client = createShipments(options(transport));
+
+      return {
+        page: (page) => client.shipmentPage(page),
+        facets: (facets) => client.shipmentFacets(facets),
+        count: (count) => client.shipmentCount(count),
+      };
+    },
+  },
 ];
 
 describe.each(CASES)("list surface client of $label", (spec) => {
@@ -762,5 +1023,65 @@ describe.each(CASES)("list surface client of $label", (spec) => {
     }
 
     expect(transport.calls).toEqual([]);
+  });
+});
+
+const MISSING: readonly {
+  readonly label: string;
+  readonly get: (
+    transport: BlockTransport,
+  ) => PromiseLike<{
+    readonly ok: boolean;
+    readonly error?: { readonly kind: string } | null;
+  }>;
+}[] = [
+  {
+    label: "getTill",
+    get: (transport) => createTills(options(transport)).getTill("t1"),
+  },
+  {
+    label: "getMethod",
+    get: (transport) => createLims(options(transport)).getMethod("m1"),
+  },
+  {
+    label: "getMeter",
+    get: (transport) => createMaintenance(options(transport)).getMeter("m1"),
+  },
+  {
+    label: "getPickWave",
+    get: (transport) => createWarehouse(options(transport)).getPickWave("w1"),
+  },
+  {
+    label: "getPutawayRule",
+    get: (transport) =>
+      createWarehouse(options(transport)).getPutawayRule("r1"),
+  },
+  {
+    label: "getCountPlan",
+    get: (transport) => createWarehouse(options(transport)).getCountPlan("p1"),
+  },
+  {
+    label: "getWorkCenter",
+    get: (transport) =>
+      createManufacturing(options(transport)).getWorkCenter("c1"),
+  },
+];
+
+describe.each(MISSING)("$label", ({ get }) => {
+  it("returns not_found for a row the function does not return", async () => {
+    const transport = fieldsTransport({
+      get_till: () => null,
+      get_lims_method: () => null,
+      get_maintenance_meter: () => null,
+      get_pick_wave: () => null,
+      get_putaway_rule: () => null,
+      get_count_plan: () => null,
+      get_work_center: () => null,
+    });
+
+    const result = await get(transport);
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.kind).toBe("not_found");
   });
 });

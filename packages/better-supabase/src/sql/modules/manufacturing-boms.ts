@@ -2,6 +2,8 @@ import type { BlockSqlContext } from "../context.ts";
 import type { ManufacturingSql } from "./manufacturing-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { getFunction } from "../get-template.ts";
+import { filterAny, filterFlag, pageFunction } from "../list-template.ts";
 import { fail, userGrant } from "../shared.ts";
 import { DEFAULT_INSPECTION_KINDS } from "./inspections-values.ts";
 import { linked, manufacturingSql } from "./manufacturing-sql.ts";
@@ -49,6 +51,106 @@ export function bomFunctions(ctx: BlockSqlContext): string {
   const it = (column: string): string => inventory.col("items", column);
   const assets = linked(ctx, "assets");
   const drive = linked(ctx, "drive");
+
+  const bomKeys = (
+    first: "variant" | "createdAt" | "activatedAt",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => {
+    switch (first) {
+      case "variant": {
+        return [
+          { expr: `x.${b("variant")}`, dir: "asc", type: "uuid" },
+          { expr: `x.${b("version")}`, dir: "desc", type: "integer" },
+          { expr: `x.${b("id")}`, dir: "asc", type: "uuid" },
+        ];
+      }
+
+      case "createdAt": {
+        return [
+          { expr: `x.${b("createdAt")}`, dir: "desc", type: "timestamptz" },
+          { expr: `x.${b("id")}`, dir: "asc", type: "uuid" },
+        ];
+      }
+
+      case "activatedAt": {
+        return [
+          {
+            expr: `coalesce(x.${b("activatedAt")}, '-infinity'::timestamptz)`,
+            dir: "desc",
+            type: "timestamptz",
+          },
+          { expr: `x.${b("id")}`, dir: "asc", type: "uuid" },
+        ];
+      }
+
+      default: {
+        const never: never = first;
+
+        return never;
+      }
+    }
+  };
+
+  const bomPage = {
+    name: "page_boms",
+    from: q.boms,
+    alias: "x",
+    where: [
+      `x.${b("tenant")} = page_boms.tenant`,
+      filterAny("variantId", `x.${b("variant")}`, "uuid"),
+      filterAny("status", `x.${b("status")}`),
+      `(v_search is null or coalesce(x.${b("note")}, '') ilike v_search)`,
+    ],
+    keys: bomKeys("variant"),
+    sorts: {
+      variant: bomKeys("variant"),
+      createdAt: bomKeys("createdAt"),
+      activatedAt: bomKeys("activatedAt"),
+    },
+    facets: { status: `x.${b("status")}` },
+    rowJson: q.bomJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: q.bomInvalid,
+  } as const;
+
+  const workCenterKeys = (
+    first: "name" | "createdAt",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => [
+    first === "name"
+      ? { expr: `lower(x.${w("name")})`, dir: "asc", type: "text" }
+      : { expr: `x.${w("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${w("id")}`, dir: "asc", type: "uuid" },
+  ];
+
+  const workCenterPage = {
+    name: "page_work_centers",
+    from: q.workCenters,
+    alias: "x",
+    where: [
+      `x.${w("tenant")} = page_work_centers.tenant`,
+      filterAny("currency", `x.${w("currency")}`),
+      `(${filterFlag("includeArchived")} or x.${w("archivedAt")} is null)`,
+      `(v_search is null or x.${w("name")} ilike v_search)`,
+    ],
+    keys: workCenterKeys("name"),
+    sorts: {
+      name: workCenterKeys("name"),
+      createdAt: workCenterKeys("createdAt"),
+    },
+    facets: { currency: `x.${w("currency")}` },
+    rowJson: q.workCenterJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: q.bomInvalid,
+  } as const;
 
   const inspectionKinds = linked(ctx, "inspections")
     ?.list("kinds", DEFAULT_INSPECTION_KINDS)
@@ -299,6 +401,18 @@ end;
 $$;
 ${userGrant(`${fn("list_boms")}(${idType}, uuid)`)}
 
+-- The organization's bill of materials versions as a keyset page, by variant
+-- and the latest version first unless sort says otherwise (ADR 1077). filters
+-- may hold variantId and status (a value or a list), search, sort (variant,
+-- createdAt, activatedAt), direction, facet, count, limit and after.
+${pageFunction({
+  name: fn("page_boms"),
+  idType,
+  list: bomPage,
+  allowed: q.allowed("page_boms.tenant", q.read),
+  forbidden: q.forbidden("not allowed to read bills of materials"),
+  grant: userGrant(`${fn("page_boms")}(${idType}, jsonb)`),
+})}
 -- What making quantity of a variant takes, through the active bills of
 -- materials at every level: { variantId, quantity, lines: [{ level,
 -- variantId, parentVariantId, bomId, quantity, made }], materials: [{
@@ -457,5 +571,31 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_work_centers")}(${idType})`)}
-`;
+
+-- The organization's work centers as a keyset page, by name unless sort says
+-- otherwise (ADR 1077). filters may hold currency (a value or a list),
+-- includeArchived, search, sort (name, createdAt), direction, facet, count,
+-- limit and after.
+${pageFunction({
+  name: fn("page_work_centers"),
+  idType,
+  list: workCenterPage,
+  allowed: q.allowed("page_work_centers.tenant", q.read),
+  forbidden: q.forbidden("not allowed to read work centers"),
+  grant: userGrant(`${fn("page_work_centers")}(${idType}, jsonb)`),
+})}
+-- One work center the caller may read, or null.
+${getFunction({
+  name: fn("get_work_center"),
+  bare: "get_work_center",
+  arg: "work_center_id",
+  from: q.workCenters,
+  idColumn: w("id"),
+  tenantColumn: w("tenant"),
+  tenantType: idType,
+  rowJson: q.workCenterJson("x"),
+  allowed: (tenant) => q.allowed(tenant, q.read),
+  forbidden: q.forbidden("not allowed to read work centers"),
+  grant: userGrant(`${fn("get_work_center")}(uuid)`),
+})}`;
 }

@@ -2,12 +2,15 @@ import type { BlockSqlContext } from "../context.ts";
 import type { MaintenanceSql } from "./maintenance-sql.ts";
 
 import { archiveRestoreFunctions, archivedListFilter } from "../archive-sql.ts";
+import { getFunction } from "../get-template.ts";
 import {
   filterAny,
   filterFirst,
   filterFlag,
   listBody,
   listDeclare,
+  pageFunction,
+  searchPattern,
 } from "../list-template.ts";
 import { triggerGrant, userGrant } from "../shared.ts";
 import { maintenanceSql } from "./maintenance-sql.ts";
@@ -343,6 +346,41 @@ function meterFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
   const { fn, m, r, meters, readings } = q;
   const idType = ctx.idType;
 
+  const meterPage = {
+    name: "page_maintenance_meters",
+    from: meters,
+    alias: "x",
+    where: [
+      `x.${m("tenant")} = page_maintenance_meters.tenant`,
+      filterAny("unit", `x.${m("unit")}`),
+      filterAny("assetId", `x.${m("asset")}`, "uuid"),
+      `(v_search is null or x.${m("name")} ilike v_search)`,
+    ],
+    keys: [
+      { expr: `lower(x.${m("name")})`, dir: "asc", type: "text" },
+      { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
+    ],
+    sorts: {
+      name: [
+        { expr: `lower(x.${m("name")})`, dir: "asc", type: "text" },
+        { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
+      ],
+      readAt: [
+        {
+          expr: `coalesce(x.${m("readAt")}, '-infinity'::timestamptz)`,
+          dir: "desc",
+          type: "timestamptz",
+        },
+        { expr: `x.${m("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { unit: `x.${m("unit")}`, assetId: `x.${m("asset")}::text` },
+    rowJson: q.meterJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: q.invalid,
+  } as const;
+
   return `
 -- Adds a meter, for example hours run or kilometres, optionally on an asset.
 -- Needs maintenance.manage.
@@ -437,7 +475,33 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_maintenance_meters")}(${idType})`)}
-`;
+
+-- The meters of an organization as a keyset page, by name unless sort says
+-- otherwise (ADR 1077). filters may hold unit and assetId (a value or a
+-- list), search, sort (name, readAt), direction, facet, count, limit and
+-- after.
+${pageFunction({
+  name: fn("page_maintenance_meters"),
+  idType,
+  list: meterPage,
+  allowed: q.allowed("page_maintenance_meters.tenant", q.read),
+  forbidden: q.forbidden("not allowed to read maintenance"),
+  grant: userGrant(`${fn("page_maintenance_meters")}(${idType}, jsonb)`),
+})}
+-- One meter the caller may read, or null.
+${getFunction({
+  name: fn("get_maintenance_meter"),
+  bare: "get_maintenance_meter",
+  arg: "meter_id",
+  from: meters,
+  idColumn: m("id"),
+  tenantColumn: m("tenant"),
+  tenantType: idType,
+  rowJson: q.meterJson("x"),
+  allowed: (tenant) => q.allowed(tenant, q.read),
+  forbidden: q.forbidden("not allowed to read maintenance"),
+  grant: userGrant(`${fn("get_maintenance_meter")}(uuid)`),
+})}`;
 }
 
 function calibrationFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
@@ -450,6 +514,7 @@ function calibrationFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
     alias: "x",
     where: [
       `x.${c("tenant")} = list_calibrations.tenant`,
+      `(v_search is null or coalesce(x.${c("reference")}, '') ilike v_search or coalesce(x.${c("instrument")}, '') ilike v_search)`,
       filterAny("assetId", `x.${c("asset")}`, "uuid"),
       `(${filterFirst("dueBefore")} is null or x.${c("dueAt")} <= (${filterFirst("dueBefore")})::timestamptz)`,
     ],
@@ -571,6 +636,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_calibrations.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(list)}
 begin
   if not ${q.allowed("list_calibrations.tenant", q.read)} then
@@ -593,6 +659,7 @@ function dispatchFunctions(ctx: BlockSqlContext, q: MaintenanceSql): string {
     alias: "x",
     where: [
       `x.${p("tenant")} = list_maintenance_plans.tenant`,
+      `(v_search is null or x.${p("title")} ilike v_search)`,
       filterAny("status", `x.${p("status")}`),
       filterAny("kind", `x.${p("kind")}`),
       filterAny("assetId", `x.${p("asset")}`, "uuid"),
@@ -664,6 +731,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_maintenance_plans.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(list_list_maintenance_plans)}
 begin
   if not ${q.allowed("list_maintenance_plans.tenant", q.read)} then

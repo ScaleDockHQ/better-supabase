@@ -9,4 +9,16 @@ export const tillSessionListSurface: EntityListSurface = {
   sorts: ["openedAt", "closedAt"],
   facets: ["status", "tillId"],
   filters: ["tillId", "status"],
+  search: ["notes"],
+};
+
+/**
+ * The same for a till (`list_tills`). Archived tills are hidden unless
+ * `includeArchived` is `["true"]`.
+ */
+export const tillListSurface: EntityListSurface = {
+  sorts: ["name", "createdAt"],
+  facets: ["currency"],
+  filters: ["currency", "includeArchived"],
+  search: ["name"],
 };

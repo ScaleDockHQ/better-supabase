@@ -2,12 +2,14 @@ import type { BlockSqlContext } from "../context.ts";
 import type { WarehouseSql } from "./warehouse-sql.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { getFunction } from "../get-template.ts";
 import { createdFromLink } from "../links.ts";
 import {
   filterAny,
   filterFlag,
   listBody,
   listDeclare,
+  pageFunction,
 } from "../list-template.ts";
 import { userGrant } from "../shared.ts";
 import { warehouseSql } from "./warehouse-sql.ts";
@@ -487,6 +489,46 @@ function readFunctions(ctx: BlockSqlContext, q: WarehouseSql): string {
   const { fn, w, p, waves, lists } = q;
   const idType = ctx.idType;
 
+  const waveRow = `${q.waveJson("x")}
+      || jsonb_build_object(
+        'lists', (select count(*) from ${lists} z where z.${p("wave")} = x.${w("id")} and z.${p("status")} <> 'cancelled'),
+        'openLists', (select count(*) from ${lists} z where z.${p("wave")} = x.${w("id")} and z.${p("status")} = 'open'))`;
+
+  const waveKeys = (
+    first: "createdAt" | "name",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => [
+    first === "createdAt"
+      ? { expr: `x.${w("createdAt")}`, dir: "desc", type: "timestamptz" }
+      : { expr: `lower(x.${w("name")})`, dir: "asc", type: "text" },
+    { expr: `x.${w("id")}`, dir: "asc", type: "uuid" },
+  ];
+
+  const wavePage = {
+    name: "page_pick_waves",
+    from: waves,
+    alias: "x",
+    where: [
+      `x.${w("tenant")} = page_pick_waves.tenant`,
+      filterAny("status", `x.${w("status")}`),
+      filterAny("locationId", `x.${w("location")}::text`),
+      `(v_search is null or x.${w("name")} ilike v_search)`,
+    ],
+    keys: waveKeys("createdAt"),
+    sorts: { createdAt: waveKeys("createdAt"), name: waveKeys("name") },
+    facets: {
+      status: `x.${w("status")}`,
+      locationId: `x.${w("location")}::text`,
+    },
+    rowJson: waveRow,
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: q.invalid,
+  } as const;
+
   const list_list_pick_lists = {
     name: "list_pick_lists",
     from: lists,
@@ -595,7 +637,33 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_pick_waves")}(${idType})`)}
-`;
+
+-- The pick waves of an organization as a keyset page, newest first unless
+-- sort says otherwise (ADR 1077). filters may hold status and locationId (a
+-- value or a list), search, sort (createdAt, name), direction, facet, count,
+-- limit and after. Needs warehouse.read.
+${pageFunction({
+  name: fn("page_pick_waves"),
+  idType,
+  list: wavePage,
+  allowed: q.allowed("page_pick_waves.tenant", q.read),
+  forbidden: q.forbidden("not allowed to read pick waves"),
+  grant: userGrant(`${fn("page_pick_waves")}(${idType}, jsonb)`),
+})}
+-- One pick wave the caller may read, or null.
+${getFunction({
+  name: fn("get_pick_wave"),
+  bare: "get_pick_wave",
+  arg: "wave_id",
+  from: waves,
+  idColumn: w("id"),
+  tenantColumn: w("tenant"),
+  tenantType: idType,
+  rowJson: waveRow,
+  allowed: (tenant) => q.allowed(tenant, q.read),
+  forbidden: q.forbidden("not allowed to read pick waves"),
+  grant: userGrant(`${fn("get_pick_wave")}(uuid)`),
+})}`;
 }
 
 export function warehousePicking(ctx: BlockSqlContext): string {

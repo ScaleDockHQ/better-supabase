@@ -3,7 +3,11 @@ import type { ManufacturingEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { manufacturingEvents } from "./events.ts";
-import { productionOrderListSurface } from "./lists.ts";
+import {
+  bomListSurface,
+  productionOrderListSurface,
+  workCenterListSurface,
+} from "./lists.ts";
 import { createManufacturing } from "./manufacturing.ts";
 import { manufacturingSqlOptions } from "./options.ts";
 import {
@@ -36,10 +40,18 @@ export const manufacturingBlock: BlockOf<
       mutability: "state-machine",
       emits: { create: false },
     },
-    bom: { mutability: "editable", emits: { update: false } },
+    bom: {
+      ...bomListSurface,
+      mutability: "editable",
+      emits: { update: false },
+    },
     bom_component: { mutability: "read-only" },
     bom_operation: { mutability: "read-only" },
-    work_center: { mutability: "editable", emits: { update: false } },
+    work_center: {
+      ...workCenterListSurface,
+      mutability: "editable",
+      emits: { update: false },
+    },
     production_order_operation: { mutability: "read-only" },
     production_consumption: {
       mutability: "append-only",

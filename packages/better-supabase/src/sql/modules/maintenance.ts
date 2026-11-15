@@ -362,6 +362,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "get_maintenance_plan", args: ["uuid"], returns: "jsonb" },
     { name: "list_maintenance_meters", args: ["{id}"], returns: "jsonb" },
+    {
+      name: "page_maintenance_meters",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "get_maintenance_meter", args: ["uuid"], returns: "jsonb" },
     { name: "get_calibration", args: ["uuid"], returns: "jsonb" },
     { name: "list_calibrations", args: ["{id}", "jsonb"], returns: "jsonb" },
     {

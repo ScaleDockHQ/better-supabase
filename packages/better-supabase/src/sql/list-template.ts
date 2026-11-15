@@ -380,3 +380,49 @@ function readExtended(
   return `${facetBranch}${countBranch}${checks}${branches}
   end if;`;
 }
+
+export interface PageFunctionOptions {
+  /** The function name as it is created, such as the output of `fn("page_x")`. */
+  readonly name: string;
+  /** The SQL type of the tenant argument. */
+  readonly idType: string;
+  /** The list the function reads; its `name` is the bare function name. */
+  readonly list: ListTemplateOptions;
+  /** The condition that holds when the caller may read the tenant. */
+  readonly allowed: string;
+  /** The raise statement for a caller who may not read the tenant. */
+  readonly forbidden: string;
+  /** The grant statement for the function. */
+  readonly grant: string;
+}
+
+/**
+ * A `page_<entity>` function of the block list contract (ADR 1077): the
+ * template's keyset page, facets and count over `list`, for a caller who may
+ * read the tenant. The `where` of `list` reads `v_search` and `v_filters`.
+ */
+export function pageFunction(options: PageFunctionOptions): string {
+  const { list } = options;
+
+  return `create or replace function ${options.name}(tenant ${options.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(${list.name}.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(list)}
+begin
+  if not ${options.allowed} then
+    ${options.forbidden}
+  end if;
+  ${listBody(list)}
+end;
+$$;
+${options.grant}
+`;
+}

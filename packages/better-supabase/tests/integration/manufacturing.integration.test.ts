@@ -162,6 +162,70 @@ describe.skipIf(!live)("manufacturing module in Postgres", () => {
     expect(await events("bom.activated")).toHaveLength(1);
   });
 
+  it("pages bills of materials and work centers and gets one work center", async () => {
+    await session.as(owner);
+
+    const boms = await call<{ items: { id: string }[]; hasMore: boolean }>(
+      "better_supabase.page_boms($1, $2::jsonb)",
+      [
+        tenant,
+        JSON.stringify({
+          paged: true,
+          variantId: [table],
+          status: ["active", "draft"],
+          sort: "createdAt",
+          limit: 1,
+        }),
+      ],
+    );
+
+    expect(boms.items).toHaveLength(1);
+    expect(boms.hasMore).toBe(false);
+
+    const bomFacets = await call<{ facet: string; values: unknown[] }>(
+      "better_supabase.page_boms($1, $2::jsonb)",
+      [tenant, JSON.stringify({ facet: "status" })],
+    );
+
+    expect(bomFacets.facet).toBe("status");
+    expect(bomFacets.values).toHaveLength(1);
+
+    const center = await call<{ id: string }>(
+      "better_supabase.save_work_center($1, $2::jsonb, null)",
+      [
+        tenant,
+        JSON.stringify({
+          name: "Assembly line",
+          costRate: 40,
+          currency: "EUR",
+        }),
+      ],
+    );
+
+    const found = await call<{ items: { id: string }[] }>(
+      "better_supabase.page_work_centers($1, $2::jsonb)",
+      [tenant, JSON.stringify({ paged: true, search: "assembly" })],
+    );
+
+    expect(found.items.map((row) => row.id)).toEqual([center.id]);
+    expect(
+      await call<{ value: number }>(
+        "better_supabase.page_work_centers($1, $2::jsonb)",
+        [tenant, JSON.stringify({ count: true, search: "nothing" })],
+      ),
+    ).toMatchObject({ value: 0 });
+    expect(
+      await call<{ id: string }>("better_supabase.get_work_center($1)", [
+        center.id,
+      ]),
+    ).toMatchObject({ id: center.id });
+    expect(
+      await call<unknown>("better_supabase.get_work_center($1)", [
+        "00000000-0000-4000-8000-00000000dead",
+      ]),
+    ).toBeNull();
+  });
+
   it("releases an order only when the components are in stock", async () => {
     await session.as(owner);
 

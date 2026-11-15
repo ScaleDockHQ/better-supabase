@@ -2,6 +2,7 @@ import "server-only";
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { MAINTENANCE_TAG } from "./maintenance-cache";
@@ -117,7 +118,7 @@ export async function loadMeters(): Promise<readonly MeterRow[] | null> {
     return null;
   }
 
-  const meters = await db.maintenance.listMeters().orThrow();
+  const meters = await readAllPages((page) => db.maintenance.meterPage(page));
 
   return meters.map((meter) => ({
     id: meter.id,

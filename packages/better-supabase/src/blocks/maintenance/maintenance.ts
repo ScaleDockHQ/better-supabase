@@ -10,6 +10,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
+import { foundRow } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { entityList } from "../../core/entity-list.ts";
@@ -32,6 +33,7 @@ import {
 } from "../shared.ts";
 import {
   maintenanceCalibrationListSurface,
+  maintenanceMeterListSurface,
   maintenancePlanListSurface,
 } from "./lists.ts";
 
@@ -259,7 +261,27 @@ export interface Maintenance {
     value: string | number;
     readAt?: Temporal.Instant | undefined;
   }): AsyncResult<MaintenanceMeter>;
+  /**
+   * Meters by name.
+   *
+   * @deprecated Use `meterPage`, which pages by keyset and takes `q`, `sort`
+   * and array filters. The alias stays until 0.70 (ADR 1077).
+   */
   listMeters(): AsyncResult<readonly MaintenanceMeter[]>;
+  /**
+   * One keyset page of meters, by name unless `sort` says otherwise, with
+   * `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  meterPage(options?: PageOptions): AsyncResult<ListPage<MaintenanceMeter>>;
+  /**
+   * The values of each facet of meters and their counts, under the page's
+   * filters.
+   */
+  meterFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many meters match the page's filters. */
+  meterCount(options?: CountOptions): AsyncResult<Count>;
+  /** One meter, or a `not_found` error; needs `maintenance.read`. */
+  getMeter(meterId: string): AsyncResult<MaintenanceMeter>;
   recordCalibration(
     input: MaintenanceCalibrationInput,
   ): AsyncResult<MaintenanceCalibration>;
@@ -451,6 +473,15 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
     rowOf: calibrationOf,
   });
 
+  const meters = entityList({
+    entity: "maintenance_meter",
+    surface: maintenanceMeterListSurface,
+    call,
+    tenant,
+    fn: "page_maintenance_meters",
+    rowOf: meterOf,
+  });
+
   const client: Maintenance = {
     createPlan: (input) =>
       tenant().andThen((organizationId) =>
@@ -550,6 +581,16 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
         },
         meter("record_meter_reading"),
       ),
+    meterPage: meters.page,
+    meterFacets: meters.facets,
+    meterCount: meters.count,
+    getMeter: (meterId) =>
+      foundRow(
+        call("get_maintenance_meter", { meter_id: meterId }, (value) => value),
+        "meter not found",
+        (row) => meterOf(row, "get_maintenance_meter"),
+      ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listMeters: () =>
       tenant().andThen((organizationId) =>
         call("list_maintenance_meters", { tenant: organizationId }, (value) =>

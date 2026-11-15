@@ -171,3 +171,7 @@ const total = await lims
 ```
 
 A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.
+
+### Paging methods
+
+`listMethods` is deprecated in favor of `methodPage` (ADR 1077). `methodPage` pages methods by `key` (the default), `name` or `createdAt`. Filters are `unit` and `includeArchived: ["true"]`, the facet is `unit`, and `q` searches the key and the name. `methodFacets` and `methodCount` read under the same options, and `getMethod(id)` returns one method or a `not_found` error. `samplePage` also takes `q`, which searches the sample number, title and lot. The SQL functions are `page_lims_methods` and `get_lims_method`.

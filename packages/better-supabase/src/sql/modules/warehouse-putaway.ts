@@ -1,5 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { getFunction } from "../get-template.ts";
+import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { fail, userGrant } from "../shared.ts";
 import { pickable } from "./warehouse-picking.ts";
 import { warehouseSql } from "./warehouse-sql.ts";
@@ -29,6 +31,42 @@ export function warehousePutaway(ctx: BlockSqlContext): string {
 
   const readOrPick = (tenant: string): string =>
     `(${q.allowed(tenant, q.read)} or ${q.allowed(tenant, q.pick)})`;
+
+  const ruleRow = `jsonb_build_object('id', x.${r("id")}, 'organizationId', x.${r("tenant")}, 'locationId', x.${r("location")},
+    'binId', x.${r("bin")}, 'variantId', x.${r("variant")}, 'priority', x.${r("priority")},
+    'maxQuantity', x.${r("maxQuantity")}::text, 'active', x.${r("active")}, 'createdAt', x.${r("createdAt")})`;
+
+  const ruleKeys = (
+    first: "priority" | "createdAt",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => [
+    first === "priority"
+      ? { expr: `x.${r("priority")}`, dir: "asc", type: "integer" }
+      : { expr: `x.${r("createdAt")}`, dir: "desc", type: "timestamptz" },
+    { expr: `x.${r("id")}`, dir: "asc", type: "uuid" },
+  ];
+
+  const ruleList = {
+    name: "list_putaway_rules",
+    from: rules,
+    alias: "x",
+    where: [
+      `x.${r("tenant")} = list_putaway_rules.tenant`,
+      filterAny("locationId", `x.${r("location")}::text`),
+      filterAny("variantId", `x.${r("variant")}::text`),
+      filterAny("active", `x.${r("active")}::text`),
+    ],
+    keys: ruleKeys("priority"),
+    sorts: { priority: ruleKeys("priority"), createdAt: ruleKeys("createdAt") },
+    facets: { active: `x.${r("active")}::text` },
+    rowJson: ruleRow,
+    defaultLimit: LIST_LIMIT,
+    maxLimit: LIST_LIMIT,
+    invalid: q.invalid,
+  } as const;
 
   const ruleMissing = fail(
     "WAREHOUSE_RULE_NOT_FOUND",
@@ -166,8 +204,11 @@ end;
 $$;
 ${userGrant(`${fn("delete_putaway_rule")}(uuid)`)}
 
--- The putaway rules of a location, lowest priority first. filters is
--- { locationId, variantId }, both optional. Needs warehouse.read.
+-- The putaway rules of an organization as a keyset page, lowest priority
+-- first unless sort says otherwise (ADR 1077). filters may hold locationId,
+-- variantId and active (each a value or a list), sort (priority, createdAt),
+-- direction, facet, count, limit and after. Without paged it returns the
+-- plain array. Needs warehouse.read.
 create or replace function ${fn("list_putaway_rules")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -177,32 +218,31 @@ set search_path = ''
 as $$
 #variable_conflict use_variable
 declare
-  v_location uuid;
-  v_variant uuid;
+  v_filters jsonb := coalesce(list_putaway_rules.filters, '{}'::jsonb);
+  ${listDeclare(ruleList)}
 begin
   if not ${q.allowed("list_putaway_rules.tenant", q.read)} then
     ${q.forbidden("not allowed to read putaway rules")}
   end if;
-  begin
-    v_location := nullif(list_putaway_rules.filters ->> 'locationId', '')::uuid;
-    v_variant := nullif(list_putaway_rules.filters ->> 'variantId', '')::uuid;
-  exception when invalid_text_representation then
-    ${q.invalid("locationId and variantId are uuids")}
-  end;
-  return coalesce((
-    select jsonb_agg(${fn("putaway_rule_json")}(y.id) order by y.priority, y.id)
-    from (
-      select x.${r("id")} as id, x.${r("priority")} as priority from ${rules} x
-      where x.${r("tenant")} = list_putaway_rules.tenant
-        and (v_location is null or x.${r("location")} = v_location)
-        and (v_variant is null or x.${r("variant")} = v_variant)
-      order by x.${r("priority")}, x.${r("id")}
-      limit ${String(LIST_LIMIT)}
-    ) y
-  ), '[]'::jsonb);
+  ${listBody(ruleList)}
 end;
 $$;
 ${userGrant(`${fn("list_putaway_rules")}(${idType}, jsonb)`)}
+
+-- One putaway rule the caller may read, or null.
+${getFunction({
+  name: fn("get_putaway_rule"),
+  bare: "get_putaway_rule",
+  arg: "rule_id",
+  from: rules,
+  idColumn: r("id"),
+  tenantColumn: r("tenant"),
+  tenantType: idType,
+  rowJson: ruleRow,
+  allowed: (tenant) => q.allowed(tenant, q.read),
+  forbidden: q.forbidden("not allowed to read putaway rules"),
+  grant: userGrant(`${fn("get_putaway_rule")}(uuid)`),
+})}
 
 -- Sets how far a bin is from the dispatch area and how much it holds. input is
 -- { binId, walkRank, capacity }: the lowest walkRank is the closest, and

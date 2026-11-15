@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated array methods until 0.70 (ADR 1077). 2 findings. */
 import { describe, expect, it } from "vitest";
 
 import {
@@ -356,5 +357,15 @@ describe("createLims", () => {
     expect(
       validate(limsMethodInputSchema, { key: "ph", name: "" }).issues,
     ).toBeDefined();
+  });
+
+  it("returns one method", async () => {
+    const t = fieldsTransport({ get_lims_method: () => METHOD });
+
+    const client = createLims({ transport: t, tenant: "org-1" });
+
+    const getMethodRow = await client.getMethod("m1").orThrow();
+
+    expect(getMethodRow.id).toBe(METHOD.id);
   });
 });

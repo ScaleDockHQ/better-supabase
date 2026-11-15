@@ -5,6 +5,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { BANKING_TAG } from "@/features/banking/banking-cache";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { TILLS_TAG } from "./tills-cache";
@@ -30,7 +31,9 @@ export async function loadTills(): Promise<readonly TillRow[] | null> {
   }
 
   const [tills, open] = await Promise.all([
-    db.tills.listTills({ includeArchived: true }).orThrow(),
+    readAllPages((page) =>
+      db.tills.tillPage({ ...page, filters: { includeArchived: ["true"] } }),
+    ),
     db.tills.listSessions({ status: "open", limit: 200 }).orThrow(),
   ]);
 
@@ -74,7 +77,9 @@ export async function loadSessions(): Promise<
   }
 
   const [tills, sessions] = await Promise.all([
-    db.tills.listTills({ includeArchived: true }).orThrow(),
+    readAllPages((page) =>
+      db.tills.tillPage({ ...page, filters: { includeArchived: ["true"] } }),
+    ),
     db.tills.listSessions({ limit: 200 }).orThrow(),
   ]);
 
@@ -147,7 +152,11 @@ export async function loadSession(
   }
 
   const row = found.data;
-  const tills = await db.tills.listTills({ includeArchived: true }).orThrow();
+
+  const tills = await readAllPages((page) =>
+    db.tills.tillPage({ ...page, filters: { includeArchived: ["true"] } }),
+  );
+
   const till = tills.find((candidate) => candidate.id === row.tillId);
 
   return {
