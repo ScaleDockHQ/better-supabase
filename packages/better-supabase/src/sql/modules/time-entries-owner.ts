@@ -119,6 +119,16 @@ export function entryEnded(ctx: BlockSqlContext, alias: string): string {
     : `${alias}.${ctx.col("entries", "endedAt")}`;
 }
 
+/**
+ * The predicate that row `alias` is not archived, `true` over an entries table
+ * with no archive column (ADR 1046).
+ */
+export function entryLive(ctx: BlockSqlContext, alias: string): string {
+  return ctx.has("entries", "archivedAt")
+    ? `${alias}.${ctx.col("entries", "archivedAt")} is null`
+    : "true";
+}
+
 export function byEmployee(ctx: BlockSqlContext): boolean {
   const raw = ctx.option("owner") ?? "user";
 
@@ -297,6 +307,8 @@ export function lockedColumns(
         ...(employeeMode ? [e("employee")] : []),
         e("rate"),
         e("rateCurrency"),
+        // An archive or a restore changes the week's totals, so a locked week refuses it.
+        ...(ctx.has("entries", "archivedAt") ? [e("archivedAt")] : []),
       ]),
     ];
   }

@@ -22,7 +22,13 @@ export const timeEntriesBlock: BlockOf<
   entities: {
     time_entry: {
       mutability: "editable",
-      emits: { create: true, update: true, delete: true },
+      emits: {
+        create: true,
+        update: true,
+        archive: true,
+        restore: true,
+        purge: true,
+      },
     },
     timesheet: { mutability: "state-machine", emits: { create: false } },
   },

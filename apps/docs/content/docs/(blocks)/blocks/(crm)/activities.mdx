@@ -68,7 +68,7 @@ const rows = useActivities({ limit: 50 });
 
 `options.types` lists the types (default `call`, `email`, `meeting`, `note`, `task`; `ACTIVITY_TYPE_INVALID` for another). An `externalRef`, such as a message id from a mail provider or an event id from a calendar, is unique per organization: logging it again updates the activity, so a sync can replay.
 
-`update(id, input, subjects?)` changes the keys you pass (`null` clears one) and replaces the records when you pass `subjects`. `complete(id, { outcome })` marks it done now, and `{ done: false }` opens it again. `remove(id)` deletes it.
+`update(id, input, subjects?)` changes the keys you pass (`null` clears one) and replaces the records when you pass `subjects`. `complete(id, { outcome })` marks it done now, and `{ done: false }` opens it again. `archive(id)` hides it from the timeline, the next step, the open list, search and the pending recordings, and `restore(id)` brings it back. An archived activity takes no changes, and an activity with `lockedAt` in the past can't be archived. `of(subject, { archived: true })` lists only archived ones. `purge(id)` deletes it for good and needs `permissions.purge`; without it the owner, the creator or `activities.manage` may.
 
 Installing the block registers activities as the `activity` subject, so the [attachments](/docs/blocks/attachments) block keeps files on a task, a call or an email: upload to `{ type: "activity", id: task.id }` and list them with the same subject. Only people who can read the activity can add or see its files.
 
@@ -163,7 +163,7 @@ await db.activities
 
 `restrictedRoles` lists record team roles, such as `["psychologist"]`. The check uses `has_subject_role`, so team membership counts only for the roles you name. `category` is one of `options.noteCategories` (default `general`, `care`, `medical`, `behavior`, `family`, `incident`). `goalId` names a care plan goal the note reports on; it is a plain id, with no foreign key.
 
-Activities of a `options.lockTypes` type (default `note` and `report`) get `lockedAt` when they are logged: `options.lockAfterHours` later, 24 by default, and `0` locks them at once. After that, `update`, `complete` and `remove` fail with `ACTIVITY_LOCKED`, and so does logging the same `externalRef` again. Changing an activity's type to a locked type sets `lockedAt` from when it was created. Set `lockTypes: []` to lock nothing. Other types, such as tasks and calls, never lock.
+Activities of a `options.lockTypes` type (default `note` and `report`) get `lockedAt` when they are logged: `options.lockAfterHours` later, 24 by default, and `0` locks them at once. After that, `update`, `complete`, `archive` and `purge` fail with `ACTIVITY_LOCKED`, and so does logging the same `externalRef` again. Changing an activity's type to a locked type sets `lockedAt` from when it was created. Set `lockTypes: []` to lock nothing. Other types, such as tasks and calls, never lock.
 
 `amend(id, body)` adds an addendum: a new activity with your `body`, on the same records, with the original's type, title, audience, roles, category and goal, and `amendsId` pointing at the original. Whoever can read the original and holds `activities.write` may add one, also once it is locked. The addendum locks on the same schedule.
 
@@ -241,13 +241,13 @@ Recordings, transcripts and notes are readable by whoever can read the activity.
 
 ## Events
 
-| Event                                                                           | Data                                                                           |
-| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `activity.logged`, `activity.updated`, `activity.completed`, `activity.deleted` | `organizationId`, `activityId`, `type`, `subjectType`, `subjectId`, `subjects` |
-| `activity.recorded`, `activity.transcribed`                                     | The same, and `recordingId`                                                    |
-| `activity.summarized`                                                           | The same as `activity.logged`                                                  |
-| `activity.amended`                                                              | The same for the addendum, and `amendsId`: the original                        |
-| `activity.error_marked`                                                         | The same, and `reason`                                                         |
+| Event                                                                                                                    | Data                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `activity.logged`, `activity.updated`, `activity.completed`, `activity.archived`, `activity.restored`, `activity.purged` | `organizationId`, `activityId`, `type`, `subjectType`, `subjectId`, `subjects` |
+| `activity.recorded`, `activity.transcribed`                                                                              | The same, and `recordingId`                                                    |
+| `activity.summarized`                                                                                                    | The same as `activity.logged`                                                  |
+| `activity.amended`                                                                                                       | The same for the addendum, and `amendsId`: the original                        |
+| `activity.error_marked`                                                                                                  | The same, and `reason`                                                         |
 
 ## Hooks
 

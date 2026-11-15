@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:36c2d3d9fabbdb428ee538b032a36166a2ee3a8ef541ae62890865bf6849a51a
+-- @bsb-hash sha256:9a1e3c6b464ade54586737a183f5f4da3f46ea9c8deb374dc6b798088790d3d3
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17,6 +17,7 @@ create table "better_supabase"."activities" (
   "owner_id" uuid,
   "due_at" timestamptz,
   "done_at" timestamptz,
+  "archived_at" timestamptz,
   "duration_seconds" integer constraint bsb_activities_duration_seconds_check check ("duration_seconds" >= 0),
   "external_ref" text,
   "created_by" uuid,
@@ -113,6 +114,9 @@ begin
   if exists (select 1 from "better_supabase"."activities" x where x."tenant_id" = v_tenant and x."external_ref" = log_activity.attrs ->> 'externalRef' and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
     raise exception 'the activity is locked: add an addendum with amend_activity instead' using errcode = '55000', hint = 'ACTIVITY_LOCKED';
   end if;
+  if exists (select 1 from "better_supabase"."activities" x where x."tenant_id" = v_tenant and x."external_ref" = log_activity.attrs ->> 'externalRef' and x."archived_at" is not null) then
+    raise exception 'the activity is archived: restore it first' using errcode = '55000', hint = 'ACTIVITY_ARCHIVED';
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_activity_log"(uuid, jsonb, jsonb)');
   begin
@@ -182,7 +186,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."type", x."owner_id" into v_tenant, v_type, v_previous_owner
-  from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
+  from "better_supabase"."activities" x where x."id" = v_id and ((auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."archived_at" is null);
   if v_tenant is null then
     raise exception 'no such activity you can edit' using errcode = 'P0002', hint = 'ACTIVITY_NOT_FOUND';
   end if;
@@ -200,6 +204,9 @@ begin
   end if;
   if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
     raise exception 'the activity is locked: add an addendum with amend_activity instead' using errcode = '55000', hint = 'ACTIVITY_LOCKED';
+  end if;
+  if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."archived_at" is not null) then
+    raise exception 'the activity is archived: restore it first' using errcode = '55000', hint = 'ACTIVITY_ARCHIVED';
   end if;
   update "better_supabase"."activities" x set
     "type" = coalesce(update_activity.attrs ->> 'type', x."type"),
@@ -267,11 +274,14 @@ begin
   if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
     raise exception 'the activity is locked: add an addendum with amend_activity instead' using errcode = '55000', hint = 'ACTIVITY_LOCKED';
   end if;
+  if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."archived_at" is not null) then
+    raise exception 'the activity is archived: restore it first' using errcode = '55000', hint = 'ACTIVITY_ARCHIVED';
+  end if;
   update "better_supabase"."activities" x set
     "done_at" = case when complete_activity.done then coalesce(x."done_at", now()) end,
     "outcome" = coalesce(complete_activity.outcome, x."outcome"),
     "updated_at" = now()
-  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
+  where x."id" = v_id and ((auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."archived_at" is null)
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     raise exception 'no such activity you can edit' using errcode = 'P0002', hint = 'ACTIVITY_NOT_FOUND';
@@ -285,17 +295,109 @@ $$;
 revoke execute on function "better_supabase"."complete_activity"(uuid, boolean, text) from public, anon;
 grant execute on function "better_supabase"."complete_activity"(uuid, boolean, text) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_activity"(activity uuid)
+
+-- Archives an activity: it leaves timelines, next steps, task lists and search, and takes no changes until it is restored. A locked note refuses it.
+create or replace function "better_supabase"."archive_activity"(activity uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."activities";
+  v_id uuid;
+  v_tenant uuid;
+  v_type text;
+  v_subjects jsonb;
+  v_first jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  v_id := archive_activity.activity;
+  select * into v_row from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such activity you can edit' using errcode = 'P0002', hint = 'ACTIVITY_NOT_FOUND';
+  end if;
+  v_tenant := v_row."tenant_id";
+  v_type := v_row."type";
+  v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."activity_subjects" sx where sx."activity_id" = v_id), '[]'::jsonb);
+  v_first := v_subjects -> 0;
+  if v_row."archived_at" is not null then
+    return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."activity_subjects" sx where sx."activity_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."activities" x where x."id" = v_id);
+  end if;
+  if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
+    raise exception 'the activity is locked: add an addendum with amend_activity instead' using errcode = '55000', hint = 'ACTIVITY_LOCKED';
+  end if;
+  update "better_supabase"."activities" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."activity_subjects" sx where sx."activity_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."activities" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."archive_activity"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_activity"(uuid) to authenticated, service_role;
+
+-- Brings an archived activity back.
+create or replace function "better_supabase"."restore_activity"(activity uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."activities";
+  v_id uuid;
+  v_tenant uuid;
+  v_type text;
+  v_subjects jsonb;
+  v_first jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  v_id := restore_activity.activity;
+  select * into v_row from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such activity you can edit' using errcode = 'P0002', hint = 'ACTIVITY_NOT_FOUND';
+  end if;
+  v_tenant := v_row."tenant_id";
+  v_type := v_row."type";
+  v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."activity_subjects" sx where sx."activity_id" = v_id), '[]'::jsonb);
+  v_first := v_subjects -> 0;
+  if v_row."archived_at" is null then
+    return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."activity_subjects" sx where sx."activity_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."activities" x where x."id" = v_id);
+  end if;
+  update "better_supabase"."activities" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."activity_subjects" sx where sx."activity_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."activities" x where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."restore_activity"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_activity"(uuid) to authenticated, service_role;
+
+-- Removes an activity for good, with its records, recordings and notes. Needs
+-- permissions.purge, which falls back to who may edit it; a locked note refuses it.
+create or replace function "better_supabase"."purge_activity"(activity uuid)
 returns boolean
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := delete_activity.activity;
+  v_id uuid := purge_activity.activity;
   v_tenant uuid;
   v_type text;
-  v_subjects jsonb := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."activity_subjects" sx where sx."activity_id" = delete_activity.activity), '[]'::jsonb);
+  v_subjects jsonb := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."activity_subjects" sx where sx."activity_id" = purge_activity.activity), '[]'::jsonb);
   v_first jsonb := v_subjects -> 0;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -313,13 +415,15 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_activity"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_activity"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_activity"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_activity"(uuid) to authenticated, service_role;
 
 -- A record's activities the caller can see, newest first: done ones by
 -- when they happened, open ones by when they are due. before continues
 -- after the last row of the previous page.
-create or replace function "better_supabase"."activities_of"(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
+
+-- archived: false hides archived activities, true lists only them.
+create or replace function "better_supabase"."activities_of"(subject_type text, subject_id text, types text[], before timestamptz, page_size integer, archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -337,14 +441,15 @@ begin
     where k."subject_type" = activities_of.subject_type and k."subject_id" = activities_of.subject_id
       and (activities_of.types is null or x."type" = any (activities_of.types))
       and (activities_of.before is null or coalesce(x."done_at", x."due_at", x."created_at") < activities_of.before)
+      and ((x."archived_at" is not null) = coalesce(activities_of.archived, false))
     order by at desc, id desc
     limit least(greatest(coalesce(activities_of.page_size, 50), 1), 200)
   ) p;
   return v_rows;
 end;
 $$;
-revoke execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) from public, anon;
-grant execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer, boolean) from public, anon;
+grant execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer, boolean) to authenticated, service_role;
 
 -- The next open activity with a due time on a record, earliest first,
 -- for a "next step" and an overdue flag; null when none is planned.
@@ -359,7 +464,7 @@ as $$
   from "better_supabase"."activities" x
   join "better_supabase"."activity_subjects" k on k."activity_id" = x."id"
   where k."subject_type" = next_activity.subject_type and k."subject_id" = next_activity.subject_id
-    and x."done_at" is null and x."due_at" is not null
+    and x."done_at" is null and x."due_at" is not null and x."archived_at" is null
   order by x."due_at", x."id"
   limit 1
 $$;
@@ -380,7 +485,7 @@ as $$
     from "better_supabase"."activities" x
     where x."tenant_id" = open_activities.tenant
       and x."owner_id" = coalesce(open_activities.owner, auth.uid())
-      and x."done_at" is null
+      and x."done_at" is null and x."archived_at" is null
       and (open_activities.due_before is null or x."due_at" < open_activities.due_before)
     order by x."due_at" nulls last, x."id"
     limit least(greatest(coalesce(open_activities.page_size, 50), 1), 200)
@@ -418,6 +523,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_from."tenant_id", 'activities.write'), false)) then
     raise exception 'not allowed to amend activities' using errcode = '42501', hint = 'ACTIVITY_FORBIDDEN';
+  end if;
+  if v_from."archived_at" is not null then
+    raise exception 'the activity is archived: restore it first' using errcode = '55000', hint = 'ACTIVITY_ARCHIVED';
   end if;
   if v_body is null then
     raise exception 'an addendum needs a body' using errcode = '23502', hint = 'ACTIVITY_BODY_REQUIRED';
@@ -460,7 +568,7 @@ begin
   if v_reason is null then
     raise exception 'say why the activity is in error' using errcode = '23502', hint = 'ACTIVITY_REASON_REQUIRED';
   end if;
-  if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."marked_error_at" is not null) then
+  if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and ((auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."archived_at" is null) and x."marked_error_at" is not null) then
     raise exception 'the activity is already marked in error' using errcode = '55000', hint = 'ACTIVITY_ALREADY_MARKED_ERROR';
   end if;
   update "better_supabase"."activities" x set
@@ -468,7 +576,7 @@ begin
     "marked_error_by" = auth.uid(),
     "marked_error_reason" = v_reason,
     "locked_at" = least(coalesce(x."locked_at", now()), now())
-  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
+  where x."id" = v_id and ((auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."archived_at" is null)
   returning x."tenant_id", x."type"::text into v_tenant, v_type;
   if v_tenant is null then
     raise exception 'no such activity you can edit' using errcode = 'P0002', hint = 'ACTIVITY_NOT_FOUND';

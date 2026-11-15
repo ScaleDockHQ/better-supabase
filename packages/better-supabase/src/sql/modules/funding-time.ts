@@ -4,7 +4,12 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, serviceGrant } from "../shared.ts";
 import { subjectsOption } from "../subjects.ts";
 import { fromTime, timeCategory } from "./funding-shared.ts";
-import { byEmployee, entryEnded, entrySubjects } from "./time-entries-owner.ts";
+import {
+  byEmployee,
+  entryEnded,
+  entryLive,
+  entrySubjects,
+} from "./time-entries-owner.ts";
 import { userTimeZoneOf } from "./time-entries-status.ts";
 
 /**
@@ -96,7 +101,7 @@ begin
       ${performer} as performer, ${categoryOf} as category
     from ${entries} x
     where x.${e("tenant")} = register_funding_deliveries_from_time.tenant
-      and ${ended} is not null
+      and ${ended} is not null and ${entryLive(time, "x")}
       and ${subject.type} is not null
       and x.${e("startedAt")} >= (register_funding_deliveries_from_time.since::timestamp at time zone ${zone})
       and x.${e("startedAt")} < ((register_funding_deliveries_from_time.until + 1)::timestamp at time zone ${zone})

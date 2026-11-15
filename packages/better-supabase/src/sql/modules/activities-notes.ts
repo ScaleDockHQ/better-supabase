@@ -368,7 +368,14 @@ begin
   end if;
   if not (${SERVICE_CALLER} or ${ctx.scope.can(`v_from.${e("tenant")}`, write)}) then
     ${fail("ACTIVITY_FORBIDDEN", "not allowed to amend activities")}
-  end if;
+  end if;${
+    ctx.has("activities", "archivedAt")
+      ? `
+  if v_from.${e("archivedAt")} is not null then
+    ${fail("ACTIVITY_ARCHIVED", "the activity is archived: restore it first", "55000")}
+  end if;`
+      : ""
+  }
   if v_body is null then
     ${fail("ACTIVITY_BODY_REQUIRED", "an addendum needs a body", "23502")}
   end if;

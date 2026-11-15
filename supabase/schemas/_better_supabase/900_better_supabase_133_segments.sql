@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:555399b7d5d9f087af0386707313bf9c244afc506b035645c5f5e44366689e17
+-- @bsb-hash sha256:3ff98753b77551913cc2ca6ba04071c93e9ae0a9b117c60017d612894790bf3c
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -482,7 +482,7 @@ begin
   elsif v_row."subject_type" = 'activity' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."activities" s
-      where s."tenant_id" = v_row."tenant_id"
+      where s."tenant_id" = v_row."tenant_id" and s."archived_at" is null
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
     ) x;

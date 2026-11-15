@@ -219,6 +219,12 @@ the `archived_at` column and replaces the delete function with `purge`.
 | `meetings`                  | `meetings.list()` shows every meeting                     | hides archived meetings; `list({ archived: true })` lists only them                               |
 | `courses`                   | `courses.delete(id)`, `delete_course()`                   | `courses.purge(id)`, `purge_course()`, plus `archive` and `restore`                               |
 | `courses`                   | event `course.deleted`                                    | `course.purged`, plus `archived` and `restored`                                                   |
+| `time_entries`              | `timeEntries.remove(id)`, `delete_time_entry()`           | `timeEntries.purge(id)`, `purge_time_entry()`, plus `archive` and `restore` (ADR 1046)            |
+| `time_entries`              | event `time_entry.deleted`                                | `time_entry.purged`, plus `archived` and `restored`                                               |
+| `time_entries`              | an entry always counts toward totals and reports          | an archived entry leaves lists, totals, billing, payroll and metrics and never blocks an overlap  |
+| `activities`                | `activities.remove(id)`, `delete_activity()`              | `activities.purge(id)`, `purge_activity()`, plus `archive` and `restore` (ADR 1047)               |
+| `activities`                | event `activity.deleted`                                  | `activity.purged`, plus `archived` and `restored`                                                 |
+| `activities`                | `activities.of()` shows every activity                    | hides archived activities; `of(subject, { archived: true })` lists only them                      |
 | `posts`                     | `posts.delete(id)`, `delete_post()`                       | `posts.purge(id)`, `purge_post()`, plus `archive` and `restore`                                   |
 | `posts`                     | event `post.deleted`                                      | `post.purged`, plus `archived` and `restored`                                                     |
 | `posts`                     | `posts.list()` shows every post                           | hides archived posts; `list({ archived: true })` lists only them                                  |
