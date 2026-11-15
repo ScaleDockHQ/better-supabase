@@ -334,6 +334,49 @@ end;
 $$;
 ${serviceGrant(`${fn("get_eval_dataset")}(uuid)`)}
 
+-- One page of a tenant's datasets (the system's when tenant is null), in name
+-- order, each with its item count, run count and the time of its latest run.
+-- after is the last name of the previous page. It runs as invoker for the same
+-- reason as get_eval_dataset.
+create or replace function ${fn("list_eval_datasets")}(tenant ${id} default null, after text default null, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_size integer := least(greatest(coalesce(list_eval_datasets.max_rows, 50), 1), 200);
+  v_items jsonb;
+  v_more boolean;
+begin
+  select coalesce(jsonb_agg(n.item order by n.name), '[]'::jsonb) into v_items
+  from (
+    select x.${d("name")} as name, ${datasetJson("x")} || jsonb_build_object(
+      'item_count', (select count(*) from ${items} i where i.${i("dataset")} = x.${d("id")}),
+      'run_count', (select count(*) from ${runs} r where r.${r("dataset")} = x.${d("id")}),
+      'last_run_at', (select max(r.${r("createdAt")}) from ${runs} r where r.${r("dataset")} = x.${d("id")})
+    ) as item
+    from ${datasets} x
+    where coalesce(x.${d("tenant")}::text, '') = coalesce(list_eval_datasets.tenant::text, '')
+      and (list_eval_datasets.after is null or x.${d("name")} > list_eval_datasets.after)
+    order by x.${d("name")}
+    limit v_size + 1
+  ) n;
+  v_more := jsonb_array_length(v_items) > v_size;
+  if v_more then
+    v_items := v_items - v_size;
+  end if;
+  return jsonb_build_object(
+    'items', v_items,
+    'hasMore', v_more,
+    'nextCursor', case when v_more then jsonb_build_array(v_items -> (v_size - 1) ->> 'name') else null end
+  );
+end;
+$$;
+${serviceGrant(`${fn("list_eval_datasets")}(${id}, text, integer)`)}
+
 -- Adds items, each an object with input and optionally expected and
 -- metadata. Returns the number added; a dataset holds at most ${maxItems}.
 create or replace function ${fn("add_eval_items")}(dataset uuid, items jsonb)

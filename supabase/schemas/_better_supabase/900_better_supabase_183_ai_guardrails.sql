@@ -1,6 +1,6 @@
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:4916ec654b77e50daa6b903e52cfb1b58d70bd3180756e41168241914eb1f174
+-- @bsb-hash sha256:16b0366f17c5557ba43acf96444f875a28b605270f5995002e72b2c25fd5be1f
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -130,6 +130,47 @@ $$;
 revoke execute on function "better_supabase"."record_guardrail_decision"(text, text, text, jsonb, uuid, text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."record_guardrail_decision"(text, text, text, jsonb, uuid, text, text) to service_role;
 
+-- One page of the policies a tenant has saved (the system's when tenant is
+-- null), ordered by agent and stage, optionally for one agent. after_agent and
+-- after_stage are the last agent and stage of the previous page. It runs as
+-- invoker: only the service role may call it and it reads the table directly.
+create or replace function "better_supabase"."list_guardrail_policies"(tenant uuid default null, agent text default null, after_agent text default null, after_stage text default null, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_size integer := least(greatest(coalesce(list_guardrail_policies.max_rows, 50), 1), 200);
+  v_items jsonb;
+  v_more boolean;
+begin
+  select coalesce(jsonb_agg(n.item order by n.agent, n.stage), '[]'::jsonb) into v_items
+  from (
+    select x."agent" as agent, x."stage" as stage, jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'agent', x."agent", 'stage', x."stage", 'config', x."config", 'enabled', x."enabled", 'updated_at', x."updated_at") as item
+    from "better_supabase"."guardrail_policies" x
+    where coalesce(x."tenant_id"::text, '') = coalesce(list_guardrail_policies.tenant::text, '')
+      and (list_guardrail_policies.agent is null or x."agent" = list_guardrail_policies.agent)
+      and (list_guardrail_policies.after_agent is null or (x."agent", x."stage") > (list_guardrail_policies.after_agent, coalesce(list_guardrail_policies.after_stage, '')))
+    order by x."agent", x."stage"
+    limit v_size + 1
+  ) n;
+  v_more := jsonb_array_length(v_items) > v_size;
+  if v_more then
+    v_items := v_items - v_size;
+  end if;
+  return jsonb_build_object(
+    'items', v_items,
+    'hasMore', v_more,
+    'nextCursor', case when v_more then jsonb_build_array(v_items -> (v_size - 1) ->> 'agent', v_items -> (v_size - 1) ->> 'stage') else null end
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_guardrail_policies"(uuid, text, text, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_guardrail_policies"(uuid, text, text, text, integer) to service_role;
+
 -- The decision log, newest first, optionally for one agent or one decision.
 create or replace function "better_supabase"."list_guardrail_decisions"(agent text default null, decision text default null, tenant uuid default null, max_rows integer default 100)
 returns jsonb
@@ -205,6 +246,16 @@ set search_path = ''
 as $$ select "better_supabase"."record_guardrail_decision"($1, $2, $3, $4, $5, $6, $7) $$;
 revoke execute on function "api"."record_guardrail_decision"(text, text, text, jsonb, uuid, text, text) from public, anon, authenticated;
 grant execute on function "api"."record_guardrail_decision"(text, text, text, jsonb, uuid, text, text) to service_role;
+
+create or replace function "api"."list_guardrail_policies"(tenant uuid default null, agent text default null, after_agent text default null, after_stage text default null, max_rows integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_guardrail_policies"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."list_guardrail_policies"(uuid, text, text, text, integer) from public, anon, authenticated;
+grant execute on function "api"."list_guardrail_policies"(uuid, text, text, text, integer) to service_role;
 
 create or replace function "api"."list_guardrail_decisions"(agent text default null, decision text default null, tenant uuid default null, max_rows integer default 100)
 returns jsonb

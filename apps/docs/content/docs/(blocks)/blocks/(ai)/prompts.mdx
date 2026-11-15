@@ -68,6 +68,28 @@ placeholder without a value or when you pass a value the template does not use,
 so a renamed variable fails in tests instead of sending a broken prompt.
 `renderPrompt(template, values)` does the same without the block.
 
+## List the prompts
+
+```ts
+const page = await prompts.list({ organizationId, limit: 50 }).orThrow();
+
+for (const prompt of page.items) {
+  // prompt.name, prompt.latestVersion, prompt.versionCount,
+  // prompt.labels ({ production: 3 }) and prompt.updatedAt
+}
+
+const next = await prompts
+  .list({ organizationId, after: page.nextCursor ?? undefined })
+  .orThrow();
+```
+
+`list` returns one page of the prompt names of the organization, in name order,
+with the latest version, the number of versions, each label with the version it
+points at, and when the latest version was saved. It does not read the
+templates: call `get` or `versions` for one name. `limit` defaults to 50 and is
+at most 200. Without `organizationId` it lists the system prompts. Pass the
+page's `nextCursor` as `after`; it is `null` on the last page.
+
 ## Functions
 
 | Function                                                          | Who     |
@@ -76,6 +98,7 @@ so a renamed variable fails in tests instead of sending a broken prompt.
 | `get_prompt(name, label, version, tenant)`                        | service |
 | `set_prompt_label(name, label, version, tenant)`                  | service |
 | `list_prompt_versions(name, tenant)`                              | service |
+| `list_prompts(tenant, after, max_rows)`                           | service |
 
 ## Check the caller
 

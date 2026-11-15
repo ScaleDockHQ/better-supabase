@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:704c2e715481855ceab5c3007b7aef17cbef943b207ed49c827e5578de8ba6a4
+-- @bsb-hash sha256:9ff65faa8a8d26b202b6bb15489e936223e74193240c1ca4c70c5acc961afc81
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -162,6 +162,58 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
+
+-- One page of the prompt names a tenant (or the system when tenant is null)
+-- has saved, in name order. Each item has the latest version, how many
+-- versions exist, the labels with the version each points at, and when the
+-- latest version was saved. after is the last name of the previous page. It
+-- runs as invoker: only the service role may call it and it reads no template.
+create or replace function "better_supabase"."list_prompts"(tenant uuid default null, after text default null, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_size integer := least(greatest(coalesce(list_prompts.max_rows, 50), 1), 200);
+  v_items jsonb;
+  v_more boolean;
+begin
+  select coalesce(jsonb_agg(n.item order by n.name), '[]'::jsonb) into v_items
+  from (
+    select x."name" as name, jsonb_build_object(
+      'name', x."name",
+      'tenant_id', list_prompts.tenant,
+      'latest_version', max(x."version"),
+      'version_count', count(*),
+      'updated_at', max(x."created_at"),
+      'labels', coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(list_prompts.tenant::text, '') and y."name" = x."name"
+      ), '{}'::jsonb)
+    ) as item
+    from "better_supabase"."prompt_versions" x
+    where coalesce(x."tenant_id"::text, '') = coalesce(list_prompts.tenant::text, '')
+      and (list_prompts.after is null or x."name" > list_prompts.after)
+    group by x."name"
+    order by x."name"
+    limit v_size + 1
+  ) n;
+  v_more := jsonb_array_length(v_items) > v_size;
+  if v_more then
+    v_items := v_items - v_size;
+  end if;
+  return jsonb_build_object(
+    'items', v_items,
+    'hasMore', v_more,
+    'nextCursor', case when v_more then jsonb_build_array(v_items -> (v_size - 1) ->> 'name') else null end
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_prompts"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_prompts"(uuid, text, integer) to service_role;
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
@@ -180,7 +232,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:704c2e715481855ceab5c3007b7aef17cbef943b207ed49c827e5578de8ba6a4
+-- @bsb-hash sha256:9ff65faa8a8d26b202b6bb15489e936223e74193240c1ca4c70c5acc961afc81
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -342,6 +394,58 @@ $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
 
+-- One page of the prompt names a tenant (or the system when tenant is null)
+-- has saved, in name order. Each item has the latest version, how many
+-- versions exist, the labels with the version each points at, and when the
+-- latest version was saved. after is the last name of the previous page. It
+-- runs as invoker: only the service role may call it and it reads no template.
+create or replace function "better_supabase"."list_prompts"(tenant uuid default null, after text default null, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_size integer := least(greatest(coalesce(list_prompts.max_rows, 50), 1), 200);
+  v_items jsonb;
+  v_more boolean;
+begin
+  select coalesce(jsonb_agg(n.item order by n.name), '[]'::jsonb) into v_items
+  from (
+    select x."name" as name, jsonb_build_object(
+      'name', x."name",
+      'tenant_id', list_prompts.tenant,
+      'latest_version', max(x."version"),
+      'version_count', count(*),
+      'updated_at', max(x."created_at"),
+      'labels', coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(list_prompts.tenant::text, '') and y."name" = x."name"
+      ), '{}'::jsonb)
+    ) as item
+    from "better_supabase"."prompt_versions" x
+    where coalesce(x."tenant_id"::text, '') = coalesce(list_prompts.tenant::text, '')
+      and (list_prompts.after is null or x."name" > list_prompts.after)
+    group by x."name"
+    order by x."name"
+    limit v_size + 1
+  ) n;
+  v_more := jsonb_array_length(v_items) > v_size;
+  if v_more then
+    v_items := v_items - v_size;
+  end if;
+  return jsonb_build_object(
+    'items', v_items,
+    'hasMore', v_more,
+    'nextCursor', case when v_more then jsonb_build_array(v_items -> (v_size - 1) ->> 'name') else null end
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_prompts"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_prompts"(uuid, text, integer) to service_role;
+
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
@@ -359,7 +463,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:013f9fa78f6c3f69d0e304c27f15433bc3c96925ee41048585ca9916df4d5160
+-- @bsb-hash sha256:abf0a2e9f40207000deed35bb10967e826591de033067158b398204cb63b2209
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -526,6 +630,58 @@ $$;
 revoke execute on function "app_private"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "app_private"."list_prompt_versions"(text, uuid) to service_role;
 
+-- One page of the prompt names a tenant (or the system when tenant is null)
+-- has saved, in name order. Each item has the latest version, how many
+-- versions exist, the labels with the version each points at, and when the
+-- latest version was saved. after is the last name of the previous page. It
+-- runs as invoker: only the service role may call it and it reads no template.
+create or replace function "app_private"."list_prompts"(tenant uuid default null, after text default null, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_size integer := least(greatest(coalesce(list_prompts.max_rows, 50), 1), 200);
+  v_items jsonb;
+  v_more boolean;
+begin
+  select coalesce(jsonb_agg(n.item order by n.name), '[]'::jsonb) into v_items
+  from (
+    select x."name" as name, jsonb_build_object(
+      'name', x."name",
+      'tenant_id', list_prompts.tenant,
+      'latest_version', max(x."version"),
+      'version_count', count(*),
+      'updated_at', max(x."created_at"),
+      'labels', coalesce((
+        select jsonb_object_agg(y."label", y."version") from "app_private"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(list_prompts.tenant::text, '') and y."name" = x."name"
+      ), '{}'::jsonb)
+    ) as item
+    from "app_private"."prompt_versions" x
+    where coalesce(x."tenant_id"::text, '') = coalesce(list_prompts.tenant::text, '')
+      and (list_prompts.after is null or x."name" > list_prompts.after)
+    group by x."name"
+    order by x."name"
+    limit v_size + 1
+  ) n;
+  v_more := jsonb_array_length(v_items) > v_size;
+  if v_more then
+    v_items := v_items - v_size;
+  end if;
+  return jsonb_build_object(
+    'items', v_items,
+    'hasMore', v_more,
+    'nextCursor', case when v_more then jsonb_build_array(v_items -> (v_size - 1) ->> 'name') else null end
+  );
+end;
+$$;
+revoke execute on function "app_private"."list_prompts"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "app_private"."list_prompts"(uuid, text, integer) to service_role;
+
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
@@ -543,7 +699,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:d655ecd103ad715396f7437f548a86bb29fe9d8ad8630c842d617a9348dca182
+-- @bsb-hash sha256:8870e4632157eaa437d41a43847217b65cc817fc15f81baca867e8b4b7d0847f
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -705,6 +861,58 @@ $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
 
+-- One page of the prompt names a tenant (or the system when tenant is null)
+-- has saved, in name order. Each item has the latest version, how many
+-- versions exist, the labels with the version each points at, and when the
+-- latest version was saved. after is the last name of the previous page. It
+-- runs as invoker: only the service role may call it and it reads no template.
+create or replace function "better_supabase"."list_prompts"(tenant uuid default null, after text default null, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_size integer := least(greatest(coalesce(list_prompts.max_rows, 50), 1), 200);
+  v_items jsonb;
+  v_more boolean;
+begin
+  select coalesce(jsonb_agg(n.item order by n.name), '[]'::jsonb) into v_items
+  from (
+    select x."name" as name, jsonb_build_object(
+      'name', x."name",
+      'tenant_id', list_prompts.tenant,
+      'latest_version', max(x."version"),
+      'version_count', count(*),
+      'updated_at', max(x."created_at"),
+      'labels', coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(list_prompts.tenant::text, '') and y."name" = x."name"
+      ), '{}'::jsonb)
+    ) as item
+    from "better_supabase"."prompt_versions" x
+    where coalesce(x."tenant_id"::text, '') = coalesce(list_prompts.tenant::text, '')
+      and (list_prompts.after is null or x."name" > list_prompts.after)
+    group by x."name"
+    order by x."name"
+    limit v_size + 1
+  ) n;
+  v_more := jsonb_array_length(v_items) > v_size;
+  if v_more then
+    v_items := v_items - v_size;
+  end if;
+  return jsonb_build_object(
+    'items', v_items,
+    'hasMore', v_more,
+    'nextCursor', case when v_more then jsonb_build_array(v_items -> (v_size - 1) ->> 'name') else null end
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_prompts"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_prompts"(uuid, text, integer) to service_role;
+
 -- blocks.prompts.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -747,6 +955,16 @@ as $$ select "better_supabase"."list_prompt_versions"($1, $2) $$;
 revoke execute on function "api"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "api"."list_prompt_versions"(text, uuid) to service_role;
 
+create or replace function "api"."list_prompts"(tenant uuid default null, after text default null, max_rows integer default 50)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_prompts"($1, $2, $3) $$;
+revoke execute on function "api"."list_prompts"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "api"."list_prompts"(uuid, text, integer) to service_role;
+
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
@@ -764,7 +982,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:8e933614c1f392bcaecf10ca3e0362700e5cb18b91264fc588752b44c7afefd6
+-- @bsb-hash sha256:fc56126dbcb4a69dc1e64050939cfc04ef0a0c9d110b9058093f8cd228ff58f5
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -922,6 +1140,58 @@ $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
 
+-- One page of the prompt names a tenant (or the system when tenant is null)
+-- has saved, in name order. Each item has the latest version, how many
+-- versions exist, the labels with the version each points at, and when the
+-- latest version was saved. after is the last name of the previous page. It
+-- runs as invoker: only the service role may call it and it reads no template.
+create or replace function "better_supabase"."list_prompts"(tenant uuid default null, after text default null, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_size integer := least(greatest(coalesce(list_prompts.max_rows, 50), 1), 200);
+  v_items jsonb;
+  v_more boolean;
+begin
+  select coalesce(jsonb_agg(n.item order by n.name), '[]'::jsonb) into v_items
+  from (
+    select x."name" as name, jsonb_build_object(
+      'name', x."name",
+      'tenant_id', list_prompts.tenant,
+      'latest_version', max(x."version"),
+      'version_count', count(*),
+      'updated_at', max(x."created_at"),
+      'labels', coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."tenant_id"::text, '') = coalesce(list_prompts.tenant::text, '') and y."name" = x."name"
+      ), '{}'::jsonb)
+    ) as item
+    from "better_supabase"."prompt_versions" x
+    where coalesce(x."tenant_id"::text, '') = coalesce(list_prompts.tenant::text, '')
+      and (list_prompts.after is null or x."name" > list_prompts.after)
+    group by x."name"
+    order by x."name"
+    limit v_size + 1
+  ) n;
+  v_more := jsonb_array_length(v_items) > v_size;
+  if v_more then
+    v_items := v_items - v_size;
+  end if;
+  return jsonb_build_object(
+    'items', v_items,
+    'hasMore', v_more,
+    'nextCursor', case when v_more then jsonb_build_array(v_items -> (v_size - 1) ->> 'name') else null end
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_prompts"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_prompts"(uuid, text, integer) to service_role;
+
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block-data prompts
@@ -939,7 +1209,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:8b5f7cc231dc88f13bcf48f503536160ea2781c4bd50df76621a76abcd29d323
+-- @bsb-hash sha256:13eefada2dba75b300d25b33f8da5b2bcd0d5dd5c0c0fddefe66c9ed4a07f18a
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1100,6 +1370,58 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_prompt_versions"(text, uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."list_prompt_versions"(text, uuid) to service_role;
+
+-- One page of the prompt names a tenant (or the system when tenant is null)
+-- has saved, in name order. Each item has the latest version, how many
+-- versions exist, the labels with the version each points at, and when the
+-- latest version was saved. after is the last name of the previous page. It
+-- runs as invoker: only the service role may call it and it reads no template.
+create or replace function "better_supabase"."list_prompts"(tenant uuid default null, after text default null, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_size integer := least(greatest(coalesce(list_prompts.max_rows, 50), 1), 200);
+  v_items jsonb;
+  v_more boolean;
+begin
+  select coalesce(jsonb_agg(n.item order by n.name), '[]'::jsonb) into v_items
+  from (
+    select x."name" as name, jsonb_build_object(
+      'name', x."name",
+      'tenant_id', list_prompts.tenant,
+      'latest_version', max(x."version"),
+      'version_count', count(*),
+      'updated_at', max(x."created_at"),
+      'labels', coalesce((
+        select jsonb_object_agg(y."label", y."version") from "better_supabase"."prompt_labels" y
+        where coalesce(y."org_id"::text, '') = coalesce(list_prompts.tenant::text, '') and y."name" = x."name"
+      ), '{}'::jsonb)
+    ) as item
+    from "better_supabase"."prompt_versions" x
+    where coalesce(x."org_id"::text, '') = coalesce(list_prompts.tenant::text, '')
+      and (list_prompts.after is null or x."name" > list_prompts.after)
+    group by x."name"
+    order by x."name"
+    limit v_size + 1
+  ) n;
+  v_more := jsonb_array_length(v_items) > v_size;
+  if v_more then
+    v_items := v_items - v_size;
+  end if;
+  return jsonb_build_object(
+    'items', v_items,
+    'hasMore', v_more,
+    'nextCursor', case when v_more then jsonb_build_array(v_items -> (v_size - 1) ->> 'name') else null end
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."list_prompts"(uuid, text, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."list_prompts"(uuid, text, integer) to service_role;
 
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_181_prompts.sql
 -- better-supabase module: prompts

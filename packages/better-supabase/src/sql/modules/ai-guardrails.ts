@@ -217,6 +217,46 @@ end;
 $$;
 ${serviceGrant(`${fn("record_guardrail_decision")}(text, text, text, jsonb, ${id}, text, text)`)}
 
+-- One page of the policies a tenant has saved (the system's when tenant is
+-- null), ordered by agent and stage, optionally for one agent. after_agent and
+-- after_stage are the last agent and stage of the previous page. It runs as
+-- invoker: only the service role may call it and it reads the table directly.
+create or replace function ${fn("list_guardrail_policies")}(tenant ${id} default null, agent text default null, after_agent text default null, after_stage text default null, max_rows integer default 50)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_size integer := least(greatest(coalesce(list_guardrail_policies.max_rows, 50), 1), 200);
+  v_items jsonb;
+  v_more boolean;
+begin
+  select coalesce(jsonb_agg(n.item order by n.agent, n.stage), '[]'::jsonb) into v_items
+  from (
+    select x.${p("agent")} as agent, x.${p("stage")} as stage, ${policyJson("x")} as item
+    from ${policies} x
+    where coalesce(x.${p("tenant")}::text, '') = coalesce(list_guardrail_policies.tenant::text, '')
+      and (list_guardrail_policies.agent is null or x.${p("agent")} = list_guardrail_policies.agent)
+      and (list_guardrail_policies.after_agent is null or (x.${p("agent")}, x.${p("stage")}) > (list_guardrail_policies.after_agent, coalesce(list_guardrail_policies.after_stage, '')))
+    order by x.${p("agent")}, x.${p("stage")}
+    limit v_size + 1
+  ) n;
+  v_more := jsonb_array_length(v_items) > v_size;
+  if v_more then
+    v_items := v_items - v_size;
+  end if;
+  return jsonb_build_object(
+    'items', v_items,
+    'hasMore', v_more,
+    'nextCursor', case when v_more then jsonb_build_array(v_items -> (v_size - 1) ->> 'agent', v_items -> (v_size - 1) ->> 'stage') else null end
+  );
+end;
+$$;
+${serviceGrant(`${fn("list_guardrail_policies")}(${id}, text, text, text, integer)`)}
+
 -- The decision log, newest first, optionally for one agent or one decision.
 create or replace function ${fn("list_guardrail_decisions")}(agent text default null, decision text default null, tenant ${id} default null, max_rows integer default 100)
 returns jsonb
