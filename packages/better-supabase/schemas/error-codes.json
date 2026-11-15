@@ -2008,7 +2008,7 @@
   },
   {
     "code": "EMPLOYEE_FORBIDDEN",
-    "message": "not allowed to change employees"
+    "message": "not allowed to read the employees"
   },
   {
     "code": "EMPLOYEE_IN_USE",
@@ -2024,7 +2024,7 @@
   },
   {
     "code": "EMPLOYEE_NOT_FOUND",
-    "message": "no such employee you can edit"
+    "message": "no such employee you can read"
   },
   {
     "code": "EMPLOYEE_ORIGIN_NOT_FOUND",

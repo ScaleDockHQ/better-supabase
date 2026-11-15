@@ -660,14 +660,17 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
     "leave request fields",
   );
 
+  // SAFETY: `requestOf` reads the extra columns as a record; `fields.rows` types them next.
+  const requestRowOf = (row: Record<string, unknown>, fn: string) =>
+    requestOf(row, fn) as LeaveRequest<F>;
+
   const requests = entityList<LeaveRequest<F>, TenantOption>({
     entity: "leave_request",
     surface: leaveRequestListSurface,
     call,
     tenant: tenantOrOption(options.tenant),
     fn: "page_leave_requests",
-    // SAFETY: requestOf reads the extra columns as a record; `fields.rows` types them next.
-    rowOf: (row, fn) => requestOf(row, fn) as LeaveRequest<F>,
+    rowOf: requestRowOf,
   });
 
   const client: Leave<F> = {
