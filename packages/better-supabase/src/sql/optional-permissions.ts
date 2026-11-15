@@ -40,7 +40,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
   catalog: {
     create: "tenant",
     update: "tenant",
-    delete: "tenant",
+    purge: "tenant",
     categoryCreate: "tenant",
     categoryUpdate: "tenant",
     categoryDelete: "tenant",

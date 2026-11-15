@@ -48,15 +48,24 @@ function openCart(): string {
   end if;`;
 }
 
-/** Raises unless `variant` is an active product's variant in the cart's tenant. */
+/**
+ * Raises unless `variant` is an active product's variant in the cart's tenant.
+ * An archived variant (a mapped `columns.variants.status`) is not for sale.
+ */
 function sellable(ctx: BlockSqlContext, variant: string): string {
   const catalog = ctx.of("catalog");
   const v = columns(catalog, "variants");
   const p = columns(catalog, "products");
 
+  const live =
+    typeof catalog.config.columns["variants"]?.["status"] === "string" &&
+    catalog.has("variants", "status")
+      ? ` and ${catalog.is("variants", "status", `cv.${v("status")}::text`, ["archived"], true)}`
+      : "";
+
   return `if not exists (
     select 1 from ${catalog.table("variants")} cv join ${catalog.table("products")} cp on cp.${p("id")} = cv.${v("product")}
-    where cv.${v("id")} = ${variant} and cv.${v("tenant")} = v_cart.tenant and ${catalog.is("products", "status", `cp.${p("status")}`, ["active"])}
+    where cv.${v("id")} = ${variant} and cv.${v("tenant")} = v_cart.tenant and ${catalog.is("products", "status", `cp.${p("status")}`, ["active"])}${live}
   ) then
     ${fail("ORDERS_VARIANT_UNAVAILABLE", "this variant is not for sale", "P0002")}
   end if;`;

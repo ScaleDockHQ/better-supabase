@@ -70,6 +70,9 @@ const OPTIONAL = new Set([
   "team.restored",
   // Recorded only when blocks.invoices.columns.invoices names archivedAt.
   "invoice.archived",
+  // Recorded only when blocks.catalog.columns.variants names a status.
+  "product_variant.archived",
+  "product_variant.restored",
   "invoice.restored",
   "timesheet.rejected",
   "leave_request.rejected",

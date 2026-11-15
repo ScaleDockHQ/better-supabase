@@ -34,7 +34,24 @@ begin
 end;
 $$;
 ${userGrant(`${fn("set_variant_status")}(uuid, text)`)}
-`;
+${["archive", "restore"]
+  .map(
+    (verb) => `
+-- ${verb === "archive" ? "Archives" : "Restores"} a variant through its status, so it refuses without a status column.
+create or replace function ${fn(`${verb}_variant`)}(variant uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  ${fail("CATALOG_VARIANT_STATUS_UNSUPPORTED", "this variants table has no status column", "22023")}
+end;
+$$;
+${userGrant(`${fn(`${verb}_variant`)}(uuid)`)}
+`,
+  )
+  .join("")}`;
   }
 
   const variants = ctx.table("variants");
@@ -121,9 +138,62 @@ begin
     tenant: "v_tenant",
     audit: false,
   })}
+  if v_to = 'archived' and v_from is distinct from 'archived' then
+    ${ctx.record({
+      type: "product_variant.archived",
+      payload: `jsonb_build_object('organizationId', v_tenant, 'id', set_variant_status.variant, 'productId', v_product)`,
+      subject: `'variants/' || set_variant_status.variant::text`,
+      tenant: "v_tenant",
+      audit: false,
+    })}
+  elsif v_from = 'archived' and v_to is distinct from 'archived' then
+    ${ctx.record({
+      type: "product_variant.restored",
+      payload: `jsonb_build_object('organizationId', v_tenant, 'id', set_variant_status.variant, 'productId', v_product)`,
+      subject: `'variants/' || set_variant_status.variant::text`,
+      tenant: "v_tenant",
+      audit: false,
+    })}
+  end if;
   return jsonb_build_object('id', set_variant_status.variant, 'status', v_to, 'from', v_from);
 end;
 $$;
 ${userGrant(`${fn("set_variant_status")}(uuid, text)`)}
+
+-- Archives a variant: it takes status archived, which takes it out of carts
+-- and the storefront, and records product_variant.archived. Prices and stock
+-- stay. Does nothing when it is archived already.
+create or replace function ${fn("archive_variant")}(variant uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return ${fn("set_variant_status")}(archive_variant.variant, 'archived');
+end;
+$$;
+${userGrant(`${fn("archive_variant")}(uuid)`)}
+
+-- Brings an archived variant back as active, which needs a free combination of
+-- option values, and records product_variant.restored. Does nothing when it
+-- is not archived.
+create or replace function ${fn("restore_variant")}(variant uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_status text;
+begin
+  select ${ctx.label("variants", "status", `x.${v("status")}`)} into v_status from ${variants} x where x.${v("id")} = restore_variant.variant;
+  if v_status is distinct from 'archived' then
+    return ${fn("set_variant_status")}(restore_variant.variant, coalesce(v_status, 'archived'));
+  end if;
+  return ${fn("set_variant_status")}(restore_variant.variant, 'active');
+end;
+$$;
+${userGrant(`${fn("restore_variant")}(uuid)`)}
 `;
 }

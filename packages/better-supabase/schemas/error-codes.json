@@ -1139,7 +1139,7 @@
   },
   {
     "code": "CATALOG_VARIANT_DUPLICATE",
-    "message": "another variant has these option values"
+    "message": "another live variant has these option values"
   },
   {
     "code": "CATALOG_VARIANT_NOT_FOUND",
@@ -1147,7 +1147,7 @@
   },
   {
     "code": "CATALOG_VARIANT_OPTIONS",
-    "message": "a variant needs exactly one value of each product option"
+    "message": "a live variant needs one value of each product option; set them with save_variant"
   },
   {
     "code": "CATALOG_VARIANT_STATUS_UNSUPPORTED",

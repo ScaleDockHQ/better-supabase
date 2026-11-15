@@ -792,14 +792,14 @@ $$;`,
     },
   );
 
-  it("checks separate create, update and delete keys when the config names them", () => {
+  it("checks separate create, update and purge keys when the config names them", () => {
     const sql = renderBlocks(["catalog"], {
       modules: {
         catalog: {
           permissions: {
             create: "product.create",
             update: "product.update",
-            delete: "product.delete",
+            purge: "product.purge",
           },
         },
       },
@@ -817,8 +817,8 @@ $$;`,
     expect(body("save_product")).toContain("'product.create'");
     expect(body("save_product")).toContain("'product.update'");
     expect(body("set_product_status")).toContain("'product.update'");
-    expect(body("delete_product")).toContain("'product.delete'");
-    expect(body("delete_variant")).toContain("'product.delete'");
+    expect(body("purge_product")).toContain("'product.purge'");
+    expect(body("purge_variant")).toContain("'product.purge'");
     expect(body("set_price")).toContain("'catalog.manage'");
   });
 

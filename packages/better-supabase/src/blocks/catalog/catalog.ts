@@ -29,7 +29,6 @@ import {
   blockCall,
   enumOrThrow,
   instantArg,
-  instantOf,
   isRecord,
   optionalText,
   pageOf,
@@ -38,12 +37,20 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
+import {
+  channelProductOf,
+  countOf,
+  localizedOf,
+  mediaOf,
+  priceOf,
+  PRODUCT_KINDS,
+} from "./catalog-parsers.ts";
 import { catalogDiscounts } from "./discounts.ts";
 import { catalogHelpers } from "./helpers.ts";
 import { catalogRankKey } from "./rank.ts";
 import { catalogSupply } from "./supply.ts";
 
-export const PRODUCT_KINDS = ["physical", "digital", "service"] as const;
+export { PRODUCT_KINDS };
 
 export type ProductKind = (typeof PRODUCT_KINDS)[number];
 
@@ -293,7 +300,10 @@ export interface LocaleOptions {
 
 /** `cursor` is the `slug` of the previous page's last product. */
 export interface ChannelProductsOptions
-  extends LocaleOptions, CursorPageOptions<string> {}
+  extends LocaleOptions, CursorPageOptions<string> {
+  /** `false` (the default) leaves out archived products; `true` lists only them. */
+  readonly archived?: boolean | undefined;
+}
 
 export interface ChannelProduct {
   readonly id: string;
@@ -352,6 +362,12 @@ export interface ProductMedia {
   readonly altByLocale: Readonly<Record<string, string>>;
 }
 
+/** A variant's status after a change, and the one it had before. */
+export interface VariantStatusChange {
+  readonly status: string;
+  readonly from: string;
+}
+
 /** `F` is the extra product fields `options.fields` describes. */
 export interface Catalog<F extends object = Record<never, never>>
   extends CatalogSupply, CatalogDiscounts {
@@ -389,7 +405,22 @@ export interface Catalog<F extends object = Record<never, never>>
     productId: string;
     status: ProductStatus | (string & {});
   }): AsyncResult<StatusChange>;
-  deleteProduct(productId: string): AsyncResult<boolean>;
+  /**
+   * Archives a product (status `archived`): it leaves the storefront and carts
+   * while its variants, prices and stock stay. Records `product.archived`.
+   */
+  archiveProduct(productId: string): AsyncResult<StatusChange>;
+  /**
+   * Brings an archived product back as a draft (active when the app has no
+   * draft status). Records `product.restored`.
+   */
+  restoreProduct(productId: string): AsyncResult<StatusChange>;
+  /**
+   * Removes a product for good with its options, variants and prices; `false`
+   * when it was gone. `permissions.purge` gates this, falling back to
+   * `catalog.manage`.
+   */
+  purgeProduct(productId: string): AsyncResult<boolean>;
   saveOption(input: {
     productId: string;
     input: OptionInput;
@@ -425,8 +456,23 @@ export interface Catalog<F extends object = Record<never, never>>
   setVariantStatus(input: {
     variantId: string;
     status: "active" | "archived" | (string & {});
-  }): AsyncResult<{ readonly status: string; readonly from: string }>;
-  deleteVariant(variantId: string): AsyncResult<boolean>;
+  }): AsyncResult<VariantStatusChange>;
+  /**
+   * Archives a variant (status `archived`, which needs
+   * `columns.variants.status`): it leaves carts and the storefront. Records
+   * `product_variant.archived`.
+   */
+  archiveVariant(variantId: string): AsyncResult<VariantStatusChange>;
+  /**
+   * Brings an archived variant back as active; records
+   * `product_variant.restored`.
+   */
+  restoreVariant(variantId: string): AsyncResult<VariantStatusChange>;
+  /**
+   * Removes a variant for good with its prices; `false` when it was gone.
+   * `permissions.purge` gates this, falling back to `catalog.manage`.
+   */
+  purgeVariant(variantId: string): AsyncResult<boolean>;
   savePriceList(input: {
     organizationId: string;
     input: PriceListInput;
@@ -564,6 +610,24 @@ export interface Catalog<F extends object = Record<never, never>>
   ): AsyncResult<readonly ProductMedia[]>;
 }
 
+function statusChangeOf(value: unknown, fn: string): StatusChange {
+  const row = recordOf(value, fn);
+
+  return {
+    status: enumOrThrow(row["status"], PRODUCT_STATUSES, "status"),
+    from: enumOrThrow(row["from"], PRODUCT_STATUSES, "status"),
+  };
+}
+
+function variantStatusChangeOf(
+  value: unknown,
+  fn: string,
+): VariantStatusChange {
+  const row = recordOf(value, fn);
+
+  return { status: textOf(row["status"]), from: textOf(row["from"]) };
+}
+
 function productOf(value: unknown): SavedProduct {
   const row = recordOf(value, "save_product");
 
@@ -607,107 +671,6 @@ function matrixOf(value: unknown): OptionMatrix {
         optionValueIds: stringsOf(entry["optionValueIds"]),
       };
     }),
-  };
-}
-
-function priceOf(value: unknown): Price | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const currency = textOf(value["currency"]);
-  const compareAt = optionalMoneyOf(value["compareAt"], currency);
-  const priceListId = optionalText(value["priceListId"]);
-
-  return {
-    id: textOf(value["id"]),
-    variantId: textOf(value["variantId"]),
-    amount: money(BigInt(textOf(value["amount"])), currency),
-    ...(compareAt === undefined ? {} : { compareAt }),
-    ...(priceListId === undefined ? {} : { priceListId }),
-  };
-}
-
-function countOf(value: unknown): number {
-  const count = typeof value === "number" ? value : Number(textOf(value));
-
-  if (!Number.isInteger(count)) {
-    throw new TypeError(
-      `set_channel_listing returned ${JSON.stringify(value)}`,
-    );
-  }
-
-  return count;
-}
-
-function textsOf(value: unknown): Readonly<Record<string, string>> {
-  if (!isRecord(value)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).flatMap(([key, entry]) =>
-      typeof entry === "string" ? [[key, entry]] : [],
-    ),
-  );
-}
-
-function channelProductOf(row: Record<string, unknown>): ChannelProduct {
-  const description = optionalText(row["description"]);
-
-  const kind =
-    row["kind"] === null || row["kind"] === undefined
-      ? undefined
-      : enumOrThrow(row["kind"], PRODUCT_KINDS, "product kind");
-
-  return {
-    id: textOf(row["id"]),
-    slug: textOf(row["slug"]),
-    status: textOf(row["status"]),
-    ...(kind === undefined ? {} : { kind }),
-    locale: textOf(row["locale"]),
-    title: textOf(row["title"]),
-    ...(description === undefined ? {} : { description }),
-    listedAt: instantOf(row["listedAt"]),
-  };
-}
-
-function localizedOf(value: unknown): LocalizedProduct | null {
-  if (!isRecord(value)) {
-    return null;
-  }
-
-  const description = optionalText(value["description"]);
-
-  return {
-    id: textOf(value["id"]),
-    slug: textOf(value["slug"]),
-    locale: textOf(value["locale"]),
-    title: textOf(value["title"]),
-    ...(description === undefined ? {} : { description }),
-    variants: recordsOf(value["variants"], "product_text").map((entry) => {
-      const title = optionalText(entry["title"]);
-
-      return {
-        id: textOf(entry["id"]),
-        sku: textOf(entry["sku"]),
-        ...(title === undefined ? {} : { title }),
-      };
-    }),
-  };
-}
-
-function mediaOf(row: Record<string, unknown>): ProductMedia {
-  const variantId = optionalText(row["variantId"]);
-  const alt = optionalText(row["alt"]);
-
-  return {
-    id: textOf(row["id"]),
-    attachmentId: textOf(row["attachmentId"]),
-    ...(variantId === undefined ? {} : { variantId }),
-    position: Number(row["position"]),
-    ...(alt === undefined ? {} : { alt }),
-    altByLocale: textsOf(row["altByLocale"]),
   };
 }
 
@@ -816,22 +779,23 @@ export function createCatalog<
     updateProduct: ({ organizationId, productId, input }) =>
       saveProduct(organizationId, productId, input),
     setProductStatus: ({ productId, status }) =>
-      call("set_product_status", { product: productId, status }, (value) => {
-        const row = recordOf(value, "set_product_status");
-
-        return {
-          status: enumOrThrow(row["status"], PRODUCT_STATUSES, "status"),
-          from: enumOrThrow(row["from"], PRODUCT_STATUSES, "status"),
-        };
-      }),
+      call("set_product_status", { product: productId, status }, (value) =>
+        statusChangeOf(value, "set_product_status"),
+      ),
     setVariantStatus: ({ variantId, status }) =>
-      call("set_variant_status", { variant: variantId, status }, (value) => {
-        const row = recordOf(value, "set_variant_status");
-
-        return { status: textOf(row["status"]), from: textOf(row["from"]) };
-      }),
-    deleteProduct: (productId) =>
-      call("delete_product", { product: productId }, (value) => value === true),
+      call("set_variant_status", { variant: variantId, status }, (value) =>
+        variantStatusChangeOf(value, "set_variant_status"),
+      ),
+    archiveProduct: (productId) =>
+      call("archive_product", { product: productId }, (value) =>
+        statusChangeOf(value, "archive_product"),
+      ),
+    restoreProduct: (productId) =>
+      call("restore_product", { product: productId }, (value) =>
+        statusChangeOf(value, "restore_product"),
+      ),
+    purgeProduct: (productId) =>
+      call("purge_product", { product: productId }, (value) => value === true),
     saveOption: ({ productId, input }) =>
       call(
         "save_product_option",
@@ -899,8 +863,16 @@ export function createCatalog<
         () => key.data,
       );
     },
-    deleteVariant: (variantId) =>
-      call("delete_variant", { variant: variantId }, (value) => value === true),
+    archiveVariant: (variantId) =>
+      call("archive_variant", { variant: variantId }, (value) =>
+        variantStatusChangeOf(value, "archive_variant"),
+      ),
+    restoreVariant: (variantId) =>
+      call("restore_variant", { variant: variantId }, (value) =>
+        variantStatusChangeOf(value, "restore_variant"),
+      ),
+    purgeVariant: (variantId) =>
+      call("purge_variant", { variant: variantId }, (value) => value === true),
     savePriceList: ({ organizationId, input }) =>
       call(
         "save_price_list",
@@ -1127,6 +1099,7 @@ export function createCatalog<
           locale: listOptions.locale ?? null,
           page_size: limit ?? null,
           after: cursor ?? null,
+          archived: listOptions.archived ?? false,
         },
         (value) => recordsOf(value, "channel_products").map(channelProductOf),
       );

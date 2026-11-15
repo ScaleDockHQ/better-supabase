@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:9c994591da3dfc88037e1487e07ce5130f1c804708e04aa636c3e0f8eedba928
+-- @bsb-hash sha256:a23ed533a00581432e21793985c789e8ac86c779ede4127725a152b680af2342
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -617,14 +617,59 @@ begin
   update "better_supabase"."products" x set "status" = set_product_status.status, "updated_at" = now()
   where x."id" = set_product_status.product;
   null;
+  if v_to = 'archived' then
+    null;
+  elsif v_from = 'archived' then
+    null;
+  end if;
   return jsonb_build_object('id', set_product_status.product, 'status', v_to, 'from', v_from);
 end;
 $$;
 revoke execute on function "better_supabase"."set_product_status"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."set_product_status"(uuid, text) to authenticated, service_role;
 
--- Deletes a product with its options, variants and prices.
-create or replace function "better_supabase"."delete_product"(product uuid)
+-- Archives a product: it takes status archived, which takes it off the
+-- storefront and out of carts, and records product.archived. Its variants,
+-- prices and stock stay. Does nothing when it is archived already.
+create or replace function "better_supabase"."archive_product"(product uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return "better_supabase"."set_product_status"(archive_product.product, 'archived');
+end;
+$$;
+revoke execute on function "better_supabase"."archive_product"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_product"(uuid) to authenticated, service_role;
+
+-- Brings an archived product back as a draft (as active when the app has no
+-- draft status), so it is published again on purpose, and records
+-- product.restored. Does nothing when it is not archived.
+create or replace function "better_supabase"."restore_product"(product uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_status text;
+begin
+  select x."status" into v_status from "better_supabase"."products" x where x."id" = restore_product.product;
+  if v_status is distinct from 'archived' then
+    return "better_supabase"."set_product_status"(restore_product.product, coalesce(v_status, 'archived'));
+  end if;
+  return "better_supabase"."set_product_status"(restore_product.product, 'draft');
+end;
+$$;
+revoke execute on function "better_supabase"."restore_product"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_product"(uuid) to authenticated, service_role;
+
+-- Removes a product for good with its options, variants and prices; false
+-- when it was already gone. Needs permissions.purge, which falls back to
+-- catalog.manage.
+create or replace function "better_supabase"."purge_product"(product uuid)
 returns boolean
 language plpgsql
 security definer
@@ -636,20 +681,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = delete_product.product;
+  select x."tenant_id" into v_tenant from "better_supabase"."products" x where x."id" = purge_product.product;
   if v_tenant is null then
     return false;
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  delete from "better_supabase"."products" x where x."id" = delete_product.product;
+  delete from "better_supabase"."products" x where x."id" = purge_product.product;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_product"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_product"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_product"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_product"(uuid) to authenticated, service_role;
 
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
@@ -816,8 +861,9 @@ $$;
 revoke execute on function "better_supabase"."rank_variant"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."rank_variant"(uuid, text) to authenticated, service_role;
 
--- Deletes a variant with its prices.
-create or replace function "better_supabase"."delete_variant"(variant uuid)
+-- Removes a variant for good with its prices; false when it was already gone.
+-- Needs permissions.purge, which falls back to catalog.manage.
+create or replace function "better_supabase"."purge_variant"(variant uuid)
 returns boolean
 language plpgsql
 security definer
@@ -830,20 +876,20 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id", x."product_id" into v_tenant, v_product from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
+  select x."tenant_id", x."product_id" into v_tenant, v_product from "better_supabase"."product_variants" x where x."id" = purge_variant.variant;
   if v_tenant is null then
     return false;
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'catalog.manage'), false)) then
     raise exception 'not allowed to manage the catalog' using errcode = '42501', hint = 'CATALOG_FORBIDDEN';
   end if;
-  delete from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
+  delete from "better_supabase"."product_variants" x where x."id" = purge_variant.variant;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_variant"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_variant"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_variant"(uuid) to authenticated, service_role;
 
 -- One product and its default variant. The price is data.price, then
 -- data.listPrice, then the last purchase price times the markup when
@@ -985,6 +1031,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_variant_status"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."set_variant_status"(uuid, text) to authenticated, service_role;
+
+-- Archives a variant through its status, so it refuses without a status column.
+create or replace function "better_supabase"."archive_variant"(variant uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  raise exception 'this variants table has no status column' using errcode = '22023', hint = 'CATALOG_VARIANT_STATUS_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."archive_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_variant"(uuid) to authenticated, service_role;
+
+-- Restores a variant through its status, so it refuses without a status column.
+create or replace function "better_supabase"."restore_variant"(variant uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  raise exception 'this variants table has no status column' using errcode = '22023', hint = 'CATALOG_VARIANT_STATUS_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."restore_variant"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_variant"(uuid) to authenticated, service_role;
 
 -- Creates an option (option null) or updates one, with its values in order.
 -- Values missing from the list are removed with the variants that use them;
@@ -2067,9 +2141,11 @@ grant execute on function "better_supabase"."set_channel_listing"(uuid, uuid[], 
 
 -- The products listed on a channel by slug, with their text in locale
 -- (the default text where a translation is missing). after is the last
--- slug of the previous page. Runs as the caller, so the read policies
+-- slug of the previous page. archived false (the default) leaves out archived
+-- products and true lists only them. Runs as the caller, so the read policies
 -- decide what it sees.
-create or replace function "better_supabase"."channel_products"(channel uuid, locale text default null, page_size integer default null, after text default null)
+
+create or replace function "better_supabase"."channel_products"(channel uuid, locale text default null, page_size integer default null, after text default null, archived boolean default false)
 returns jsonb
 language sql
 stable
@@ -2093,12 +2169,13 @@ as $$
     left join "better_supabase"."product_translations" t on t."product_id" = p."id" and t."locale" = (case when $2 = any ('{en}'::text[]) then $2 when split_part($2, '-', 1) = any ('{en}'::text[]) then split_part($2, '-', 1) else 'en' end)
     where l."channel_id" = $1
       and ($4 is null or p."slug" collate "C" > $4 collate "C")
+      and (case when coalesce($5, false) then p."status" = 'archived' else p."status" <> 'archived' end)
     order by p."slug" collate "C"
     limit least(greatest(coalesce($3, 100), 1), 500)
   ) items
 $$;
-revoke execute on function "better_supabase"."channel_products"(uuid, text, integer, text) from public;
-grant execute on function "better_supabase"."channel_products"(uuid, text, integer, text) to anon, authenticated, service_role;
+revoke execute on function "better_supabase"."channel_products"(uuid, text, integer, text, boolean) from public;
+grant execute on function "better_supabase"."channel_products"(uuid, text, integer, text, boolean) to anon, authenticated, service_role;
 
 -- Sets a product's title and description in a locale other than the
 -- default. Null text falls back to the default text; both null removes the
