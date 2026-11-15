@@ -3395,6 +3395,11 @@
       "evaluateFilterQuery",
       "FILTER_OPERATOR_LABELS",
       "FILTER_OPERATORS",
+      "orderSeeds",
+      "resolveSeedValue",
+      "seedDate",
+      "seedRef",
+      "seedRefs",
       "UNSET"
     ],
     "types": [
@@ -3417,6 +3422,9 @@
       "EntityPageInput",
       "EntityRouteEntry",
       "EntitySeed",
+      "EntitySeedDate",
+      "EntitySeedJson",
+      "EntitySeedRef",
       "EntitySeedValue",
       "FacetCountFields",
       "FacetCounts",
@@ -3454,7 +3462,8 @@
       "ListRelationFacet",
       "ListSearchParams",
       "OpenApiParameter",
-      "ParserSpec"
+      "ParserSpec",
+      "SeedResolver"
     ]
   },
   "./list/buckets": {

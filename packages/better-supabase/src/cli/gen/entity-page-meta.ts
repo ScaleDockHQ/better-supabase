@@ -1,6 +1,6 @@
 import { posix } from "node:path";
 
-import type { EntitySeedValue } from "../../list/index.ts";
+import type { EntitySeedJson, EntitySeedValue } from "../../list/index.ts";
 import type { Field } from "./entity-page-ui.ts";
 import type {
   EntityPageContext,
@@ -8,6 +8,7 @@ import type {
   ResolvedEntityPage,
 } from "./entity-pages.ts";
 
+import { seedRefEntities } from "../../list/entity-seed.ts";
 import { CliError } from "../core/errors.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import {
@@ -143,7 +144,7 @@ export function declaredSeedValue(
  */
 export function entityPageSeedRows(
   entry: ResolvedEntityPage,
-): readonly Readonly<Record<string, EntitySeedValue>>[] {
+): readonly Readonly<Record<string, EntitySeedJson>>[] {
   const { seed } = entry.page;
   const { table } = entry;
   const fields = entry.schemas?.input?.fields;
@@ -254,6 +255,30 @@ export const SEED_OUTPUT: EntityPageOutput = {
 
       const tiers = seed.tiers ?? ["demo"];
 
+      const dependsOn = seedRefEntities(rows).filter(
+        (entity) => entity !== entry.page.entity,
+      );
+
+      if (seedRefEntities(rows).includes(entry.page.entity)) {
+        throw invalid(
+          entry.page.entity,
+          "a seed row refers to its own page. A ref names a row another page seeds.",
+        );
+      }
+
+      for (const entity of dependsOn) {
+        const page = context.pages.find(
+          (other) => other.page.entity === entity,
+        );
+
+        if (page?.page.seed === undefined) {
+          throw invalid(
+            entry.page.entity,
+            `a seed row refers to ${entity}, which is not a page with a seed. Add \`seed\` to that page or remove the ref.`,
+          );
+        }
+      }
+
       return {
         path: modulePath(context, entry.name, "seed"),
         contents: [
@@ -266,6 +291,9 @@ export const SEED_OUTPUT: EntityPageOutput = {
           `  table: ${q(`${table.schema}.${table.name}`)},`,
           `  tenant: ${table.tenant === undefined ? "undefined" : q(table.tenant)},`,
           `  tiers: ${literal(tiers)},`,
+          ...(dependsOn.length === 0
+            ? []
+            : [`  dependsOn: ${literal(dependsOn)},`]),
           "  rows: [",
           ...rows.map((row) => `    ${literal(row)},`),
           "  ],",

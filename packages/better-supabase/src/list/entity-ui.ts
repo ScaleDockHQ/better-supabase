@@ -1,4 +1,5 @@
 import type { ValidationIssue } from "../core/errors.ts";
+import type { EntitySeedDate, EntitySeedRef } from "./entity-seed.ts";
 
 /** What a generated column or form field holds, from the entity's schema. */
 export type EntityFieldKind =
@@ -227,6 +228,18 @@ export function defineEntityForm(options: {
 /** One value of a seed row: the shapes a column of a demo row takes. */
 export type EntitySeedValue = string | number | boolean | null;
 
+/**
+ * A value of a seed row that a column of the table does not take as is: a
+ * nested value for a `jsonb` argument, or a marker (`seedRef`, `seedDate`) that
+ * the seed runner resolves when it inserts the row (ADR 1034).
+ */
+export type EntitySeedJson =
+  | EntitySeedValue
+  | readonly EntitySeedJson[]
+  | EntitySeedDate
+  | EntitySeedRef
+  | { readonly [key: string]: EntitySeedJson };
+
 /** The demo rows of an entity page, as `gen` writes them (ADR 0879). */
 export interface EntitySeed {
   readonly entity: string;
@@ -236,8 +249,14 @@ export interface EntitySeed {
   readonly tenant: string | undefined;
   /** The tiers the rows belong to (`demo` by default). */
   readonly tiers: readonly string[];
+  /**
+   * The entities whose rows these rows refer to (`seedRef`), which a runner
+   * inserts first (`orderSeeds`). `gen` writes it; a seed without it refers to
+   * none.
+   */
+  readonly dependsOn?: readonly string[];
   /** Rows keyed by database column, so they insert without a rename. */
-  readonly rows: readonly Readonly<Record<string, EntitySeedValue>>[];
+  readonly rows: readonly Readonly<Record<string, EntitySeedJson>>[];
 }
 
 /** The navigation entry of an entity page, as `gen` writes it (ADR 0879). */

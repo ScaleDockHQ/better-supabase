@@ -13,6 +13,7 @@ import {
 } from "../../../src/cli/gen/entity-pages.ts";
 import { resolveConfig } from "../../../src/config/resolve.ts";
 import { defineEntityPage } from "../../../src/list/entity-page.ts";
+import { seedDate, seedRef } from "../../../src/list/entity-seed.ts";
 
 const risks = defineEntityPage({
   entity: "risks.risk",
@@ -239,6 +240,93 @@ describe("seed.rows, seed.table and seed.tenant", () => {
 
     expect(file).toContain('table: "public.items",');
     expect(file).toContain('tenant: "tenant_id",');
+  });
+});
+
+describe("seed refs", () => {
+  const owner = defineEntityPage({
+    entity: "risks.risk",
+    route: "/risks",
+    seed: { rows: [{ title: "Late supplier" }], table: "t.risks" },
+  });
+
+  const reader = (rows: readonly Record<string, never>[] | undefined) =>
+    defineEntityPage({
+      entity: "periods.period",
+      route: "/periods",
+      seed: {
+        table: "t.periods",
+        rows: rows ?? [
+          {
+            risk_id: seedRef("risks.risk", "Late supplier"),
+            starts_on: seedDate(7),
+            lines: [{ weight: 1 }],
+          },
+        ],
+      },
+    });
+
+  const fileOf = (pages: ReturnType<typeof defineEntityPage>[], name: string) =>
+    [
+      ...new Map(
+        emitEntityPages(
+          resolveConfig(
+            {
+              blocks: {
+                memberships: {},
+                permissions: {},
+                periods: {},
+                risks: {},
+              },
+              gen: { entityPages: { pages } },
+            },
+            "/project",
+          ),
+          "better-supabase",
+        ).map((file) => [file.path, file.contents]),
+      ),
+    ].find(([path]) => path.endsWith(name))?.[1];
+
+  it("writes the refs, dates and nested values as they are declared", () => {
+    const file = fileOf([owner, reader(undefined)], "periods.seed.ts");
+
+    expect(file).toContain(
+      '$seedRef: { entity: "risks.risk", name: "Late supplier" }',
+    );
+
+    expect(file).toContain("$seedDate: 7");
+    expect(file).toContain("lines: [{ weight: 1 }]");
+  });
+
+  it("lists the entities the rows refer to in dependsOn", () => {
+    expect(fileOf([owner, reader(undefined)], "periods.seed.ts")).toContain(
+      'dependsOn: ["risks.risk"],',
+    );
+
+    expect(fileOf([owner, reader(undefined)], "risks.seed.ts")).not.toContain(
+      "dependsOn",
+    );
+  });
+
+  it("stops when a ref names a page without a seed", () => {
+    const bare = defineEntityPage({ entity: "risks.risk", route: "/risks" });
+
+    expect(() => fileOf([bare, reader(undefined)], "periods.seed.ts")).toThrow(
+      /refers to risks\.risk, which is not a page with a seed/,
+    );
+  });
+
+  it("stops when a row refers to its own page", () => {
+    const own = defineEntityPage({
+      entity: "risks.risk",
+      route: "/risks",
+      seed: {
+        table: "t.risks",
+        rows: [{ parent: seedRef("risks.risk", "Late supplier") }],
+      },
+    });
+
+    expect(() => fileOf([own], "risks.seed.ts")).toThrow(/its own page/);
   });
 });
 
