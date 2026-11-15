@@ -179,7 +179,7 @@ describe("testBlockList", () => {
     const report = await testBlockList({
       name: "demo.minimal",
       rows: ROWS.length,
-      idOf: (row) => row.title,
+      idOf: (row: Row) => row.title,
       target: { page: (pageOptions) => base.page(pageOptions) },
     });
 
