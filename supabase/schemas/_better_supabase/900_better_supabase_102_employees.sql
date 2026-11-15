@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:d9a6bbcc72c206971e01029de54660928e43e38a0e18fe85a566e5996c469030
+-- @bsb-hash sha256:7013366e268170d2aafcb40e9afda06c91ace6c1d79ba0768d38dd12f7320fdf
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -723,11 +723,13 @@ $$;
 revoke execute on function "better_supabase"."offboard_employee"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."offboard_employee"(uuid, date, text) to authenticated, service_role;
 
--- Deletes an employee with their private details and contracts. With
+-- Removes an employee for good, with their private details and contracts, for
+-- one created by mistake: offboard_employee is how an employment ends. Needs
+-- permissions.purge, which falls back to the write key. With
 -- offboarding.reports "manager", their reports move to the employee's
 -- manager; otherwise they are left without one. Fails with EMPLOYEE_IN_USE
 -- while another block's rows still refer to the employee.
-create or replace function "better_supabase"."delete_employee"(employee uuid)
+create or replace function "better_supabase"."purge_employee"(employee uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -740,12 +742,15 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."employees" x where x."id" = delete_employee.employee for update;
+  select * into v_row from "better_supabase"."employees" x where x."id" = purge_employee.employee for update;
   if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.write'), false)) then
-    raise exception 'no such employee you can delete' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+    raise exception 'no such employee you can purge' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+  end if;
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.write'), false)) then
+    raise exception 'not allowed to purge employees' using errcode = '42501', hint = 'EMPLOYEE_FORBIDDEN';
   end if;
   declare
-    v_hook regprocedure := to_regprocedure('"public"."before_employee_delete"(uuid)');
+    v_hook regprocedure := to_regprocedure('"public"."before_employee_purge"(uuid)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
@@ -763,9 +768,9 @@ begin
   exception when foreign_key_violation then
     raise exception 'other records still refer to this employee' using errcode = '23503', hint = 'EMPLOYEE_IN_USE';
   end;
-  perform "better_supabase".emit_event('employee.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'userId', v_row."user_id"), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
+  perform "better_supabase".emit_event('employee.purged', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'userId', v_row."user_id"), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
   declare
-    v_hook regprocedure := to_regprocedure('"public"."after_employee_delete"(uuid)');
+    v_hook regprocedure := to_regprocedure('"public"."after_employee_purge"(uuid)');
   begin
     if v_hook is not null then
       execute format('select %s($1::uuid)', v_hook::oid::regproc)
@@ -775,8 +780,8 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
-revoke execute on function "better_supabase"."delete_employee"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_employee"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_employee"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_employee"(uuid) to authenticated, service_role;
 
 -- The org chart under root, or under every employee without a manager when
 -- root is null: current employees with their depth and number of direct
@@ -1312,14 +1317,14 @@ as $$ select "better_supabase"."offboard_employee"($1, $2, $3) $$;
 revoke execute on function "api"."offboard_employee"(uuid, date, text) from public, anon;
 grant execute on function "api"."offboard_employee"(uuid, date, text) to authenticated, service_role;
 
-create or replace function "api"."delete_employee"(employee uuid)
+create or replace function "api"."purge_employee"(employee uuid)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."delete_employee"($1) $$;
-revoke execute on function "api"."delete_employee"(uuid) from public, anon;
-grant execute on function "api"."delete_employee"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."purge_employee"($1) $$;
+revoke execute on function "api"."purge_employee"(uuid) from public, anon;
+grant execute on function "api"."purge_employee"(uuid) to authenticated, service_role;
 
 create or replace function "api"."org_chart"(tenant uuid, root uuid)
 returns jsonb

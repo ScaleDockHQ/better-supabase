@@ -125,7 +125,7 @@ describe("employees module", () => {
     expect(names).toEqual([
       "create_employee",
       "update_employees",
-      "delete_employee",
+      "purge_employee",
       "offboard_employee",
       "page_employees",
       "get_employee",
@@ -163,7 +163,7 @@ describe("employees module", () => {
 
     expect(sql).toContain("&& daterange(");
     expect(sql).toContain(
-      'create or replace function "better_supabase"."delete_employee"',
+      'create or replace function "better_supabase"."purge_employee"',
     );
     expect(sql).toContain("EMPLOYEE_IN_USE");
     expect(body(["employees"])).not.toContain("&& daterange(");

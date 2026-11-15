@@ -557,7 +557,7 @@ describe.skipIf(!live)("employees", () => {
         ),
       ).toEqual(["Sam"]);
 
-      const deleted = await employees.delete(lead.id).orThrow();
+      const deleted = await employees.purge(lead.id).orThrow();
       expect(deleted.id).toBe(lead.id);
       expect(
         await s.value<string | null>(
@@ -567,7 +567,7 @@ describe.skipIf(!live)("employees", () => {
       ).toBeNull();
       expect(
         await s.value<number>(
-          "(select count(*)::int from better_supabase.outbox_events where type = 'employee.deleted' and tenant_id = $1)",
+          "(select count(*)::int from better_supabase.outbox_events where type = 'employee.purged' and tenant_id = $1)",
           [org],
         ),
       ).toBe(1);

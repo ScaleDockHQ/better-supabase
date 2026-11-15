@@ -426,7 +426,7 @@
   },
   "/[locale]/(app)/documents/templates/page": {
     "raw": 1528551,
-    "gzip": 485566,
+    "gzip": 486781,
     "brotli": 425135
   },
   "/[locale]/(app)/drive/[folderId]/page": {
@@ -791,7 +791,7 @@
   },
   "/[locale]/(app)/qualifications/page": {
     "raw": 1530078,
-    "gzip": 485463,
+    "gzip": 486680,
     "brotli": 425074
   },
   "/[locale]/(app)/rfqs/[id]/page": {
