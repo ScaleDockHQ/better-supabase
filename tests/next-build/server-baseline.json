@@ -306,7 +306,7 @@
   },
   "/[locale]/(app)/crm/deals/[id]/page": {
     "raw": 3185706,
-    "gzip": 972153,
+    "gzip": 975027,
     "brotli": 810371
   },
   "/[locale]/(app)/crm/deals/page": {
@@ -1321,22 +1321,22 @@
   },
   "/[locale]/(public)/portal/page": {
     "raw": 2931174,
-    "gzip": 886210,
+    "gzip": 888912,
     "brotli": 735748
   },
   "/[locale]/(public)/status/[slug]/page": {
     "raw": 2935650,
-    "gzip": 887689,
+    "gzip": 890391,
     "brotli": 737860
   },
   "/[locale]/(public)/store/[org]/[product]/page": {
     "raw": 2938879,
-    "gzip": 889488,
+    "gzip": 892188,
     "brotli": 740577
   },
   "/[locale]/(public)/store/[org]/cart/page": {
     "raw": 2939864,
-    "gzip": 889737,
+    "gzip": 892437,
     "brotli": 740749
   },
   "/[locale]/(public)/store/[org]/page": {
@@ -1472,7 +1472,7 @@
   "/api/commissions/list/route": {
     "raw": 2596960,
     "gzip": 785092,
-    "brotli": 666606
+    "brotli": 668690
   },
   "/api/credits/list/route": {
     "raw": 1090757,
@@ -1737,7 +1737,7 @@
   "/api/referrals/list/route": {
     "raw": 2596927,
     "gzip": 785079,
-    "brotli": 666560
+    "brotli": 668680
   },
   "/api/reviews/list/route": {
     "raw": 2709873,
@@ -1812,7 +1812,7 @@
   "/api/work-orders/list/route": {
     "raw": 2596998,
     "gzip": 785128,
-    "brotli": 666613
+    "brotli": 668734
   },
   "/api/workflows/definitions/list/route": {
     "raw": 4805752,
