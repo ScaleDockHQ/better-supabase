@@ -426,6 +426,40 @@ begin
 end;
 $$;
 ${userGrant(`${fn("archive_care_plan")}(uuid)`)}
+
+-- Restores an archived plan as a draft (ADR 1040). Its actions stay ended,
+-- so publishing it again starts nothing until actions are added.
+create or replace function ${fn("restore_care_plan")}(plan_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row ${plans};
+begin
+  select * into v_row from ${plans} x where x.${p("id")} = restore_care_plan.plan_id for update;
+  if not found then
+    ${q.missing}
+  end if;
+  if not ${q.allowed(`v_row.${p("tenant")}`, q.publish)} then
+    ${q.forbidden("not allowed to restore care plans")}
+  end if;
+  if not ${q.clientReadable("v_row")} then
+    ${q.forbidden("not allowed to read this client")}
+  end if;
+  if v_row.${p("status")} <> 'archived' then
+    return ${fn("care_plan_json")}(v_row.${p("id")});
+  end if;
+  update ${plans} x set ${p("status")} = 'draft', ${p("archivedAt")} = null, ${p("updatedAt")} = now()
+  where x.${p("id")} = v_row.${p("id")}
+  returning * into v_row;
+  ${q.record("care_plan.restored", "v_row", "care plan restored")}
+  return ${fn("care_plan_json")}(v_row.${p("id")});
+end;
+$$;
+${userGrant(`${fn("restore_care_plan")}(uuid)`)}
 `;
 }
 

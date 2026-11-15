@@ -95,7 +95,7 @@
     "row-triggers": 12
   },
   "care-plans": {
-    "security-definer-functions": 140,
+    "security-definer-functions": 146,
     "row-triggers": 1
   },
   "cases": {
