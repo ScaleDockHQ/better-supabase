@@ -28,6 +28,7 @@ the
 | [eve 1.0](#eve-10)                            | Upgrade eve, rename hook events and `credentialOwner`          |
 | [Workflow 5.5](#workflow-55)                  | Upgrade the `workflow-sdk` SQL module, then deploy             |
 | [Team purge](#team-purge)                     | Rename `teams.delete`, `team.deleted` and `permissions.delete` |
+| [Per-row bulk](#per-row-bulk)                 | None; move off `shareMany` and `setMany` before 0.70           |
 
 ## Supabase peers
 
@@ -260,3 +261,20 @@ version 5 adds the `workflow.workflow_job_lock_holders` table. eve
 `workflow` 5.4 keep running, and new runs stay on spec version 8 unless
 `WORKFLOW_SPEC_VERSION=9` is set (see
 [Rolling out 5.2](/docs/blocks/workflow-sdk#rolling-out-52)).
+
+## Per-row bulk
+
+`drive.bulkShare`, `filespace.bulkShare` and `customFields.bulkSet` give each
+row its own value and return the common `{ succeeded, failed }` report (ADR
+1035). The calls they replace still work and are marked `@deprecated`. They
+are removed in 0.70.
+
+| Old                                                  | New                                                  |
+| ---------------------------------------------------- | ---------------------------------------------------- |
+| `drive.shareMany({ ids, grants })`                   | `drive.bulkShare(ids.map((id) => ({ id, grants })))` |
+| `filespace.shareMany({ id, principals, expiresAt })` | `filespace.bulkShare({ id, principals, expiresAt })` |
+| `customFields.setMany({ subject, inputs })`          | `customFields.bulkSet({ subject, inputs })`          |
+
+The new calls do not stop at the first failure and return the grants or values
+they wrote only as ids. A caller that needs the written rows reads them with
+`drive.grants` or `customFields.readFields`.

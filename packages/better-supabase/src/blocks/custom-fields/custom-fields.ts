@@ -1,5 +1,6 @@
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { BulkCallOptions, BulkReport } from "../../core/bulk.ts";
 import type { CustomFieldType } from "../../core/contracts/field-formats.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
@@ -10,6 +11,7 @@ import type { FieldPack } from "./pack.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { bulkItems } from "../../core/bulk.ts";
 import {
   neighborsForIndex,
   rankBetweenResult,
@@ -200,7 +202,21 @@ export interface CustomFields {
   }): AsyncResult<{ id: string }>;
   /** Removes one field value. Needs `custom_fields.manage`. */
   deleteValue(id: string): AsyncResult<boolean>;
-  /** `setField` for each input, in order. It stops at the first failure. */
+  /**
+   * `setField` for each input, in order, reported per field key (ADR 1035): a
+   * refused field lands in `failed` and the others still run. Takes at most 500
+   * inputs, each key once.
+   */
+  bulkSet(
+    input: { subject: RecordRef; inputs: readonly SetFieldInput[] },
+    options?: BulkCallOptions,
+  ): AsyncResult<BulkReport>;
+  /**
+   * `setField` for each input, in order. It stops at the first failure.
+   *
+   * @deprecated Use `bulkSet`, which reports per field and does not stop at the
+   * first failure. Removed in 0.70.
+   */
   setMany(input: {
     subject: RecordRef;
     inputs: readonly SetFieldInput[];
@@ -423,6 +439,13 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
       ),
     deleteValue: (id) =>
       call("delete_field_value", { value_id: id }, (value) => value === true),
+    bulkSet: ({ subject, inputs }, bulkOptions) =>
+      bulkItems(
+        inputs.map((input) => ({ id: input.key, input })),
+        ({ input }) => hooked.setField({ subject, input }),
+        bulkOptions,
+      ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1035)
     setMany: ({ subject, inputs }) =>
       AsyncResult.from(async () => {
         const values: FieldValue[] = [];

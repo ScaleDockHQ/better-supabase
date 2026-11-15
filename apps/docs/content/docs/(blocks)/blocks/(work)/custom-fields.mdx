@@ -331,4 +331,18 @@ const values = await fields.readValues(customer).orThrow();
 
 ## Set several values
 
-`setMany({ subject, inputs })` calls `setField` for each input in order and stops at the first failure.
+`bulkSet({ subject, inputs }, options)` calls `setField` for each input in order and returns `{ succeeded, failed }` named by field key (ADR 1035). A refused field lands in `failed` and the others still run. It takes at most 500 inputs, each key once; a repeated key fails with `BULK_DUPLICATE_ID`.
+
+```ts
+const report = await customFields
+  .bulkSet({
+    subject: { type: "employees", id: employeeId },
+    inputs: [
+      { key: "badge", label: "Badge", type: "number", value: 7 },
+      { key: "grade", label: "Grade", type: "text", value: "B" },
+    ],
+  })
+  .orThrow();
+```
+
+`setMany` does the same and stops at the first failure. It is deprecated and removed in 0.70.
