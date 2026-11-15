@@ -12,6 +12,7 @@ import { notFound, unstable_rethrow } from "next/navigation";
 import * as v from "valibot";
 
 import { CUSTOM_FIELDS_TAG } from "@/features/custom-fields/custom-fields-cache";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { FORMS_TAG } from "./forms-cache";
@@ -82,9 +83,9 @@ async function loadForms(): Promise<readonly FormSummary[] | null> {
     return null;
   }
 
-  const forms = await db.forms
-    .list({ organizationId: tenant, limit: 100 })
-    .orThrow();
+  const forms = await readAllPages((page) =>
+    db.forms.page({ organizationId: tenant, ...page }),
+  );
 
   return forms.map((form) => ({
     id: form.id,
@@ -121,13 +122,22 @@ function answerCells(answers: FormSubmission["answers"]) {
 
 async function loadForm(id: string): Promise<FormDetailView | "not-found"> {
   "use cache: private";
-  const { db } = await bsb.cached();
+  const { session, db } = await bsb.cached();
   cacheTag(FORMS_TAG, CUSTOM_FIELDS_TAG);
+  const tenant = tenantOf(session);
   const { forms } = db;
+
+  if (!tenant) {
+    return "not-found";
+  }
 
   const [detail, submissions] = await Promise.all([
     forms.get(id),
-    forms.listSubmissions({ formId: id, pageSize: 100 }),
+    forms.submissionPage({
+      organizationId: tenant,
+      filters: { formId: [id] },
+      limit: 100,
+    }),
   ]);
 
   if (!detail.ok) {
@@ -154,7 +164,7 @@ async function loadForm(id: string): Promise<FormDetailView | "not-found"> {
     },
     version: form.version?.number ?? null,
     fields: form.version?.definition.steps.flatMap((step) => step.fields) ?? [],
-    submissions: submissions.data.map((submission) => ({
+    submissions: submissions.data.items.map((submission) => ({
       id: submission.id,
       status: submission.status,
       answers: answerCells(submission.answers),

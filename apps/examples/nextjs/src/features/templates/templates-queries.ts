@@ -42,8 +42,12 @@ async function loadTemplates(): Promise<readonly TemplateCard[] | null> {
 
   const templates = templatesOf(supabase);
 
-  const list = await templates
-    .list({ organizationId: tenant, filter: { type: "customer", limit: 100 } })
+  const { items: list } = await templates
+    .templatePage({
+      organizationId: tenant,
+      filters: { type: ["customer"] },
+      limit: 100,
+    })
     .orThrow();
 
   const details = new Map(
