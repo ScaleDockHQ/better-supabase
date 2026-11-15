@@ -3,8 +3,11 @@ import type { NextOptions } from "better-supabase/next";
 import "server-only";
 import { permissionsAuthorizer } from "better-supabase/blocks/permissions";
 import { createNext, supportSessions } from "better-supabase/next";
-import { createPostgres } from "better-supabase/postgres";
-import { createServer, sqlSupportStore } from "better-supabase/server";
+import {
+  createServer,
+  lazyPostgres,
+  sqlSupportStore,
+} from "better-supabase/server";
 
 import { env } from "@/env";
 
@@ -32,12 +35,19 @@ const counters = sharedCounters();
 /**
  * Support sessions need the `better_supabase` schema, which the Data API does
  * not serve, so the store connects with `DATABASE_URL`. Without it the app runs
- * with no "View as" action and `startSupport` refuses.
+ * with no "View as" action and `startSupport` refuses. The connection loads on
+ * the first support query, so `pg` stays out of the shared server bundles.
  */
-const support = env.DATABASE_URL
+const databaseUrl = env.DATABASE_URL;
+
+const support = databaseUrl
   ? supportSessions({
       store: sqlSupportStore(
-        createPostgres({ connectionString: env.DATABASE_URL, max: 3 }),
+        lazyPostgres(async () => {
+          const { createPostgres } = await import("better-supabase/postgres");
+
+          return createPostgres({ connectionString: databaseUrl, max: 3 });
+        }),
       ),
       // The database decides who may start one (`is_platform('impersonation.start')`),
       // and a second admin approves the request on /approvals.

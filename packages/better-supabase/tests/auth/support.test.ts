@@ -10,6 +10,7 @@ import {
 } from "../../src/auth/support-cookie.ts";
 import { supportOf } from "../../src/auth/support-view.ts";
 import {
+  lazyPostgres,
   sqlSupportStore,
   supportClaims,
   supportSessionFromRow,
@@ -431,5 +432,59 @@ describe("sqlSupportStore", () => {
         metadata: {},
       }),
     ).rejects.toThrow(/no session/);
+  });
+});
+
+describe("lazyPostgres", () => {
+  it("loads the connection on the first query and keeps it", async () => {
+    const fake = fakeSql([["expire_support_sessions", []]]);
+
+    const load = vi.fn(async () => ({
+      admin: fake.sql,
+      asUser: () => fake.sql,
+    }));
+
+    const store = sqlSupportStore(lazyPostgres(load));
+
+    expect(load).not.toHaveBeenCalled();
+
+    await store.expire?.();
+    await store.expire?.();
+
+    expect(load).toHaveBeenCalledOnce();
+  });
+
+  it("runs a user query as that user", async () => {
+    const asUser = vi.fn(() => fakeSql([["get_support_session", []]]).sql);
+
+    const postgres = lazyPostgres(async () => ({
+      admin: fakeSql([]).sql,
+      asUser,
+    }));
+
+    await postgres.asUser({ sub: "u" }).queryRaw("select 1");
+
+    expect(asUser).toHaveBeenCalledWith({ sub: "u" }, undefined);
+  });
+
+  it("loads again after a failed load", async () => {
+    const fake = fakeSql([["expire_support_sessions", []]]);
+
+    let calls = 0;
+
+    const postgres = lazyPostgres(async () => {
+      calls += 1;
+
+      if (calls === 1) {
+        throw new Error("no pool");
+      }
+
+      return { admin: fake.sql, asUser: () => fake.sql };
+    });
+
+    await expect(postgres.admin.queryRaw("select 1")).rejects.toThrow(
+      "no pool",
+    );
+    await expect(sqlSupportStore(postgres).expire?.()).resolves.toEqual([]);
   });
 });

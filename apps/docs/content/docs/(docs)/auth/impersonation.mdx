@@ -44,6 +44,25 @@ to `createSupabase`; `sqlSupportStore(postgres, { temporal })` takes its own
 instead. `createNext` takes the same option, and `better-supabase/next`
 exports `supportSessions` too.
 
+`sqlSupportStore` takes the connection synchronously, so a static import of
+`better-supabase/postgres` puts `pg` into every server bundle that imports the
+server module. `lazyPostgres(load)` from `better-supabase/server` returns the same
+`admin` and `asUser` pair and calls `load` on the first query, so `pg` loads only when
+a support session is read or written. A failed load is retried by the next query.
+
+```ts title="src/lib/better-supabase.ts"
+import { lazyPostgres, sqlSupportStore } from "better-supabase/server";
+
+const store = sqlSupportStore(
+  lazyPostgres(async () => {
+    // Loaded on the first support query so `pg` stays out of the shared server bundle.
+    const { createPostgres } = await import("better-supabase/postgres");
+
+    return createPostgres({ connectionString: env.DATABASE_URL });
+  }),
+);
+```
+
 The module adds the `support_sessions` and `support_requests` tables and the
 functions `start_support_session`, `end_support_session`,
 `active_support_session`, `list_support_sessions`, `expire_support_sessions`,

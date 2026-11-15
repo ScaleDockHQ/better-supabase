@@ -118,7 +118,11 @@ export {
 
 export type { SupportCookieOptions } from "../auth/support-cookie.ts";
 
-export { sqlSupportStore, supportClaims } from "../auth/support.ts";
+export {
+  lazyPostgres,
+  sqlSupportStore,
+  supportClaims,
+} from "../auth/support.ts";
 
 export type {
   SqlSupportStoreOptions,
@@ -130,6 +134,7 @@ export type {
   SupportRequest,
   SupportRequestInput,
   SupportSession,
+  SupportPostgres,
   SupportSessionStore,
   SupportStartInput,
 } from "../auth/support.ts";

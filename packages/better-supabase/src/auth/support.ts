@@ -267,13 +267,53 @@ export interface SqlSupportStoreOptions {
   readonly temporal?: typeof Temporal;
 }
 
+/** The two connections `sqlSupportStore` uses. */
+export type SupportPostgres = Pick<BetterPostgres, "admin" | "asUser">;
+
+/**
+ * A `SupportPostgres` that calls `load` on the first query, so the module that
+ * imports `pg` stays out of the server bundles that never start a support
+ * session (ADR 1030). A failed load is retried by the next query. `load` is
+ * usually `async () => (await
+ * import("better-supabase/postgres")).createPostgres({ ... })`.
+ */
+export function lazyPostgres(
+  load: () => Promise<SupportPostgres>,
+): SupportPostgres {
+  let loaded: Promise<SupportPostgres> | undefined;
+
+  const get = (): Promise<SupportPostgres> => {
+    loaded ??= load().catch((cause: unknown) => {
+      loaded = undefined;
+      throw cause;
+    });
+
+    return loaded;
+  };
+
+  const client = (
+    pick: (postgres: SupportPostgres) => SqlClient,
+  ): SqlClient => ({
+    queryRaw: async <T = Record<string, unknown>>(
+      text: string,
+      params?: unknown[],
+    ) => pick(await get()).queryRaw<T>(text, params),
+  });
+
+  return {
+    admin: client((postgres) => postgres.admin),
+    asUser: (claims, options) =>
+      client((postgres) => postgres.asUser(claims, options)),
+  };
+}
+
 /**
  * Support sessions in the `impersonation` SQL module. `start` runs as the
  * admin, so the module's `is_platform()` gate applies; the reads run on the
  * admin connection.
  */
 export function sqlSupportStore(
-  postgres: Pick<BetterPostgres, "admin" | "asUser">,
+  postgres: SupportPostgres,
   options: SqlSupportStoreOptions = {},
 ): SupportSessionStore {
   const fn = (name: string) =>
