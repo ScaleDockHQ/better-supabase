@@ -383,13 +383,68 @@ ${edges}
     tenant: "v_tenant",
     audit: false,
   })}
+  if v_to = 'archived' then
+    ${ctx.record({
+      type: "product.archived",
+      payload: `jsonb_build_object('organizationId', v_tenant, 'id', set_product_status.product)`,
+      subject: `'products/' || set_product_status.product::text`,
+      tenant: "v_tenant",
+      audit: false,
+    })}
+  elsif v_from = 'archived' then
+    ${ctx.record({
+      type: "product.restored",
+      payload: `jsonb_build_object('organizationId', v_tenant, 'id', set_product_status.product)`,
+      subject: `'products/' || set_product_status.product::text`,
+      tenant: "v_tenant",
+      audit: false,
+    })}
+  end if;
   return jsonb_build_object('id', set_product_status.product, 'status', v_to, 'from', v_from);
 end;
 $$;
 ${userGrant(`${fn("set_product_status")}(uuid, text)`)}
 
--- Deletes a product with its options, variants and prices.
-create or replace function ${fn("delete_product")}(product uuid)
+-- Archives a product: it takes status archived, which takes it off the
+-- storefront and out of carts, and records product.archived. Its variants,
+-- prices and stock stay. Does nothing when it is archived already.
+create or replace function ${fn("archive_product")}(product uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return ${fn("set_product_status")}(archive_product.product, 'archived');
+end;
+$$;
+${userGrant(`${fn("archive_product")}(uuid)`)}
+
+-- Brings an archived product back as a draft (as active when the app has no
+-- draft status), so it is published again on purpose, and records
+-- product.restored. Does nothing when it is not archived.
+create or replace function ${fn("restore_product")}(product uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_status text;
+begin
+  select ${ctx.label("products", "status", `x.${p("status")}`)} into v_status from ${products} x where x.${p("id")} = restore_product.product;
+  if v_status is distinct from 'archived' then
+    return ${fn("set_product_status")}(restore_product.product, coalesce(v_status, 'archived'));
+  end if;
+  return ${fn("set_product_status")}(restore_product.product, ${sqlString(draftless ? "active" : "draft")});
+end;
+$$;
+${userGrant(`${fn("restore_product")}(uuid)`)}
+
+-- Removes a product for good with its options, variants and prices; false
+-- when it was already gone. Needs permissions.purge, which falls back to
+-- catalog.manage.
+create or replace function ${fn("purge_product")}(product uuid)
 returns boolean
 language plpgsql
 security definer
@@ -398,23 +453,23 @@ as $$
 declare
   v_tenant ${ctx.idType};
 begin
-  select x.${p("tenant")} into v_tenant from ${products} x where x.${p("id")} = delete_product.product;
+  select x.${p("tenant")} into v_tenant from ${products} x where x.${p("id")} = purge_product.product;
   if v_tenant is null then
     return false;
   end if;
-  ${guard(names, "v_tenant", names.remove)}${historyCheck(`select v.${ctx.col("variants", "id")} from ${ctx.table("variants")} v where v.${ctx.col("variants", "product")} = delete_product.product`, "CATALOG_PRODUCT_IN_USE")}
-  delete from ${products} x where x.${p("id")} = delete_product.product;
+  ${guard(names, "v_tenant", names.purge)}${historyCheck(`select v.${ctx.col("variants", "id")} from ${ctx.table("variants")} v where v.${ctx.col("variants", "product")} = purge_product.product`, "CATALOG_PRODUCT_IN_USE")}
+  delete from ${products} x where x.${p("id")} = purge_product.product;
   ${ctx.record({
-    type: "product.deleted",
-    payload: `jsonb_build_object('organizationId', v_tenant, 'id', delete_product.product)`,
-    subject: `'products/' || delete_product.product::text`,
+    type: "product.purged",
+    payload: `jsonb_build_object('organizationId', v_tenant, 'id', purge_product.product)`,
+    subject: `'products/' || purge_product.product::text`,
     tenant: "v_tenant",
     audit: false,
   })}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_product")}(uuid)`)}
+${userGrant(`${fn("purge_product")}(uuid)`)}
 ${variantFunctions(ctx, names, historyCheck)}`;
 }
 
@@ -464,7 +519,7 @@ export function optionFunctions(ctx: BlockSqlContext, names: Names): string {
       delete from ${variants} x where x.${v("id")} = v_variant;
       ${ctx
         .record({
-          type: "product_variant.deleted",
+          type: "product_variant.purged",
           payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', ${product})`,
           subject: `'variants/' || v_variant::text`,
           tenant: "v_tenant",
@@ -1052,8 +1107,9 @@ end;
 $$;
 ${userGrant(`${fn("rank_variant")}(uuid, text)`)}
 
--- Deletes a variant with its prices.
-create or replace function ${fn("delete_variant")}(variant uuid)
+-- Removes a variant for good with its prices; false when it was already gone.
+-- Needs permissions.purge, which falls back to catalog.manage.
+create or replace function ${fn("purge_variant")}(variant uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1063,22 +1119,22 @@ declare
   v_tenant ${ctx.idType};
   v_product uuid;
 begin
-  select x.${v("tenant")}, x.${v("product")} into v_tenant, v_product from ${variants} x where x.${v("id")} = delete_variant.variant;
+  select x.${v("tenant")}, x.${v("product")} into v_tenant, v_product from ${variants} x where x.${v("id")} = purge_variant.variant;
   if v_tenant is null then
     return false;
   end if;
-  ${guard(names, "v_tenant", names.remove)}${historyCheck("delete_variant.variant", "CATALOG_VARIANT_IN_USE")}
-  delete from ${variants} x where x.${v("id")} = delete_variant.variant;
+  ${guard(names, "v_tenant", names.purge)}${historyCheck("purge_variant.variant", "CATALOG_VARIANT_IN_USE")}
+  delete from ${variants} x where x.${v("id")} = purge_variant.variant;
   ${ctx.record({
-    type: "product_variant.deleted",
-    payload: `jsonb_build_object('organizationId', v_tenant, 'id', delete_variant.variant, 'productId', v_product)`,
-    subject: `'variants/' || delete_variant.variant::text`,
+    type: "product_variant.purged",
+    payload: `jsonb_build_object('organizationId', v_tenant, 'id', purge_variant.variant, 'productId', v_product)`,
+    subject: `'variants/' || purge_variant.variant::text`,
     tenant: "v_tenant",
     audit: false,
   })}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_variant")}(uuid)`)}
+${userGrant(`${fn("purge_variant")}(uuid)`)}
 `;
 }

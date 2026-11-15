@@ -37,6 +37,7 @@ export {
   type SavedProductMedia,
   type SavedVariant,
   type StatusChange,
+  type VariantStatusChange,
   type VariantInput,
   type VariantPriceOptions,
 } from "./catalog.ts";

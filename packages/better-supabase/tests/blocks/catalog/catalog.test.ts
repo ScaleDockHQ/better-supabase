@@ -467,7 +467,7 @@ describe("catalog block", () => {
     const catalog = createCatalog({
       transport,
       hooks: {
-        deleteProduct: {
+        purgeProduct: {
           before: (args) => {
             seen.push(`before ${args[0]}`);
 
@@ -480,7 +480,7 @@ describe("catalog block", () => {
       },
     });
 
-    await catalog.deleteProduct("p1").orThrow();
+    await catalog.purgeProduct("p1").orThrow();
     expect(seen).toEqual(["before p1", "after catalog true"]);
   });
 
@@ -505,7 +505,27 @@ describe("catalog block", () => {
             })
             .orThrow(),
       ],
-      ["delete_variant", true, (c) => c.deleteVariant("x1").orThrow()],
+      ["purge_variant", true, (c) => c.purgeVariant("x1").orThrow()],
+      [
+        "archive_product",
+        { status: "archived", from: "active" },
+        (c) => c.archiveProduct("p1").orThrow(),
+      ],
+      [
+        "restore_product",
+        { status: "draft", from: "archived" },
+        (c) => c.restoreProduct("p1").orThrow(),
+      ],
+      [
+        "archive_variant",
+        { status: "archived", from: "active" },
+        (c) => c.archiveVariant("x1").orThrow(),
+      ],
+      [
+        "restore_variant",
+        { status: "active", from: "archived" },
+        (c) => c.restoreVariant("x1").orThrow(),
+      ],
       [
         "save_price_list",
         { id: "l1" },

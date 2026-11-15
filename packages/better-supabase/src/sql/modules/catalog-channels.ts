@@ -477,9 +477,11 @@ ${userGrant(`${fn("set_channel_listing")}(uuid, uuid[], boolean)`)}
 
 -- The products listed on a channel by slug, with their text in locale
 -- (the default text where a translation is missing). after is the last
--- slug of the previous page. Runs as the caller, so the read policies
+-- slug of the previous page. archived false (the default) leaves out archived
+-- products and true lists only them. Runs as the caller, so the read policies
 -- decide what it sees.
-create or replace function ${fn("channel_products")}(channel uuid, locale text default null, page_size integer default null, after text default null)
+drop function if exists ${fn("channel_products")}(uuid, text, integer, text);
+create or replace function ${fn("channel_products")}(channel uuid, locale text default null, page_size integer default null, after text default null, archived boolean default false)
 returns jsonb
 language sql
 stable
@@ -507,11 +509,12 @@ as $$
     }
     where l.${l("channel")} = $1
       and ($4 is null or p.${p("slug")} collate "C" > $4 collate "C")
+      and (case when coalesce($5, false) then ${ctx.is("products", "status", `p.${p("status")}`, ["archived"])} else ${ctx.is("products", "status", `p.${p("status")}`, ["archived"], true)} end)
     order by p.${p("slug")} collate "C"
     limit ${pageSize("$3", 100, 500)}
   ) items
 $$;
-${readGrant(`${fn("channel_products")}(uuid, text, integer, text)`)}
+${readGrant(`${fn("channel_products")}(uuid, text, integer, text, boolean)`)}
 `;
 }
 
@@ -905,7 +908,7 @@ export function channelContract(
           },
           {
             name: "channel_products",
-            args: ["uuid", "text", "integer", "text"],
+            args: ["uuid", "text", "integer", "text", "boolean"],
             returns: "jsonb",
           },
         ]

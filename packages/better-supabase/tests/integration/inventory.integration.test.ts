@@ -432,7 +432,7 @@ describe.skipIf(!live)("inventory module in Postgres", () => {
   it("stops catalog from deleting a variant with stock history", async () => {
     await session.as(owner);
     expect(
-      await session.hint("better_supabase.delete_variant($1)", [tee]),
+      await session.hint("better_supabase.purge_variant($1)", [tee]),
     ).toBe("CATALOG_VARIANT_IN_USE");
     expect(
       await session.hint("better_supabase.delete_location($1)", [warehouse]),

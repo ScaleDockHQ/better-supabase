@@ -1,8 +1,6 @@
-import type { CatalogEvents } from "../../blocks/catalog/events.ts";
 import type {
   BlockSqlContext,
   BlockSqlContractFunction,
-  BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
@@ -27,6 +25,7 @@ import {
   discountFunctions,
   discountTables,
 } from "./catalog-discounts.ts";
+import { CATALOG_EVENTS } from "./catalog-events.ts";
 import {
   SLUG,
   categoryExtras,
@@ -57,54 +56,6 @@ import {
 import { variantStatusFunction } from "./catalog-variant-status.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
-const EVENTS: BlockSqlEvents<CatalogEvents> = {
-  "product.created": {
-    subject: "products",
-    payload: ["organizationId", "id", "slug", "kind"],
-  },
-  "product.updated": {
-    subject: "products",
-    payload: ["organizationId", "id", "slug"],
-  },
-  "product.status_changed": {
-    subject: "products",
-    payload: ["organizationId", "id", "from", "to"],
-  },
-  "product.deleted": { subject: "products", payload: ["organizationId", "id"] },
-  "product_variant.created": {
-    subject: "variants",
-    payload: ["organizationId", "id", "productId", "sku"],
-  },
-  "product_variant.updated": {
-    subject: "variants",
-    payload: ["organizationId", "id", "productId", "sku"],
-  },
-  "product_variant.deleted": {
-    subject: "variants",
-    payload: ["organizationId", "id", "productId"],
-  },
-  "catalog.price_changed": {
-    subject: "prices",
-    payload: [
-      "organizationId",
-      "id",
-      "variantId",
-      "priceListId",
-      "currency",
-      "amount",
-      "previousAmount",
-    ],
-  },
-  "storefront.published": {
-    subject: "storefronts",
-    payload: ["organizationId"],
-  },
-  "storefront.unpublished": {
-    subject: "storefronts",
-    payload: ["organizationId"],
-  },
-};
-
 const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: BlockSqlNames = {
@@ -132,7 +83,7 @@ const NAMES: BlockSqlNames = {
       },
     },
   },
-  events: EVENTS,
+  events: CATALOG_EVENTS,
   hooks: [
     "before_product_save",
     "after_product_save",
@@ -740,7 +691,12 @@ function storefrontPolicies(ctx: BlockSqlContext, names: Names): string {
     ],
     [
       "variants",
-      `${c("variants", "product")} in (select ${names.fn("storefront_products")}())`,
+      `${c("variants", "product")} in (select ${names.fn("storefront_products")}())${
+        typeof ctx.config.columns["variants"]?.["status"] === "string" &&
+        ctx.has("variants", "status")
+          ? ` and ${ctx.is("variants", "status", c("variants", "status"), ["archived"], true)}`
+          : ""
+      }`,
     ],
     [
       "variantValues",
@@ -814,7 +770,7 @@ function build(ctx: BlockSqlContext): string {
     read: ctx.permission("read", keys.read),
     create: actionKey(ctx, "create", keys.manage),
     update: actionKey(ctx, "update", keys.manage),
-    remove: actionKey(ctx, "delete", keys.manage),
+    purge: actionKey(ctx, "purge", keys.manage),
     categoryCreate: actionKey(ctx, "categoryCreate", keys.manage),
     categoryUpdate: actionKey(ctx, "categoryUpdate", keys.manage),
     categoryDelete: actionKey(ctx, "categoryDelete", keys.manage),
@@ -856,7 +812,9 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "set_product_status", args: ["uuid", "text"], returns: "jsonb" },
     { name: "set_variant_status", args: ["uuid", "text"], returns: "jsonb" },
-    { name: "delete_product", args: ["uuid"], returns: "boolean" },
+    { name: "archive_product", args: ["uuid"], returns: "jsonb" },
+    { name: "restore_product", args: ["uuid"], returns: "jsonb" },
+    { name: "purge_product", args: ["uuid"], returns: "boolean" },
     ...(options
       ? [
           {
@@ -899,7 +857,9 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "rank_variant", args: ["uuid", "text"], returns: "boolean" },
-    { name: "delete_variant", args: ["uuid"], returns: "boolean" },
+    { name: "archive_variant", args: ["uuid"], returns: "jsonb" },
+    { name: "restore_variant", args: ["uuid"], returns: "jsonb" },
+    { name: "purge_variant", args: ["uuid"], returns: "boolean" },
     ...(lists
       ? [
           {
