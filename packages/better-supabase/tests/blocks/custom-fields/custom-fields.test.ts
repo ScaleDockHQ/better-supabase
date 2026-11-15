@@ -76,7 +76,9 @@ describe("createCustomFields", () => {
   it("fails without a tenant", async () => {
     const fake = fakeTransport({
       list_field_definitions: [],
-      delete_field_definition: true,
+      purge_field_definition: true,
+      archive_field_definition: { id: "d1" },
+      restore_field_definition: { id: "d1" },
     });
 
     const session: { tenant?: string } = {};
@@ -94,12 +96,14 @@ describe("createCustomFields", () => {
       ok: false,
     });
     expect(fake.calls).toHaveLength(0);
-    expect(await fields.deleteDefinition("d1").orThrow()).toBe(true);
+    expect(await fields.purgeDefinition("d1").orThrow()).toBe(true);
+    expect((await fields.archiveDefinition("d1").orThrow()).id).toBe("d1");
+    expect((await fields.restoreDefinition("d1").orThrow()).id).toBe("d1");
     session.tenant = "org-2";
     expect(await fields.listDefinitions("customer").orThrow()).toEqual([]);
     expect(fake.calls.at(-1)).toEqual([
       "list_field_definitions",
-      { tenant: "org-2", entity: "customer" },
+      { tenant: "org-2", entity: "customer", include_archived: false },
     ]);
   });
 

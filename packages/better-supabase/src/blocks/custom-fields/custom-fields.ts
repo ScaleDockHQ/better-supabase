@@ -81,6 +81,8 @@ export interface FieldDefinitionDetail extends FieldDefinition {
   /** The field pack that installed the definition, if one did. */
   readonly pack?: string;
   readonly packVersion?: number;
+  /** When the field was archived; archived fields leave `listDefinitions`. */
+  readonly archivedAt?: string;
 }
 
 /**
@@ -119,7 +121,11 @@ export interface CustomFields {
    * One entity's definitions in the tenant, in display order. Needs
    * `custom_fields.read`.
    */
-  listDefinitions(entity: string): AsyncResult<FieldDefinitionDetail[]>;
+  listDefinitions(
+    entity:
+      | string
+      | { readonly entity: string; readonly includeArchived?: boolean },
+  ): AsyncResult<FieldDefinitionDetail[]>;
   /** Adds or updates the definition of `key` on `entity`. */
   saveDefinition(input: {
     entity: string;
@@ -128,7 +134,19 @@ export interface CustomFields {
     type: CustomFieldType;
     sensitive?: boolean | undefined;
   }): AsyncResult<FieldDefinition>;
-  deleteDefinition(id: string): AsyncResult<boolean>;
+  /**
+   * Archives a field: it leaves `listDefinitions`, and `saveDefinition` and
+   * `setValue` refuse it with `CUSTOM_FIELD_ARCHIVED`. Its values stay and
+   * stay readable. Needs `custom_fields.manage`.
+   */
+  archiveDefinition(id: string): AsyncResult<FieldDefinition>;
+  /** Brings an archived field back. Needs `custom_fields.manage`. */
+  restoreDefinition(id: string): AsyncResult<FieldDefinition>;
+  /**
+   * Deletes a field for good with every value stored under it. Needs the
+   * `purge` permission, which falls back to `custom_fields.manage`.
+   */
+  purgeDefinition(id: string): AsyncResult<boolean>;
   /**
    * Stores a `text`, `email` or `url` field's values as ciphertext from now on
    * and encrypts the ones it has. Needs `custom_fields.manage` and the
@@ -274,16 +292,24 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
   const client: CustomFields = {
-    listDefinitions: (entity) =>
+    listDefinitions: (input) =>
       tenant().andThen((organizationId) =>
         call(
           "list_field_definitions",
-          { tenant: organizationId, entity },
+          {
+            tenant: organizationId,
+            entity: typeof input === "string" ? input : input.entity,
+            include_archived:
+              typeof input === "string"
+                ? false
+                : (input.includeArchived ?? false),
+          },
           (value) =>
             recordsOf(value, "list_field_definitions").map((row) => {
               const rank = optionalText(row["rank"]);
               const pack = optionalText(row["pack"]);
               const packVersion = row["packVersion"];
+              const archivedAt = optionalText(row["archivedAt"]);
 
               return {
                 id: textOf(row["id"]),
@@ -297,6 +323,7 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
                 ...(rank === undefined ? {} : { rank }),
                 ...(pack === undefined ? {} : { pack }),
                 ...(typeof packVersion === "number" ? { packVersion } : {}),
+                ...(archivedAt === undefined ? {} : { archivedAt }),
               };
             }),
         ),
@@ -337,9 +364,21 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
           ? hooked.reorderDefinition({ id, neighbors: neighbors.data })
           : AsyncResult.err(neighbors.error);
       }),
-    deleteDefinition: (id) =>
+    archiveDefinition: (id) =>
       call(
-        "delete_field_definition",
+        "archive_field_definition",
+        { definition: id },
+        idOf("archive_field_definition"),
+      ),
+    restoreDefinition: (id) =>
+      call(
+        "restore_field_definition",
+        { definition: id },
+        idOf("restore_field_definition"),
+      ),
+    purgeDefinition: (id) =>
+      call(
+        "purge_field_definition",
         { definition: id },
         (value) => value === true,
       ),

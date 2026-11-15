@@ -487,6 +487,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "CREDENTIAL_EMPTY": "A credential needs a value.",
   "CREDENTIAL_NAME_INVALID": "Credential names are a provider and a name of letters, digits and :._/@-.",
   "CREDENTIAL_REF_FOREIGN": "Credential ref foreign.",
+  "CUSTOM_FIELD_ARCHIVED": "Field is archived; restore it first.",
   "CUSTOM_FIELD_ENTITY_UNKNOWN": "The entity is not a registered subject type.",
   "CUSTOM_FIELD_FORBIDDEN": "Not allowed to manage custom fields.",
   "CUSTOM_FIELD_NOT_FOUND": "Field not found.",

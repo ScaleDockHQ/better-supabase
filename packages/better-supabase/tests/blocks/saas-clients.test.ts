@@ -404,7 +404,9 @@ describe("saas block clients", () => {
     const fields = createCustomFields({
       ...options({
         save_field_definition: { id: "d1" },
-        delete_field_definition: true,
+        purge_field_definition: true,
+      archive_field_definition: { id: "d1" },
+      restore_field_definition: { id: "d1" },
         read_field_values: [{ key: "tier" }],
         set_field_value: { id: "v1" },
       }),
@@ -424,7 +426,9 @@ describe("saas block clients", () => {
           .orThrow()
       ).id,
     ).toBe("d1");
-    expect(await fields.deleteDefinition("d1").orThrow()).toBe(true);
+    expect(await fields.purgeDefinition("d1").orThrow()).toBe(true);
+    expect((await fields.archiveDefinition("d1").orThrow()).id).toBe("d1");
+    expect((await fields.restoreDefinition("d1").orThrow()).id).toBe("d1");
     expect(await fields.readValues({ subject: EMPLOYEE }).orThrow()).toEqual([
       { key: "tier" },
     ]);
