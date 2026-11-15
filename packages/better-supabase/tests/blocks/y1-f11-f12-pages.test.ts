@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated aliases until 0.70 (ADR 1077). 8 findings. */
 import { describe, expect, it } from "vitest";
 
 import type { BlockTransport } from "../../src/core/block-transport.ts";
@@ -240,5 +241,34 @@ describe("the F11 and F12 list reads", () => {
     expect(
       (await createAiEvals({ transport }).datasets.getDataset("d1")).ok,
     ).toBe(false);
+  });
+
+  it("keeps the deprecated list and get aliases behind the same access check", async () => {
+    const transport: BlockTransport = { call: () => Promise.resolve([]) };
+
+    const evals = createAiEvals({ transport, access: allowed });
+    const guardrails = createAiGuardrails({ transport, access: allowed });
+
+    expect(
+      (await evals.datasets.list({ organizationId: OTHER })).error?.kind,
+    ).toBe("forbidden");
+    expect((await evals.datasets.get("d1")).ok).toBe(false);
+    expect((await evals.runs.get("r1")).ok).toBe(false);
+    expect((await evals.runs.list({ datasetId: "d1" })).ok).toBe(false);
+    expect(
+      (await guardrails.policies.list({ organizationId: OTHER })).error?.kind,
+    ).toBe("forbidden");
+    expect(
+      (await guardrails.decisions.list({ organizationId: OTHER })).error?.kind,
+    ).toBe("forbidden");
+    expect(
+      (
+        await guardrails.policies.get({
+          agent: "*",
+          stage: "input",
+          organizationId: OTHER,
+        })
+      ).error?.kind,
+    ).toBe("forbidden");
   });
 });

@@ -100,9 +100,9 @@
     "brotli": 422483
   },
   "/[locale]/(app)/assistant/guardrails/page": {
-    "raw": 1557067,
-    "gzip": 494907,
-    "brotli": 433081
+    "raw": 1562401,
+    "gzip": 498345,
+    "brotli": 435734
   },
   "/[locale]/(app)/assistant/page": {
     "raw": 1527897,
@@ -205,7 +205,7 @@
     "brotli": 375581
   },
   "/[locale]/(app)/chat/page": {
-    "raw": 1440928,
+    "raw": 1443812,
     "gzip": 461988,
     "brotli": 404099
   },
@@ -580,14 +580,14 @@
     "brotli": 386270
   },
   "/[locale]/(app)/inbox/[conversation]/page": {
-    "raw": 1580647,
-    "gzip": 509188,
-    "brotli": 445922
+    "raw": 1586101,
+    "gzip": 511999,
+    "brotli": 448389
   },
   "/[locale]/(app)/inbox/page": {
-    "raw": 1452557,
-    "gzip": 465601,
-    "brotli": 407959
+    "raw": 1458011,
+    "gzip": 469374,
+    "brotli": 411235
   },
   "/[locale]/(app)/incidents/[id]/page": {
     "raw": 1346873,
