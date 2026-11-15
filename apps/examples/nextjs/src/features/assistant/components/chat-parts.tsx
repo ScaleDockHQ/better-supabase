@@ -20,6 +20,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useExtracted } from "next-intl";
+import * as v from "valibot";
 
 import {
   Attachment,
@@ -51,6 +52,7 @@ import {
   TraceLine,
   TraceTitle,
 } from "@/components/ui/trace";
+import { present } from "@/lib/present";
 
 import { MessageTextLazy } from "./message-text-lazy";
 
@@ -59,12 +61,12 @@ export interface ChatPartsActions {
   readonly addToolApprovalResponse: (response: {
     readonly id: string;
     readonly approved: boolean;
-  }) => unknown;
+  }) => void | PromiseLike<void>;
   readonly addToolOutput: (output: {
     readonly tool: string;
     readonly toolCallId: string;
     readonly output: unknown;
-  }) => unknown;
+  }) => void | PromiseLike<void>;
 }
 
 type ToolPart = DynamicToolUIPart | ToolUIPart;
@@ -80,39 +82,46 @@ export interface Question {
   readonly multiple?: boolean;
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+const questionSchema = v.pipe(
+  v.object({
+    name: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    choices: v.pipe(
+      v.array(v.unknown()),
+      v.transform((choices) =>
+        choices.filter((choice) => v.is(v.string(), choice)),
+      ),
+    ),
+    multiple: v.optional(v.boolean()),
+  }),
+  v.transform((entry): Question => ({
+    name: entry.name,
+    title: entry.title,
+    ...present({ description: entry.description }),
+    // SAFETY: the filter above keeps only strings.
+    choices: entry.choices as readonly string[],
+    multiple: entry.multiple === true,
+  })),
+);
+
+const questionsSchema = v.fallback(
+  v.pipe(
+    v.object({ questions: v.array(v.unknown()) }),
+    v.transform((input) =>
+      input.questions.flatMap((entry) => {
+        const parsed = v.safeParse(questionSchema, entry);
+
+        return parsed.success ? [parsed.output] : [];
+      }),
+    ),
+  ),
+  [],
+);
 
 /** The questions an `askQuestions` call carries; a malformed input yields none. */
-export function questionsOf(input: unknown): readonly Question[] {
-  if (!isRecord(input) || !Array.isArray(input["questions"])) {
-    return [];
-  }
-
-  return input["questions"].flatMap((entry): Question[] => {
-    if (
-      !isRecord(entry) ||
-      typeof entry["name"] !== "string" ||
-      typeof entry["title"] !== "string" ||
-      !Array.isArray(entry["choices"])
-    ) {
-      return [];
-    }
-
-    return [
-      {
-        name: entry["name"],
-        title: entry["title"],
-        ...(typeof entry["description"] === "string"
-          ? { description: entry["description"] }
-          : {}),
-        choices: entry["choices"].filter(
-          (choice): choice is string => typeof choice === "string",
-        ),
-        multiple: entry["multiple"] === true,
-      },
-    ];
-  });
+export function questionsOf<T>(input: T): readonly Question[] {
+  return v.parse(questionsSchema, input);
 }
 
 /** The text of a message, parts joined. */
@@ -121,13 +130,13 @@ export const textOf = (message: UIMessage): string =>
     .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("");
 
-const stringify = (value: unknown): string => {
+function stringify<T>(value: T): string {
   try {
     return JSON.stringify(value, null, 2);
   } catch {
     return String(value);
   }
-};
+}
 
 /** The reasoning of the model, folded away until the user opens it. */
 function ReasoningPart({

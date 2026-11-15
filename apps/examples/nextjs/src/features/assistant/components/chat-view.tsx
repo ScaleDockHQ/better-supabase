@@ -67,7 +67,7 @@ export type ChatLike = Pick<
   | "regenerate"
   | "addToolApprovalResponse"
   | "addToolOutput"
-> & { readonly stop: () => unknown };
+> & { readonly stop: () => void | PromiseLike<void> };
 
 const filesOf = (message: UIMessage): FileUIPart[] =>
   message.parts.flatMap((part) => (part.type === "file" ? [part] : []));

@@ -1,14 +1,19 @@
 import "server-only";
+import * as v from "valibot";
+
 import { opsAccess } from "@/features/assistant/assistant-ops";
 import { aiRuns } from "@/features/assistant/assistant-server";
 import { getMembers } from "@/features/organization/organization-queries";
+import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 /** The newest runs one read covers; totals past it are lower bounds. */
 export const USAGE_WINDOW = 200;
 
-const num = (value: unknown): number =>
-  typeof value === "number" && Number.isFinite(value) ? value : 0;
+/** A token count; a usage key that is not a finite number counts as zero. */
+const count = v.fallback(v.pipe(v.number(), v.finite()), 0);
+
+const num = <T>(value: T): number => v.parse(count, value);
 
 /** The ranges the page offers, in days; `0` is every run in the window. */
 export const USAGE_RANGES = [7, 30, 90, 0] as const;
@@ -166,9 +171,12 @@ export async function getAiUserUsage(
   const [rollup, members] = await Promise.all([
     aiRuns(supabase).usageByUser({
       organizationId,
-      ...(range === 0
-        ? {}
-        : { since: Temporal.Now.instant().subtract({ hours: range * 24 }) }),
+      ...present({
+        since:
+          range === 0
+            ? undefined
+            : Temporal.Now.instant().subtract({ hours: range * 24 }),
+      }),
       limit: 50,
     }),
     getMembers(organizationId),

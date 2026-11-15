@@ -9,6 +9,7 @@ import type { OpsListQuery } from "@/components/ops-list/ops-list-params";
 import { aiChat, aiRuns } from "@/features/assistant/assistant-server";
 import { memory } from "@/features/knowledge/knowledge-server";
 import { getSession } from "@/features/user/user-queries";
+import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import type { ToolPolicyChoice } from "./agents-tools";
@@ -64,7 +65,7 @@ export async function getAgentPage(query: OpsListQuery): Promise<AgentPage> {
       organizationId,
       filter,
       limit: 100,
-      ...(query.q === "" ? {} : { search: query.q }),
+      ...present({ search: query.q === "" ? undefined : query.q }),
     })
     .orThrow();
 

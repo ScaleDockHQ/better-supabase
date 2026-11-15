@@ -45,12 +45,12 @@
     "brotli": 433760
   },
   "/[locale]/(app)/assistant/[id]/page": {
-    "raw": 1272508,
+    "raw": 3661070,
     "gzip": 404532,
     "brotli": 353423
   },
   "/[locale]/(app)/assistant/activity/page": {
-    "raw": 1270465,
+    "raw": 5285104,
     "gzip": 403726,
     "brotli": 352694
   },
@@ -100,7 +100,7 @@
     "brotli": 422483
   },
   "/[locale]/(app)/assistant/guardrails/page": {
-    "raw": 1556897,
+    "raw": 1557067,
     "gzip": 494907,
     "brotli": 433081
   },
