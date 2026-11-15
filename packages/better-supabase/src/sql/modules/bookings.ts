@@ -1,7 +1,6 @@
 import type { BookingsEvents } from "../../blocks/bookings/events.ts";
 import type {
   BlockSqlContext,
-  BlockSqlContractFunction,
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
@@ -21,7 +20,9 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import * as archive from "./bookings-archive.ts";
+import { contract } from "./bookings-contract.ts";
 import { catalogLists, customerList } from "./bookings-lists.ts";
+import { bookingPages } from "./bookings-pages.ts";
 import {
   BOOKINGS_CONTRIBUTES,
   hostBusy,
@@ -37,7 +38,6 @@ import {
 } from "./bookings-public.ts";
 import {
   SERIES_TABLES,
-  seriesContract,
   seriesFunctions,
   seriesTables,
 } from "./bookings-series.ts";
@@ -935,84 +935,7 @@ function build(ctx: BlockSqlContext): string {
   };
 
   return `${schemaPreamble(ctx)}
-${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${catalogLists(p)}${customerList(p)}${publicBooking(p)}${recurringOn(ctx) ? seriesFunctions(p) : ""}`;
-}
-
-function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
-  return [
-    {
-      name: "save_booking_resource",
-      args: ["{id}", "jsonb"],
-      returns: "jsonb",
-    },
-    {
-      name: "set_booking_availability",
-      args: ["uuid", "jsonb"],
-      returns: "integer",
-    },
-    {
-      name: "add_booking_exception",
-      args: ["uuid", "timestamptz", "timestamptz", "boolean", "text"],
-      returns: "jsonb",
-    },
-    { name: "delete_booking_exception", args: ["uuid"], returns: "boolean" },
-    { name: "save_booking_service", args: ["{id}", "jsonb"], returns: "jsonb" },
-    {
-      name: "available_slots",
-      args: ["uuid", "timestamptz", "timestamptz", "text", "uuid"],
-      returns: "jsonb",
-    },
-    {
-      name: "hold_booking",
-      args: ["uuid", "uuid", "timestamptz", "jsonb", "boolean"],
-      returns: "jsonb",
-    },
-    { name: "confirm_booking", args: ["uuid"], returns: "jsonb" },
-    {
-      name: "list_booking_resources",
-      args: ["{id}", "boolean"],
-      returns: "jsonb",
-    },
-    {
-      name: "list_booking_services",
-      args: ["{id}", "boolean"],
-      returns: "jsonb",
-    },
-    { name: "cancel_booking", args: ["uuid", "text"], returns: "jsonb" },
-    { name: "expire_booking_holds", args: [], returns: "integer" },
-    {
-      name: "list_bookings",
-      args: ["{id}", "timestamptz", "timestamptz", "uuid", "boolean"],
-      returns: "jsonb",
-    },
-    ...archive.archiveContract(ctx),
-    {
-      name: "list_bookings_for_customer",
-      args: ["{id}", "text", "integer"],
-      returns: "jsonb",
-    },
-    ...(ctx.installed("share-links")
-      ? [
-          { name: "public_booking_service", args: ["text"], returns: "jsonb" },
-          {
-            name: "public_available_slots",
-            args: ["text", "timestamptz", "timestamptz", "text"],
-            returns: "jsonb",
-          },
-          {
-            name: "public_hold_booking",
-            args: ["text", "uuid", "timestamptz", "jsonb"],
-            returns: "jsonb",
-          },
-          {
-            name: "public_change_booking",
-            args: ["uuid", "text", "text"],
-            returns: "jsonb",
-          },
-        ]
-      : []),
-    ...(recurringOn(ctx) ? seriesContract() : []),
-  ];
+${tables(p)}${setup(p)}${slots(p)}${lifecycle(p)}${catalogLists(p)}${customerList(p)}${bookingPages(p)}${publicBooking(p)}${recurringOn(ctx) ? seriesFunctions(p) : ""}`;
 }
 
 export const BOOKINGS: BlockSqlDefinition = {

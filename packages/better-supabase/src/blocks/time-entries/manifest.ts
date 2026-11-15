@@ -4,6 +4,7 @@ import type { TimeEntriesEvents } from "./events.ts";
 import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { timeEntriesEvents } from "./events.ts";
+import { timeEntryListSurface } from "./lists.ts";
 import { timeEntriesSqlOptions } from "./options.ts";
 import { createTimeEntries } from "./time-entries.ts";
 
@@ -21,6 +22,7 @@ export const timeEntriesBlock: BlockOf<
   category: "people",
   entities: {
     time_entry: {
+      ...timeEntryListSurface,
       mutability: "editable",
       emits: {
         create: true,

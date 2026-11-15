@@ -76,6 +76,7 @@ export function createCare(options: CareOptions): Care {
       Async.from<CareDossier>(async () => {
         const [plans, observations, orders, decisions, funding] =
           await Promise.all([
+            // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
             parts["care-plans"].list({
               subjectType: subject.type,
               subjectId: subject.id,

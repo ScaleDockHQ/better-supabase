@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 2 findings. */
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -5,8 +6,10 @@ import type { Bookings } from "../../src/blocks/bookings/bookings.ts";
 import type { TestUser } from "./block-session.ts";
 
 import { createBookings } from "../../src/blocks/bookings/bookings.ts";
+import { bookingListSurface } from "../../src/blocks/bookings/lists.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
+import { smokeList } from "./list-smoke.ts";
 
 const live = await reachable();
 
@@ -465,5 +468,17 @@ describe.skipIf(!live)("bookings block in Postgres", () => {
     await bookings.public.service(fresh.token).orThrow();
     const limited = await bookings.public.service(fresh.token);
     expect(limited.ok ? undefined : limited.error.kind).toBe("rate_limited");
+  });
+
+  it("pages bookings through the list contract", async () => {
+    await session.as(owner);
+    await smokeList({
+      surface: bookingListSurface,
+      page: (options) =>
+        bookings.pageBookings({ ...options, organizationId: org }),
+      facets: () => bookings.bookingFacets({ organizationId: org }),
+      count: () => bookings.countBookings({ organizationId: org }),
+      get: (id) => bookings.getBooking(id),
+    });
   });
 });

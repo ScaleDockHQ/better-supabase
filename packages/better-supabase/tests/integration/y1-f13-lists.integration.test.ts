@@ -2,8 +2,6 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { PromptSummary } from "../../src/blocks/prompts/index.ts";
-import type { PageOptions } from "../../src/core/block-helpers.ts";
-import type { Result } from "../../src/core/result.ts";
 
 import { createAnnouncements } from "../../src/blocks/announcements/index.ts";
 import { announcementListSurface } from "../../src/blocks/announcements/lists.ts";
@@ -24,30 +22,9 @@ import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { testBlockList } from "../../src/testing/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
+import { everySort, hint, MISSING } from "./list-smoke.ts";
 
 const live = await reachable();
-
-const MISSING = "00000000-0000-4000-8000-000000000000";
-
-const hint = (result: Result<unknown>): string =>
-  result.ok ? "ok" : (result.error.hint ?? result.error.kind);
-
-/** Every declared sort in both directions, with `q` when the entity has it. */
-async function everySort(
-  surface: {
-    readonly sorts?: readonly string[];
-    readonly search?: boolean | readonly string[];
-  },
-  page: (options: PageOptions) => PromiseLike<Result<unknown>>,
-): Promise<void> {
-  for (const by of surface.sorts ?? []) {
-    for (const direction of ["asc", "desc"] as const) {
-      const q = surface.search === undefined ? {} : { q: "x" };
-
-      expect(hint(await page({ sort: { by, direction }, ...q }))).toBe("ok");
-    }
-  }
-}
 
 describe.skipIf(!live)(
   "the F13 and F14 block lists follow the contract",

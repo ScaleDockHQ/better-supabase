@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 1 findings. */
 import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -5,8 +6,13 @@ import type { Calendar } from "../../src/blocks/calendar/calendar.ts";
 import type { TestUser } from "./block-session.ts";
 
 import { createCalendar } from "../../src/blocks/calendar/calendar.ts";
+import {
+  calendarListSurface,
+  eventListSurface,
+} from "../../src/blocks/calendar/lists.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
+import { smokeList } from "./list-smoke.ts";
 
 const live = await reachable();
 
@@ -433,5 +439,24 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
         [seriesId],
       ),
     ).toBe(0);
+  });
+
+  it("pages events and calendars through the list contract", async () => {
+    await session.as(owner);
+    await smokeList({
+      surface: eventListSurface,
+      page: (options) => calendar.page(options),
+      facets: () => calendar.facets(),
+      count: () => calendar.count(),
+      get: (id) => calendar.getEvent(id),
+    });
+    await smokeList({
+      surface: calendarListSurface,
+      page: (options) =>
+        calendar.pageCalendars({ ...options, organizationId: org }),
+      facets: () => calendar.calendarFacets({ organizationId: org }),
+      count: () => calendar.countCalendars({ organizationId: org }),
+      get: (id) => calendar.getCalendar(id),
+    });
   });
 });

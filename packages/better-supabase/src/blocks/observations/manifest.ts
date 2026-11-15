@@ -3,6 +3,10 @@ import type { ObservationsEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { observationsEvents } from "./events.ts";
+import {
+  observationDefinitionListSurface,
+  observationListSurface,
+} from "./lists.ts";
 import { createObservations } from "./observations.ts";
 import { observationsSqlOptions } from "./options.ts";
 import {
@@ -29,11 +33,13 @@ export const observationsBlock: BlockOf<
   category: "people",
   entities: {
     observation: {
+      ...observationListSurface,
       mutability: "state-machine",
       emits: { create: true },
       offline: { scope: "readers", systemRows: "definitions" },
     },
     observation_definition: {
+      ...observationDefinitionListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
     },

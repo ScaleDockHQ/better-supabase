@@ -3,7 +3,14 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockOptions } from "../shared.ts";
@@ -11,6 +18,7 @@ import type { BlockOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, noTenant } from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -32,6 +40,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { carePlanListSurface } from "./lists.ts";
 
 /** Where a plan stands: `draft`, then `active`, then `archived`. */
 export type CarePlanStatus = (typeof CARE_PLAN_STATUSES)[number];
@@ -316,7 +325,21 @@ export interface CarePlans<F extends object = Record<never, never>> {
    * in the order requested. A plan that is missing or unreadable has no entry.
    */
   getMany(planIds: readonly string[]): AsyncResult<readonly CarePlan<F>[]>;
-  /** A client's plans, the newest version first. */
+  /**
+   * One keyset page of the plans the caller reads, newest first, without their
+   * problems. `filters` takes `subjectType`, `subjectId`, `status` and
+   * `archived`; `q` matches the title (ADR 1077).
+   */
+  page(options?: PageOptions): AsyncResult<ListPage<CarePlanSummary<F>>>;
+  /** Counts per `status` for the page's `q` and filters. */
+  facets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many plans match the page's `q` and filters. */
+  count(options?: CountOptions): AsyncResult<Count>;
+  /**
+   * A client's plans, the newest version first.
+   *
+   * @deprecated Use `page` (ADR 1077).
+   */
   list(
     input: { subjectType: string; subjectId: string } & {
       readonly includeArchived?: boolean;
@@ -617,6 +640,15 @@ export function createCarePlans<
         ...(checked === undefined ? {} : { fields: checked }),
       }));
 
+  const plansPage = entityList<CarePlanSummary>({
+    entity: "care plan",
+    surface: carePlanListSurface,
+    call,
+    tenant: noTenant,
+    fn: "page_care_plans",
+    rowOf: (row) => summaryOf(row),
+  });
+
   const client: CarePlans<F> = {
     create: (input) =>
       tenant().andThen((organizationId) =>
@@ -690,6 +722,14 @@ export function createCarePlans<
         { plan_id: planId },
         plan("restore_care_plan"),
       ).andThen(fields.row),
+    page: (pageOptions) =>
+      plansPage
+        .page(pageOptions)
+        .andThen((page) =>
+          fields.rows(page.items).map((items) => ({ ...page, items })),
+        ),
+    facets: (facetOptions) => plansPage.facets(facetOptions),
+    count: (countOptions) => plansPage.count(countOptions),
     get: (planId) =>
       call("get_care_plan", { plan_id: planId }, plan("get_care_plan")).andThen(
         fields.row,
@@ -698,6 +738,7 @@ export function createCarePlans<
       call("get_care_plans", { plan_ids: planIds }, (value) =>
         recordsOf(value, "get_care_plans").map(plan("get_care_plans")),
       ).andThen(fields.rows),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ subjectType, subjectId, limit, ...list }) =>
       call(
         "list_care_plans",

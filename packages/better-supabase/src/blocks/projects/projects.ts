@@ -197,6 +197,7 @@ export function createProjects(options: ProjectsOptions): Projects {
           .toZonedDateTime(timeZone)
           .toInstant();
 
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
         const entries = await timeEntries.list({ everyone: true, from, to });
 
         if (!entries.ok) {
@@ -249,10 +250,12 @@ export function createProjects(options: ProjectsOptions): Projects {
       }),
     financials: ({ projectId }) =>
       timeEntries
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
         .list({ everyone: true, subject: { type: "project", id: projectId } })
         .map(billableOf),
     retainerDrawdown: ({ projectId, retainer }) =>
       timeEntries
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
         .list({ everyone: true, subject: { type: "project", id: projectId } })
         .map((entries) => {
           const billable = billableOf(entries).billable.find(

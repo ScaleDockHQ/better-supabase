@@ -4,6 +4,7 @@ import type { AdvisoriesEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createAdvisories } from "./advisories.ts";
 import { advisoriesEvents } from "./events.ts";
+import { advisoryListSurface, vulnerabilityListSurface } from "./lists.ts";
 
 /** The `advisories` block's manifest (ADR 0188). */
 export const advisoriesBlock: BlockOf<
@@ -18,6 +19,7 @@ export const advisoriesBlock: BlockOf<
   category: "work",
   entities: {
     advisory: {
+      ...advisoryListSurface,
       mutability: "editable",
       emits: { create: true, update: true },
       permissions: {
@@ -37,6 +39,7 @@ export const advisoriesBlock: BlockOf<
     },
     sbom_component: { mutability: "state-machine" },
     vulnerability: {
+      ...vulnerabilityListSurface,
       mutability: "editable",
       emits: { create: true, update: false },
     },

@@ -65,8 +65,10 @@ export const tagsBinding: RecordBinding<
   TagsWrites
 > = defineRecordBinding({
   permissions: { read: "read", write: "apply" },
+  // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
   load: (client: Tags, subject) => client.list({ on: subject }),
   copy: (client: Tags, from, to) =>
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated method stays an alias until 0.70 (ADR 1077)
     client.list({ on: from }).andThen(async (tags) => {
       for (const tag of tags) {
         const attached = await client.attach({ record: to, tagId: tag.id });

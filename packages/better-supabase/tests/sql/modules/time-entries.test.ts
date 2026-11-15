@@ -233,6 +233,8 @@ describe("time-entries module", () => {
       "running_timers",
       "log_time",
       "submit_timesheet",
+      "page_time_entries",
+      "get_time_entry",
       "get_timesheet",
     ]);
   });
