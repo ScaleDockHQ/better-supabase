@@ -55,6 +55,8 @@ export {
   type AiPendingApproval,
   type AiRun,
   type AiRunQuery,
+  type AiUsageByUserQuery,
+  type AiUserUsage,
   type AiRuns,
   type AiRunState,
   type AiRunStep,

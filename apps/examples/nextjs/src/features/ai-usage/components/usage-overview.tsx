@@ -15,6 +15,7 @@ import { Link } from "@/i18n/navigation";
 
 import {
   getAiUsage,
+  getAiUserUsage,
   USAGE_RANGES,
   USAGE_WINDOW,
   usageRangeOf,
@@ -22,13 +23,15 @@ import {
 import { ClearCacheButton } from "./clear-cache-button";
 import { ModelSpendTable } from "./model-spend-table";
 import { SpendChartLazy } from "./spend-chart-lazy";
+import { UserSpendTable } from "./user-spend-table";
 
 /** Render inside `<Suspense>`: KPIs, spend per day and the ledger per model. */
 export async function UsageOverview({ range: rangeParam }: { range: string }) {
   const range = usageRangeOf(rangeParam);
 
-  const [usage, permissions, t, format] = await Promise.all([
+  const [usage, userUsage, permissions, t, format] = await Promise.all([
     getAiUsage(range),
+    getAiUserUsage(range),
     getPermissions(),
     getExtracted("aiUsage"),
     getFormatter(),
@@ -112,6 +115,21 @@ export async function UsageOverview({ range: rangeParam }: { range: string }) {
           <SpendChartLazy days={usage.days} />
         </CardContent>
       </Card>
+      {userUsage === undefined ? null : (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("Per member")}</CardTitle>
+            <CardDescription>
+              {t(
+                "Runs, tokens and cost of every member in this range. Only members who manage the assistant see this.",
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UserSpendTable users={userUsage.users} failed={userUsage.failed} />
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>{t("Per model")}</CardTitle>
