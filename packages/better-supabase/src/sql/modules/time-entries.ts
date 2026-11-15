@@ -8,10 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import {
-  archiveRestoreContract,
-  archiveRestoreFunctions,
-} from "../archive-sql.ts";
+import { archiveRestoreContract } from "../archive-sql.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
@@ -27,15 +24,16 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectReadable, subjectsOption } from "../subjects.ts";
-import { policyOf, policySnapshot } from "./approvals-policies.ts";
-import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
+import { moduleOperations } from "./permissions-model.ts";
 import {
   approvalTimesheetFunctions,
   TIME_ENTRIES_CONTRIBUTES,
   TIMESHEET_SUBJECT,
 } from "./time-entries-approvals.ts";
 import { approvedWeekFunction } from "./time-entries-approved.ts";
+import { archiveSql, upgradeArchive } from "./time-entries-archive.ts";
 import { subjectOnSql } from "./time-entries-on.ts";
+import { timesheetPolicy, weekTimeZone } from "./time-entries-options.ts";
 import {
   byEmployee,
   durationEntries,
@@ -90,14 +88,8 @@ const EVENTS: BlockSqlEvents<TimeEntriesEvents> = {
   "time_entry.started": { subject: "time-entries", payload: ENTRY_PAYLOAD },
   "time_entry.recorded": { subject: "time-entries", payload: RECORDED_PAYLOAD },
   "time_entry.updated": { subject: "time-entries", payload: UPDATED_PAYLOAD },
-  "time_entry.archived": {
-    subject: "time-entries",
-    payload: RECORDED_PAYLOAD,
-  },
-  "time_entry.restored": {
-    subject: "time-entries",
-    payload: RECORDED_PAYLOAD,
-  },
+  "time_entry.archived": { subject: "time-entries", payload: RECORDED_PAYLOAD },
+  "time_entry.restored": { subject: "time-entries", payload: RECORDED_PAYLOAD },
   "time_entry.purged": { subject: "time-entries", payload: ENTRY_PAYLOAD },
   "timesheet.submitted": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
   "timesheet.approved": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
@@ -208,48 +200,6 @@ const NAMES: BlockSqlNames = {
 /** The keys the entry reads return next to the extra columns. */
 const RESERVED = ["fields"] as const;
 
-function weekTimeZone(ctx: BlockSqlContext): string {
-  const raw = ctx.option("timeZone") ?? "UTC";
-
-  if (typeof raw !== "string" || raw.length === 0) {
-    throw new TypeError(`${WHERE}.timeZone must be an IANA time zone`);
-  }
-
-  try {
-    Intl.DateTimeFormat("en", { timeZone: raw });
-  } catch {
-    throw new TypeError(`${WHERE}.timeZone: "${raw}" is not a time zone`);
-  }
-
-  return raw;
-}
-
-/** `options.policy` as an approvals policy; defaults to one approver step. */
-function timesheetPolicy(ctx: BlockSqlContext): string {
-  const raw = ctx.option("policy") ?? {
-    steps: [
-      {
-        approvers: {
-          permission: ctx.permissionKey(
-            "approve",
-            OPERATIONS["time-entries.approve"],
-          ),
-        },
-      },
-    ],
-  };
-
-  const policy = policyOf(TIMESHEET_SUBJECT, "approve", raw, `${WHERE}.policy`);
-
-  if (policy.run !== undefined) {
-    throw new TypeError(
-      `${WHERE}.policy.run is not allowed; the final approval locks the week`,
-    );
-  }
-
-  return policySnapshot(policy);
-}
-
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -289,10 +239,6 @@ function build(ctx: BlockSqlContext): string {
   const track = ctx.permission("track", permissions.track);
   const manage = ctx.permission("manage", permissions.manage);
 
-  const purgeKey =
-    ctx.config.permissions["purge"] === undefined
-      ? undefined
-      : sqlString(ctx.config.permissions["purge"]);
   const subjects = subjectsOption(ctx, ["column"]);
 
   const {
@@ -894,64 +840,15 @@ end;
 $$;
 ${userGrant(`${fn("update_time_entry")}(uuid, jsonb)`)}
 
-${
-  ctx.has("entries", "archivedAt")
-    ? archiveRestoreFunctions(ctx, {
-        entity: "time_entry",
-        arg: "entry_id",
-        rowType: `${entries}%rowtype`,
-        id: e("id"),
-        archivedAt: e("archivedAt"),
-        updatedAt: e("updatedAt"),
-        table: entries,
-        load: (name) => `select * into v_row from ${entries} x where x.${e("id")} = ${name}.entry_id for update;
-  if not found then
-    ${entryNotFound}
-  end if;
-  if not (${SERVICE_CALLER} or (${ownedByMe("v_row")} and ${ctx.can("tenant", `v_row.${e("tenant")}`, track)}) or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}) then
-    ${forbidden("not allowed to change this entry")}
-  end if;`,
-        beforeArchive: `
-  if ${running("v_row")} then
-    ${fail("TIME_TIMER_RUNNING", "stop the running timer before archiving it", "55000")}
-  end if;`,
-        beforeRestore: `
-  ${overlap("v_row")}`,
-        json: entryJson("v_row"),
-        record: (type) => entryRecord(type, "v_row", true),
-        archiveNote:
-          "Archives a finished entry: it leaves totals, reports, invoices and payroll. A locked week, a running timer and an invoiced entry refuse it.",
-        restoreNote:
-          "Brings an archived entry back. A locked week and an overlapping entry refuse it.",
-      })
-    : ""
-}
--- Removes an entry for good. Needs permissions.purge, which falls back to the
--- entry's owner (with track) and manage. A locked week and an invoiced entry
--- refuse it.
-create or replace function ${fn("purge_time_entry")}(entry_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row ${entries}%rowtype;
-begin
-  select * into v_row from ${entries} x where x.${e("id")} = purge_time_entry.entry_id for update;
-  if not found then
-    ${entryNotFound}
-  end if;
-  if not (${SERVICE_CALLER} or ${purgeKey === undefined ? `(${ownedByMe("v_row")} and ${ctx.can("tenant", `v_row.${e("tenant")}`, track)}) or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}` : ctx.can("tenant", `v_row.${e("tenant")}`, purgeKey)}) then
-    ${forbidden("not allowed to purge this entry")}
-  end if;
-  delete from ${entries} x where x.${e("id")} = v_row.${e("id")};
-  ${entryRecord("time_entry.purged", "v_row", false)}
-  return ${entryJson("v_row")};
-end;
-$$;
-${userGrant(`${fn("purge_time_entry")}(uuid)`)}
+${archiveSql(ctx, {
+  entryNotFound,
+  forbidden,
+  ownerOrManage: `(${ownedByMe("v_row")} and ${ctx.can("tenant", `v_row.${e("tenant")}`, track)}) or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}`,
+  running,
+  overlap,
+  entryJson,
+  entryRecord,
+})}
 
 -- A member's entries (the caller's by default), or every member's on a
 -- record with everyone. Other members' entries need the read permission.
@@ -1109,31 +1006,6 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
   ];
-}
-
-/** Version 4: the overlap constraint skips archived entries. */
-function upgradeArchive(ctx: BlockSqlContext): string {
-  if (
-    !ctx.owns("entries") ||
-    !ctx.has("entries", "archivedAt") ||
-    timerOptions(ctx).allowOverlap
-  ) {
-    return "";
-  }
-
-  const entries = ctx.table("entries");
-  const e = (column: string): string => ctx.col("entries", column);
-  const owner = byEmployee(ctx) ? e("employee") : e("user");
-  const name = sqlIdent(`${ctx.tableName("entries").name}_no_overlap_excl`);
-
-  return `drop function if exists ${ctx.fn("delete_time_entry")}(uuid);
-alter table ${entries} add column if not exists ${e("archivedAt")} timestamptz;
-alter table ${entries} drop constraint if exists ${name};
-alter table ${entries} add constraint ${name} exclude using gist (
-  ${e("tenant")} with =,
-  ${owner} with =,
-  tstzrange(${e("startedAt")}, coalesce(${e("endedAt")}, 'infinity'::timestamptz)) with &&
-) where (${e("archivedAt")} is null);`;
 }
 
 const REQUIRES = ["memberships", "permissions", "approvals"] as const;

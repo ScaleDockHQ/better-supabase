@@ -558,7 +558,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:c60d870d758b467fe852a65f6762d2423b550d4de1bae91375f736fa1c86158d
+-- @bsb-hash sha256:b3f77fe87eee4e6bb76bdf217b66477e0f43f1e8d1c580011019c9b6c7fc796c
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -646,7 +646,7 @@ begin
     'worked', 'hours', round(sum(extract(epoch from x."ended_at" - x."started_at"))::numeric / 3600, 2), count(*)
   from "better_supabase"."time_entries" x
   where x."tenant_id" = v_run."tenant_id"
-    and x."ended_at" is not null
+    and x."ended_at" is not null and x."archived_at" is null
     and x."user_id" is not null
     and "better_supabase"."time_week_approved"(x."tenant_id", x."user_id", x."started_at")
     and (x."started_at" at time zone 'UTC')::date between v_run."period_from" and v_run."period_to"

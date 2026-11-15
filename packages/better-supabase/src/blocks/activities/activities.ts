@@ -174,8 +174,8 @@ export interface Activities<F extends object = Record<never, never>> {
   restore(id: string): AsyncResult<Activity<F>>;
   /**
    * Removes an activity for good, with its records, recordings and notes.
-   * `permissions.purge` gates this; without it whoever may edit it may. Resolves
-   * with `false` when there was nothing to purge.
+   * `permissions.purge` gates this; without it whoever may edit it may.
+   * Resolves with `false` when there was nothing to purge.
    */
   purge(id: string): AsyncResult<boolean>;
   /**

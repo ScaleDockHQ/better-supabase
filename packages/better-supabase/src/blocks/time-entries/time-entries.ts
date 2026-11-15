@@ -139,10 +139,7 @@ export interface TimeEntryListOptions {
   readonly to?: Temporal.Instant;
   /** Entries on this record only. */
   readonly subject?: RecordRef;
-  /**
-   * `true` lists only the archived entries; archived ones are hidden
-   * otherwise.
-   */
+  /** `true` lists only the archived entries; archived ones are hidden otherwise. */
   readonly archived?: boolean;
   readonly pageSize?: number;
 }
@@ -262,8 +259,8 @@ export interface TimeEntries<F extends object = Record<never, never>> {
   archive(entryId: string): AsyncResult<TimeEntry<F>>;
   /**
    * Brings an archived entry back; records `time_entry.restored`. It fails
-   * while the week's timesheet is submitted or approved
-   * (`TIME_PERIOD_LOCKED`) and when the time now overlaps another entry.
+   * while the week's timesheet is submitted or approved (`TIME_PERIOD_LOCKED`)
+   * and when the time now overlaps another entry.
    */
   restore(entryId: string): AsyncResult<TimeEntry<F>>;
   /**

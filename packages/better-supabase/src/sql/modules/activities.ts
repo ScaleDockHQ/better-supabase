@@ -288,7 +288,9 @@ function build(ctx: BlockSqlContext): string {
 
   // An archived activity takes no changes until it is restored.
   const editable = (alias: string): string =>
-    archivable ? `(${editableAny(alias)} and ${live(alias)})` : editableAny(alias);
+    archivable
+      ? `(${editableAny(alias)} and ${live(alias)})`
+      : editableAny(alias);
 
   const purgeKey =
     ctx.config.permissions["purge"] === undefined
@@ -318,7 +320,10 @@ function build(ctx: BlockSqlContext): string {
     ${fail("ACTIVITY_LOCKED", "the activity is locked: add an addendum with amend_activity instead", "55000")}
   end if;`;
 
-  /** Fails with ACTIVITY_ARCHIVED when the caller may edit `id` but it is archived. */
+  /**
+   * Fails with ACTIVITY_ARCHIVED when the caller may edit `id` but it is
+   * archived.
+   */
   const refuseArchived = (id: string): string =>
     archivable
       ? `

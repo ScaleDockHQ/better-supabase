@@ -1231,7 +1231,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:b67dab7a04698a016b367da5d60ae096441613f8bbcba71fd9d5928a5c9bb018
+-- @bsb-hash sha256:98f1abaf78b5a5cb5a2ecd90bed2451e798c67834580849d1971f6dbd9c06fdd
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2004,7 +2004,7 @@ begin
       x."user_id" as performer, null::text as category
     from "better_supabase"."time_entries" x
     where x."tenant_id" = register_funding_deliveries_from_time.tenant
-      and x."ended_at" is not null
+      and x."ended_at" is not null and x."archived_at" is null
       and x."subject_type" is not null
       and x."started_at" >= (register_funding_deliveries_from_time.since::timestamp at time zone 'UTC')
       and x."started_at" < ((register_funding_deliveries_from_time.until + 1)::timestamp at time zone 'UTC')

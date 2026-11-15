@@ -175,9 +175,7 @@ describe.skipIf(!live)("time-entries", () => {
       expect(await time.submit({ week: WEEK }).then(hint)).toBe(
         "TIME_ENTRIES_TIMESHEET_SUBMITTED",
       );
-      expect(await time.purge(logged.id).then(hint)).toBe(
-        "TIME_PERIOD_LOCKED",
-      );
+      expect(await time.purge(logged.id).then(hint)).toBe("TIME_PERIOD_LOCKED");
       expect(
         await time
           .log({
