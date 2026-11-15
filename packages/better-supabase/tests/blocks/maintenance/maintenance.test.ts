@@ -65,7 +65,12 @@ describe("createMaintenance", () => {
         nextDueAt: AT,
         workOrderId: "w1",
       }),
-      delete_maintenance_plan: () => PLAN,
+      archive_maintenance_plan: () => ({
+        ...PLAN,
+        archivedAt: "2026-01-05T00:00:00Z",
+      }),
+      restore_maintenance_plan: () => PLAN,
+      purge_maintenance_plan: () => PLAN,
       list_maintenance_plans: () => [PLAN, { ...PLAN, parts: undefined }],
     });
 
@@ -88,7 +93,9 @@ describe("createMaintenance", () => {
       .updatePlan({ planId: "p1", change: { status: "paused" } })
       .orThrow();
 
-    const deleted = await maintenance.deletePlan("p1").orThrow();
+    const archived = await maintenance.archivePlan("p1").orThrow();
+    const restored = await maintenance.restorePlan("p1").orThrow();
+    const deleted = await maintenance.purgePlan("p1").orThrow();
 
     const listed = await maintenance
       .listPlans({ due: true, status: "active", limit: 5 })
@@ -106,6 +113,8 @@ describe("createMaintenance", () => {
     });
     expect(updated.nextDueAt?.toString()).toBe("2026-10-29T10:00:00Z");
     expect(deleted.id).toBe("p1");
+    expect(archived.archivedAt?.toString()).toBe("2026-01-05T00:00:00Z");
+    expect(restored.archivedAt).toBeUndefined();
     expect(listed).toHaveLength(2);
     expect(listed[1]?.parts).toEqual([]);
     expect(t.calls[0]).toEqual([
@@ -124,10 +133,12 @@ describe("createMaintenance", () => {
         },
       },
     ]);
-    expect(t.calls[3]).toEqual([
-      "list_maintenance_plans",
-      { tenant: "org-1", filters: { status: "active", due: true, limit: 5 } },
-    ]);
+    expect(t.calls.find(([name]) => name === "list_maintenance_plans")).toEqual(
+      [
+        "list_maintenance_plans",
+        { tenant: "org-1", filters: { status: "active", due: true, limit: 5 } },
+      ],
+    );
   });
 
   it("generates work orders, and handles meters and calibrations", async () => {

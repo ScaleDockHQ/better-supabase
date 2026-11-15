@@ -1,6 +1,6 @@
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:61dbc83096d7ddc32c3c09fcf4adc5bc92c0ff483786e8443790d76ad8631e12
+-- @bsb-hash sha256:c7e4307ae43cef6b372ffbbea68a063821c240ae605470422ca79da2aefc7e92
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -146,6 +146,7 @@ create table "better_supabase"."funding_claims" (
   "total" bigint not null default 0,
   "currency" char(3) not null constraint bsb_funding_claims_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_id" uuid,
+  "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1059,7 +1060,7 @@ begin
         using v_claim."id";
     end if;
   end;
-  return jsonb_build_object('id', v_claim."id", 'organizationId', v_claim."tenant_id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'format', v_claim."format", 'status', v_claim."status", 'externalRef', v_claim."external_ref", 'sentAt', v_claim."sent_at", 'payloadSha256', v_claim."payload_sha256", 'response', v_claim."response", 'total', v_claim."total"::text, 'currency', v_claim."currency", 'invoiceId', v_claim."invoice_id", 'createdBy', v_claim."created_by", 'createdAt', v_claim."created_at", 'updatedAt', v_claim."updated_at") || jsonb_build_object('lines', coalesce((
+  return jsonb_build_object('id', v_claim."id", 'organizationId', v_claim."tenant_id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'format', v_claim."format", 'status', v_claim."status", 'externalRef', v_claim."external_ref", 'sentAt', v_claim."sent_at", 'payloadSha256', v_claim."payload_sha256", 'response', v_claim."response", 'total', v_claim."total"::text, 'currency', v_claim."currency", 'invoiceId', v_claim."invoice_id", 'archivedAt', v_claim."archived_at", 'createdBy', v_claim."created_by", 'createdAt', v_claim."created_at", 'updatedAt', v_claim."updated_at") || jsonb_build_object('lines', coalesce((
     select jsonb_agg(jsonb_build_object('id', z."id", 'claimId', z."claim_id", 'awardId', z."award_id", 'productId', z."product_id", 'units', z."units", 'amount', z."amount"::text, 'status', z."status", 'rejectionCode', z."rejection_code") || jsonb_build_object(
       'award', jsonb_build_object('subjectType', a."subject_type", 'subjectId', a."subject_id", 'reference', a."reference", 'period', a."period"),
       'product', jsonb_build_object('code', y."code", 'title', y."title", 'unit', y."unit", 'rate', y."rate"::text),
@@ -1098,7 +1099,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_claim."tenant_id", 'funding.read'), false)) then
     raise exception 'not allowed to read funding claims' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
-  return jsonb_build_object('id', v_claim."id", 'organizationId', v_claim."tenant_id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'format', v_claim."format", 'status', v_claim."status", 'externalRef', v_claim."external_ref", 'sentAt', v_claim."sent_at", 'payloadSha256', v_claim."payload_sha256", 'response', v_claim."response", 'total', v_claim."total"::text, 'currency', v_claim."currency", 'invoiceId', v_claim."invoice_id", 'createdBy', v_claim."created_by", 'createdAt', v_claim."created_at", 'updatedAt', v_claim."updated_at") || jsonb_build_object('lines', coalesce((
+  return jsonb_build_object('id', v_claim."id", 'organizationId', v_claim."tenant_id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'format', v_claim."format", 'status', v_claim."status", 'externalRef', v_claim."external_ref", 'sentAt', v_claim."sent_at", 'payloadSha256', v_claim."payload_sha256", 'response', v_claim."response", 'total', v_claim."total"::text, 'currency', v_claim."currency", 'invoiceId', v_claim."invoice_id", 'archivedAt', v_claim."archived_at", 'createdBy', v_claim."created_by", 'createdAt', v_claim."created_at", 'updatedAt', v_claim."updated_at") || jsonb_build_object('lines', coalesce((
     select jsonb_agg(jsonb_build_object('id', z."id", 'claimId', z."claim_id", 'awardId', z."award_id", 'productId', z."product_id", 'units', z."units", 'amount', z."amount"::text, 'status', z."status", 'rejectionCode', z."rejection_code") || jsonb_build_object(
       'award', jsonb_build_object('subjectType', a."subject_type", 'subjectId', a."subject_id", 'reference', a."reference", 'period', a."period"),
       'product', jsonb_build_object('code', y."code", 'title', y."title", 'unit', y."unit", 'rate', y."rate"::text),
@@ -1163,7 +1164,7 @@ begin
     tenant => (v_claim."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_claim."tenant_id", 'fundingClaimId', v_claim."id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'status', v_claim."status", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'total', v_claim."total"::text, 'currency', v_claim."currency", 'externalRef', v_claim."external_ref")
   );
-  return jsonb_build_object('id', v_claim."id", 'organizationId', v_claim."tenant_id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'format', v_claim."format", 'status', v_claim."status", 'externalRef', v_claim."external_ref", 'sentAt', v_claim."sent_at", 'payloadSha256', v_claim."payload_sha256", 'response', v_claim."response", 'total', v_claim."total"::text, 'currency', v_claim."currency", 'invoiceId', v_claim."invoice_id", 'createdBy', v_claim."created_by", 'createdAt', v_claim."created_at", 'updatedAt', v_claim."updated_at");
+  return jsonb_build_object('id', v_claim."id", 'organizationId', v_claim."tenant_id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'format', v_claim."format", 'status', v_claim."status", 'externalRef', v_claim."external_ref", 'sentAt', v_claim."sent_at", 'payloadSha256', v_claim."payload_sha256", 'response', v_claim."response", 'total', v_claim."total"::text, 'currency', v_claim."currency", 'invoiceId', v_claim."invoice_id", 'archivedAt', v_claim."archived_at", 'createdBy', v_claim."created_by", 'createdAt', v_claim."created_at", 'updatedAt', v_claim."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."mark_funding_claim_sent"(uuid, text, text) from public, anon;
@@ -1242,7 +1243,7 @@ begin
     tenant => (v_claim."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_claim."tenant_id", 'fundingClaimId', v_claim."id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'status', v_claim."status", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'total', v_claim."total"::text, 'currency', v_claim."currency")
   );
-  return jsonb_build_object('id', v_claim."id", 'organizationId', v_claim."tenant_id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'format', v_claim."format", 'status', v_claim."status", 'externalRef', v_claim."external_ref", 'sentAt', v_claim."sent_at", 'payloadSha256', v_claim."payload_sha256", 'response', v_claim."response", 'total', v_claim."total"::text, 'currency', v_claim."currency", 'invoiceId', v_claim."invoice_id", 'createdBy', v_claim."created_by", 'createdAt', v_claim."created_at", 'updatedAt', v_claim."updated_at") || jsonb_build_object('lines', coalesce((
+  return jsonb_build_object('id', v_claim."id", 'organizationId', v_claim."tenant_id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'format', v_claim."format", 'status', v_claim."status", 'externalRef', v_claim."external_ref", 'sentAt', v_claim."sent_at", 'payloadSha256', v_claim."payload_sha256", 'response', v_claim."response", 'total', v_claim."total"::text, 'currency', v_claim."currency", 'invoiceId', v_claim."invoice_id", 'archivedAt', v_claim."archived_at", 'createdBy', v_claim."created_by", 'createdAt', v_claim."created_at", 'updatedAt', v_claim."updated_at") || jsonb_build_object('lines', coalesce((
     select jsonb_agg(jsonb_build_object('id', z."id", 'claimId', z."claim_id", 'awardId', z."award_id", 'productId', z."product_id", 'units', z."units", 'amount', z."amount"::text, 'status', z."status", 'rejectionCode', z."rejection_code") || jsonb_build_object(
       'award', jsonb_build_object('subjectType', a."subject_type", 'subjectId', a."subject_id", 'reference', a."reference", 'period', a."period"),
       'product', jsonb_build_object('code', y."code", 'title', y."title", 'unit', y."unit", 'rate', y."rate"::text),
@@ -1261,8 +1262,155 @@ $$;
 revoke execute on function "better_supabase"."record_funding_claim_response"(uuid, jsonb, jsonb) from public, anon;
 grant execute on function "better_supabase"."record_funding_claim_response"(uuid, jsonb, jsonb) to authenticated, service_role;
 
--- Deletes a draft claim; its deliveries go back to approved.
-create or replace function "better_supabase"."delete_funding_claim"(claim_id uuid)
+
+-- Archives a claim the funder answered: it leaves the list and keeps its lines and deliveries.
+create or replace function "better_supabase"."archive_funding_claim"(claim_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."funding_claims"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."funding_claims" x where x."id" = archive_funding_claim.claim_id for update;
+  if not found then
+    raise exception 'funding claim not found' using errcode = 'P0002', hint = 'FUNDING_CLAIM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'funding.claim'), false)) then
+    raise exception 'not allowed to claim funding' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'funderId', v_row."funder_id", 'number', v_row."number", 'periodStart', v_row."period_start", 'periodEnd', v_row."period_end", 'format', v_row."format", 'status', v_row."status", 'externalRef', v_row."external_ref", 'sentAt', v_row."sent_at", 'payloadSha256', v_row."payload_sha256", 'response', v_row."response", 'total', v_row."total"::text, 'currency', v_row."currency", 'invoiceId', v_row."invoice_id", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('lines', coalesce((
+    select jsonb_agg(jsonb_build_object('id', z."id", 'claimId', z."claim_id", 'awardId', z."award_id", 'productId', z."product_id", 'units', z."units", 'amount', z."amount"::text, 'status', z."status", 'rejectionCode', z."rejection_code") || jsonb_build_object(
+      'award', jsonb_build_object('subjectType', a."subject_type", 'subjectId', a."subject_id", 'reference', a."reference", 'period', a."period"),
+      'product', jsonb_build_object('code', y."code", 'title', y."title", 'unit', y."unit", 'rate', y."rate"::text),
+      'deliveries', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x."id", 'deliveredOn', x."delivered_on", 'units', x."units", 'sourceType', x."source_type", 'sourceId', x."source_id", 'performerId', x."performer_id") order by x."delivered_on", x."id")
+        from "better_supabase"."funding_deliveries" x where x."claim_line_id" = z."id"
+      ), '[]'::jsonb)
+    ) order by y."code", a."subject_id", z."id")
+    from "better_supabase"."funding_claim_lines" z
+    join "better_supabase"."funding_awards" a on a."tenant_id" = z."tenant_id" and a."id" = z."award_id"
+    join "better_supabase"."funding_products" y on y."tenant_id" = z."tenant_id" and y."id" = z."product_id"
+    where z."tenant_id" = v_row."tenant_id" and z."claim_id" = v_row."id"
+  ), '[]'::jsonb));
+  end if;
+  if v_row."status" not in ('accepted', 'rejected', 'partially_accepted') then
+    raise exception 'only a claim the funder answered is archived; purge a draft' using errcode = '22023', hint = 'FUNDING_CLAIM_STATUS_INVALID';
+  end if;
+  update "better_supabase"."funding_claims" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('funding_claim.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'fundingClaimId', v_row."id", 'funderId', v_row."funder_id", 'number', v_row."number", 'status', v_row."status", 'periodStart', v_row."period_start", 'periodEnd', v_row."period_end", 'total', v_row."total"::text, 'currency', v_row."currency"), 'funding-claims/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/funding');
+  perform better_supabase.audit_event(
+    event_type => 'funding_claim.archived',
+    category => 'data',
+    target_type => 'funding_claim',
+    record_id => v_row."id"::text,
+    summary => 'Funding claim archived',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'fundingClaimId', v_row."id", 'funderId', v_row."funder_id", 'number', v_row."number", 'status', v_row."status", 'periodStart', v_row."period_start", 'periodEnd', v_row."period_end", 'total', v_row."total"::text, 'currency', v_row."currency")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'funderId', v_row."funder_id", 'number', v_row."number", 'periodStart', v_row."period_start", 'periodEnd', v_row."period_end", 'format', v_row."format", 'status', v_row."status", 'externalRef', v_row."external_ref", 'sentAt', v_row."sent_at", 'payloadSha256', v_row."payload_sha256", 'response', v_row."response", 'total', v_row."total"::text, 'currency', v_row."currency", 'invoiceId', v_row."invoice_id", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('lines', coalesce((
+    select jsonb_agg(jsonb_build_object('id', z."id", 'claimId', z."claim_id", 'awardId', z."award_id", 'productId', z."product_id", 'units', z."units", 'amount', z."amount"::text, 'status', z."status", 'rejectionCode', z."rejection_code") || jsonb_build_object(
+      'award', jsonb_build_object('subjectType', a."subject_type", 'subjectId', a."subject_id", 'reference', a."reference", 'period', a."period"),
+      'product', jsonb_build_object('code', y."code", 'title', y."title", 'unit', y."unit", 'rate', y."rate"::text),
+      'deliveries', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x."id", 'deliveredOn', x."delivered_on", 'units', x."units", 'sourceType', x."source_type", 'sourceId', x."source_id", 'performerId', x."performer_id") order by x."delivered_on", x."id")
+        from "better_supabase"."funding_deliveries" x where x."claim_line_id" = z."id"
+      ), '[]'::jsonb)
+    ) order by y."code", a."subject_id", z."id")
+    from "better_supabase"."funding_claim_lines" z
+    join "better_supabase"."funding_awards" a on a."tenant_id" = z."tenant_id" and a."id" = z."award_id"
+    join "better_supabase"."funding_products" y on y."tenant_id" = z."tenant_id" and y."id" = z."product_id"
+    where z."tenant_id" = v_row."tenant_id" and z."claim_id" = v_row."id"
+  ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."archive_funding_claim"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_funding_claim"(uuid) to authenticated, service_role;
+
+-- Brings an archived claim back to the list.
+create or replace function "better_supabase"."restore_funding_claim"(claim_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."funding_claims"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."funding_claims" x where x."id" = restore_funding_claim.claim_id for update;
+  if not found then
+    raise exception 'funding claim not found' using errcode = 'P0002', hint = 'FUNDING_CLAIM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'funding.claim'), false)) then
+    raise exception 'not allowed to claim funding' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'funderId', v_row."funder_id", 'number', v_row."number", 'periodStart', v_row."period_start", 'periodEnd', v_row."period_end", 'format', v_row."format", 'status', v_row."status", 'externalRef', v_row."external_ref", 'sentAt', v_row."sent_at", 'payloadSha256', v_row."payload_sha256", 'response', v_row."response", 'total', v_row."total"::text, 'currency', v_row."currency", 'invoiceId', v_row."invoice_id", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('lines', coalesce((
+    select jsonb_agg(jsonb_build_object('id', z."id", 'claimId', z."claim_id", 'awardId', z."award_id", 'productId', z."product_id", 'units', z."units", 'amount', z."amount"::text, 'status', z."status", 'rejectionCode', z."rejection_code") || jsonb_build_object(
+      'award', jsonb_build_object('subjectType', a."subject_type", 'subjectId', a."subject_id", 'reference', a."reference", 'period', a."period"),
+      'product', jsonb_build_object('code', y."code", 'title', y."title", 'unit', y."unit", 'rate', y."rate"::text),
+      'deliveries', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x."id", 'deliveredOn', x."delivered_on", 'units', x."units", 'sourceType', x."source_type", 'sourceId', x."source_id", 'performerId', x."performer_id") order by x."delivered_on", x."id")
+        from "better_supabase"."funding_deliveries" x where x."claim_line_id" = z."id"
+      ), '[]'::jsonb)
+    ) order by y."code", a."subject_id", z."id")
+    from "better_supabase"."funding_claim_lines" z
+    join "better_supabase"."funding_awards" a on a."tenant_id" = z."tenant_id" and a."id" = z."award_id"
+    join "better_supabase"."funding_products" y on y."tenant_id" = z."tenant_id" and y."id" = z."product_id"
+    where z."tenant_id" = v_row."tenant_id" and z."claim_id" = v_row."id"
+  ), '[]'::jsonb));
+  end if;
+  update "better_supabase"."funding_claims" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('funding_claim.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'fundingClaimId', v_row."id", 'funderId', v_row."funder_id", 'number', v_row."number", 'status', v_row."status", 'periodStart', v_row."period_start", 'periodEnd', v_row."period_end", 'total', v_row."total"::text, 'currency', v_row."currency"), 'funding-claims/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/funding');
+  perform better_supabase.audit_event(
+    event_type => 'funding_claim.restored',
+    category => 'data',
+    target_type => 'funding_claim',
+    record_id => v_row."id"::text,
+    summary => 'Funding claim restored',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'fundingClaimId', v_row."id", 'funderId', v_row."funder_id", 'number', v_row."number", 'status', v_row."status", 'periodStart', v_row."period_start", 'periodEnd', v_row."period_end", 'total', v_row."total"::text, 'currency', v_row."currency")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'funderId', v_row."funder_id", 'number', v_row."number", 'periodStart', v_row."period_start", 'periodEnd', v_row."period_end", 'format', v_row."format", 'status', v_row."status", 'externalRef', v_row."external_ref", 'sentAt', v_row."sent_at", 'payloadSha256', v_row."payload_sha256", 'response', v_row."response", 'total', v_row."total"::text, 'currency', v_row."currency", 'invoiceId', v_row."invoice_id", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('lines', coalesce((
+    select jsonb_agg(jsonb_build_object('id', z."id", 'claimId', z."claim_id", 'awardId', z."award_id", 'productId', z."product_id", 'units', z."units", 'amount', z."amount"::text, 'status', z."status", 'rejectionCode', z."rejection_code") || jsonb_build_object(
+      'award', jsonb_build_object('subjectType', a."subject_type", 'subjectId', a."subject_id", 'reference', a."reference", 'period', a."period"),
+      'product', jsonb_build_object('code', y."code", 'title', y."title", 'unit', y."unit", 'rate', y."rate"::text),
+      'deliveries', coalesce((
+        select jsonb_agg(jsonb_build_object('id', x."id", 'deliveredOn', x."delivered_on", 'units', x."units", 'sourceType', x."source_type", 'sourceId', x."source_id", 'performerId', x."performer_id") order by x."delivered_on", x."id")
+        from "better_supabase"."funding_deliveries" x where x."claim_line_id" = z."id"
+      ), '[]'::jsonb)
+    ) order by y."code", a."subject_id", z."id")
+    from "better_supabase"."funding_claim_lines" z
+    join "better_supabase"."funding_awards" a on a."tenant_id" = z."tenant_id" and a."id" = z."award_id"
+    join "better_supabase"."funding_products" y on y."tenant_id" = z."tenant_id" and y."id" = z."product_id"
+    where z."tenant_id" = v_row."tenant_id" and z."claim_id" = v_row."id"
+  ), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."restore_funding_claim"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_funding_claim"(uuid) to authenticated, service_role;
+
+-- Removes a draft claim for good; its deliveries go back to approved. Needs
+-- permissions.purge, which falls back to the claim permission.
+create or replace function "better_supabase"."purge_funding_claim"(claim_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1275,12 +1423,15 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_claim from "better_supabase"."funding_claims" x where x."id" = delete_funding_claim.claim_id for update;
+  select * into v_claim from "better_supabase"."funding_claims" x where x."id" = purge_funding_claim.claim_id for update;
   if not found then
     raise exception 'funding claim not found' using errcode = 'P0002', hint = 'FUNDING_CLAIM_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_claim."tenant_id", 'funding.claim'), false)) then
     raise exception 'not allowed to claim funding' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_claim."tenant_id", 'funding.claim'), false)) then
+    raise exception 'not allowed to purge funding claims' using errcode = '42501', hint = 'FUNDING_FORBIDDEN';
   end if;
   if v_claim."status" <> 'draft' then
     raise exception 'the funding claim was sent already' using errcode = '22023', hint = 'FUNDING_CLAIM_STATUS_INVALID';
@@ -1288,21 +1439,21 @@ begin
   update "better_supabase"."funding_deliveries" x set "status" = 'approved', "claim_line_id" = null
   where x."claim_line_id" in (select z."id" from "better_supabase"."funding_claim_lines" z where z."tenant_id" = v_claim."tenant_id" and z."claim_id" = v_claim."id");
   delete from "better_supabase"."funding_claims" x where x."id" = v_claim."id";
-  perform "better_supabase".emit_event('funding_claim.deleted', jsonb_build_object('organizationId', v_claim."tenant_id", 'fundingClaimId', v_claim."id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'status', v_claim."status", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'total', v_claim."total"::text, 'currency', v_claim."currency"), 'funding-claims/' || v_claim."id"::text, (v_claim."tenant_id")::text, null, 'better-supabase/funding');
+  perform "better_supabase".emit_event('funding_claim.purged', jsonb_build_object('organizationId', v_claim."tenant_id", 'fundingClaimId', v_claim."id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'status', v_claim."status", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'total', v_claim."total"::text, 'currency', v_claim."currency"), 'funding-claims/' || v_claim."id"::text, (v_claim."tenant_id")::text, null, 'better-supabase/funding');
   perform better_supabase.audit_event(
-    event_type => 'funding_claim.deleted',
+    event_type => 'funding_claim.purged',
     category => 'data',
     target_type => 'funding_claim',
     record_id => v_claim."id"::text,
-    summary => 'Draft funding claim deleted',
+    summary => 'Draft funding claim purged',
     tenant => (v_claim."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_claim."tenant_id", 'fundingClaimId', v_claim."id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'status', v_claim."status", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'total', v_claim."total"::text, 'currency', v_claim."currency")
   );
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_funding_claim"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_funding_claim"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_funding_claim"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_funding_claim"(uuid) to authenticated, service_role;
 
 -- Invoices the funder for the accepted lines of a claim, through
 -- create_invoice: one invoice line per claim line at the product rate. attrs
@@ -1333,6 +1484,9 @@ begin
   if v_claim."status" not in ('accepted', 'partially_accepted') then
     raise exception 'only a claim the funder accepted is invoiced' using errcode = '22023', hint = 'FUNDING_CLAIM_STATUS_INVALID';
   end if;
+  if v_claim."archived_at" is not null then
+    raise exception 'restore the archived claim before invoicing it' using errcode = '22023', hint = 'FUNDING_CLAIM_STATUS_INVALID';
+  end if;
   if v_claim."invoice_id" is not null then
     raise exception 'the funding claim is invoiced already' using errcode = '22023', hint = 'FUNDING_INVALID';
   end if;
@@ -1356,27 +1510,28 @@ begin
   update "better_supabase"."funding_claims" x set "invoice_id" = (v_invoice ->> 'id')::uuid, "updated_at" = now()
   where x."id" = v_claim."id"
   returning x.* into v_claim;
-  return jsonb_build_object('claim', jsonb_build_object('id', v_claim."id", 'organizationId', v_claim."tenant_id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'format', v_claim."format", 'status', v_claim."status", 'externalRef', v_claim."external_ref", 'sentAt', v_claim."sent_at", 'payloadSha256', v_claim."payload_sha256", 'response', v_claim."response", 'total', v_claim."total"::text, 'currency', v_claim."currency", 'invoiceId', v_claim."invoice_id", 'createdBy', v_claim."created_by", 'createdAt', v_claim."created_at", 'updatedAt', v_claim."updated_at"), 'invoice', v_invoice);
+  return jsonb_build_object('claim', jsonb_build_object('id', v_claim."id", 'organizationId', v_claim."tenant_id", 'funderId', v_claim."funder_id", 'number', v_claim."number", 'periodStart', v_claim."period_start", 'periodEnd', v_claim."period_end", 'format', v_claim."format", 'status', v_claim."status", 'externalRef', v_claim."external_ref", 'sentAt', v_claim."sent_at", 'payloadSha256', v_claim."payload_sha256", 'response', v_claim."response", 'total', v_claim."total"::text, 'currency', v_claim."currency", 'invoiceId', v_claim."invoice_id", 'archivedAt', v_claim."archived_at", 'createdBy', v_claim."created_by", 'createdAt', v_claim."created_at", 'updatedAt', v_claim."updated_at"), 'invoice', v_invoice);
 end;
 $$;
 revoke execute on function "better_supabase"."invoice_funding_claim"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."invoice_funding_claim"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "better_supabase"."list_funding_claims"(tenant uuid, status text default null, funder_id uuid default null)
+create or replace function "better_supabase"."list_funding_claims"(tenant uuid, status text default null, funder_id uuid default null, include_archived boolean default false)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'funderId', x."funder_id", 'number', x."number", 'periodStart', x."period_start", 'periodEnd', x."period_end", 'format', x."format", 'status', x."status", 'externalRef', x."external_ref", 'sentAt', x."sent_at", 'payloadSha256', x."payload_sha256", 'response', x."response", 'total', x."total"::text, 'currency', x."currency", 'invoiceId', x."invoice_id", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."period_start" desc, x."number" desc), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'funderId', x."funder_id", 'number', x."number", 'periodStart', x."period_start", 'periodEnd', x."period_end", 'format', x."format", 'status', x."status", 'externalRef', x."external_ref", 'sentAt', x."sent_at", 'payloadSha256', x."payload_sha256", 'response', x."response", 'total', x."total"::text, 'currency', x."currency", 'invoiceId', x."invoice_id", 'archivedAt', x."archived_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."period_start" desc, x."number" desc), '[]'::jsonb)
   from "better_supabase"."funding_claims" x
   where x."tenant_id" = list_funding_claims.tenant
     and (list_funding_claims.status is null or x."status" = list_funding_claims.status)
     and (list_funding_claims.funder_id is null or x."funder_id" = list_funding_claims.funder_id)
+    and (list_funding_claims.include_archived or x."archived_at" is null)
 $$;
-revoke execute on function "better_supabase"."list_funding_claims"(uuid, text, uuid) from public, anon;
-grant execute on function "better_supabase"."list_funding_claims"(uuid, text, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_funding_claims"(uuid, text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_funding_claims"(uuid, text, uuid, boolean) to authenticated, service_role;
 
 -- Moves this module's rows from one subject record to another when
 -- better_supabase.merge_subject_refs merges them.
@@ -1681,14 +1836,32 @@ as $$ select "better_supabase"."record_funding_claim_response"($1, $2, $3) $$;
 revoke execute on function "api"."record_funding_claim_response"(uuid, jsonb, jsonb) from public, anon;
 grant execute on function "api"."record_funding_claim_response"(uuid, jsonb, jsonb) to authenticated, service_role;
 
-create or replace function "api"."delete_funding_claim"(claim_id uuid)
+create or replace function "api"."archive_funding_claim"(claim_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_funding_claim"($1) $$;
+revoke execute on function "api"."archive_funding_claim"(uuid) from public, anon;
+grant execute on function "api"."archive_funding_claim"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_funding_claim"(claim_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_funding_claim"($1) $$;
+revoke execute on function "api"."restore_funding_claim"(uuid) from public, anon;
+grant execute on function "api"."restore_funding_claim"(uuid) to authenticated, service_role;
+
+create or replace function "api"."purge_funding_claim"(claim_id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."delete_funding_claim"($1) $$;
-revoke execute on function "api"."delete_funding_claim"(uuid) from public, anon;
-grant execute on function "api"."delete_funding_claim"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."purge_funding_claim"($1) $$;
+revoke execute on function "api"."purge_funding_claim"(uuid) from public, anon;
+grant execute on function "api"."purge_funding_claim"(uuid) to authenticated, service_role;
 
 create or replace function "api"."invoice_funding_claim"(claim_id uuid, attrs jsonb default null)
 returns jsonb
@@ -1699,12 +1872,12 @@ as $$ select "better_supabase"."invoice_funding_claim"($1, $2) $$;
 revoke execute on function "api"."invoice_funding_claim"(uuid, jsonb) from public, anon;
 grant execute on function "api"."invoice_funding_claim"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."list_funding_claims"(tenant uuid, status text default null, funder_id uuid default null)
+create or replace function "api"."list_funding_claims"(tenant uuid, status text default null, funder_id uuid default null, include_archived boolean default false)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_funding_claims"($1, $2, $3) $$;
-revoke execute on function "api"."list_funding_claims"(uuid, text, uuid) from public, anon;
-grant execute on function "api"."list_funding_claims"(uuid, text, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."list_funding_claims"($1, $2, $3, $4) $$;
+revoke execute on function "api"."list_funding_claims"(uuid, text, uuid, boolean) from public, anon;
+grant execute on function "api"."list_funding_claims"(uuid, text, uuid, boolean) to authenticated, service_role;

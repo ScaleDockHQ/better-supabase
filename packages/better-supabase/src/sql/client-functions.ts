@@ -124,7 +124,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   forms:
     "archive_form_submission create_form form_nps get_form get_form_submission get_form_version list_form_submissions list_forms publish_form_version purge_form_submission restore_form_submission review_form_submission submit_form update_form",
   funding:
-    "approve_funding_deliveries build_funding_claim delete_funding_claim end_funding_award funding_award_usage get_funding_claim invoice_funding_claim list_funding_awards list_funding_claims list_funding_deliveries list_funding_products mark_funding_claim_sent record_funding_claim_response register_funding_deliveries_from_time register_funding_delivery save_funding_award save_funding_product",
+    "approve_funding_deliveries archive_funding_claim build_funding_claim end_funding_award funding_award_usage get_funding_claim invoice_funding_claim list_funding_awards list_funding_claims list_funding_deliveries list_funding_products mark_funding_claim_sent purge_funding_claim record_funding_claim_response register_funding_deliveries_from_time register_funding_delivery restore_funding_claim save_funding_award save_funding_product",
   goals: "goal_progress save_goal",
   guests:
     "accept_guest_invite get_guest grant_guest_access guest_can invite_guest list_guest_grants list_guests my_guest_access page_guests revoke_guest revoke_guest_access",
@@ -172,7 +172,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   warehouse:
     "cancel_pick_wave complete_pick_list create_count_plan create_pick_list create_pick_wave delete_putaway_rule get_cycle_count_variance get_pick_list list_bin_slots list_count_plans list_pick_lists list_pick_waves list_putaway_rules post_cycle_count record_pick release_pick_wave run_count_plan run_due_count_plans save_bin_slot save_putaway_rule save_variant_size set_pick_route suggest_putaway suggest_receipt_putaway suggest_slotting",
   maintenance:
-    "create_maintenance_meter create_maintenance_plan delete_maintenance_plan get_calibration get_maintenance_plan list_calibrations list_maintenance_meters list_maintenance_plans record_calibration record_meter_reading update_maintenance_plan",
+    "archive_maintenance_plan create_maintenance_meter create_maintenance_plan get_calibration get_maintenance_plan list_calibrations list_maintenance_meters list_maintenance_plans purge_maintenance_plan record_calibration record_meter_reading restore_maintenance_plan update_maintenance_plan",
   meetings:
     "add_meeting_action_item cancel_meeting create_meeting decide_meeting_decision delete_meeting delete_meeting_agenda_item get_meeting hold_meeting list_meetings record_meeting_decision remove_meeting_attendee save_meeting_agenda_item set_meeting_attendee start_meeting update_meeting",
   inventory:

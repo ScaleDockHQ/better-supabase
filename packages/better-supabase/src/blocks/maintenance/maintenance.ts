@@ -84,6 +84,8 @@ export interface MaintenancePlan {
   readonly workOrderId?: string;
   /** Whether a work order should be generated now. */
   readonly due: boolean;
+  /** Set while the plan is archived. */
+  readonly archivedAt?: Temporal.Instant;
   readonly parts: readonly MaintenancePart[];
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
@@ -183,6 +185,8 @@ export interface MaintenancePlanListOptions {
   readonly assetId?: string;
   /** Only the plans that are due now. */
   readonly due?: boolean;
+  /** `true` lists only the archived plans; archived plans are hidden otherwise. */
+  readonly archived?: boolean;
   /** 1 to 200. Default 50. */
   readonly limit?: number;
   readonly offset?: number;
@@ -204,7 +208,20 @@ export interface Maintenance {
     planId: string;
     change: MaintenancePlanChange;
   }): AsyncResult<MaintenancePlan>;
-  deletePlan(planId: string): AsyncResult<MaintenancePlan>;
+  /**
+   * Needs `maintenance.manage`. Archives a plan: it stops opening work orders
+   * and leaves `listPlans`, keeps its parts and its open work order, and
+   * `maintenance_plan.archived` is recorded.
+   */
+  archivePlan(planId: string): AsyncResult<MaintenancePlan>;
+  /** Brings an archived plan back; records `maintenance_plan.restored`. */
+  restorePlan(planId: string): AsyncResult<MaintenancePlan>;
+  /**
+   * Removes a plan and its parts for good (hard delete). `permissions.purge`
+   * gates this, falling back to `maintenance.manage`; records
+   * `maintenance_plan.purged`.
+   */
+  purgePlan(planId: string): AsyncResult<MaintenancePlan>;
   /** One plan with its parts and whether it is due; needs `maintenance.read`. */
   getPlan(planId: string): AsyncResult<MaintenancePlan>;
   listPlans(
@@ -331,6 +348,7 @@ function planOf(value: unknown, fn: string): MaintenancePlan {
     tz: optionalText(row["tz"]) ?? "UTC",
     requiredQualifications: keysOf(row["requiredQualifications"]),
     due: row["due"] === true,
+    ...optional("archivedAt", optionalInstant(row["archivedAt"])),
     parts: recordsOf(row["parts"] ?? [], fn).map((part) => partOf(part, fn)),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
@@ -448,11 +466,23 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
         { plan_id: planId, changes: planArgs(change) },
         plan("update_maintenance_plan"),
       ),
-    deletePlan: (planId) =>
+    archivePlan: (planId) =>
       call(
-        "delete_maintenance_plan",
+        "archive_maintenance_plan",
         { plan_id: planId },
-        plan("delete_maintenance_plan"),
+        plan("archive_maintenance_plan"),
+      ),
+    restorePlan: (planId) =>
+      call(
+        "restore_maintenance_plan",
+        { plan_id: planId },
+        plan("restore_maintenance_plan"),
+      ),
+    purgePlan: (planId) =>
+      call(
+        "purge_maintenance_plan",
+        { plan_id: planId },
+        plan("purge_maintenance_plan"),
       ),
     getPlan: (planId) =>
       call(
@@ -471,6 +501,7 @@ export function createMaintenance(options: MaintenanceOptions): Maintenance {
               kind: list.kind,
               assetId: list.assetId,
               due: list.due,
+              archived: list.archived,
               limit: list.limit,
               offset: list.offset,
             }),

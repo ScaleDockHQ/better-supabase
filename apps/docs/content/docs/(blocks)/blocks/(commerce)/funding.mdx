@@ -160,13 +160,13 @@ one line per award, priced at the product's rate. Its deliveries become
 `formats` option set, other keys fail with `FUNDING_FORMAT_UNKNOWN`. A claim
 with no approved deliveries fails with `FUNDING_CLAIM_EMPTY`.
 
-| Status               | Reached through        | What happens                                         |
-| -------------------- | ---------------------- | ---------------------------------------------------- |
-| `draft`              | `buildClaim`           | the deliveries are held; `deleteClaim` releases them |
-| `sent`               | `send` or `markSent`   | the reference and the file's SHA-256 are kept        |
-| `accepted`           | `recordResponse`, poll | every line was accepted                              |
-| `partially_accepted` | `recordResponse`, poll | some lines were rejected                             |
-| `rejected`           | `recordResponse`, poll | every line was rejected                              |
+| Status               | Reached through        | What happens                                        |
+| -------------------- | ---------------------- | --------------------------------------------------- |
+| `draft`              | `buildClaim`           | the deliveries are held; `purgeClaim` releases them |
+| `sent`               | `send` or `markSent`   | the reference and the file's SHA-256 are kept       |
+| `accepted`           | `recordResponse`, poll | every line was accepted                             |
+| `partially_accepted` | `recordResponse`, poll | some lines were rejected                            |
+| `rejected`           | `recordResponse`, poll | every line was rejected                             |
 
 `recordResponse(claimId, { lines, raw })` records the funder's answer: each
 line is `accepted` or `rejected` with a `rejectionCode`, and a line the
@@ -236,7 +236,9 @@ await testFundingClaimChannel(sandboxChannel, { claim, rendered });
 | `markSent(claimId, { externalRef, payloadSha256 })` | the sent claim                                              |
 | `recordResponse(claimId, response)`                 | the answered claim with its lines                           |
 | `poll(claimId)`                                     | the answered claim, or `undefined` while there is no answer |
-| `deleteClaim(claimId)`                              | `true` once the draft claim is gone                         |
+| `archiveClaim(claimId)`                             | the claim, archived; only a claim the funder answered       |
+| `restoreClaim(claimId)`                             | the claim, back on the list                                 |
+| `purgeClaim(claimId)`                               | `true` once the draft claim is gone                         |
 | `invoiceClaim(claimId, attrs)`                      | the claim and the invoice                                   |
 
 ## Options
@@ -272,9 +274,9 @@ returns.
 
 `funding_award.created`, `funding_award.updated`, `funding_award.ended`,
 `funding_award.exceeded`, `funding_delivery.registered`,
-`funding_claim.created`, `funding_claim.sent`, `funding_claim.responded` and
-`funding_claim.deleted`. The [events page](/docs/extending/events) lists
-their payloads.
+`funding_claim.created`, `funding_claim.sent`, `funding_claim.responded`, `funding_claim.archived`,
+`funding_claim.restored` and `funding_claim.purged`. The
+[events page](/docs/extending/events) lists their payloads.
 
 ## Not in this release
 

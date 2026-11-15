@@ -1078,17 +1078,17 @@ export interface BlockNameRegistry {
       readonly "products": "id" | "tenant" | "code" | "title" | "unit" | "rate" | "currency" | "validFrom" | "validUntil" | "createdAt" | "updatedAt";
       readonly "awards": "id" | "tenant" | "subjectType" | "subjectId" | "funder" | "product" | "units" | "period" | "startsOn" | "endsOn" | "reference" | "status" | "createdBy" | "createdAt" | "updatedAt";
       readonly "deliveries": "id" | "tenant" | "award" | "sourceType" | "sourceId" | "deliveredOn" | "units" | "performer" | "status" | "claimLine" | "note" | "createdAt";
-      readonly "claims": "id" | "tenant" | "funder" | "number" | "periodStart" | "periodEnd" | "format" | "status" | "externalRef" | "sentAt" | "payloadSha256" | "response" | "total" | "currency" | "invoice" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "claims": "id" | "tenant" | "funder" | "number" | "periodStart" | "periodEnd" | "format" | "status" | "externalRef" | "sentAt" | "payloadSha256" | "response" | "total" | "currency" | "invoice" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "claimLines": "id" | "tenant" | "claim" | "award" | "product" | "units" | "amount" | "status" | "rejectionCode";
     };
-    readonly functions: "approve_funding_deliveries" | "build_funding_claim" | "delete_funding_claim" | "end_funding_award" | "funding_award_usage" | "get_funding_claim" | "list_funding_awards" | "list_funding_claims" | "list_funding_deliveries" | "list_funding_products" | "mark_funding_claim_sent" | "record_funding_claim_response" | "register_funding_delivery" | "save_funding_award" | "save_funding_product";
+    readonly functions: "approve_funding_deliveries" | "archive_funding_claim" | "build_funding_claim" | "end_funding_award" | "funding_award_usage" | "get_funding_claim" | "list_funding_awards" | "list_funding_claims" | "list_funding_deliveries" | "list_funding_products" | "mark_funding_claim_sent" | "purge_funding_claim" | "record_funding_claim_response" | "register_funding_delivery" | "restore_funding_claim" | "save_funding_award" | "save_funding_product";
     readonly actions: "read" | "write" | "register" | "approve" | "claim" | "manage";
     readonly hooks: "before_funding_award_save" | "after_funding_award_save" | "before_funding_delivery_register" | "after_funding_delivery_register" | "before_funding_claim_build" | "after_funding_claim_build";
     readonly entities: {
       readonly "funding_product": "id" | "tenant_id" | "code" | "title" | "unit" | "rate" | "currency" | "valid_from" | "valid_until" | "created_at" | "updated_at";
       readonly "funding_award": "id" | "tenant_id" | "subject_type" | "subject_id" | "funder_id" | "product_id" | "units" | "period" | "starts_on" | "ends_on" | "reference" | "status" | "created_by" | "created_at" | "updated_at";
       readonly "funding_delivery": "id" | "tenant_id" | "award_id" | "source_type" | "source_id" | "delivered_on" | "units" | "performer_id" | "status" | "claim_line_id" | "note" | "created_at";
-      readonly "funding_claim": "id" | "tenant_id" | "funder_id" | "number" | "period_start" | "period_end" | "format" | "status" | "external_ref" | "sent_at" | "payload_sha256" | "response" | "total" | "currency" | "invoice_id" | "created_by" | "created_at" | "updated_at";
+      readonly "funding_claim": "id" | "tenant_id" | "funder_id" | "number" | "period_start" | "period_end" | "format" | "status" | "external_ref" | "sent_at" | "payload_sha256" | "response" | "total" | "currency" | "invoice_id" | "archived_at" | "created_by" | "created_at" | "updated_at";
       readonly "funding_claim_line": "id" | "tenant_id" | "claim_id" | "award_id" | "product_id" | "units" | "amount" | "status" | "rejection_code";
     };
     readonly primary: "funding_award";
@@ -1479,17 +1479,17 @@ export interface BlockNameRegistry {
   };
   readonly "maintenance": {
     readonly tables: {
-      readonly "plans": "id" | "tenant" | "title" | "asset" | "kind" | "everyDays" | "meter" | "everyValue" | "priority" | "status" | "lastDoneAt" | "lastDoneValue" | "nextDueAt" | "workOrder" | "rrule" | "dtstart" | "tz" | "requiredQualifications" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "plans": "id" | "tenant" | "title" | "asset" | "kind" | "everyDays" | "meter" | "everyValue" | "priority" | "status" | "lastDoneAt" | "lastDoneValue" | "nextDueAt" | "workOrder" | "rrule" | "dtstart" | "tz" | "requiredQualifications" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "parts": "id" | "tenant" | "plan" | "name" | "quantity" | "variant";
       readonly "meters": "id" | "tenant" | "name" | "unit" | "asset" | "reading" | "readAt" | "createdAt";
       readonly "readings": "id" | "tenant" | "meter" | "value" | "readAt" | "readBy";
       readonly "calibrations": "id" | "tenant" | "asset" | "instrument" | "performedAt" | "dueAt" | "result" | "reference" | "performedBy" | "qualifications";
     };
-    readonly functions: "create_maintenance_meter" | "create_maintenance_plan" | "delete_maintenance_plan" | "generate_maintenance_work_orders" | "get_calibration" | "get_maintenance_plan" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_next_occurrence" | "record_calibration" | "record_meter_reading" | "update_maintenance_plan";
+    readonly functions: "archive_maintenance_plan" | "create_maintenance_meter" | "create_maintenance_plan" | "generate_maintenance_work_orders" | "get_calibration" | "get_maintenance_plan" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_next_occurrence" | "purge_maintenance_plan" | "record_calibration" | "record_meter_reading" | "restore_maintenance_plan" | "update_maintenance_plan";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_maintenance_plan_create" | "after_maintenance_plan_create";
     readonly entities: {
-      readonly "maintenance_plan": "id" | "tenant_id" | "title" | "asset_id" | "kind" | "every_days" | "meter_id" | "every_value" | "priority" | "status" | "last_done_at" | "last_done_value" | "next_due_at" | "work_order_id" | "rrule" | "dtstart" | "tz" | "required_qualifications" | "created_by" | "created_at" | "updated_at";
+      readonly "maintenance_plan": "id" | "tenant_id" | "title" | "asset_id" | "kind" | "every_days" | "meter_id" | "every_value" | "priority" | "status" | "last_done_at" | "last_done_value" | "next_due_at" | "work_order_id" | "rrule" | "dtstart" | "tz" | "required_qualifications" | "archived_at" | "created_by" | "created_at" | "updated_at";
       readonly "maintenance_plan_part": "id" | "tenant_id" | "plan_id" | "name" | "quantity" | "variant_id";
       readonly "maintenance_meter": "id" | "tenant_id" | "name" | "unit" | "asset_id" | "reading" | "read_at" | "created_at";
       readonly "maintenance_meter_reading": "id" | "tenant_id" | "meter_id" | "value" | "read_at" | "read_by";

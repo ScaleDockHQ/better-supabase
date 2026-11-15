@@ -76,9 +76,15 @@ const plan = await db.maintenance
 ```
 
 `updatePlan` changes the title, interval, rule, priority, asset, parts and
-status (`active` or `paused`). The kind and the meter stay. `deletePlan` removes a
-plan and its parts. `listPlans` filters by `status`, `kind`, `assetId` and
-`due`, and each plan carries its parts and whether it is due now.
+status (`active` or `paused`). The kind and the meter stay. `archivePlan` takes a plan out of the schedule and the list: it stops opening
+work orders and keeps its parts and its open work order, and `restorePlan`
+brings it back. Both record their event once (`maintenance_plan.archived`,
+`maintenance_plan.restored`). `purgePlan` removes a plan and its parts for good
+and records `maintenance_plan.purged`; it needs `permissions.purge`, which falls
+back to `maintenance.manage`, and replaces `deletePlan` (ADR 1043).
+`listPlans` filters by `status`, `kind`, `assetId`, `due` and `archived` (`true`
+lists only the archived plans; they are hidden otherwise), and each plan carries
+its parts and whether it is due now. An archived plan is never due.
 
 ## Qualifications
 

@@ -297,7 +297,7 @@ Preventive maintenance plans that fall due by time, by a meter or by an RRULE, m
 - Entities: `maintenance_plan`, `maintenance_plan_part`, `maintenance_meter`, `maintenance_meter_reading`, `maintenance_calibration`
 - Tables: `maintenance_plans`, `maintenance_plan_parts`, `maintenance_meters`, `maintenance_meter_readings`, `maintenance_calibrations`
 - Permission keys: `maintenance.read`, `maintenance.record`, `maintenance.manage`
-- Events (`MaintenanceEvents`): `maintenance_calibration.recorded`, `maintenance_meter_reading.recorded`, `maintenance_plan.created`, `maintenance_plan.deleted`, `maintenance_plan.updated`
+- Events (`MaintenanceEvents`): `maintenance_calibration.recorded`, `maintenance_meter_reading.recorded`, `maintenance_plan.archived`, `maintenance_plan.created`, `maintenance_plan.purged`, `maintenance_plan.restored`, `maintenance_plan.updated`
 
 ## warranty
 

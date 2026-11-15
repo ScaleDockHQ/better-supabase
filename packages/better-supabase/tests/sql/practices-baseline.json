@@ -225,7 +225,7 @@
     "security-definer-functions": 98
   },
   "funding": {
-    "security-definer-functions": 62
+    "security-definer-functions": 74
   },
   "goals": {
     "security-definer-functions": 6
@@ -303,7 +303,7 @@
     "security-definer-functions": 80
   },
   "maintenance": {
-    "security-definer-functions": 69,
+    "security-definer-functions": 81,
     "row-triggers": 2
   },
   "manufacturing": {

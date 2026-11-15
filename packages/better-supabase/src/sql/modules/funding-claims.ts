@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
+import { archiveRestoreFunctions } from "../archive-sql.ts";
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { funderCheck } from "./funding-functions.ts";
 import {
@@ -97,6 +98,14 @@ export function fundingClaimFunctions(ctx: BlockSqlContext): string {
 
   const invalid = (message: string): string =>
     fail("FUNDING_INVALID", message, "22023");
+
+  const purgeKey =
+    ctx.config.permissions["purge"] === undefined
+      ? claim
+      : sqlString(ctx.config.permissions["purge"]);
+
+  const purgeAllowed = (tenant: string): string =>
+    `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, purgeKey)})`;
 
   const claimNotFound = fail(
     "FUNDING_CLAIM_NOT_FOUND",
@@ -361,8 +370,41 @@ end;
 $$;
 ${userGrant(`${fn("record_funding_claim_response")}(uuid, jsonb, jsonb)`)}
 
--- Deletes a draft claim; its deliveries go back to approved.
-create or replace function ${fn("delete_funding_claim")}(claim_id uuid)
+${
+  ctx.has("claims", "archivedAt")
+    ? archiveRestoreFunctions(ctx, {
+        entity: "funding_claim",
+        arg: "claim_id",
+        rowType: `${claims}%rowtype`,
+        table: claims,
+        id: c("id"),
+        archivedAt: c("archivedAt"),
+        ...(ctx.has("claims", "updatedAt")
+          ? { updatedAt: c("updatedAt") }
+          : {}),
+        json: claimBody("v_row"),
+        archiveNote:
+          "Archives a claim the funder answered: it leaves the list and keeps its lines and deliveries.",
+        restoreNote: "Brings an archived claim back to the list.",
+        load: (name) => lookup(name).replaceAll("v_claim", "v_row"),
+        beforeArchive: `
+  if v_row.${c("status")} not in ('accepted', 'rejected', 'partially_accepted') then
+    ${fail("FUNDING_CLAIM_STATUS_INVALID", "only a claim the funder answered is archived; purge a draft", "22023")}
+  end if;`,
+        record: (type) =>
+          claimRecord(
+            ctx,
+            type,
+            "v_row",
+            "",
+            `Funding claim ${type.endsWith("archived") ? "archived" : "restored"}`,
+          ),
+      })
+    : ""
+}
+-- Removes a draft claim for good; its deliveries go back to approved. Needs
+-- permissions.purge, which falls back to the claim permission.
+create or replace function ${fn("purge_funding_claim")}(claim_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -372,19 +414,22 @@ as $$
 declare
   v_claim ${claims}%rowtype;
 begin
-  ${lookup("delete_funding_claim")}
+  ${lookup("purge_funding_claim")}
+  if not ${purgeAllowed(`v_claim.${c("tenant")}`)} then
+    ${forbidden("not allowed to purge funding claims")}
+  end if;
   if v_claim.${c("status")} <> 'draft' then
     ${notDraft}
   end if;
   ${release("")}
   delete from ${claims} x where x.${c("id")} = v_claim.${c("id")};
-  ${claimRecord(ctx, "funding_claim.deleted", "v_claim", "", "Draft funding claim deleted")}
+  ${claimRecord(ctx, "funding_claim.purged", "v_claim", "", "Draft funding claim purged")}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_funding_claim")}(uuid)`)}
+${userGrant(`${fn("purge_funding_claim")}(uuid)`)}
 ${invoice}
-create or replace function ${fn("list_funding_claims")}(tenant ${idType}, status text default null, funder_id uuid default null)
+create or replace function ${fn("list_funding_claims")}(tenant ${idType}, status text default null, funder_id uuid default null${ctx.has("claims", "archivedAt") ? ", include_archived boolean default false" : ""})
 returns jsonb
 language sql
 stable
@@ -395,9 +440,9 @@ as $$
   from ${claims} x
   where x.${c("tenant")} = list_funding_claims.tenant
     and (list_funding_claims.status is null or x.${c("status")} = list_funding_claims.status)
-    and (list_funding_claims.funder_id is null or x.${c("funder")} = list_funding_claims.funder_id)
+    and (list_funding_claims.funder_id is null or x.${c("funder")} = list_funding_claims.funder_id)${ctx.has("claims", "archivedAt") ? `\n    and (list_funding_claims.include_archived or x.${c("archivedAt")} is null)` : ""}
 $$;
-${userGrant(`${fn("list_funding_claims")}(${idType}, text, uuid)`)}
+${userGrant(`${fn("list_funding_claims")}(${idType}, text, uuid${ctx.has("claims", "archivedAt") ? ", boolean" : ""})`)}
 `;
 }
 
@@ -446,7 +491,7 @@ begin
   end if;
   if v_claim.${c("status")} not in ('accepted', 'partially_accepted') then
     ${fail("FUNDING_CLAIM_STATUS_INVALID", "only a claim the funder accepted is invoiced", "22023")}
-  end if;
+  end if;${ctx.has("claims", "archivedAt") ? `\n  if v_claim.${c("archivedAt")} is not null then\n    ${fail("FUNDING_CLAIM_STATUS_INVALID", "restore the archived claim before invoicing it", "22023")}\n  end if;` : ""}
   if v_claim.${c("invoice")} is not null then
     ${fail("FUNDING_INVALID", "the funding claim is invoiced already", "22023")}
   end if;
