@@ -49,6 +49,9 @@ export function postTriggers(ctx: BlockSqlContext): string {
 
   const blocked = [
     ...(q.hasPost("lockedAt") ? [`v_post.${p("lockedAt")} is not null`] : []),
+    ...(q.hasPost("archivedAt")
+      ? [`v_post.${p("archivedAt")} is not null`]
+      : []),
     `v_post.${p("mergedInto")} is not null`,
     `v_post.${p("moderation")} <> 'visible'`,
   ].join(" or ");
@@ -100,7 +103,7 @@ create trigger ${ctx.trigger("posts_removed")}
   after delete on ${posts}
   for each row execute function ${fn("posts_removed")}();
 
--- Refuses a reply on a locked, merged or hidden post, unless a moderator
+-- Refuses a reply on a locked, archived, merged or hidden post, unless a moderator
 -- writes it.
 create or replace function ${fn("posts_reply_guard")}()
 returns trigger

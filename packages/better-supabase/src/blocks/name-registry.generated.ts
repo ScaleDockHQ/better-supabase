@@ -1847,14 +1847,14 @@ export interface BlockNameRegistry {
   readonly "posts": {
     readonly tables: {
       readonly "boards": "id" | "tenant" | "key" | "name" | "description" | "kind" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "posts": "id" | "tenant" | "board" | "author" | "title" | "body" | "status" | "moderation" | "pinnedAt" | "lockedAt" | "mergedInto" | "replyCount" | "lastActivityAt" | "createdAt" | "updatedAt";
+      readonly "posts": "id" | "tenant" | "board" | "author" | "title" | "body" | "status" | "moderation" | "pinnedAt" | "lockedAt" | "archivedAt" | "mergedInto" | "replyCount" | "lastActivityAt" | "createdAt" | "updatedAt";
     };
-    readonly functions: "create_post" | "delete_post" | "get_post" | "list_post_boards" | "list_posts" | "merge_posts" | "posts_moderated" | "posts_removed" | "posts_replied" | "posts_reply_guard" | "save_post_board" | "set_post_state" | "update_post" | "vote_on_post";
+    readonly functions: "archive_post" | "create_post" | "get_post" | "list_post_boards" | "list_posts" | "merge_posts" | "posts_moderated" | "posts_removed" | "posts_replied" | "posts_reply_guard" | "purge_post" | "restore_post" | "save_post_board" | "set_post_state" | "update_post" | "vote_on_post";
     readonly actions: "read" | "write" | "moderate" | "manage";
     readonly hooks: never;
     readonly entities: {
       readonly "post_board": "id" | "tenant_id" | "key" | "name" | "description" | "kind" | "archived_at" | "created_by" | "created_at" | "updated_at";
-      readonly "post": "id" | "tenant_id" | "board_id" | "author_id" | "title" | "body" | "status" | "moderation_status" | "pinned_at" | "locked_at" | "merged_into_id" | "reply_count" | "last_activity_at" | "created_at" | "updated_at";
+      readonly "post": "id" | "tenant_id" | "board_id" | "author_id" | "title" | "body" | "status" | "moderation_status" | "pinned_at" | "locked_at" | "archived_at" | "merged_into_id" | "reply_count" | "last_activity_at" | "created_at" | "updated_at";
     };
     readonly primary: "post";
   };
