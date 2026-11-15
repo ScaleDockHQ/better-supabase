@@ -29,7 +29,7 @@ export const calendarBlock: BlockOf<
   entities: {
     calendar_event: {
       mutability: "editable",
-      emits: { create: true, update: true, delete: true },
+      emits: { create: true, update: true, purge: true },
     },
     calendar: {
       mutability: "editable",

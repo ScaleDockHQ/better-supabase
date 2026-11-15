@@ -907,7 +907,7 @@ export function eventGuards(
   allowed: (tenant: string, key: string) => string,
 ): {
   readonly actionCheck: (
-    action: "create" | "update" | "delete",
+    action: "create" | "update" | "delete" | "purge",
     tenant: string,
   ) => string;
   readonly readOnlyCheck: (id: string) => string;
@@ -917,7 +917,11 @@ export function eventGuards(
 
   return {
     actionCheck: (action, tenant) => {
-      const key = ctx.config.permissions[action];
+      const key =
+        action === "purge"
+          ? (ctx.config.permissions["purge"] ??
+            ctx.config.permissions["delete"])
+          : ctx.config.permissions[action];
 
       return key === undefined
         ? ""
