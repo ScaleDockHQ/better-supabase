@@ -232,6 +232,7 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
         ],
         // Block columns on tables CentraKit creates itself, left undeclared.
         "warning BS622": [
+          "centrakit.field_definitions.archived_at",
           "centrakit.import_runs.diff",
           "centrakit.import_runs.heartbeat_at",
           "centrakit.import_runs.lease_expires_at",
