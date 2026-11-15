@@ -6478,10 +6478,12 @@
     "types": [
       "AiAccess",
       "BlockTransport",
+      "ListPage",
       "Prompt",
       "PromptOptions",
       "Prompts",
       "PromptSaveOptions",
+      "PromptSummary",
       "PromptVersion"
     ]
   },
@@ -6507,6 +6509,7 @@
       "EvalComparison",
       "EvalComparisonItem",
       "EvalDataset",
+      "EvalDatasetSummary",
       "EvalExportOptions",
       "EvalItem",
       "EvalItemInput",
@@ -6520,6 +6523,7 @@
       "EvalScore",
       "EvalScorer",
       "EvalSummary",
+      "ListPage",
       "PromptfooAssertion",
       "PromptfooConfig",
       "PromptfooItem",
@@ -6566,6 +6570,7 @@
       "GuardrailVerdict",
       "GuardTextOptions",
       "InjectionRule",
+      "ListPage",
       "PiiAction",
       "PiiKind",
       "PiiScan"
