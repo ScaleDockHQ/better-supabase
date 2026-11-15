@@ -1,5 +1,7 @@
 import * as v from "valibot";
 
+type SeedValue = string | number | boolean | null;
+
 interface EntityPageInput {
   apiVersion: 1;
   entity: string;
@@ -38,7 +40,14 @@ interface EntityPageInput {
   columns?: string[] | undefined;
   sections?: string[] | undefined;
   seed?:
-    | { demo?: number | undefined; tiers?: string[] | undefined }
+    | {
+        demo?: number | undefined;
+        tiers?: string[] | undefined;
+        fields?: Record<string, SeedValue | SeedValue[]> | undefined;
+        rows?: Record<string, SeedValue>[] | undefined;
+        table?: string | undefined;
+        tenant?: string | undefined;
+      }
     | undefined;
   export?:
     | {
@@ -50,6 +59,8 @@ interface EntityPageInput {
 }
 
 const positive = v.pipe(v.number(), v.integer(), v.minValue(1));
+
+const seedValue = v.union([v.string(), v.number(), v.boolean(), v.null()]);
 
 /**
  * One `defineEntityPage` descriptor in `gen.entityPages.pages`. It names every
@@ -110,6 +121,12 @@ export const entityPageSchema: v.GenericSchema<EntityPageInput> =
       v.strictObject({
         demo: v.optional(positive),
         tiers: v.optional(v.array(v.string())),
+        fields: v.optional(
+          v.record(v.string(), v.union([seedValue, v.array(seedValue)])),
+        ),
+        rows: v.optional(v.array(v.record(v.string(), seedValue))),
+        table: v.optional(v.string()),
+        tenant: v.optional(v.string()),
       }),
     ),
     export: v.optional(

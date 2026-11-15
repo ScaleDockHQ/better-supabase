@@ -193,7 +193,9 @@ bump is one commit series:
   orphaned server survives (EX-313, EX-903). Stop the server and start it again.
   The cause is in Next.js, so these two stay deferred.
 - `syncStepLibrary` runs once at start-up: restart the dev server after
-  `supabase db reset` (EX-208).
+  `supabase db reset` (EX-208). `pnpm supabase:reset`, `worktree-setup --db` and
+  `dev:example` insert the generated page seeds, so the periods, commissions,
+  referrals and invitations pages are not empty after a reset (ADR 1033).
 - `next dev` keeps the previous copy of a route in a hidden Activity, so a
   `data-testid` can match twice; select the visible one (EX-1020).
 - Cursor's browser tabs are shared between workers. Use a private browser with

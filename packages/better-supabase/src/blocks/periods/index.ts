@@ -29,6 +29,8 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { periodsBlock } from "./manifest.ts";
 
+export { periodInputSchema } from "./schemas.ts";
+
 export { periodsEvents } from "./events.ts";
 
 export type { PeriodEventData, PeriodsEvents } from "./events.ts";

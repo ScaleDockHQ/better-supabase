@@ -12,7 +12,7 @@ export const entityRoutes = [
     api: "/api/periods/list",
     detail: periodsDetail.route,
     export: "/api/periods/export",
-    messageKeys: ["periods.title", "periods.columns.kind", "periods.columns.status", "periods.columns.startsOn", "periods.columns.endsOn", "periods.facets.kind", "periods.facets.status", "periods.sections.overview", "periods.sections.entries"],
+    messageKeys: ["periods.title", "periods.columns.kind", "periods.columns.status", "periods.columns.startsOn", "periods.columns.endsOn", "periods.facets.kind", "periods.facets.status", "periods.sections.overview", "periods.sections.entries", "periods.fields.kind", "periods.fields.startsOn", "periods.fields.endsOn"],
   },
   {
     entity: "risks.risk",
