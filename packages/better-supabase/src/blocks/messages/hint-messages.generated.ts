@@ -1418,6 +1418,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "SCIM_NOT_FOUND": "No SCIM user has this id.",
   "SCIM_PRECONDITION": "Scim precondition.",
   "SCORES_FORBIDDEN": "Not allowed to manage score models.",
+  "SCORES_MODEL_ARCHIVED": "The score model is archived; restore it first.",
   "SCORES_MODEL_CONFLICT": "The score model changed since it was read.",
   "SCORES_MODEL_DISABLED": "The score model is turned off.",
   "SCORES_MODEL_INVALID": "Model must be an object.",

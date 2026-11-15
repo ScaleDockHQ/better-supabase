@@ -26,7 +26,13 @@ export const scoresBlock: BlockOf<
   entities: {
     score_model: {
       mutability: "editable",
-      emits: { create: true, update: true, delete: true },
+      emits: {
+        create: true,
+        update: true,
+        archive: true,
+        restore: true,
+        purge: true,
+      },
     },
   },
   concerns: ["lifecycle"],

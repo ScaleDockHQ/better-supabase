@@ -1061,7 +1061,7 @@
   },
   "/[locale]/(app)/shop/checkout-sessions/page": {
     "raw": 1529199,
-    "gzip": 485468,
+    "gzip": 486695,
     "brotli": 425059
   },
   "/[locale]/(app)/shop/collections/[id]/page": {

@@ -255,7 +255,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "saved-views":
     "delete_view duplicate_view list_views rank_view save_view set_default_view set_view_preference",
   scores:
-    "compute_score delete_score_model get_score_model list_score_models save_score_model score_history subject_scores top_scores",
+    "archive_score_model compute_score get_score_model list_score_models purge_score_model restore_score_model save_score_model score_history subject_scores top_scores",
   search:
     "search search_favorites search_page search_recents search_refresh search_reindex search_remove search_star search_touch",
   "security-events":
