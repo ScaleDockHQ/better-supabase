@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:63f1c5f5ff1d68c97de60fd1b3388b070e6ffb96aa49729d28bee891c2517fe8
+-- @bsb-hash sha256:61beb66c7ee0d375213646e761a4d3dda26a0b2a6f058a131af7b91ccd9187b3
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -105,6 +105,7 @@ create table "better_supabase"."bookings" (
   "updated_at" timestamptz not null default now(),
   "cancelled_at" timestamptz,
   "cancel_reason" text,
+  "archived_at" timestamptz,
   constraint bsb_bookings_check check ("blocked" @> "during"),
   constraint bsb_bookings_check1 check (("status" = 'hold') = ("hold_expires_at" is not null)),
   constraint bookings_no_overlap_excl exclude using gist (
@@ -541,7 +542,7 @@ begin
         using v_id;
     end if;
   end;
-  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason") || jsonb_build_object('accessToken', v_token);
+  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'archivedAt', v_booking."archived_at") || jsonb_build_object('accessToken', v_token);
 end;
 $$;
 revoke execute on function "better_supabase"."place_booking"(uuid, uuid, timestamptz, jsonb, boolean, uuid) from public, anon, authenticated;
@@ -608,7 +609,7 @@ begin
   end if;
   if change_booking.to_status = 'confirmed' then
     if v_booking."status" = 'confirmed' then
-      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
+      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'archivedAt', v_booking."archived_at");
     end if;
     if v_booking."status" <> 'hold' or v_booking."hold_expires_at" <= now() then
       raise exception 'the hold has expired or was cancelled' using errcode = '22023', hint = 'BOOKING_HOLD_EXPIRED';
@@ -628,7 +629,7 @@ begin
   end;
   elsif change_booking.to_status = 'cancelled' then
     if v_booking."status" = 'cancelled' then
-      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
+      return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'archivedAt', v_booking."archived_at");
     end if;
     update "better_supabase"."bookings" bk set "status" = 'cancelled', "hold_expires_at" = null, "cancelled_at" = now(), "cancel_reason" = change_booking.reason, "updated_at" = now()
     where bk."id" = v_id returning * into v_booking;
@@ -646,7 +647,7 @@ begin
   else
     raise exception 'change a booking to confirmed or cancelled' using errcode = '22023', hint = 'BOOKING_STATUS_INVALID';
   end if;
-  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason");
+  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'archivedAt', v_booking."archived_at");
 end;
 $$;
 revoke execute on function "better_supabase"."change_booking"(uuid, text, text, text) from public, anon, authenticated;
@@ -676,21 +677,85 @@ grant execute on function "better_supabase"."cancel_booking"(uuid, text) to auth
 
 -- The bookings that overlap [range_start, range_end), as the caller: the
 -- table's policy shows a tenant's bookings to readers and a customer their own.
-create or replace function "better_supabase"."list_bookings"(tenant uuid, range_start timestamptz, range_end timestamptz, resource uuid default null)
+create or replace function "better_supabase"."list_bookings"(tenant uuid, range_start timestamptz, range_end timestamptz, resource uuid default null, include_archived boolean default false)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") order by lower(bk."during"), bk."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'archivedAt', bk."archived_at") order by lower(bk."during"), bk."id"), '[]'::jsonb)
   from "better_supabase"."bookings" bk
   where bk."tenant_id" = list_bookings.tenant
     and bk."during" && tstzrange(list_bookings.range_start, list_bookings.range_end)
     and (list_bookings.resource is null or bk."resource_id" = list_bookings.resource)
+    and (list_bookings.include_archived or bk."archived_at" is null)
 $$;
-revoke execute on function "better_supabase"."list_bookings"(uuid, timestamptz, timestamptz, uuid) from public, anon;
-grant execute on function "better_supabase"."list_bookings"(uuid, timestamptz, timestamptz, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_bookings"(uuid, timestamptz, timestamptz, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_bookings"(uuid, timestamptz, timestamptz, uuid, boolean) to authenticated, service_role;
+
+-- Archives a cancelled booking, or one that has ended: it leaves the lists and keeps its history.
+create or replace function "better_supabase"."archive_booking"(booking uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_booking "better_supabase"."bookings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_booking from "better_supabase"."bookings" bk where bk."id" = archive_booking.booking for update;
+  if not found or not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.manage'), false)) then
+    raise exception 'booking not found' using errcode = 'P0002', hint = 'BOOKING_NOT_FOUND';
+  end if;
+  if v_booking."archived_at" is not null then
+    return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'archivedAt', v_booking."archived_at");
+  end if;
+  if v_booking."status" <> 'cancelled' and upper(v_booking."during") > now() then
+    raise exception 'only a cancelled booking or one that has ended is archived' using errcode = '55000', hint = 'BOOKING_ACTIVE';
+  end if;
+  update "better_supabase"."bookings" bk set "archived_at" = now(), "updated_at" = now()
+  where bk."id" = v_booking."id" returning * into v_booking;
+  null;
+  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'archivedAt', v_booking."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_booking"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_booking"(uuid) to authenticated, service_role;
+
+-- Restores an archived booking to the lists.
+create or replace function "better_supabase"."restore_booking"(booking uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_booking "better_supabase"."bookings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_booking from "better_supabase"."bookings" bk where bk."id" = restore_booking.booking for update;
+  if not found or not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_booking."tenant_id", 'bookings.manage'), false)) then
+    raise exception 'booking not found' using errcode = 'P0002', hint = 'BOOKING_NOT_FOUND';
+  end if;
+  if v_booking."archived_at" is null then
+    return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'archivedAt', v_booking."archived_at");
+  end if;
+  update "better_supabase"."bookings" bk set "archived_at" = null, "updated_at" = now()
+  where bk."id" = v_booking."id" returning * into v_booking;
+  null;
+  return jsonb_build_object('id', v_booking."id", 'resourceId', v_booking."resource_id", 'serviceId', v_booking."service_id", 'seat', v_booking."seat", 'startsAt', lower(v_booking."during"), 'endsAt', upper(v_booking."during"), 'status', v_booking."status", 'holdExpiresAt', v_booking."hold_expires_at", 'customerName', v_booking."customer_name", 'customerEmail', v_booking."customer_email", 'customerUserId', v_booking."customer_id", 'notes', v_booking."notes", 'createdAt', v_booking."created_at", 'cancelledAt', v_booking."cancelled_at", 'cancelReason', v_booking."cancel_reason", 'archivedAt', v_booking."archived_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_booking"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_booking"(uuid) to authenticated, service_role;
 
 -- The tenant's resources, as the caller (the table's policy decides who sees
 -- them). Inactive ones are left out unless include_inactive is set.
@@ -749,10 +814,11 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(z.item order by z.starts desc, z.id desc), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason") as item, lower(bk."during") as starts, bk."id" as id
+    select jsonb_build_object('id', bk."id", 'resourceId', bk."resource_id", 'serviceId', bk."service_id", 'seat', bk."seat", 'startsAt', lower(bk."during"), 'endsAt', upper(bk."during"), 'status', bk."status", 'holdExpiresAt', bk."hold_expires_at", 'customerName', bk."customer_name", 'customerEmail', bk."customer_email", 'customerUserId', bk."customer_id", 'notes', bk."notes", 'createdAt', bk."created_at", 'cancelledAt', bk."cancelled_at", 'cancelReason', bk."cancel_reason", 'archivedAt', bk."archived_at") as item, lower(bk."during") as starts, bk."id" as id
     from "better_supabase"."bookings" bk
     where bk."tenant_id" = list_bookings_for_customer.tenant
       and bk."customer_id"::text = list_bookings_for_customer.customer
+      and bk."archived_at" is null
     order by lower(bk."during") desc, bk."id" desc
     limit least(greatest(coalesce(list_bookings_for_customer.page_size, 50), 1), 200)
   ) z

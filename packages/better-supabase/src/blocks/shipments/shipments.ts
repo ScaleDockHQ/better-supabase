@@ -139,6 +139,8 @@ export interface Shipment<F extends object = Record<never, never>> {
   readonly proofAttachmentId?: string;
   readonly proofRecordedAt?: Temporal.Instant;
   readonly cancelledAt?: Temporal.Instant;
+  /** Set while the shipment is archived. */
+  readonly archivedAt?: Temporal.Instant;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
@@ -277,6 +279,17 @@ export interface Shipments<
    * first.
    */
   cancel(id: string): AsyncResult<Shipment<F>>;
+  /**
+   * Needs `shipments.manage`. Takes a delivered, returned or cancelled shipment
+   * out of the lists and records `shipment.archived`. The page's `archived`
+   * filter lists the archived ones.
+   */
+  archive(id: string): AsyncResult<Shipment<F>>;
+  /**
+   * Needs `shipments.manage`. Brings an archived shipment back; records
+   * `shipment.restored`.
+   */
+  restore(id: string): AsyncResult<Shipment<F>>;
   /** Sets the direction of a draft shipment. */
   setDirection(input: {
     id: string;
@@ -405,6 +418,7 @@ function shipmentOf(value: unknown, fn: string): Shipment {
       proofAttachmentId: optionalText(row["proofAttachmentId"]),
       proofRecordedAt: optionalInstant(row["proofRecordedAt"]),
       cancelledAt: optionalInstant(row["cancelledAt"]),
+      archivedAt: optionalInstant(row["archivedAt"]),
       createdBy: optionalText(row["createdBy"]),
     }),
   };
@@ -904,6 +918,18 @@ export function createShipments<
             .andThen(cancelled),
         );
       }),
+    archive: (id) =>
+      call(
+        "archive_shipment",
+        { shipment_id: id },
+        one("archive_shipment"),
+      ).andThen(fields.row),
+    restore: (id) =>
+      call(
+        "restore_shipment",
+        { shipment_id: id },
+        one("restore_shipment"),
+      ).andThen(fields.row),
     setDirection: ({ id, direction }) =>
       call(
         "set_shipment_direction",

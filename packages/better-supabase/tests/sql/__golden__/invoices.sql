@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:8b27d09057b1a82a39c4c874424739b1bdcfec6235b6a95fcd508f36ee3412c2
+-- @bsb-hash sha256:5d775b34159d5bfe566d672f5eec6b78867fc5d860f69422f929423e6527c837
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -502,6 +502,40 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
+-- Archives an invoice of any status. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."archive_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."archive_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_invoice"(uuid) to authenticated, service_role;
+-- Restores an archived invoice. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."restore_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."restore_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_invoice"(uuid) to authenticated, service_role;
 create table "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -4050,7 +4084,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:c6ddf0913746fed47eee7ed819c4587c1596604247bde8d4fc43d0be9f18b938
+-- @bsb-hash sha256:7f1685e8d890d2157218d98599cae46d2f4d58300147a7195011060a1757d22f
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4594,6 +4628,40 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
+-- Archives an invoice of any status. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."archive_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."archive_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_invoice"(uuid) to authenticated, service_role;
+-- Restores an archived invoice. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."restore_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."restore_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_invoice"(uuid) to authenticated, service_role;
 create table "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -9111,7 +9179,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:b327a9797781eedef877883a4d021792256d96e99dbfb1cddf36455054ed13df
+-- @bsb-hash sha256:0f4d13d4b56000a9a649f62dccc5391fcbd4b47832d237eeb7305d5cf11f28bf
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9617,6 +9685,40 @@ end;
 $$;
 revoke execute on function "app_private"."delete_invoice"(uuid) from public, anon;
 grant execute on function "app_private"."delete_invoice"(uuid) to authenticated, service_role;
+-- Archives an invoice of any status. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "app_private"."archive_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "app_private"."archive_invoice"(uuid) from public, anon;
+grant execute on function "app_private"."archive_invoice"(uuid) to authenticated, service_role;
+-- Restores an archived invoice. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "app_private"."restore_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "app_private"."restore_invoice"(uuid) from public, anon;
+grant execute on function "app_private"."restore_invoice"(uuid) to authenticated, service_role;
 create table "app_private"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -13165,7 +13267,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:356c72563adc3ee2dbec9502c686aa4642a941cb2687d27a392009c1b57b1b91
+-- @bsb-hash sha256:66444f7ddfa1c4aed67e5b1eed68d07d928a89cf49d3564d1e2dd7a30bbee426
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13666,6 +13768,40 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
+-- Archives an invoice of any status. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."archive_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."archive_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_invoice"(uuid) to authenticated, service_role;
+-- Restores an archived invoice. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."restore_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."restore_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_invoice"(uuid) to authenticated, service_role;
 create table "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
@@ -17228,6 +17364,24 @@ as $$ select "better_supabase"."delete_invoice"($1) $$;
 revoke execute on function "api"."delete_invoice"(uuid) from public, anon;
 grant execute on function "api"."delete_invoice"(uuid) to authenticated, service_role;
 
+create or replace function "api"."archive_invoice"(invoice uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_invoice"($1) $$;
+revoke execute on function "api"."archive_invoice"(uuid) from public, anon;
+grant execute on function "api"."archive_invoice"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_invoice"(invoice uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_invoice"($1) $$;
+revoke execute on function "api"."restore_invoice"(uuid) from public, anon;
+grant execute on function "api"."restore_invoice"(uuid) to authenticated, service_role;
+
 create or replace function "api"."set_invoice_lines"(parent uuid, lines jsonb)
 returns jsonb
 language sql
@@ -17753,7 +17907,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:e783fc61aa9808f2cf2a96544d6dc717aab3be3056b68a80a1d714f16bec3d14
+-- @bsb-hash sha256:d587d6496c4c25e9221dd66fec124bdf99acaa7bfd1b48103fbc7f259646e44e
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18221,6 +18375,40 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
+-- Archives an invoice of any status. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."archive_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."archive_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_invoice"(uuid) to authenticated, service_role;
+-- Restores an archived invoice. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."restore_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."restore_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_invoice"(uuid) to authenticated, service_role;
 -- better_supabase.invoice_lines is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."invoice_lines" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."invoice_lines" add column if not exists "tenant_id" uuid;
@@ -21766,7 +21954,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:ea33ae57519a82c5ca091fdf1246cf640d7e5861a6c8a29c9b9288b2b3dd4002
+-- @bsb-hash sha256:18eb41168f0b2604bfa6849067f6c44d5cefd633001f873891207f02f81aa4f6
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22267,6 +22455,40 @@ end;
 $$;
 revoke execute on function "better_supabase"."delete_invoice"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_invoice"(uuid) to authenticated, service_role;
+-- Archives an invoice of any status. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."archive_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."archive_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_invoice"(uuid) to authenticated, service_role;
+-- Restores an archived invoice. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function "better_supabase"."restore_invoice"(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  raise exception 'this invoices table has no archive column' using errcode = '22023', hint = 'INVOICE_ARCHIVE_UNSUPPORTED';
+end;
+$$;
+revoke execute on function "better_supabase"."restore_invoice"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_invoice"(uuid) to authenticated, service_role;
 create table "better_supabase"."invoice_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,

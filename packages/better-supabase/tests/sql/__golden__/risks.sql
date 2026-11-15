@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:95a6a0cea7a7792266e319ad566b9a0b3c8671311c9f3349d9a03ea86ee71dfe
+-- @bsb-hash sha256:5d55df101c8f8a00c4d6d3b548e6b435ef1e5d3033854b5ccc26c2ad489f8796
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -746,6 +746,78 @@ $$;
 revoke execute on function "better_supabase"."close_risk"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."close_risk"(uuid, text) to authenticated, service_role;
 
+-- Archives a risk of any status: it leaves the lists and the heatmap, and keeps its assessments.
+create or replace function "better_supabase"."archive_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."risks" x where x."id" = archive_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to archive risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."risks" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_risk"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_risk"(uuid) to authenticated, service_role;
+
+-- Restores an archived risk to the lists and the heatmap.
+create or replace function "better_supabase"."restore_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."risks" x where x."id" = restore_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to restore risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."risks" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_risk"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_risk"(uuid) to authenticated, service_role;
+
 -- A risk with its matrix, its assessments (newest first), its barriers (the
 -- mitigated_by links) and the cases it materialized as.
 create or replace function "better_supabase"."get_risk"(risk_id uuid)
@@ -1264,7 +1336,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:f76666530885084e3e37ec449615c2f8bb81b42a8f5dee08b9efa63954c625da
+-- @bsb-hash sha256:7ebe180ededf7a77d2eb8ead20457cae185c39e312254d5ad1075f18b6fcdb07
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2085,6 +2157,98 @@ $$;
 revoke execute on function "better_supabase"."close_risk"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."close_risk"(uuid, text) to authenticated, service_role;
 
+-- Archives a risk of any status: it leaves the lists and the heatmap, and keeps its assessments.
+create or replace function "better_supabase"."archive_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."risks" x where x."id" = archive_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to archive risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."risks" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('risk.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'number', v_row."number", 'title', v_row."title", 'status', v_row."status"), 'risks/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/risks');
+  perform better_supabase.audit_event(
+    event_type => 'risk.archived',
+    category => 'data',
+    target_type => 'risk',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'risk archived',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'number', v_row."number", 'title', v_row."title", 'status', v_row."status")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_risk"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_risk"(uuid) to authenticated, service_role;
+
+-- Restores an archived risk to the lists and the heatmap.
+create or replace function "better_supabase"."restore_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."risks" x where x."id" = restore_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to restore risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."risks" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('risk.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'number', v_row."number", 'title', v_row."title", 'status', v_row."status"), 'risks/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/risks');
+  perform better_supabase.audit_event(
+    event_type => 'risk.restored',
+    category => 'data',
+    target_type => 'risk',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'risk restored',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'number', v_row."number", 'title', v_row."title", 'status', v_row."status")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_risk"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_risk"(uuid) to authenticated, service_role;
+
 -- A risk with its matrix, its assessments (newest first), its barriers (the
 -- mitigated_by links) and the cases it materialized as.
 create or replace function "better_supabase"."get_risk"(risk_id uuid)
@@ -2680,7 +2844,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:4318d52ee5b5ed79db56581ec864e59f1a9ee38feb4be528e36d225a368905ac
+-- @bsb-hash sha256:84f19cdbcf6b43efb8bbd9cb3b9467e5435675613d600891e3ef828619d57287
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3430,6 +3594,78 @@ $$;
 revoke execute on function "app_private"."close_risk"(uuid, text) from public, anon;
 grant execute on function "app_private"."close_risk"(uuid, text) to authenticated, service_role;
 
+-- Archives a risk of any status: it leaves the lists and the heatmap, and keeps its assessments.
+create or replace function "app_private"."archive_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."risks" x where x."id" = archive_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to archive risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "app_private"."risks" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."archive_risk"(uuid) from public, anon;
+grant execute on function "app_private"."archive_risk"(uuid) to authenticated, service_role;
+
+-- Restores an archived risk to the lists and the heatmap.
+create or replace function "app_private"."restore_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."risks" x where x."id" = restore_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to restore risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "app_private"."risks" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."restore_risk"(uuid) from public, anon;
+grant execute on function "app_private"."restore_risk"(uuid) to authenticated, service_role;
+
 -- A risk with its matrix, its assessments (newest first), its barriers (the
 -- mitigated_by links) and the cases it materialized as.
 create or replace function "app_private"."get_risk"(risk_id uuid)
@@ -3948,7 +4184,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:12e36d26779ede5a246c5e41fa7ccc3674d5be4b34583a97ab302a5ef1550267
+-- @bsb-hash sha256:30fd1f23cecf813ce9beec1279b18bab2293b46ef185ba3b6284ba5db7748674
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4693,6 +4929,78 @@ $$;
 revoke execute on function "better_supabase"."close_risk"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."close_risk"(uuid, text) to authenticated, service_role;
 
+-- Archives a risk of any status: it leaves the lists and the heatmap, and keeps its assessments.
+create or replace function "better_supabase"."archive_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."risks" x where x."id" = archive_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to archive risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."risks" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_risk"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_risk"(uuid) to authenticated, service_role;
+
+-- Restores an archived risk to the lists and the heatmap.
+create or replace function "better_supabase"."restore_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."risks" x where x."id" = restore_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to restore risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."risks" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_risk"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_risk"(uuid) to authenticated, service_role;
+
 -- A risk with its matrix, its assessments (newest first), its barriers (the
 -- mitigated_by links) and the cases it materialized as.
 create or replace function "better_supabase"."get_risk"(risk_id uuid)
@@ -5279,6 +5587,24 @@ as $$ select "better_supabase"."close_risk"($1, $2) $$;
 revoke execute on function "api"."close_risk"(uuid, text) from public, anon;
 grant execute on function "api"."close_risk"(uuid, text) to authenticated, service_role;
 
+create or replace function "api"."archive_risk"(risk_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_risk"($1) $$;
+revoke execute on function "api"."archive_risk"(uuid) from public, anon;
+grant execute on function "api"."archive_risk"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_risk"(risk_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_risk"($1) $$;
+revoke execute on function "api"."restore_risk"(uuid) from public, anon;
+grant execute on function "api"."restore_risk"(uuid) to authenticated, service_role;
+
 create or replace function "api"."get_risk"(risk_id uuid)
 returns jsonb
 language sql
@@ -5341,7 +5667,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:4e9c98bd00be9ec5f61581ea6371d1cdbb5f4304e942958c9fd2208d07a7aff8
+-- @bsb-hash sha256:ac93d516949e1844fb0aef6eaab5efae554c4c96e45fbfb403ed711553be12b4
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6071,6 +6397,78 @@ $$;
 revoke execute on function "better_supabase"."close_risk"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."close_risk"(uuid, text) to authenticated, service_role;
 
+-- Archives a risk of any status: it leaves the lists and the heatmap, and keeps its assessments.
+create or replace function "better_supabase"."archive_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."risks" x where x."id" = archive_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to archive risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."risks" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_risk"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_risk"(uuid) to authenticated, service_role;
+
+-- Restores an archived risk to the lists and the heatmap.
+create or replace function "better_supabase"."restore_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."risks" x where x."id" = restore_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to restore risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."risks" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_risk"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_risk"(uuid) to authenticated, service_role;
+
 -- A risk with its matrix, its assessments (newest first), its barriers (the
 -- mitigated_by links) and the cases it materialized as.
 create or replace function "better_supabase"."get_risk"(risk_id uuid)
@@ -6589,7 +6987,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:157ba22e351d7d472d31e9c3ce4c8d423a1b780172c552195f07ebe64f5d9046
+-- @bsb-hash sha256:87751e1ae0e9a6d0d79d91a409b75da25a98f5077f20d7f0e2c8940c6083c918
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7333,6 +7731,78 @@ end;
 $$;
 revoke execute on function "better_supabase"."close_risk"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."close_risk"(uuid, text) to authenticated, service_role;
+
+-- Archives a risk of any status: it leaves the lists and the heatmap, and keeps its assessments.
+create or replace function "better_supabase"."archive_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."risks" x where x."id" = archive_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to archive risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."risks" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_risk"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_risk"(uuid) to authenticated, service_role;
+
+-- Restores an archived risk to the lists and the heatmap.
+create or replace function "better_supabase"."restore_risk"(risk_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."risks";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."risks" x where x."id" = restore_risk.risk_id for update;
+  if not found then
+    raise exception 'no such risk' using errcode = 'P0002', hint = 'RISK_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'risks.manage'), false))) then
+    raise exception 'not allowed to restore risks' using errcode = '42501', hint = 'RISK_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  end if;
+  update "better_supabase"."risks" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'number', v_row."number", 'matrixId', v_row."matrix_id", 'title', v_row."title", 'description', v_row."description", 'category', v_row."category", 'cause', v_row."cause", 'consequence', v_row."consequence", 'ownerId', v_row."owner_id", 'status', v_row."status", 'treatment', v_row."treatment", 'reviewIntervalMonths', v_row."review_interval_months", 'nextReviewOn', v_row."next_review_on", 'reviewedAt', v_row."reviewed_at", 'inherent', case when v_row."inherent_score" is null then null else jsonb_build_object('likelihood', v_row."inherent_likelihood", 'impact', v_row."inherent_impact", 'score', v_row."inherent_score", 'band', v_row."inherent_band") end, 'residual', case when v_row."residual_score" is null then null else jsonb_build_object('likelihood', v_row."residual_likelihood", 'impact', v_row."residual_impact", 'score', v_row."residual_score", 'band', v_row."residual_band") end, 'currentAssessmentId', v_row."current_assessment_id", 'closedAt', v_row."closed_at", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_risk"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_risk"(uuid) to authenticated, service_role;
 
 -- A risk with its matrix, its assessments (newest first), its barriers (the
 -- mitigated_by links) and the cases it materialized as.

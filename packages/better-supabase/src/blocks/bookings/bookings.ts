@@ -164,6 +164,8 @@ export interface Booking {
   readonly notes?: string;
   readonly createdAt?: Temporal.Instant;
   readonly cancelledAt?: Temporal.Instant;
+  /** Set while the booking is archived. */
+  readonly archivedAt?: Temporal.Instant;
   readonly cancelReason?: string;
   /** The series it belongs to (`options.recurring`). */
   readonly seriesId?: string;
@@ -293,10 +295,25 @@ export interface Bookings<F extends object = Record<never, never>> {
     bookingId: string;
     reason?: string | undefined;
   }): AsyncResult<Booking & F>;
-  /** The bookings that overlap the range, as the caller's policies allow. */
+  /**
+   * Needs `bookings.manage`. Archives a cancelled booking or one that has
+   * ended: it leaves `list` and `forCustomer`, and `booking.archived` is
+   * recorded.
+   */
+  archive(bookingId: string): AsyncResult<Booking & F>;
+  /**
+   * Needs `bookings.manage`. Brings an archived booking back; records
+   * `booking.restored`.
+   */
+  restore(bookingId: string): AsyncResult<Booking & F>;
+  /**
+   * The bookings that overlap the range, as the caller's policies allow.
+   * `includeArchived` adds the archived ones.
+   */
   list(
     input: { organizationId: string; range: BookingRange } & {
       readonly resourceId?: string;
+      readonly includeArchived?: boolean;
     },
   ): AsyncResult<(Booking & F)[]>;
   /**
@@ -606,6 +623,8 @@ export function createBookings<
     confirm: (bookingId) => one("confirm_booking", { booking: bookingId }),
     cancel: ({ bookingId, reason }) =>
       one("cancel_booking", { booking: bookingId, reason: reason ?? null }),
+    archive: (bookingId) => one("archive_booking", { booking: bookingId }),
+    restore: (bookingId) => one("restore_booking", { booking: bookingId }),
     list: ({ organizationId, range, ...listOptions }) =>
       call(
         "list_bookings",
@@ -614,6 +633,7 @@ export function createBookings<
           range_start: String(range.from),
           range_end: String(range.until),
           resource: listOptions.resourceId ?? null,
+          include_archived: listOptions.includeArchived ?? false,
         },
         (value) =>
           recordsOf(value, "bookings").map(

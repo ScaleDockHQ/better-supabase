@@ -266,6 +266,16 @@ export interface Risks<F extends object = Record<never, never>> {
   }): AsyncResult<Risk<F>>;
   /** Closes a risk with a reason; needs `risks.manage`. */
   close(input: { riskId: string; reason: string }): AsyncResult<Risk<F>>;
+  /**
+   * Needs `risks.manage`. Takes a risk of any status out of the lists and the
+   * heatmap, keeps its assessments, and records `risk.archived`.
+   */
+  archive(riskId: string): AsyncResult<Risk<F>>;
+  /**
+   * Needs `risks.manage`. Brings an archived risk back; records
+   * `risk.restored`.
+   */
+  restore(riskId: string): AsyncResult<Risk<F>>;
   get(riskId: string): AsyncResult<RiskDetail<F>>;
   /**
    * The open risks linked to a record, highest residual score first, at most
@@ -606,6 +616,14 @@ export function createRisks<S extends StandardSchemaV1 | undefined = undefined>(
         { risk_id: riskId, reason },
         risk("close_risk"),
       ).andThen(fields.row),
+    archive: (riskId) =>
+      call("archive_risk", { risk_id: riskId }, risk("archive_risk")).andThen(
+        fields.row,
+      ),
+    restore: (riskId) =>
+      call("restore_risk", { risk_id: riskId }, risk("restore_risk")).andThen(
+        fields.row,
+      ),
     get: (riskId) =>
       call("get_risk", { risk_id: riskId }, (value) =>
         detailOf(value, "get_risk"),

@@ -20,6 +20,7 @@ import {
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
+import * as archive from "./bookings-archive.ts";
 import { catalogLists, customerList } from "./bookings-lists.ts";
 import {
   BOOKINGS_CONTRIBUTES,
@@ -53,6 +54,7 @@ const EVENTS: BlockSqlEvents<BookingsEvents> = {
   "booking.cancelled": { subject: "bookings", payload: PAYLOAD },
   "booking.expired": { subject: "bookings", payload: PAYLOAD },
   "booking.rescheduled": { subject: "bookings", payload: PAYLOAD },
+  ...archive.ARCHIVE_EVENTS,
 };
 
 const NAMES: BlockSqlNames = {
@@ -168,9 +170,10 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
         cancelledAt: "cancelled_at",
         cancelReason: "cancel_reason",
+        archivedAt: "archived_at",
         series: "series_id",
       },
-      optional: ["notes", "calendarEvent", "createdBy", "series"],
+      optional: ["notes", "calendarEvent", "createdBy", "series", "archivedAt"],
       typed: ["status"],
     },
     ...SERIES_TABLES,
@@ -264,7 +267,7 @@ create table if not exists ${p.bookings} (
   ${b("createdAt")} timestamptz not null default now(),
   ${b("updatedAt")} timestamptz not null default now(),
   ${b("cancelledAt")} timestamptz,
-  ${b("cancelReason")} text,
+  ${b("cancelReason")} text,${ctx.has("bookings", "archivedAt") ? `\n  ${b("archivedAt")} timestamptz,` : ""}
   check (${b("blocked")} @> ${b("during")}),
   check ((${b("status")} = 'hold') = (${b("holdExpiresAt")} is not null)),
   constraint ${ctx.naming.rename("bookings_no_overlap_excl")} exclude using gist (
@@ -880,7 +883,7 @@ ${userGrant(`${fn("cancel_booking")}(uuid, text)`)}
 
 -- The bookings that overlap [range_start, range_end), as the caller: the
 -- table's policy shows a tenant's bookings to readers and a customer their own.
-create or replace function ${fn("list_bookings")}(tenant ${ctx.idType}, range_start timestamptz, range_end timestamptz, resource uuid default null)
+create or replace function ${fn("list_bookings")}(tenant ${ctx.idType}, range_start timestamptz, range_end timestamptz, resource uuid default null, include_archived boolean default false)
 returns jsonb
 language sql
 stable
@@ -891,10 +894,10 @@ as $$
   from ${p.bookings} bk
   where bk.${b("tenant")} = list_bookings.tenant
     and bk.${b("during")} && tstzrange(list_bookings.range_start, list_bookings.range_end)
-    and (list_bookings.resource is null or bk.${b("resource")} = list_bookings.resource)
+    and (list_bookings.resource is null or bk.${b("resource")} = list_bookings.resource)${ctx.has("bookings", "archivedAt") ? `\n    and (list_bookings.include_archived or bk.${b("archivedAt")} is null)` : ""}
 $$;
-${userGrant(`${fn("list_bookings")}(${ctx.idType}, timestamptz, timestamptz, uuid)`)}
-`;
+${userGrant(`${fn("list_bookings")}(${ctx.idType}, timestamptz, timestamptz, uuid, boolean)`)}
+${archive.archiveFunctions(p)}`;
 }
 
 function build(ctx: BlockSqlContext): string {
@@ -979,9 +982,10 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "expire_booking_holds", args: [], returns: "integer" },
     {
       name: "list_bookings",
-      args: ["{id}", "timestamptz", "timestamptz", "uuid"],
+      args: ["{id}", "timestamptz", "timestamptz", "uuid", "boolean"],
       returns: "jsonb",
     },
+    ...archive.archiveContract(ctx),
     {
       name: "list_bookings_for_customer",
       args: ["{id}", "text", "integer"],

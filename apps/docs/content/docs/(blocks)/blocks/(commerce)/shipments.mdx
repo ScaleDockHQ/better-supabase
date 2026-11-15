@@ -162,6 +162,21 @@ the shipment, and `shipment.return_received` records how many lines and how
 much came back. Quantities are strings or numbers in, and strings on the
 shipment's `lines`, so fractional units keep their precision.
 
+## Archive and restore
+
+`archive(id)` hides a delivered, returned or cancelled shipment from the
+lists and records `shipment.archived`. A shipment that is still moving fails
+with `SHIPMENT_ACTIVE`. The page's `archived` filter lists the archived
+shipments, and `restore(id)` brings one back and records `shipment.restored`.
+Both need `shipments.manage`, and the shipment keeps its packages, lines and
+tracking events. The `archived_at` column is new, so an app table made before
+it maps `archivedAt: null` in `columns.shipments` to leave the pair out.
+
+```ts
+await shipments.archive(shipment.id).orThrow();
+await shipments.restore(shipment.id).orThrow();
+```
+
 ## Tracking
 
 Each tracking event carries the carrier's id, and the database records an id
@@ -308,6 +323,7 @@ and refresh. It is in the Next.js example.
 | `SHIPMENT_TRACKING_UNKNOWN`    | the carrier doesn't know the tracking number                               |
 | `SHIPMENT_WEBHOOK_UNSUPPORTED` | the carrier has no `parseWebhook`                                          |
 | `SHIPMENT_SHIPPED`             | the shipment has left and can't be cancelled                               |
+| `SHIPMENT_ACTIVE`              | `archive` on a shipment that has not been delivered, returned or cancelled |
 | `SHIPMENT_INVENTORY_MISSING`   | lines were set without the inventory block                                 |
 | `SHIPMENT_LINES_INVALID`       | a line lacks a variant, a location or a positive quantity                  |
 | `SHIPMENT_LINE_NOT_FOUND`      | a line names a variant or location outside the organization                |

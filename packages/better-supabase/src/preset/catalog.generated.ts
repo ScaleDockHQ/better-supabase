@@ -2517,6 +2517,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "updatedAt": "updated_at",
               "cancelledAt": "cancelled_at",
               "cancelReason": "cancel_reason",
+              "archivedAt": "archived_at",
               "series": "series_id"
             }
           }
@@ -6605,6 +6606,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "labeledAt": "labeled_at",
               "deliveredAt": "delivered_at",
               "cancelledAt": "cancelled_at",
+              "archivedAt": "archived_at",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
@@ -14477,7 +14479,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "booking.confirmed",
           "booking.cancelled",
           "booking.expired",
-          "booking.rescheduled"
+          "booking.rescheduled",
+          "booking.archived",
+          "booking.restored"
         ]
       }
     },
@@ -19291,6 +19295,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "shipment.labeled",
           "shipment.status_changed",
           "shipment.cancelled",
+          "shipment.archived",
+          "shipment.restored",
           "shipment.proof_recorded",
           "shipment.return_received"
         ]
@@ -19319,7 +19325,8 @@ export const PRESET_CATALOG: PresetCatalog = {
             "status",
             "carrier",
             "subjectType",
-            "subjectId"
+            "subjectId",
+            "archived"
           ]
         }
       }
@@ -22353,6 +22360,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "risk.treatment_changed",
           "risk.reviewed",
           "risk.closed",
+          "risk.archived",
+          "risk.restored",
           "risk.review_date_reached"
         ]
       },
@@ -31048,6 +31057,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "invoice.created",
           "invoice.updated",
           "invoice.deleted",
+          "invoice.archived",
+          "invoice.restored",
           "invoice.issued",
           "invoice.payment_recorded",
           "invoice.paid",

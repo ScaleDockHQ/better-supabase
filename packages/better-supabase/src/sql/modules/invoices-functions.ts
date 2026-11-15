@@ -456,7 +456,45 @@ begin
 end;
 $$;
 ${userGrant(`${fn("delete_invoice")}(uuid)`)}
+${["archive", "restore"]
+  .map((verb) => {
+    const past = verb === "archive" ? "archived" : "restored";
+    const mark = verb === "archive" ? "now()" : "null";
+    const guard = verb === "archive" ? "is not null" : "is null";
+
+    return `-- ${verb === "archive" ? "Archives an invoice of any status" : "Restores an archived invoice"}. It needs the archivedAt column in
+-- blocks.invoices.columns.invoices; an archived invoice keeps its number,
+-- lines and payments.
+create or replace function ${fn(`${verb}_invoice`)}(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("invoices")};
+begin${
+      has("archivedAt")
+        ? `
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = ${verb}_invoice.invoice and ${can("x", n.remove)} for update;
+  if v_row.${i("id")} is null then
+    ${fail("INVOICE_NOT_FOUND", `no such invoice you can ${verb}`, "P0002")}
+  end if;
+  if v_row.${i("archivedAt")} ${guard} then
+    return true;
+  end if;
+  update ${t("invoices")} x set ${i("archivedAt")} = ${mark}, ${i("updatedAt")} = now() where x.${i("id")} = v_row.${i("id")};
+  ${record(`invoice.${past}`, "v_row")}
+  return true;`
+        : `
+  ${fail("INVOICE_ARCHIVE_UNSUPPORTED", "this invoices table has no archive column", "22023")}`
+    }
+end;
+$$;
+${userGrant(`${fn(`${verb}_invoice`)}(uuid)`)}
 `;
+  })
+  .join("")}`;
 
   const fromQuote = invoiceFromQuote(ctx, n, {
     has,
