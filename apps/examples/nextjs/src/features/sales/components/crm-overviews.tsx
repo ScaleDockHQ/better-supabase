@@ -20,6 +20,10 @@ import {
   loadScoreModels,
   loadSegments,
 } from "../automation/automation-queries";
+import { contractsSpec } from "../list-reads/contracts-reads";
+import { queuesSpec } from "../list-reads/queues-reads";
+import { scoreModelsSpec } from "../list-reads/scores-reads";
+import { segmentsSpec } from "../list-reads/segments-reads";
 import { loadContracts } from "../revenue/revenue-queries";
 import {
   createContract,
@@ -93,15 +97,7 @@ export async function SegmentOverview({ query }: { query: BlockListQuery }) {
     <BlockOverview
       loaded={loaded}
       query={query}
-      spec={{
-        search: (segment) => `${segment.name} ${segment.description ?? ""}`,
-        facet: (segment) => segment.subjectType,
-        defaultSort: "name",
-        sorts: {
-          name: (a, b) => a.name.localeCompare(b.name),
-          members: (a, b) => b.memberCount - a.memberCount,
-        },
-      }}
+      spec={segmentsSpec}
       toRow={(segment) => ({
         id: segment.id,
         name: segment.name,
@@ -206,16 +202,7 @@ export async function QueueOverview({ query }: { query: BlockListQuery }) {
     <BlockOverview
       loaded={loaded}
       query={query}
-      spec={{
-        search: (queue) => queue.name,
-        facet: (queue) => queue.strategy,
-        defaultSort: "rank",
-        sorts: {
-          rank: (a, b) => a.rank - b.rank,
-          name: (a, b) => a.name.localeCompare(b.name),
-          assigned: (a, b) => b.assigned - a.assigned,
-        },
-      }}
+      spec={queuesSpec}
       toRow={(queue) => ({
         id: queue.id,
         name: queue.name,
@@ -328,12 +315,7 @@ export async function ScoreModelOverview({ query }: { query: BlockListQuery }) {
     <BlockOverview
       loaded={loaded}
       query={query}
-      spec={{
-        search: (model) => `${model.name} ${model.key}`,
-        facet: (model) => model.subjectType,
-        defaultSort: "name",
-        sorts: { name: (a, b) => a.name.localeCompare(b.name) },
-      }}
+      spec={scoreModelsSpec}
       toRow={(model) => ({
         id: model.id,
         name: model.name,
@@ -463,20 +445,7 @@ export async function ContractOverview({ query }: { query: BlockListQuery }) {
     <BlockOverview
       loaded={loaded}
       query={query}
-      spec={{
-        search: (contract) => contract.title,
-        facet: (contract) => contract.status,
-        defaultSort: "ending",
-        sorts: {
-          ending: (a, b) =>
-            (a.endsOn ?? "9999").localeCompare(b.endsOn ?? "9999"),
-          notice: (a, b) =>
-            (a.noticeDeadline ?? "9999").localeCompare(
-              b.noticeDeadline ?? "9999",
-            ),
-          title: (a, b) => a.title.localeCompare(b.title),
-        },
-      }}
+      spec={contractsSpec}
       toRow={(contract) => ({
         id: contract.id,
         title: contract.title,

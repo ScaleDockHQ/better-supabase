@@ -1068,7 +1068,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Scope: M5's leftovers: reads modules for app tables and arrays, free sort, instant pages, shell accessibility
 - Status: in progress
 - Branch: `feat/audit-lane-m6a`
-- PR: none yet
+- PR: [#976](https://github.com/ScaleDockHQ/better-supabase/pull/976)
 - Findings: EX-001, EX-014, EX-033, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
 - Log: 2026-11-14, lane M6 started from main in `../bsb-audit-M6`. ADR numbers continue M5's range from 0892. PR 1 (ADR 0892): the five instant pages, the shell accessibility fixes, the whole-page axe scan and the invitations page on the data grid (EX-024 and EX-1327 fixed).
 
@@ -1076,10 +1076,11 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 
 - Scope: M6's leftovers: reads modules for the customers app table and the inbox, an array reads module, generated seeds and coverage
 - Status: in progress
-- Branch: `feat/audit-m7a`
-- PR: none yet
+- Branch: `feat/audit-m7a`, `feat/audit-m7b`
+- PR: [#978](https://github.com/ScaleDockHQ/better-supabase/pull/978)
 - Findings: EX-001, EX-014, EX-410, EX-607, EX-813, EX-1264, EX-1265, EX-1267, EX-1294
-- Log: 2026-11-14, lane M7 started from main in `../bsb-audit-m7a`. ADR numbers continue from 0893. PR 1 (ADR 0893): `app.customers` and `app.inbox` are declared with reads modules, and the generated scale test turns sort and bitmap plans off (EX-014 and EX-410 fixed).
+- Log: 2026-11-14, lane M7 started from main in `../bsb-audit-m7a`. ADR numbers continue from 0893. PR 1 (ADR 0893): `app.customers` and `app.inbox` are declared with reads modules, and the generated scale test turns sort and bitmap plans off (EX-014 and EX-410 fixed). Merged in #978.
+- Log: 2026-11-15, PR 2 (ADR 0894) in `../bsb-audit-m7b`: `arrayReads` and the six CRM array lists (deals, pipelines, segments, queues, scores, contracts) declared as `app.*` pages with generated indexes and scale files (EX-607).
 
 ### Lane O1
 

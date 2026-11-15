@@ -316758,6 +316758,17 @@
         ],
         "indexes": [
           {
+            "name": "assignment_queues_name_trgm_idx",
+            "columns": [
+              "name"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "gin",
+            "predicate": null
+          },
+          {
             "name": "assignment_queues_order_idx",
             "columns": [
               "tenant_id",
@@ -316782,12 +316793,50 @@
             "predicate": null
           },
           {
+            "name": "assignment_queues_tenant_id_name_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "name",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "assignment_queues_tenant_id_name_key",
             "columns": [
               "tenant_id",
               "name"
             ],
             "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "assignment_queues_tenant_id_rank_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "rank",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "assignment_queues_tenant_id_strategy_page_idx",
+            "columns": [
+              "tenant_id",
+              "strategy"
+            ],
+            "unique": false,
             "primary": false,
             "partial": false,
             "method": "btree",
@@ -330702,6 +330751,19 @@
             "predicate": null
           },
           {
+            "name": "contracts_tenant_id_ends_on_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "ends_on",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "contracts_tenant_id_id_key",
             "columns": [
               "tenant_id",
@@ -330711,6 +330773,42 @@
             "primary": false,
             "partial": false,
             "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "contracts_tenant_id_status_page_idx",
+            "columns": [
+              "tenant_id",
+              "status"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "contracts_tenant_id_title_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "title",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "contracts_title_trgm_idx",
+            "columns": [
+              "title"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "gin",
             "predicate": null
           }
         ],
@@ -334665,6 +334763,17 @@
             "predicate": null
           },
           {
+            "name": "deals_name_trgm_idx",
+            "columns": [
+              "name"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "gin",
+            "predicate": null
+          },
+          {
             "name": "deals_owner_idx",
             "columns": [
               "owner_id"
@@ -334712,12 +334821,63 @@
             "predicate": "(outcome = 'open'::text)"
           },
           {
+            "name": "deals_tenant_id_amount_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "amount",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "deals_tenant_id_expected_close_on_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "expected_close_on",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "deals_tenant_id_name_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "name",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "deals_tenant_id_number_key",
             "columns": [
               "tenant_id",
               "number"
             ],
             "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "deals_tenant_id_stage_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "stage_id"
+            ],
+            "unique": false,
             "primary": false,
             "partial": false,
             "method": "btree",
@@ -374091,12 +374251,36 @@
             "predicate": "(is_default AND (archived_at IS NULL))"
           },
           {
+            "name": "pipelines_name_trgm_idx",
+            "columns": [
+              "name"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "gin",
+            "predicate": null
+          },
+          {
             "name": "pipelines_pkey",
             "columns": [
               "id"
             ],
             "unique": true,
             "primary": true,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "pipelines_tenant_id_name_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "name",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
             "partial": false,
             "method": "btree",
             "predicate": null
@@ -387078,6 +387262,17 @@
         ],
         "indexes": [
           {
+            "name": "score_models_name_trgm_idx",
+            "columns": [
+              "name"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "gin",
+            "predicate": null
+          },
+          {
             "name": "score_models_pkey",
             "columns": [
               "id"
@@ -387107,6 +387302,19 @@
               "key"
             ],
             "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "score_models_tenant_id_name_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "name",
+              "id"
+            ],
+            "unique": false,
             "primary": false,
             "partial": false,
             "method": "btree",
@@ -387782,6 +387990,17 @@
             "predicate": null
           },
           {
+            "name": "segments_name_trgm_idx",
+            "columns": [
+              "name"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "gin",
+            "predicate": null
+          },
+          {
             "name": "segments_pkey",
             "columns": [
               "id"
@@ -387793,12 +388012,50 @@
             "predicate": null
           },
           {
+            "name": "segments_tenant_id_member_count_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "member_count",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "segments_tenant_id_name_id_page_idx",
+            "columns": [
+              "tenant_id",
+              "name",
+              "id"
+            ],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
             "name": "segments_tenant_id_name_key",
             "columns": [
               "tenant_id",
               "name"
             ],
             "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "segments_tenant_id_subject_type_page_idx",
+            "columns": [
+              "tenant_id",
+              "subject_type"
+            ],
+            "unique": false,
             "primary": false,
             "partial": false,
             "method": "btree",
