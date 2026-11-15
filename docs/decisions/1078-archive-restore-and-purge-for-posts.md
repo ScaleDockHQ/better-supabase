@@ -1,4 +1,4 @@
-# 1077: Archive, restore and purge for posts (lane Y2)
+# 1078: Archive, restore and purge for posts (lane Y2)
 
 - Status: accepted
 - Date: 2026-11-15

@@ -3,7 +3,7 @@
 ---
 
 Breaking: posts can be archived and restored, and their hard delete is
-`purge`, behind `permissions.purge` when you set it (ADR 1077). An archived post
+`purge`, behind `permissions.purge` when you set it (ADR 1078). An archived post
 leaves `list` unless `archived` is set and takes no votes, replies or edits.
 
 | Before                  | After               |
