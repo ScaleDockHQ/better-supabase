@@ -4,8 +4,19 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -15,6 +26,7 @@ import type { BlockTemporalOptions, RecordRef } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { amountText, optionalMoneyOf } from "../money-codec.ts";
 import {
@@ -30,6 +42,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { contractListSurface, obligationListSurface } from "./lists.ts";
 
 export interface ContractsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -218,8 +231,32 @@ export interface Contracts<F extends object = Record<never, never>> {
     contractId: string;
     input: ContractSignatureInput;
   }): AsyncResult<Contract<F>>;
+  /** One contract by id, or a `not_found` error. */
   get(contractId: string): AsyncResult<Contract<F>>;
-  /** Newest first. */
+  /**
+   * One keyset page of the organization's contracts, newest first. It runs as
+   * the caller. `filters` takes `status`, `ownerId`, `counterpartyType` and
+   * `counterpartyId` as lists and `renewingBefore` as a date; `q` searches the
+   * title and description.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Contract<F>>>;
+  /**
+   * The values of each facet (`status`, `ownerId`) and how many contracts hold
+   * each.
+   */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many contracts match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /**
+   * Newest first.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+   * filters and a count (ADR 1077).
+   */
   list(
     input: { organizationId: string } & ContractListOptions,
   ): AsyncResult<readonly Contract<F>[]>;
@@ -246,7 +283,28 @@ export interface Contracts<F extends object = Record<never, never>> {
     status: ObligationStatus;
   }): AsyncResult<ContractObligation>;
   deleteObligation(obligationId: string): AsyncResult<ContractObligation>;
-  /** The earliest due first. */
+  /**
+   * One keyset page of the organization's obligations, the earliest due first.
+   * `filters` takes `contractId`, `ownerId` and `status` as lists and
+   * `dueBefore` as a date; `q` searches the title and description.
+   */
+  obligationPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<ContractObligation>>;
+  /** The values of each facet (`status`, `contractId`) and their counts. */
+  obligationFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many obligations match the page's filters. */
+  obligationCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
+  /**
+   * The earliest due first.
+   *
+   * @deprecated Use `obligationPage`, which pages by keyset and takes `q`,
+   * sorts, array filters and a count (ADR 1077).
+   */
   obligations(
     input: { organizationId: string } & ObligationListOptions,
   ): AsyncResult<readonly ContractObligation[]>;
@@ -409,7 +467,36 @@ export function createContracts<
         ),
     ).andThen(fields.rows);
 
+  const contracts = entityList<Contract, RequiredTenantOption>({
+    entity: "contract",
+    surface: contractListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_contracts",
+    rowOf: (row, fn) => contractOf(row, fn),
+  });
+
+  const obligationList = entityList<ContractObligation, RequiredTenantOption>({
+    entity: "contract obligation",
+    surface: obligationListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_contract_obligations",
+    rowOf: (row, fn) => obligationOf(row, fn),
+  });
+
   const client: Contracts<F> = {
+    page: (page) =>
+      contracts
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    facets: contracts.facets,
+    count: contracts.count,
+    obligationPage: obligationList.page,
+    obligationFacets: obligationList.facets,
+    obligationCount: obligationList.count,
     create: ({ organizationId, input }) =>
       fields
         .args(input.fields)
@@ -461,6 +548,7 @@ export function createContracts<
         { contract_id: contractId },
         one("get_contract"),
       ).andThen(fields.row),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, ...list }) => listContracts(organizationId, list),
     forCounterparty: ({ counterparty, ...list }) =>
       listContracts(null, { ...list, counterparty }),
@@ -502,6 +590,7 @@ export function createContracts<
         { obligation_id: obligationId },
         obligation("delete_contract_obligation"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     obligations: ({ organizationId, ...list }) =>
       call(
         "list_contract_obligations",

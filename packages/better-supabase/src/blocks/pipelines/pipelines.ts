@@ -4,8 +4,19 @@ import type {
   FieldsOf,
   RowFields,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RankNeighbors } from "../../core/rank-result.ts";
@@ -20,6 +31,7 @@ import {
   writeFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { moneyOf } from "../money-codec.ts";
@@ -34,6 +46,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { pipelineListSurface } from "./lists.ts";
 
 /** The fixed outcome every stage category maps to. */
 export type PipelineOutcome = "open" | "success" | "failure";
@@ -164,12 +177,34 @@ export interface PipelineHealth {
 }
 
 export interface Pipelines<F extends object = Record<never, never>> {
-  /** The organization's active pipelines of a subject type, with their stages. */
+  /**
+   * The organization's active pipelines of a subject type, with their stages.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+   * filters and a count (ADR 1077).
+   */
   list(input: {
     organizationId: string;
     subjectType: string;
     limit?: number;
   }): AsyncResult<Pipeline<F>[]>;
+  /**
+   * One keyset page of the organization's active pipelines with their stages,
+   * in board order. `filters` takes `subjectType`, `key` and `scopeId` as
+   * lists; `q` searches the name and key. The organization comes from
+   * `organizationId`.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Pipeline<F>>>;
+  /** The values of each facet (`subjectType`) and how many pipelines hold each. */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many pipelines match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /** One active pipeline with its stages by id, or a `not_found` error. */
+  get(pipelineId: string): AsyncResult<Pipeline<F>>;
   /**
    * Creates or renames a pipeline. The first of a type and scope is its
    * default.
@@ -403,7 +438,33 @@ export function createPipelines<
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "pipeline fields");
 
+  const pipelineList = entityList<Pipeline, RequiredTenantOption>({
+    entity: "pipeline",
+    surface: pipelineListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_pipelines",
+    rowOf: (row) => pipelineOf(row),
+  });
+
   const client: Pipelines<F> = {
+    page: (page) =>
+      pipelineList
+        .page(page)
+        .andThen((read) =>
+          readAllFields(fields, read.items).map((items) => ({
+            ...read,
+            items,
+          })),
+        ),
+    facets: pipelineList.facets,
+    count: pipelineList.count,
+    // SAFETY: one row goes in, so one row comes out of the field read.
+    get: (pipelineId) =>
+      call("get_pipeline", { pipeline: pipelineId }, pipelineOf)
+        .andThen((row) => readAllFields(fields, [row]))
+        .map(([first]) => first as Pipeline<F>),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, subjectType, limit }) =>
       call(
         "list_pipelines",
@@ -433,6 +494,7 @@ export function createPipelines<
       ).andThen((pipeline) => readFields(fields, pipeline)),
     default: ({ organizationId, subjectType, scopeId }) =>
       hooked
+        // oxlint-disable-next-line typescript/no-deprecated -- the pipeline lookups read the array method until 0.70 (ADR 1077)
         .list({ organizationId, subjectType })
         .map((pipelines) =>
           pipelines.find(
@@ -441,6 +503,7 @@ export function createPipelines<
         ),
     ensure: ({ organizationId, subjectType, key, name, scopeId, stages }) =>
       AsyncResult.from(async () => {
+        // oxlint-disable-next-line typescript/no-deprecated -- the pipeline lookups read the array method until 0.70 (ADR 1077)
         const existing = await hooked.list({ organizationId, subjectType });
 
         if (!existing.ok) {
@@ -480,6 +543,7 @@ export function createPipelines<
           }
         }
 
+        // oxlint-disable-next-line typescript/no-deprecated -- the pipeline lookups read the array method until 0.70 (ADR 1077)
         const reread = await hooked.list({ organizationId, subjectType });
 
         if (!reread.ok) {

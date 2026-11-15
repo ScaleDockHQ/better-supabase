@@ -3,6 +3,7 @@ import type { PipelinesEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { pipelinesEvents } from "./events.ts";
+import { pipelineListSurface } from "./lists.ts";
 import { pipelinesSqlOptions } from "./options.ts";
 import { createPipelines } from "./pipelines.ts";
 
@@ -19,7 +20,11 @@ export const pipelinesBlock: BlockOf<
   create: createPipelines,
   category: "work",
   entities: {
-    pipeline: { mutability: "editable", emits: { create: true, update: true } },
+    pipeline: {
+      ...pipelineListSurface,
+      mutability: "editable",
+      emits: { create: true, update: true },
+    },
   },
   concerns: ["lifecycle"],
   description:

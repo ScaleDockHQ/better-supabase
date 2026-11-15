@@ -1,5 +1,16 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -7,6 +18,11 @@ import type { FilterQuery } from "../../list/filter-query.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import {
+  entityList,
+  foundOrNotFound,
+  tenantOrOption,
+} from "../../core/entity-list.ts";
 import { conditionsOf } from "../automations/automations.ts";
 import {
   applyTemporal,
@@ -19,6 +35,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { segmentListSurface } from "./lists.ts";
 
 /** A saved filter over one subject type, with its materialized members. */
 export interface Segment {
@@ -87,10 +104,38 @@ export interface Segments {
   }): AsyncResult<Segment>;
   /** Deletes a segment and its members. False when there was none. */
   remove(segmentId: string): AsyncResult<boolean>;
+  /**
+   * By name.
+   *
+   * @deprecated Use `page`, which pages by keyset and takes `q`, sorts, array
+   * filters and a count (ADR 1077).
+   */
   list(
     input: { organizationId: string } & { readonly subjectType?: string },
   ): AsyncResult<Segment[]>;
+  /**
+   * One keyset page of the organization's segments, by name. Needs
+   * `segments.read`. `filters` takes `subjectType` as a list; `q` searches the
+   * name and description.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Segment>>;
+  /** The values of each facet (`subjectType`) and how many segments hold each. */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many segments match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /**
+   * One segment, or undefined when there is none.
+   *
+   * @deprecated Use `getSegment`, which returns a `not_found` error for an
+   * unknown id (ADR 1077).
+   */
   get(segmentId: string): AsyncResult<Segment | undefined>;
+  /** One segment by id, or a `not_found` error. */
+  getSegment(segmentId: string): AsyncResult<Segment>;
   /**
    * A page of members, newest first; `after` is the last page's oldest
    * `enteredAt`.
@@ -151,17 +196,35 @@ export function createSegments(options: SegmentsOptions): Segments {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
+  const segments = entityList<Segment, RequiredTenantOption>({
+    entity: "segment",
+    surface: segmentListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_segments",
+    rowOf: (row) => segmentOf(row),
+  });
+
   const client: Segments = {
     upsert: ({ organizationId, segment }) =>
       call("save_segment", { tenant: organizationId, segment }, segmentOf),
     remove: (segmentId) =>
       call("remove_segment", { segment: segmentId }, (value) => value === true),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, ...list }) =>
       call(
         "segments_list",
         { tenant: organizationId, subject_type: list.subjectType ?? null },
         (value) => recordsOf(value, "segments_list").map(segmentOf),
       ),
+    page: segments.page,
+    facets: segments.facets,
+    count: segments.count,
+    getSegment: (segmentId) =>
+      call("segment_get", { segment: segmentId }, (value) =>
+        value === null || value === undefined ? undefined : segmentOf(value),
+      ).andThen((row) => foundOrNotFound("segment", row, segmentId)),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     get: (segmentId) =>
       call("segment_get", { segment: segmentId }, (value) =>
         value === null || value === undefined ? undefined : segmentOf(value),

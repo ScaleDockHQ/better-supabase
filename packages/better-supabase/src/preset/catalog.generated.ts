@@ -16566,6 +16566,39 @@ export const PRESET_CATALOG: PresetCatalog = {
           "deal.restored",
           "deal.deleted"
         ]
+      },
+      "entityLists": {
+        "deal": {
+          "sorts": [
+            "createdAt",
+            "closeOn",
+            "amount",
+            "name"
+          ],
+          "facets": [
+            "outcome",
+            "stageId",
+            "ownerId",
+            "priority",
+            "motion",
+            "forecast"
+          ],
+          "filters": [
+            "pipelineId",
+            "stageId",
+            "outcome",
+            "ownerId",
+            "motion",
+            "priority",
+            "forecast",
+            "currency",
+            "companyId"
+          ],
+          "search": [
+            "name",
+            "identifier"
+          ]
+        }
       }
     },
     {
@@ -19857,6 +19890,51 @@ export const PRESET_CATALOG: PresetCatalog = {
           "contract_obligation.updated",
           "contract_obligation.status_changed"
         ]
+      },
+      "entityLists": {
+        "contract": {
+          "sorts": [
+            "createdAt",
+            "endsOn",
+            "startsOn",
+            "title"
+          ],
+          "facets": [
+            "status",
+            "ownerId"
+          ],
+          "filters": [
+            "status",
+            "ownerId",
+            "counterpartyType",
+            "counterpartyId",
+            "renewingBefore"
+          ],
+          "search": [
+            "title",
+            "description"
+          ]
+        },
+        "contract_obligation": {
+          "sorts": [
+            "dueOn",
+            "createdAt"
+          ],
+          "facets": [
+            "status",
+            "contractId"
+          ],
+          "filters": [
+            "contractId",
+            "ownerId",
+            "status",
+            "dueBefore"
+          ],
+          "search": [
+            "title",
+            "description"
+          ]
+        }
       }
     },
     {
@@ -32315,7 +32393,48 @@ export const PRESET_CATALOG: PresetCatalog = {
           "description": "Reads and sends each member's mailbox.",
           "example": "[gmailMail(), outlookMail()]"
         }
-      ]
+      ],
+      "entityLists": {
+        "mail_thread": {
+          "sorts": [
+            "lastMessageAt",
+            "subject",
+            "messageCount"
+          ],
+          "facets": [
+            "accountId"
+          ],
+          "filters": [
+            "accountId",
+            "subjectType",
+            "subjectId"
+          ],
+          "search": [
+            "subject",
+            "snippet"
+          ]
+        },
+        "mail_account": {
+          "sorts": [
+            "address",
+            "createdAt"
+          ],
+          "facets": [
+            "status",
+            "provider",
+            "share"
+          ],
+          "filters": [
+            "status",
+            "provider",
+            "share",
+            "userId"
+          ],
+          "search": [
+            "address"
+          ]
+        }
+      }
     },
     {
       "name": "segments",
@@ -32423,6 +32542,25 @@ export const PRESET_CATALOG: PresetCatalog = {
               "additionalProperties": false
             }
           }
+        }
+      },
+      "entityLists": {
+        "segment": {
+          "sorts": [
+            "name",
+            "createdAt",
+            "memberCount"
+          ],
+          "facets": [
+            "subjectType"
+          ],
+          "filters": [
+            "subjectType"
+          ],
+          "search": [
+            "name",
+            "description"
+          ]
         }
       }
     },
@@ -32635,6 +32773,25 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "forecast_snapshot.created"
         ]
+      },
+      "entityLists": {
+        "forecast_snapshot": {
+          "sorts": [
+            "takenAt",
+            "since",
+            "dealCount"
+          ],
+          "facets": [
+            "currency",
+            "pipelineId"
+          ],
+          "filters": [
+            "pipelineId",
+            "currency",
+            "since",
+            "until"
+          ]
+        }
       }
     },
     {
@@ -33669,6 +33826,52 @@ export const PRESET_CATALOG: PresetCatalog = {
           "person.merged",
           "person.supplier_status_changed"
         ]
+      },
+      "entityLists": {
+        "company": {
+          "sorts": [
+            "name",
+            "createdAt",
+            "updatedAt"
+          ],
+          "facets": [
+            "lifecycle",
+            "ownerId",
+            "supplierStatus"
+          ],
+          "filters": [
+            "lifecycle",
+            "ownerId",
+            "role",
+            "supplierStatus"
+          ],
+          "search": [
+            "name",
+            "domain"
+          ]
+        },
+        "person": {
+          "sorts": [
+            "name",
+            "createdAt",
+            "updatedAt"
+          ],
+          "facets": [
+            "lifecycle",
+            "ownerId",
+            "supplierStatus"
+          ],
+          "filters": [
+            "lifecycle",
+            "ownerId",
+            "role",
+            "supplierStatus"
+          ],
+          "search": [
+            "name",
+            "email"
+          ]
+        }
       }
     },
     {
@@ -33813,6 +34016,27 @@ export const PRESET_CATALOG: PresetCatalog = {
           "pipeline_stage.restored",
           "pipeline.stage_changed"
         ]
+      },
+      "entityLists": {
+        "pipeline": {
+          "sorts": [
+            "rank",
+            "name",
+            "key"
+          ],
+          "facets": [
+            "subjectType"
+          ],
+          "filters": [
+            "subjectType",
+            "key",
+            "scopeId"
+          ],
+          "search": [
+            "name",
+            "key"
+          ]
+        }
       }
     },
     {
@@ -34036,7 +34260,32 @@ export const PRESET_CATALOG: PresetCatalog = {
             "deals"
           ]
         }
-      ]
+      ],
+      "entityLists": {
+        "quote": {
+          "sorts": [
+            "createdAt",
+            "validUntil",
+            "title"
+          ],
+          "facets": [
+            "status",
+            "currency",
+            "ownerId"
+          ],
+          "filters": [
+            "status",
+            "ownerId",
+            "currency",
+            "companyId",
+            "contactId"
+          ],
+          "search": [
+            "title",
+            "identifier"
+          ]
+        }
+      }
     },
     {
       "name": "rank",

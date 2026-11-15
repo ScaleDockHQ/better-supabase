@@ -7,6 +7,7 @@ import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 
 import { CRM_TAG } from "@/features/crm/crm-cache";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { dealsFrom } from "../list-reads/deals-reads";
@@ -97,9 +98,13 @@ export async function loadDeal(
     return null;
   }
 
-  const pipelines = await db.pipelines
-    .list({ organizationId: tenant, subjectType: "deal", limit: 50 })
-    .orThrow();
+  const pipelines = await readAllPages((page) =>
+    db.pipelines.page({
+      organizationId: tenant,
+      filters: { subjectType: ["deal"] },
+      ...page,
+    }),
+  );
 
   for (const pipeline of pipelines) {
     const [board, health] = await Promise.all([
@@ -195,9 +200,13 @@ export async function loadPipeline(
     return null;
   }
 
-  const pipelines = await db.pipelines
-    .list({ organizationId: tenant, subjectType: "deal", limit: 100 })
-    .orThrow();
+  const pipelines = await readAllPages((page) =>
+    db.pipelines.page({
+      organizationId: tenant,
+      filters: { subjectType: ["deal"] },
+      ...page,
+    }),
+  );
 
   const pipeline = pipelines.find((item) => item.id === id);
 
@@ -263,9 +272,9 @@ export async function loadForecasts(): Promise<readonly ForecastRow[] | null> {
     return null;
   }
 
-  const snapshots = await db.forecasts
-    .list({ organizationId: tenant, filter: { limit: 200 } })
-    .orThrow();
+  const snapshots = await readAllPages((page) =>
+    db.forecasts.page({ organizationId: tenant, ...page }),
+  );
 
   return snapshots.map((snapshot) => ({
     id: snapshot.id,
@@ -326,9 +335,9 @@ export async function loadForecast(
   }
 
   const [all, detail] = await Promise.all([
-    db.forecasts
-      .list({ organizationId: tenant, filter: { limit: 200 } })
-      .orThrow(),
+    readAllPages((page) =>
+      db.forecasts.page({ organizationId: tenant, ...page }),
+    ),
     db.forecasts.get(id).orThrow(),
   ]);
 

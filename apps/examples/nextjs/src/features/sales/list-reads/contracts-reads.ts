@@ -7,6 +7,7 @@ import type { BlockListSpec } from "@/lib/array-list";
 import type { AppDb } from "@/lib/array-reads";
 
 import { arrayReads } from "@/lib/array-reads";
+import { readAllPagesResult } from "@/lib/read-all-pages";
 
 import type { ContractRow } from "../revenue/revenue-queries";
 
@@ -54,9 +55,9 @@ export function contractOf(contract: ContractLike): ContractRow {
 
 /** The newest 200 contracts of the organization. */
 export function contractsFrom(db: AppDb, tenant: string) {
-  return db.contracts
-    .list({ organizationId: tenant, pageSize: 200 })
-    .map((contracts) => contracts.map(contractOf));
+  return readAllPagesResult((page) =>
+    db.contracts.page({ organizationId: tenant, ...page }),
+  ).map((contracts) => contracts.map(contractOf));
 }
 
 /** The contract row with its value as JSON, which has no bigint. */

@@ -4,6 +4,7 @@ import type { BlockListSpec } from "@/lib/array-list";
 import type { AppDb } from "@/lib/array-reads";
 
 import { arrayReads } from "@/lib/array-reads";
+import { readAllPagesResult } from "@/lib/read-all-pages";
 
 import type { PipelineRow } from "../pipeline/pipeline-queries";
 
@@ -16,17 +17,21 @@ export const pipelinesSpec: BlockListSpec<PipelineRow> = {
 
 /** The deal pipelines of the organization. */
 export function pipelinesFrom(db: AppDb, tenant: string) {
-  return db.pipelines
-    .list({ organizationId: tenant, subjectType: "deal", limit: 100 })
-    .map((pipelines) =>
-      pipelines.map((pipeline): PipelineRow => ({
-        id: pipeline.id,
-        name: pipeline.name,
-        key: pipeline.key,
-        isDefault: pipeline.isDefault,
-        stages: pipeline.stages.length,
-      })),
-    );
+  return readAllPagesResult((page) =>
+    db.pipelines.page({
+      organizationId: tenant,
+      filters: { subjectType: ["deal"] },
+      ...page,
+    }),
+  ).map((pipelines) =>
+    pipelines.map((pipeline): PipelineRow => ({
+      id: pipeline.id,
+      name: pipeline.name,
+      key: pipeline.key,
+      isDefault: pipeline.isDefault,
+      stages: pipeline.stages.length,
+    })),
+  );
 }
 
 /** The reads module of the `app.pipelines` entity page (ADR 0894). */
