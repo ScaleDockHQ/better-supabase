@@ -23,12 +23,7 @@ begin
     'description', x."description",
     'status', x."status",
     'member_ids', coalesce((
-      select jsonb_agg(m."user_id" order by m."created_at") filter (where m."user_id" is not null)
-      from "better_supabase"."team_members" m
-      where m."team_id" = x."id"
-    ), '[]'::jsonb),
-    'member_employee_ids', coalesce((
-      select jsonb_agg(m."employee_id" order by m."created_at") filter (where m."employee_id" is not null)
+      select jsonb_agg(m."user_id" order by m."created_at")
       from "better_supabase"."team_members" m
       where m."team_id" = x."id"
     ), '[]'::jsonb)
@@ -134,12 +129,7 @@ begin
     'description', x."description",
     'status', x."status",
     'member_ids', coalesce((
-      select jsonb_agg(m."user_id" order by m."created_at") filter (where m."user_id" is not null)
-      from "better_supabase"."team_members" m
-      where m."team_id" = x."id"
-    ), '[]'::jsonb),
-    'member_employee_ids', coalesce((
-      select jsonb_agg(m."employee_id" order by m."created_at") filter (where m."employee_id" is not null)
+      select jsonb_agg(m."user_id" order by m."created_at")
       from "better_supabase"."team_members" m
       where m."team_id" = x."id"
     ), '[]'::jsonb)
@@ -170,12 +160,7 @@ begin
     'description', x."description",
     'status', x."status",
     'member_ids', coalesce((
-      select jsonb_agg(m."user_id" order by m."created_at") filter (where m."user_id" is not null)
-      from "better_supabase"."team_members" m
-      where m."team_id" = x."id"
-    ), '[]'::jsonb),
-    'member_employee_ids', coalesce((
-      select jsonb_agg(m."employee_id" order by m."created_at") filter (where m."employee_id" is not null)
+      select jsonb_agg(m."user_id" order by m."created_at")
       from "better_supabase"."team_members" m
       where m."team_id" = x."id"
     ), '[]'::jsonb)
@@ -206,12 +191,7 @@ begin
     'description', x."description",
     'status', x."status",
     'member_ids', coalesce((
-      select jsonb_agg(m."user_id" order by m."created_at") filter (where m."user_id" is not null)
-      from "better_supabase"."team_members" m
-      where m."team_id" = x."id"
-    ), '[]'::jsonb),
-    'member_employee_ids', coalesce((
-      select jsonb_agg(m."employee_id" order by m."created_at") filter (where m."employee_id" is not null)
+      select jsonb_agg(m."user_id" order by m."created_at")
       from "better_supabase"."team_members" m
       where m."team_id" = x."id"
     ), '[]'::jsonb)
@@ -242,12 +222,7 @@ begin
     'description', x."description",
     'status', x."status",
     'member_ids', coalesce((
-      select jsonb_agg(m."user_id" order by m."created_at") filter (where m."user_id" is not null)
-      from "better_supabase"."team_members" m
-      where m."team_id" = x."id"
-    ), '[]'::jsonb),
-    'member_employee_ids', coalesce((
-      select jsonb_agg(m."employee_id" order by m."created_at") filter (where m."employee_id" is not null)
+      select jsonb_agg(m."user_id" order by m."created_at")
       from "better_supabase"."team_members" m
       where m."team_id" = x."id"
     ), '[]'::jsonb)
@@ -278,12 +253,7 @@ begin
     'description', x."description",
     'status', x."status",
     'member_ids', coalesce((
-      select jsonb_agg(m."user_id" order by m."created_at") filter (where m."user_id" is not null)
-      from "better_supabase"."team_members" m
-      where m."team_id" = x."id"
-    ), '[]'::jsonb),
-    'member_employee_ids', coalesce((
-      select jsonb_agg(m."employee_id" order by m."created_at") filter (where m."employee_id" is not null)
+      select jsonb_agg(m."user_id" order by m."created_at")
       from "better_supabase"."team_members" m
       where m."team_id" = x."id"
     ), '[]'::jsonb)
@@ -314,12 +284,7 @@ begin
     'description', x."description",
     'status', x."status",
     'member_ids', coalesce((
-      select jsonb_agg(m."user_id" order by m."created_at") filter (where m."user_id" is not null)
-      from "better_supabase"."team_members" m
-      where m."team_id" = x."id"
-    ), '[]'::jsonb),
-    'member_employee_ids', coalesce((
-      select jsonb_agg(m."employee_id" order by m."created_at") filter (where m."employee_id" is not null)
+      select jsonb_agg(m."user_id" order by m."created_at")
       from "better_supabase"."team_members" m
       where m."team_id" = x."id"
     ), '[]'::jsonb)
@@ -393,7 +358,7 @@ begin
     end if;
     with s as (
       select (case v_facet when 'role' then (m."role"::text)::text end) as v
-      from "public"."memberships" m
+      from "better_supabase"."memberships" m
       where m."organization_id" = page_organization_members.tenant
         and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or m."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
       limit v_total_cap + 1
@@ -408,7 +373,7 @@ begin
   end if;
   if v_count then
     select count(*) into v_total from (
-      select 1 from "public"."memberships" m
+      select 1 from "better_supabase"."memberships" m
       where m."organization_id" = page_organization_members.tenant
         and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or m."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
       limit v_total_cap + 1
@@ -430,9 +395,9 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text) as j, jsonb_build_array((m."role"::text)::text, (m."user_id")::text) as k
+    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text, 'disabled_at', m."disabled_at") as j, jsonb_build_array((m."role"::text)::text, (m."user_id")::text) as k
     from (
-      select * from "public"."memberships" m
+      select * from "better_supabase"."memberships" m
       where m."organization_id" = page_organization_members.tenant
         and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or m."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
         and (v_after is null or (m."role"::text, m."user_id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -449,9 +414,9 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text) as j, jsonb_build_array((m."role"::text)::text, (m."user_id")::text) as k
+    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text, 'disabled_at', m."disabled_at") as j, jsonb_build_array((m."role"::text)::text, (m."user_id")::text) as k
     from (
-      select * from "public"."memberships" m
+      select * from "better_supabase"."memberships" m
       where m."organization_id" = page_organization_members.tenant
         and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or m."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
         and (v_after is null or (m."role"::text <= (v_after ->> 0)::text and ((m."role"::text < (v_after ->> 0)::text) or (m."role"::text = (v_after ->> 0)::text and m."user_id" > (v_after ->> 1)::uuid))))
@@ -468,9 +433,9 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text) as j, jsonb_build_array((m."role"::text)::text, (m."user_id")::text) as k
+    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text, 'disabled_at', m."disabled_at") as j, jsonb_build_array((m."role"::text)::text, (m."user_id")::text) as k
     from (
-      select * from "public"."memberships" m
+      select * from "better_supabase"."memberships" m
       where m."organization_id" = page_organization_members.tenant
         and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or m."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
         and (v_after is null or (m."role"::text, m."user_id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
@@ -487,9 +452,9 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text) as j, jsonb_build_array((m."role"::text)::text, (m."user_id")::text) as k
+    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text, 'disabled_at', m."disabled_at") as j, jsonb_build_array((m."role"::text)::text, (m."user_id")::text) as k
     from (
-      select * from "public"."memberships" m
+      select * from "better_supabase"."memberships" m
       where m."organization_id" = page_organization_members.tenant
         and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or m."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
         and (v_after is null or (m."role"::text <= (v_after ->> 0)::text and ((m."role"::text < (v_after ->> 0)::text) or (m."role"::text = (v_after ->> 0)::text and m."user_id" > (v_after ->> 1)::uuid))))
@@ -506,9 +471,9 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text) as j, jsonb_build_array((m."user_id")::text) as k
+    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text, 'disabled_at', m."disabled_at") as j, jsonb_build_array((m."user_id")::text) as k
     from (
-      select * from "public"."memberships" m
+      select * from "better_supabase"."memberships" m
       where m."organization_id" = page_organization_members.tenant
         and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or m."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
         and (v_after is null or (m."user_id") > ((v_after ->> 0)::uuid))
@@ -525,9 +490,9 @@ begin
     (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
   into v_items, v_more, v_next
   from (
-    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text) as j, jsonb_build_array((m."user_id")::text) as k
+    select row_number() over () as n, jsonb_build_object('user_id', m."user_id", 'role', m."role"::text, 'disabled_at', m."disabled_at") as j, jsonb_build_array((m."user_id")::text) as k
     from (
-      select * from "public"."memberships" m
+      select * from "better_supabase"."memberships" m
       where m."organization_id" = page_organization_members.tenant
         and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or m."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
         and (v_after is null or (m."user_id") < ((v_after ->> 0)::uuid))
@@ -541,7 +506,7 @@ begin
   end if;
   if coalesce((v_filters ->> 'total')::boolean, false) then
     select count(*) into v_total from (
-      select 1 from "public"."memberships" m
+      select 1 from "better_supabase"."memberships" m
       where m."organization_id" = page_organization_members.tenant
         and (not (v_filters -> 'role' is not null and jsonb_typeof(v_filters -> 'role') <> 'null' and not (jsonb_typeof(v_filters -> 'role') = 'array' and jsonb_array_length(v_filters -> 'role') = 0)) or m."role"::text = any((case when jsonb_typeof(v_filters -> 'role') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'role')) else array[v_filters ->> 'role'] end)::text[]))
       limit v_total_cap + 1
