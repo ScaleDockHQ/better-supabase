@@ -20,6 +20,10 @@ const care = BLOCK_CATALOG.blocks.filter((block) => block.category === "care");
 resolves a preset. Do not copy block lists into an app or a prompt; read the
 catalog.
 
+Without running code, read [catalog-index.md](catalog-index.md): it lists the
+block categories, the named presets and the glossary, and links to one file per
+category with each block's client, entities, permission keys, events and ports.
+
 ## Install blocks
 
 Run `pnpm better-supabase add <block>`. It installs what the block requires and

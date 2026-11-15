@@ -58,6 +58,8 @@
     "registry:build": "pnpm --filter @better-supabase/registry registry:build",
     "release": "pnpm run build && changeset publish",
     "size": "turbo run test --filter=@better-supabase/bundle",
+    "skill-references": "node scripts/build-skill-references.ts --write",
+    "skill-references:check": "node scripts/build-skill-references.ts --check",
     "supabase:diff": "supabase db schema declarative sync --no-apply --strict-coverage -f",
     "supabase:prune": "node scripts/supabase-prune.ts",
     "supabase:reset": "node scripts/supabase-reset.ts",
@@ -74,7 +76,7 @@
     "typecheck:matrix": "turbo run typecheck:matrix",
     "typecheck:perf": "turbo run typecheck:perf",
     "typecheck:tooling": "tsc --noEmit -p tsconfig.json",
-    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:skills check:adrs check:agent-docs check:app-architecture check:empty-translations check:example-coverage check:example-findings check:migration-order check:naming check:no-permdock recipes:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix --output-logs=errors-only && turbo run typecheck:perf --output-logs=errors-only && turbo boundaries",
+    "verify": "turbo run format:check audit:high lint lint:root typecheck typecheck:tooling test test:scripts check:prose check:skills check:adrs check:agent-docs check:app-architecture check:empty-translations check:example-coverage check:example-findings check:migration-order check:naming check:no-permdock recipes:check skill-references:check catalog:check docs:drift knip gen:check doctor check:publish typecheck:matrix --output-logs=errors-only && turbo run typecheck:perf --output-logs=errors-only && turbo boundaries",
     "version-packages": "node scripts/root-changelog.ts && changeset version && node scripts/sync-versions.ts && pnpm run registry:build && pnpm run format"
   },
   "devDependencies": {
