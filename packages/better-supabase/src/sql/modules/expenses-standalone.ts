@@ -202,7 +202,7 @@ export function standaloneContract(
     },
     { name: "submit_expense", args: ["uuid"], returns: "jsonb" },
     { name: "withdraw_expense", args: ["uuid"], returns: "jsonb" },
-    { name: "delete_expense", args: ["uuid"], returns: "boolean" },
+    { name: "purge_expense", args: ["uuid"], returns: "boolean" },
     {
       name: "decide_expense",
       args: ["uuid", "boolean", "text", "uuid"],
@@ -241,7 +241,12 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const approve = ctx.permission("approve", ops.approve);
   const createOthers = expenseKey(ctx, "create");
   const updateOthers = expenseKey(ctx, "update");
-  const deleteOthers = expenseKey(ctx, "delete");
+  // permissions.purge, then the delete key it replaces, then manage.
+  const purgeOthers = sqlString(
+    ctx.config.permissions["purge"] ??
+      ctx.config.permissions["delete"] ??
+      ctx.permissionKey("manage", ops.manage),
+  );
   const reimburse = expenseKey(ctx, "reimburse");
   const withdrawApproved = ctx.flag("withdrawApproved", false);
 
@@ -582,7 +587,11 @@ end;
 $$;
 ${userGrant(`${fn("withdraw_expense")}(uuid)`)}
 
-create or replace function ${fn("delete_expense")}(expense_id uuid)
+-- Removes a draft expense for good (a submitted or approved one with
+-- permissions.deleteSubmitted). Its owner may, or a holder of permissions.purge
+-- (falling back to delete, then manage). A rejected or reimbursed expense is a
+-- record of what was claimed, so it stays: its status is the archive (ADR 1080).
+create or replace function ${fn("purge_expense")}(expense_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -590,27 +599,27 @@ set search_path = ''
 as $$
 declare
   v_row ${table}%rowtype;
-begin${load("delete_expense.expense_id")}${
+begin${load("purge_expense.expense_id")}${
     deleteSubmitted === undefined
-      ? ownerOrManager(deleteOthers)
+      ? ownerOrManager(purgeOthers)
       : `
   if ${status("v_row")} in ('submitted', 'approved') then
     if not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${e("tenant")}`, sqlString(deleteSubmitted))}) then
-      ${forbidden("not allowed to delete a submitted or approved expense")}
+      ${forbidden("not allowed to purge a submitted or approved expense")}
     end if;
-  else${ownerOrManager(deleteOthers).replaceAll("\n", "\n  ")}
+  else${ownerOrManager(purgeOthers).replaceAll("\n", "\n  ")}
   end if;`
   }
   if ${status("v_row")} <> 'draft'${deleteSubmitted === undefined ? "" : ` and ${status("v_row")} not in ('submitted', 'approved')`} then
-    ${fail("EXPENSE_LOCKED", deleteSubmitted === undefined ? "only a draft expense is deleted" : "only a draft, submitted or approved expense is deleted", "55000")}
+    ${fail("EXPENSE_LOCKED", deleteSubmitted === undefined ? "only a draft expense is purged" : "only a draft, submitted or approved expense is purged", "55000")}
   end if;
 ${cancelApproval}
   delete from ${table} x where x.${e("id")} = v_row.${e("id")};
-  ${record("expense.deleted", "deleted an expense")}
+  ${record("expense.purged", "purged an expense")}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_expense")}(uuid)`)}
+${userGrant(`${fn("purge_expense")}(uuid)`)}
 
 -- The service role names the user it decides for in decided_by.
 drop function if exists ${fn("decide_expense")}(uuid, boolean, text);

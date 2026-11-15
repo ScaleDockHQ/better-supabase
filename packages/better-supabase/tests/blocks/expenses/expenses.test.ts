@@ -673,7 +673,7 @@ describe("createExpenses", () => {
       create_expense: EXPENSE,
       update_expense: EXPENSE,
       withdraw_expense: EXPENSE,
-      delete_expense: true,
+      purge_expense: true,
     });
 
     const expenses = createExpenses({
@@ -699,12 +699,12 @@ describe("createExpenses", () => {
     expect((await expenses.withdrawExpense("exp-2").orThrow()).status).toBe(
       "draft",
     );
-    expect(await expenses.deleteExpense("exp-2").orThrow()).toBe(true);
+    expect(await expenses.purgeExpense("exp-2").orThrow()).toBe(true);
     expect(fake.calls.map(([fn]) => fn)).toEqual([
       "create_expense",
       "update_expense",
       "withdraw_expense",
-      "delete_expense",
+      "purge_expense",
     ]);
     expect(fake.calls[0]?.[1]).toMatchObject({ company: true });
     expect(fake.calls[1]?.[1]).toMatchObject({
