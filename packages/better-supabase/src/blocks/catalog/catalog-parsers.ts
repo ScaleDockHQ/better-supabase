@@ -48,7 +48,7 @@ export function countOf(value: unknown): number {
   return count;
 }
 
-export function textsOf(value: unknown): Readonly<Record<string, string>> {
+function textsOf(value: unknown): Readonly<Record<string, string>> {
   if (!isRecord(value)) {
     return {};
   }
