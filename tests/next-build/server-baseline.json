@@ -151,7 +151,7 @@
   },
   "/[locale]/(app)/assistant/usage/page": {
     "raw": 3655826,
-    "gzip": 1092042,
+    "gzip": 1094839,
     "brotli": 909894
   },
   "/[locale]/(app)/banking/accounts/[id]/page": {
