@@ -238,6 +238,7 @@ export interface Enrollments {
   /**
    * The organization's enrollments, most recently changed first. Without
    * `enrollments.read`, the caller's own.
+   *
    * @deprecated Use `page`, which pages by keyset (ADR 1077).
    */
   list(filter?: EnrollmentsFilter): AsyncResult<readonly Enrollment[]>;

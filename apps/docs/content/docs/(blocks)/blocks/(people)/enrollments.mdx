@@ -205,6 +205,8 @@ these enrollments: schedules and `open_enrollment_steps` skip them.
 
 ## Paging a list
 
+`list` is deprecated in favor of `enrollmentPage`, which also takes `q` to search the program and subject id (ADR 1077).
+
 `list` is the capped convenience list. `enrollmentPage` is the full contract for enrollments (ADR 0749, 0779): it takes `q`, `sort`, `filters` whose values are lists (a row matches any of a filter's values), `after` and `limit`, and returns `{ items, hasMore, nextCursor }`. Pass the `nextCursor` back as `after`. Sorts are `updatedAt` and `enrolledAt`, and the default order is `updatedAt` (most recently changed first); filters are `status`, `program`, `subjectType` and `subjectId`; facets are `status` and `program`. Without `enrollments.read` a member pages only their own, and `get(enrollmentId)` returns one enrollment the caller may read.
 
 ```ts

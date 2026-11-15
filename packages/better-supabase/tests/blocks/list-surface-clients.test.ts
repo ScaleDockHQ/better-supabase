@@ -4,10 +4,10 @@ import type { BlockTransport } from "../../src/core/block-transport.ts";
 import type { EntityList } from "../../src/core/entity-list.ts";
 
 import { createDocumentTemplates } from "../../src/blocks/document-templates/index.ts";
-import { createEmployees } from "../../src/blocks/employees/index.ts";
-import { createLeave } from "../../src/blocks/leave/index.ts";
 import { createEPrescribing } from "../../src/blocks/e-prescribing/index.ts";
+import { createEmployees } from "../../src/blocks/employees/index.ts";
 import { createEnrollments } from "../../src/blocks/enrollments/index.ts";
+import { createLeave } from "../../src/blocks/leave/index.ts";
 import { createPasses } from "../../src/blocks/passes/index.ts";
 import { createPayrollExport } from "../../src/blocks/payroll-export/index.ts";
 import { createSequences } from "../../src/blocks/sequences/index.ts";
