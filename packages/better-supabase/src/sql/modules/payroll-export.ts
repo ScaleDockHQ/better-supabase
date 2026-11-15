@@ -20,7 +20,7 @@ import {
 import { leaveTypeKey } from "./leave-feed.ts";
 import { leaveByEmployee } from "./leave-owner.ts";
 import { OPERATIONS } from "./permissions-model.ts";
-import { byEmployee, entryEnded } from "./time-entries-owner.ts";
+import { byEmployee, entryEnded, entryLive } from "./time-entries-owner.ts";
 
 const WHERE = "blocks.payroll-export.options";
 
@@ -197,7 +197,7 @@ function timeSource(
     'worked', 'hours', round(sum(extract(epoch from ${ended} - x.${e("startedAt")}))::numeric / 3600, 2), count(*)
   from ${time.table("entries")} x
   where x.${e("tenant")} = v_run.${ctx.col("runs", "tenant")}
-    and ${ended} is not null
+    and ${ended} is not null and ${entryLive(time, "x")}
     and ${employee ? `coalesce(x.${e("user")}, x.${e("employee")})` : `x.${e("user")}`} is not null
     and ${time.fn("time_week_approved")}(x.${e("tenant")}, x.${employee ? e("employee") : e("user")}, x.${e("startedAt")})
     and (x.${e("startedAt")} at time zone ${sqlString(zone)})::date between v_run.${ctx.col("runs", "periodFrom")} and v_run.${ctx.col("runs", "periodTo")}

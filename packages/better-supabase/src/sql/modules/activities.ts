@@ -8,6 +8,10 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  archiveRestoreContract,
+  archiveRestoreFunctions,
+} from "../archive-sql.ts";
 import { guestOr } from "../guest-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { readIfAny } from "../read-if-any.ts";
@@ -55,7 +59,9 @@ const EVENTS: BlockSqlEvents<ActivitiesEvents> = {
   "activity.logged": { subject: "activities", payload: [...PAYLOAD] },
   "activity.updated": { subject: "activities", payload: [...PAYLOAD] },
   "activity.completed": { subject: "activities", payload: [...PAYLOAD] },
-  "activity.deleted": { subject: "activities", payload: [...PAYLOAD] },
+  "activity.archived": { subject: "activities", payload: [...PAYLOAD] },
+  "activity.restored": { subject: "activities", payload: [...PAYLOAD] },
+  "activity.purged": { subject: "activities", payload: [...PAYLOAD] },
   "activity.recorded": {
     subject: "activities",
     payload: [...PAYLOAD, "recordingId"],
@@ -110,6 +116,7 @@ const NAMES: BlockSqlNames = {
       primary: true,
       subject: {
         title: "title",
+        deletedAt: "archivedAt",
         permissions: { read: "read", write: "write" },
         search: { title: "title", body: ["body", "outcome"] },
       },
@@ -128,6 +135,7 @@ const NAMES: BlockSqlNames = {
         "externalRef",
         "createdBy",
         "updatedAt",
+        "archivedAt",
         ...Object.keys(NOTE_COLUMNS),
       ],
       typed: ["type"],
@@ -146,6 +154,7 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        archivedAt: "archived_at",
         ...NOTE_COLUMNS,
       },
     },
@@ -268,8 +277,25 @@ function build(ctx: BlockSqlContext): string {
       ? `${alias}.${e("type")}`
       : `${alias}.${e("type")}::text`;
 
-  const editable = (alias: string): string =>
+  const archivable = owned("archivedAt");
+
+  const live = (alias: string): string =>
+    archivable ? `${alias}.${e("archivedAt")} is null` : "true";
+
+  // The rows the caller may change, archived ones included: archive, restore and purge.
+  const editableAny = (alias: string): string =>
     `(auth.role() = 'service_role' or ${owned("createdBy") ? `${alias}.${e("createdBy")} = auth.uid() or ` : ""}${alias}.${e("owner")} = auth.uid() or ${ctx.scope.can(`${alias}.${e("tenant")}`, manage)})`;
+
+  // An archived activity takes no changes until it is restored.
+  const editable = (alias: string): string =>
+    archivable
+      ? `(${editableAny(alias)} and ${live(alias)})`
+      : editableAny(alias);
+
+  const purgeKey =
+    ctx.config.permissions["purge"] === undefined
+      ? undefined
+      : sqlString(ctx.config.permissions["purge"]);
 
   /**
    * Row `p` (a prefix such as `x.`, or empty in a policy) is readable: its
@@ -290,9 +316,21 @@ function build(ctx: BlockSqlContext): string {
     notes.locked("x.") === "false"
       ? ""
       : `
-  if exists (select 1 from ${t("activities")} x where x.${e("id")} = ${id} and ${editable("x")} and ${notes.locked("x.")}) then
+  if exists (select 1 from ${t("activities")} x where x.${e("id")} = ${id} and ${editableAny("x")} and ${notes.locked("x.")}) then
     ${fail("ACTIVITY_LOCKED", "the activity is locked: add an addendum with amend_activity instead", "55000")}
   end if;`;
+
+  /**
+   * Fails with ACTIVITY_ARCHIVED when the caller may edit `id` but it is
+   * archived.
+   */
+  const refuseArchived = (id: string): string =>
+    archivable
+      ? `
+  if exists (select 1 from ${t("activities")} x where x.${e("id")} = ${id} and ${editableAny("x")} and x.${e("archivedAt")} is not null) then
+    ${fail("ACTIVITY_ARCHIVED", "the activity is archived: restore it first", "55000")}
+  end if;`
+      : "";
 
   const subjectsOf = (id: string): string =>
     `coalesce((select jsonb_agg(jsonb_build_object('type', sx.${l("subjectType")}, 'id', sx.${l("subjectId")}) order by ${linkOrder("sx")}) from ${t("links")} sx where sx.${l("activity")} = ${id}), '[]'::jsonb)`;
@@ -388,7 +426,7 @@ ${
   ${e("outcome")} text,
   ${e("owner")} uuid,
   ${e("dueAt")} timestamptz,
-  ${e("doneAt")} timestamptz,${optional("activities", "durationSeconds", (x) => `${x} integer check (${x} >= 0)`)}${optional("activities", "externalRef", (x) => `${x} text`)}${optional("activities", "createdBy", (x) => `${x} uuid`)}
+  ${e("doneAt")} timestamptz,${optional("activities", "archivedAt", (x) => `${x} timestamptz`)}${optional("activities", "durationSeconds", (x) => `${x} integer check (${x} >= 0)`)}${optional("activities", "externalRef", (x) => `${x} text`)}${optional("activities", "createdBy", (x) => `${x} uuid`)}
   ${e("createdAt")} timestamptz not null default now()${owned("updatedAt") ? `,\n  ${e("updatedAt")} timestamptz not null default now()` : ""}
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("activities").name}_owner_open_idx`)} on ${t("activities")} (${e("tenant")}, ${e("owner")}, ${e("dueAt")}) where ${e("doneAt")} is null;
@@ -477,6 +515,13 @@ begin
     ${fail("ACTIVITY_LOCKED", "the activity is locked: add an addendum with amend_activity instead", "55000")}
   end if;`
       : ""
+  }${
+    owned("externalRef") && archivable
+      ? `
+  if exists (select 1 from ${t("activities")} x where x.${e("tenant")} = v_tenant and x.${e("externalRef")} = ${attrs("log_activity", "externalRef")} and x.${e("archivedAt")} is not null) then
+    ${fail("ACTIVITY_ARCHIVED", "the activity is archived: restore it first", "55000")}
+  end if;`
+      : ""
   }
   ${ctx.hook("before_activity_log", [
     [ctx.idType, "log_activity.tenant"],
@@ -528,7 +573,7 @@ begin
   end if;
   if ${has("update_activity", "type")} and not (${attrs("update_activity", "type")} = any (${typeList})) then
     ${fail("ACTIVITY_TYPE_INVALID", "unknown activity type", "22023")}
-  end if;${notes.validate("update_activity")}${refuseLocked("v_id")}
+  end if;${notes.validate("update_activity")}${refuseLocked("v_id")}${refuseArchived("v_id")}
   update ${t("activities")} x set
     ${e("type")} = coalesce(${ctx.cast("activities", "type", attrs("update_activity", "type"))}, x.${e("type")}),
     ${e("title")} = coalesce(nullif(trim(${attrs("update_activity", "title")}), ''), x.${e("title")}),
@@ -569,7 +614,7 @@ declare
   v_type text;
   v_subjects jsonb := ${subjectsOf("complete_activity.activity")};
   v_first jsonb := v_subjects -> 0;
-begin${refuseLocked("v_id")}
+begin${refuseLocked("v_id")}${refuseArchived("v_id")}
   update ${t("activities")} x set
     ${e("doneAt")} = case when complete_activity.done then coalesce(x.${e("doneAt")}, now()) end,
     ${e("outcome")} = coalesce(complete_activity.outcome, x.${e("outcome")})${set("updatedAt", () => "now()", "\n    ")}
@@ -586,34 +631,71 @@ end;
 $$;
 ${userGrant(`${fn("complete_activity")}(uuid, boolean, text)`)}
 
-create or replace function ${fn("delete_activity")}(activity uuid)
+${
+  archivable
+    ? archiveRestoreFunctions(ctx, {
+        entity: "activity",
+        arg: "activity",
+        rowType: t("activities"),
+        id: e("id"),
+        archivedAt: e("archivedAt"),
+        ...(owned("updatedAt") ? { updatedAt: e("updatedAt") } : {}),
+        table: t("activities"),
+        declare: `
+  v_id uuid;
+  v_tenant ${ctx.idType};
+  v_type text;
+  v_subjects jsonb;
+  v_first jsonb;`,
+        load: (name) => `v_id := ${name}.activity;
+  select * into v_row from ${t("activities")} x where x.${e("id")} = v_id and ${editableAny("x")} for update;
+  if v_row.${e("id")} is null then
+    ${fail("ACTIVITY_NOT_FOUND", "no such activity you can edit", "P0002")}
+  end if;
+  v_tenant := v_row.${e("tenant")};
+  v_type := ${typeText("v_row")};
+  v_subjects := ${subjectsOf("v_id")};
+  v_first := v_subjects -> 0;`,
+        beforeArchive: refuseLocked("v_id"),
+        json: `(select ${row("x")} from ${t("activities")} x where x.${e("id")} = v_id)`,
+        record: (type) => record(type, "v_id", "v_type", "v_tenant"),
+        archiveNote:
+          "Archives an activity: it leaves timelines, next steps, task lists and search, and takes no changes until it is restored. A locked note refuses it.",
+        restoreNote: "Brings an archived activity back.",
+      })
+    : ""
+}
+-- Removes an activity for good, with its records, recordings and notes. Needs
+-- permissions.purge, which falls back to who may edit it; a locked note refuses it.
+create or replace function ${fn("purge_activity")}(activity uuid)
 returns boolean
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := delete_activity.activity;
+  v_id uuid := purge_activity.activity;
   v_tenant ${ctx.idType};
   v_type text;
-  v_subjects jsonb := ${subjectsOf("delete_activity.activity")};
+  v_subjects jsonb := ${subjectsOf("purge_activity.activity")};
   v_first jsonb := v_subjects -> 0;
 begin${refuseLocked("v_id")}
-  delete from ${t("activities")} x where x.${e("id")} = v_id and ${editable("x")}
+  delete from ${t("activities")} x where x.${e("id")} = v_id and ${purgeKey === undefined ? editableAny("x") : `(auth.role() = 'service_role' or ${ctx.scope.can(`x.${e("tenant")}`, purgeKey)})`}
   returning x.${e("tenant")}, x.${e("type")} into v_tenant, v_type;
   if v_tenant is null then
     return false;
   end if;
-  ${record("activity.deleted", "v_id", "v_type", "v_tenant")}
+  ${record("activity.purged", "v_id", "v_type", "v_tenant")}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_activity")}(uuid)`)}
+${userGrant(`${fn("purge_activity")}(uuid)`)}
 
 -- A record's activities the caller can see, newest first: done ones by
 -- when they happened, open ones by when they are due. before continues
 -- after the last row of the previous page.
-create or replace function ${fn("activities_of")}(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
+${archivable ? `drop function if exists ${fn("activities_of")}(text, text, text[], timestamptz, integer);\n` : ""}-- archived: false hides archived activities, true lists only them.
+create or replace function ${fn("activities_of")}(subject_type text, subject_id text, types text[], before timestamptz, page_size integer${archivable ? ", archived boolean default false" : ""})
 returns jsonb
 language plpgsql
 ${ctx.readVolatility()}
@@ -630,14 +712,14 @@ begin
     join ${t("links")} k on k.${l("activity")} = x.${e("id")}
     where k.${l("subjectType")} = activities_of.subject_type and k.${l("subjectId")} = activities_of.subject_id
       and (activities_of.types is null or ${typeText("x")} = any (activities_of.types))
-      and (activities_of.before is null or coalesce(x.${e("doneAt")}, x.${e("dueAt")}, x.${e("createdAt")}) < activities_of.before)
+      and (activities_of.before is null or coalesce(x.${e("doneAt")}, x.${e("dueAt")}, x.${e("createdAt")}) < activities_of.before)${archivable ? `\n      and ((x.${e("archivedAt")} is not null) = coalesce(activities_of.archived, false))` : ""}
     order by at desc, id desc
     limit ${pageSize("activities_of.page_size", 50, 200)}
   ) p;${readIfAny(ctx.read("activities_of.subject_type", "activities_of.subject_id", "activities_of"), "v_rows")}
   return v_rows;
 end;
 $$;
-${userGrant(`${fn("activities_of")}(text, text, text[], timestamptz, integer)`)}
+${userGrant(`${fn("activities_of")}(text, text, text[], timestamptz, integer${archivable ? ", boolean" : ""})`)}
 
 -- The next open activity with a due time on a record, earliest first,
 -- for a "next step" and an overdue flag; null when none is planned.
@@ -652,7 +734,7 @@ as $$
   from ${t("activities")} x
   join ${t("links")} k on k.${l("activity")} = x.${e("id")}
   where k.${l("subjectType")} = next_activity.subject_type and k.${l("subjectId")} = next_activity.subject_id
-    and x.${e("doneAt")} is null and x.${e("dueAt")} is not null
+    and x.${e("doneAt")} is null and x.${e("dueAt")} is not null and ${live("x")}
   order by x.${e("dueAt")}, x.${e("id")}
   limit 1
 $$;
@@ -672,7 +754,7 @@ as $$
     from ${t("activities")} x
     where x.${e("tenant")} = open_activities.tenant
       and x.${e("owner")} = coalesce(open_activities.owner, auth.uid())
-      and x.${e("doneAt")} is null
+      and x.${e("doneAt")} is null and ${live("x")}
       and (open_activities.due_before is null or x.${e("dueAt")} < open_activities.due_before)
     order by x.${e("dueAt")} nulls last, x.${e("id")}
     limit ${pageSize("open_activities.page_size", 50, 200)}
@@ -722,10 +804,20 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "boolean", "text"],
       returns: "jsonb",
     },
-    { name: "delete_activity", args: ["uuid"], returns: "boolean" },
+    ...(ctx.has("activities", "archivedAt")
+      ? archiveRestoreContract("activity")
+      : []),
+    { name: "purge_activity", args: ["uuid"], returns: "boolean" },
     {
       name: "activities_of",
-      args: ["text", "text", "text[]", "timestamptz", "integer"],
+      args: [
+        "text",
+        "text",
+        "text[]",
+        "timestamptz",
+        "integer",
+        ...(ctx.has("activities", "archivedAt") ? ["boolean"] : []),
+      ],
       returns: "jsonb",
     },
     { name: "next_activity", args: ["text", "text"], returns: "jsonb" },

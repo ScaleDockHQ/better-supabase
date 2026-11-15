@@ -32,7 +32,7 @@ Calls, emails, meetings, notes and tasks logged on one or more registered record
 - Entities: `activity`
 - Tables: `activities`
 - Permission keys: `activities.read`, `activities.write`, `activities.manage`, `activities.read_restricted`
-- Events (`ActivitiesEvents`): `activity.amended`, `activity.completed`, `activity.deleted`, `activity.error_marked`, `activity.logged`, `activity.updated`
+- Events (`ActivitiesEvents`): `activity.amended`, `activity.archived`, `activity.completed`, `activity.error_marked`, `activity.logged`, `activity.purged`, `activity.restored`, `activity.updated`
 - Consumes: `files (optional)`
 
 ## deals

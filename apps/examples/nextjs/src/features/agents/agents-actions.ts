@@ -149,7 +149,7 @@ export const installAgent = bsbCore.action(
   },
 );
 
-/** Deletes an agent. */
+/** Archives an agent: it leaves the store and the lists, and can be restored. */
 export const removeAgent = bsbCore.action(
   {
     input: v.object({ id: Id }),
@@ -157,15 +157,15 @@ export const removeAgent = bsbCore.action(
     permission: "agents.write",
   },
   async ({ id }, { supabase }) => {
-    const removed = await agentsBlock(supabase).remove(id);
+    const archived = await agentsBlock(supabase).archive(id);
 
-    if (!removed.ok) {
-      return removed;
+    if (!archived.ok) {
+      return archived;
     }
 
     refresh();
 
-    return ok(removed.data);
+    return ok(true);
   },
 );
 

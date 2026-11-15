@@ -11,7 +11,9 @@ export type TimeEntriesEvents = {
   readonly "time_entry.started": TimeEntryEventData;
   readonly "time_entry.recorded": TimeEntryEventData;
   readonly "time_entry.updated": TimeEntryEventData;
-  readonly "time_entry.deleted": TimeEntryEventData;
+  readonly "time_entry.archived": TimeEntryEventData;
+  readonly "time_entry.restored": TimeEntryEventData;
+  readonly "time_entry.purged": TimeEntryEventData;
   readonly "timesheet.submitted": TimesheetEventData;
   readonly "timesheet.approved": TimesheetEventData;
   readonly "timesheet.reopened": TimesheetEventData;
@@ -24,7 +26,9 @@ export const timeEntriesEvents: Events<TimeEntriesEvents> = defineEvents({
   "time_entry.started": event<TimeEntryEventData>(),
   "time_entry.recorded": event<TimeEntryEventData>(),
   "time_entry.updated": event<TimeEntryEventData>(),
-  "time_entry.deleted": event<TimeEntryEventData>(),
+  "time_entry.archived": event<TimeEntryEventData>(),
+  "time_entry.restored": event<TimeEntryEventData>(),
+  "time_entry.purged": event<TimeEntryEventData>(),
   "timesheet.submitted": event<TimesheetEventData>(),
   "timesheet.approved": event<TimesheetEventData>(),
   "timesheet.reopened": event<TimesheetEventData>(),

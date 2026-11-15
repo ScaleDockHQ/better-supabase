@@ -122,8 +122,8 @@ begin
   if jsonb_array_length(better_supabase.open_activities('${TENANT}', null, null, 50)) <> 0 then
     raise exception 'still open';
   end if;
-  if not better_supabase.delete_activity(v_id) then
-    raise exception 'delete';
+  if not better_supabase.purge_activity(v_id) then
+    raise exception 'purge';
   end if;
 end;
 $$;`),

@@ -87,10 +87,12 @@ export type BlockEvents = AgentsEvents & AiChatEvents & ApiKeysEvents & AuditEve
  */
 export const blockEvents: Events<BlockEvents> = {
   types: [
+    "agent.archived",
     "agent.created",
-    "agent.deleted",
     "agent.installed",
     "agent.published",
+    "agent.purged",
+    "agent.restored",
     "agent.uninstalled",
     "agent.updated",
     "ai_chat.share_revoked",
@@ -167,10 +169,12 @@ export const blockEvents: Events<BlockEvents> = {
  * @public
  */
 export const blockEventSchemas = {
+  "agent.archived": true,
   "agent.created": true,
-  "agent.deleted": true,
   "agent.installed": true,
   "agent.published": true,
+  "agent.purged": true,
+  "agent.restored": true,
   "agent.uninstalled": true,
   "agent.updated": true,
   "ai_chat.share_revoked": true,

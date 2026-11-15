@@ -84,7 +84,7 @@ Custom assistants with instructions, a model, tools, connectors, knowledge scope
 - Entities: `agent`
 - Tables: `agents`
 - Permission keys: `agents.read`, `agents.write`, `agents.publish`, `agents.moderate`
-- Events (`AgentsEvents`): `agent.created`, `agent.deleted`, `agent.installed`, `agent.published`, `agent.uninstalled`, `agent.updated`
+- Events (`AgentsEvents`): `agent.archived`, `agent.created`, `agent.installed`, `agent.published`, `agent.purged`, `agent.restored`, `agent.uninstalled`, `agent.updated`
 
 ## ai-schedules
 

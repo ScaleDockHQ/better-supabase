@@ -10,7 +10,7 @@
     "security-definer-functions": 66
   },
   "activities": {
-    "security-definer-functions": 37
+    "security-definer-functions": 49
   },
   "advisories": {
     "security-definer-functions": 114
@@ -19,7 +19,7 @@
     "security-definer-functions": 60
   },
   "agents": {
-    "security-definer-functions": 36
+    "security-definer-functions": 48
   },
   "ai-cache": {
     "security-definer-functions": 24
@@ -553,7 +553,7 @@
     "security-definer-functions": 62
   },
   "time-entries": {
-    "security-definer-functions": 96,
+    "security-definer-functions": 108,
     "row-triggers": 6
   },
   "trash": {

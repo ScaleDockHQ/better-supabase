@@ -149,7 +149,9 @@ describe("activities block", () => {
   it("completes, removes and reads lists", async () => {
     const t = transport({
       complete_activity: () => ({ ...ROW, done_at: "2026-10-14T10:00:00Z" }),
-      delete_activity: () => true,
+      archive_activity: () => ROW,
+      restore_activity: () => ROW,
+      purge_activity: () => true,
       activities_of: () => [ROW],
       next_activity: () => null,
       open_activities: () => [ROW],
@@ -160,7 +162,9 @@ describe("activities block", () => {
       (await activities.complete({ id: "e1", outcome: "sent" }).orThrow())
         .doneAt,
     ).toBeDefined();
-    expect(await activities.remove("e1").orThrow()).toBe(true);
+    await activities.archive("e1").orThrow();
+    await activities.restore("e1").orThrow();
+    expect(await activities.purge("e1").orThrow()).toBe(true);
     expect(
       await activities
         .of({ subject: { type: "deal", id: "d1" }, types: ["call"], limit: 10 })
@@ -174,7 +178,9 @@ describe("activities block", () => {
     ).toHaveLength(1);
     expect(t.calls.map(([fn, args]) => [fn, args])).toEqual([
       ["complete_activity", { activity: "e1", done: true, outcome: "sent" }],
-      ["delete_activity", { activity: "e1" }],
+      ["archive_activity", { activity: "e1" }],
+      ["restore_activity", { activity: "e1" }],
+      ["purge_activity", { activity: "e1" }],
       [
         "activities_of",
         {
@@ -183,6 +189,7 @@ describe("activities block", () => {
           types: ["call"],
           before: null,
           page_size: 10,
+          archived: false,
         },
       ],
       ["next_activity", { subject_type: "deal", subject_id: "d1" }],
@@ -272,6 +279,7 @@ describe("activities block, optional fields", () => {
         types: null,
         before: "2026-10-14T00:00:00Z",
         page_size: null,
+        archived: false,
       },
       {
         tenant: "o",

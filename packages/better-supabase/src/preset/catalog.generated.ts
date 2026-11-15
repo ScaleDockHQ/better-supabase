@@ -1573,7 +1573,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "ratingCount": "rating_count",
               "ratingSum": "rating_sum",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "archivedAt": "archived_at"
             }
           }
         },
@@ -3735,6 +3736,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "note": "note",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
+              "archivedAt": "archived_at",
               "seconds": "seconds",
               "runningSince": "running_since",
               "employee": "employee_id"
@@ -4081,6 +4083,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "primary": true,
             "subject": {
               "title": "title",
+              "deletedAt": "archivedAt",
               "permissions": {
                 "read": "read",
                 "write": "write"
@@ -4113,6 +4116,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
+              "archivedAt": "archived_at",
               "audience": "audience",
               "restrictedRoles": "restricted_roles",
               "category": "category",
@@ -13525,7 +13529,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "agent.created",
           "agent.updated",
           "agent.published",
-          "agent.deleted",
+          "agent.archived",
+          "agent.restored",
+          "agent.purged",
           "agent.installed",
           "agent.uninstalled"
         ]
@@ -30335,7 +30341,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "activity.logged",
           "activity.updated",
           "activity.completed",
-          "activity.deleted",
+          "activity.archived",
+          "activity.restored",
+          "activity.purged",
           "activity.recorded",
           "activity.transcribed",
           "activity.summarized",
@@ -34908,7 +34916,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "time_entry.started",
           "time_entry.recorded",
           "time_entry.updated",
-          "time_entry.deleted",
+          "time_entry.archived",
+          "time_entry.restored",
+          "time_entry.purged",
           "timesheet.submitted",
           "timesheet.approved",
           "timesheet.reopened",

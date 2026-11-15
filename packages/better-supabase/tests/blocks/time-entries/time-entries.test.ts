@@ -134,7 +134,9 @@ describe("time-entries client", () => {
       running_timer: () => RUNNING,
       log_time: () => ENTRY,
       update_time_entry: () => ENTRY,
-      delete_time_entry: () => ENTRY,
+      archive_time_entry: () => ENTRY,
+      restore_time_entry: () => ENTRY,
+      purge_time_entry: () => ENTRY,
       list_time_entries: () => [ENTRY, RUNNING],
     });
 
@@ -169,7 +171,9 @@ describe("time-entries client", () => {
       .orThrow();
     await time.update({ entryId: "e1", patch: { subject: null } }).orThrow();
     await time.update({ entryId: "e1", patch: {} }).orThrow();
-    await time.remove("e1").orThrow();
+    await time.archive("e1").orThrow();
+    await time.restore("e1").orThrow();
+    await time.purge("e1").orThrow();
     const listed = await time.list().orThrow();
     expect(listed.map((entry) => entry.id)).toEqual(["e1", "e2"]);
     expect(listed.map((entry) => entry.subject)).toEqual([
@@ -238,7 +242,9 @@ describe("time-entries client", () => {
         { entry_id: "e1", patch: { subjectType: null, subjectId: null } },
       ],
       ["update_time_entry", { entry_id: "e1", patch: {} }],
-      ["delete_time_entry", { entry_id: "e1" }],
+      ["archive_time_entry", { entry_id: "e1" }],
+      ["restore_time_entry", { entry_id: "e1" }],
+      ["purge_time_entry", { entry_id: "e1" }],
       [
         "list_time_entries",
         {
@@ -250,6 +256,7 @@ describe("time-entries client", () => {
           subject_id: null,
           everyone: false,
           page_size: null,
+          archived: false,
         },
       ],
       [
@@ -263,6 +270,7 @@ describe("time-entries client", () => {
           subject_id: "apollo",
           everyone: true,
           page_size: 10,
+          archived: false,
         },
       ],
     ]);

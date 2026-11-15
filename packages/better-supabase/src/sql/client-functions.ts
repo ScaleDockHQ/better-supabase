@@ -12,9 +12,9 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   accounting:
     "accounting_balance_sheet accounting_budget_vs_actual accounting_column_balance accounting_fx_rate accounting_general_ledger accounting_journal_listing accounting_period_close_blockers accounting_period_trial_balance accounting_profit_and_loss accounting_tax_report accounting_trial_balance archive_accounting_account close_accounting_period close_fiscal_year delete_accounting_entry get_accounting_budget get_accounting_entry get_accounting_settings list_accounting_accounts list_accounting_budgets list_accounting_dimensions list_accounting_entries list_accounting_journals list_accounting_opening_balances list_accounting_periods lock_accounting_period open_fiscal_year post_accounting_entry post_accounting_opening_balances post_accounting_source reopen_accounting_period reverse_accounting_entry save_accounting_account save_accounting_budget save_accounting_dimension save_accounting_dimension_value save_accounting_entry save_accounting_journal save_accounting_opening_balances set_accounting_account_role set_accounting_fx_rate set_accounting_lock_date setup_accounting unlock_accounting_period",
   activities:
-    "activities_of amend_activity complete_activity delete_activity log_activity mark_activity_error next_activity open_activities update_activity",
+    "activities_of amend_activity archive_activity complete_activity log_activity mark_activity_error next_activity open_activities purge_activity restore_activity update_activity",
   agents:
-    "delete_agent get_agent install_agent list_agents publish_agent rate_agent record_skill_sync save_agent set_agent_skills",
+    "archive_agent get_agent install_agent list_agents publish_agent purge_agent rate_agent record_skill_sync restore_agent save_agent set_agent_skills",
   prompts:
     "create_prompt_version get_prompt list_prompt_versions list_prompts set_prompt_label",
   "ai-evals":
@@ -296,7 +296,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   templates:
     "fork_template publish_template_version record_template_application remove_template save_template save_template_draft set_default_template sync_templates template_applications_list template_apply_target template_get template_versions_list templates_get_many templates_list",
   "time-entries":
-    "delete_time_entry get_timesheet list_time_entries list_timesheets log_time reopen_timesheet running_timer running_timers start_timer stop_timer submit_timesheet update_time_entry",
+    "archive_time_entry get_timesheet list_time_entries list_timesheets log_time purge_time_entry reopen_timesheet restore_time_entry running_timer running_timers start_timer stop_timer submit_timesheet update_time_entry",
   timeline: "list_activity record_activity",
   trash: "list_trash purge_trash restore_trash trash",
   usage:
