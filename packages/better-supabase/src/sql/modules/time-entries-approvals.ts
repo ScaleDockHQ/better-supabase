@@ -3,7 +3,7 @@ import type { BlockContributes } from "../contributions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
-import { byEmployee } from "./time-entries-owner.ts";
+import { byEmployee, entryLive } from "./time-entries-owner.ts";
 
 /** Timesheets this block submits to approvals. */
 export const TIMESHEET_SUBJECT = "timesheet";
@@ -95,7 +95,7 @@ begin
           from ${entries} y
           where y.${e("tenant")} = get_timesheet.tenant and y.${e("user")} = v_user
             and ${weekOf(`y.${e("startedAt")}`, `y.${e("user")}`)} = v_week
-            and y.${e("billable")} and y.${e("rate")} is not null
+            and y.${e("billable")} and y.${e("rate")} is not null and ${entryLive(ctx, "y")}
           group by y.${e("rateCurrency")}
         ) q
       )
@@ -103,7 +103,7 @@ begin
     into v_entries, v_totals
   from ${entries} x
   where x.${e("tenant")} = get_timesheet.tenant and x.${e("user")} = v_user
-    and ${weekOf(`x.${e("startedAt")}`, `x.${e("user")}`)} = v_week;
+    and ${weekOf(`x.${e("startedAt")}`, `x.${e("user")}`)} = v_week and ${entryLive(ctx, "x")};
   return v_json || jsonb_build_object('entries', v_entries, 'totals', v_totals);
 end;
 $$;
@@ -157,7 +157,7 @@ begin
   select coalesce(sum(extract(epoch from ${ended("x")} - x.${e("startedAt")})), 0)::bigint into v_seconds
     from ${entries} x
     where x.${e("tenant")} = submit_timesheet.tenant and x.${e("user")} = v_me
-      and ${weekOf(`x.${e("startedAt")}`, `x.${e("user")}`)} = v_week;
+      and ${weekOf(`x.${e("startedAt")}`, `x.${e("user")}`)} = v_week and ${entryLive(ctx, "x")};
   v_request := ${names.openApproval}(
     submit_timesheet.tenant, ${sqlString(names.subject)}, v_sheet.${t("id")}::text, 'approve',
     ${sqlString(policy)}::jsonb, submit_timesheet.note,

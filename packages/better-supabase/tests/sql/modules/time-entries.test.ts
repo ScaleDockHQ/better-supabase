@@ -66,7 +66,7 @@ describe("time-entries module", () => {
 
   it("locks only the columns that change logged time, or options.lockedColumns", () => {
     expect(sqlOf(BASE)).toContain(
-      `if tg_op = 'UPDATE' and (new."started_at", new."ended_at", new."subject_type", new."subject_id", new."user_id", new."rate", new."rate_currency") is not distinct from (old."started_at", old."ended_at", old."subject_type", old."subject_id", old."user_id", old."rate", old."rate_currency") then`,
+      `if tg_op = 'UPDATE' and (new."started_at", new."ended_at", new."subject_type", new."subject_id", new."user_id", new."rate", new."rate_currency", new."archived_at") is not distinct from (old."started_at", old."ended_at", old."subject_type", old."subject_id", old."user_id", old."rate", old."rate_currency", old."archived_at") then`,
     );
 
     const options = (lockedColumns: unknown): Layout => ({
@@ -200,7 +200,7 @@ describe("time-entries module", () => {
       { module: "time-entries", version: 1 },
     ]).find((entry) => entry.module === "time-entries");
 
-    expect(plan?.to).toBe(3);
+    expect(plan?.to).toBe(4);
     const sql = plan?.steps[0]?.sql ?? "";
     expect(unnamedChecks(sql)).toContain(
       `alter table "better_supabase"."time_entries" add column if not exists "rate_currency" text;`,
@@ -227,6 +227,9 @@ describe("time-entries module", () => {
     expect(contract?.functions.map((fn) => fn.name)).toEqual([
       "start_timer",
       "stop_timer",
+      "archive_time_entry",
+      "restore_time_entry",
+      "purge_time_entry",
       "running_timers",
       "log_time",
       "submit_timesheet",

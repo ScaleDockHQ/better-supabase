@@ -8,6 +8,10 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  archiveRestoreContract,
+  archiveRestoreFunctions,
+} from "../archive-sql.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
@@ -36,6 +40,7 @@ import {
   byEmployee,
   durationEntries,
   entryEnded,
+  entryLive,
   entrySubjects,
   lockedColumns,
   timeOwner,
@@ -85,7 +90,15 @@ const EVENTS: BlockSqlEvents<TimeEntriesEvents> = {
   "time_entry.started": { subject: "time-entries", payload: ENTRY_PAYLOAD },
   "time_entry.recorded": { subject: "time-entries", payload: RECORDED_PAYLOAD },
   "time_entry.updated": { subject: "time-entries", payload: UPDATED_PAYLOAD },
-  "time_entry.deleted": { subject: "time-entries", payload: ENTRY_PAYLOAD },
+  "time_entry.archived": {
+    subject: "time-entries",
+    payload: RECORDED_PAYLOAD,
+  },
+  "time_entry.restored": {
+    subject: "time-entries",
+    payload: RECORDED_PAYLOAD,
+  },
+  "time_entry.purged": { subject: "time-entries", payload: ENTRY_PAYLOAD },
   "timesheet.submitted": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
   "timesheet.approved": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
   "timesheet.reopened": { subject: "timesheets", payload: TIMESHEET_PAYLOAD },
@@ -143,6 +156,7 @@ const NAMES: BlockSqlNames = {
         note: "note",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        archivedAt: "archived_at",
         seconds: "seconds",
         runningSince: "running_since",
         employee: "employee_id",
@@ -150,6 +164,7 @@ const NAMES: BlockSqlNames = {
       optional: [
         "endedAt",
         "runningSince",
+        "archivedAt",
         "subjectType",
         "subjectId",
         "employee",
@@ -273,6 +288,11 @@ function build(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", permissions.read);
   const track = ctx.permission("track", permissions.track);
   const manage = ctx.permission("manage", permissions.manage);
+
+  const purgeKey =
+    ctx.config.permissions["purge"] === undefined
+      ? undefined
+      : sqlString(ctx.config.permissions["purge"]);
   const subjects = subjectsOption(ctx, ["column"]);
 
   const {
@@ -386,7 +406,7 @@ function build(ctx: BlockSqlContext): string {
       : `case when ${ended(row)} is null then null else extract(epoch from ${ended(row)} - ${row}.${e("startedAt")})::bigint end`;
 
   const entryJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'userId', ${row}.${e("user")}${employeeMode ? `, 'employeeId', ${row}.${e("employee")}` : ""}, 'subjectType', ${rowSubject(row).type}, 'subjectId', ${rowSubject(row).id}, 'startedAt', ${row}.${e("startedAt")}, 'endedAt', ${ended(row)}, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}::text, 'rateCurrency', ${row}.${e("rateCurrency")}, 'note', ${row}.${e("note")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'userId', ${row}.${e("user")}${employeeMode ? `, 'employeeId', ${row}.${e("employee")}` : ""}, 'subjectType', ${rowSubject(row).type}, 'subjectId', ${rowSubject(row).id}, 'startedAt', ${row}.${e("startedAt")}, 'endedAt', ${ended(row)}, 'seconds', ${seconds(row)}, 'billable', ${row}.${e("billable")}, 'rate', ${row}.${e("rate")}::text, 'rateCurrency', ${row}.${e("rateCurrency")}, 'note', ${row}.${e("note")}, 'createdAt', ${row}.${e("createdAt")}, 'updatedAt', ${row}.${e("updatedAt")}${ctx.has("entries", "archivedAt") ? `, 'archivedAt', ${row}.${e("archivedAt")}` : ""}${extraFieldsJson(row, extras)})`;
 
   const status = (row: string, approval: string): string =>
     statusMode
@@ -462,12 +482,16 @@ function build(ctx: BlockSqlContext): string {
     ${fail("TIME_RATE_INVALID", "rate_currency must be a three-letter currency code", "22023")}
   end if;`;
 
+  // Whether row `alias` is not archived; true over a table with no archive column.
+  const live = (alias: string): string => entryLive(ctx, alias);
+
   const overlap = (row: string): string =>
     allowOverlap
       ? ""
       : `if exists (
     select 1 from ${entries} x
     where x.${e("tenant")} = ${row}.${e("tenant")} and x.${eOwner} = ${row}.${eOwner} and x.${e("id")} <> ${row}.${e("id")}
+      and ${live("x")}
       and tstzrange(x.${e("startedAt")}, coalesce(${ended("x")}, 'infinity'::timestamptz)) && tstzrange(${row}.${e("startedAt")}, coalesce(${ended(row)}, 'infinity'::timestamptz))
   ) then
     ${fail("TIME_ENTRY_OVERLAP", "this time overlaps another entry", "23P01")}
@@ -500,7 +524,7 @@ create table if not exists ${entries} (
   ${e("rateCurrency")} text,
   ${e("note")} text check (${e("note")} is null or length(${e("note")}) <= 2000),
   ${e("createdAt")} timestamptz not null default now(),
-  ${e("updatedAt")} timestamptz not null default now(),
+  ${e("updatedAt")} timestamptz not null default now(),${ctx.has("entries", "archivedAt") ? `\n  -- Set while the entry is archived: it leaves totals, reports and the overlap check.\n  ${e("archivedAt")} timestamptz,` : ""}
   -- What metrics sum: the length of a finished entry, null while it runs.
   ${e("seconds")} bigint generated always as (extract(epoch from ${e("endedAt")} - ${e("startedAt")})::bigint) stored,
   check (${e("endedAt")} is null or ${e("endedAt")} > ${e("startedAt")}),
@@ -513,7 +537,7 @@ create table if not exists ${entries} (
     ${e("tenant")} with =,
     ${eOwner} with =,
     tstzrange(${e("startedAt")}, coalesce(${e("endedAt")}, 'infinity'::timestamptz)) with &&
-  )`
+  )${ctx.has("entries", "archivedAt") ? ` where (${e("archivedAt")} is null)` : ""}`
   }
 );${
         allowOverlap
@@ -559,6 +583,8 @@ ${lockTable(timesheets, { read: true })}
 ${renderPolicy(makePolicy({ table: timesheets, name: ctx.naming.rename("timesheets_read"), command: "select", roles: ["authenticated"], using: `${employeeMode ? `${sheetUser ? `${t("user")} = (select auth.uid()) or ` : ""}${fn("time_is_my_employee")}(${t("tenant")}, ${t("employee")})` : `${t("user")} = (select auth.uid())`} or ${ctx.scope.check(t("tenant"), read)}` }), { target: timesheets })}
 `
     : "";
+
+  const archivable = ctx.has("entries", "archivedAt");
 
   const logTypes = `${ctx.idType}, timestamptz, timestamptz, text, text, boolean, bigint, text, text, uuid`;
   const listTypes = `${ctx.idType}, uuid, timestamptz, timestamptz, text, text, boolean, integer`;
@@ -868,7 +894,42 @@ end;
 $$;
 ${userGrant(`${fn("update_time_entry")}(uuid, jsonb)`)}
 
-create or replace function ${fn("delete_time_entry")}(entry_id uuid)
+${
+  ctx.has("entries", "archivedAt")
+    ? archiveRestoreFunctions(ctx, {
+        entity: "time_entry",
+        arg: "entry_id",
+        rowType: `${entries}%rowtype`,
+        id: e("id"),
+        archivedAt: e("archivedAt"),
+        updatedAt: e("updatedAt"),
+        table: entries,
+        load: (name) => `select * into v_row from ${entries} x where x.${e("id")} = ${name}.entry_id for update;
+  if not found then
+    ${entryNotFound}
+  end if;
+  if not (${SERVICE_CALLER} or (${ownedByMe("v_row")} and ${ctx.can("tenant", `v_row.${e("tenant")}`, track)}) or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}) then
+    ${forbidden("not allowed to change this entry")}
+  end if;`,
+        beforeArchive: `
+  if ${running("v_row")} then
+    ${fail("TIME_TIMER_RUNNING", "stop the running timer before archiving it", "55000")}
+  end if;`,
+        beforeRestore: `
+  ${overlap("v_row")}`,
+        json: entryJson("v_row"),
+        record: (type) => entryRecord(type, "v_row", true),
+        archiveNote:
+          "Archives a finished entry: it leaves totals, reports, invoices and payroll. A locked week, a running timer and an invoiced entry refuse it.",
+        restoreNote:
+          "Brings an archived entry back. A locked week and an overlapping entry refuse it.",
+      })
+    : ""
+}
+-- Removes an entry for good. Needs permissions.purge, which falls back to the
+-- entry's owner (with track) and manage. A locked week and an invoiced entry
+-- refuse it.
+create or replace function ${fn("purge_time_entry")}(entry_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -878,23 +939,25 @@ as $$
 declare
   v_row ${entries}%rowtype;
 begin
-  select * into v_row from ${entries} x where x.${e("id")} = delete_time_entry.entry_id for update;
+  select * into v_row from ${entries} x where x.${e("id")} = purge_time_entry.entry_id for update;
   if not found then
     ${entryNotFound}
   end if;
-  if not (${SERVICE_CALLER} or (${ownedByMe("v_row")} and ${ctx.can("tenant", `v_row.${e("tenant")}`, track)}) or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}) then
-    ${forbidden("not allowed to delete this entry")}
+  if not (${SERVICE_CALLER} or ${purgeKey === undefined ? `(${ownedByMe("v_row")} and ${ctx.can("tenant", `v_row.${e("tenant")}`, track)}) or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}` : ctx.can("tenant", `v_row.${e("tenant")}`, purgeKey)}) then
+    ${forbidden("not allowed to purge this entry")}
   end if;
   delete from ${entries} x where x.${e("id")} = v_row.${e("id")};
-  ${entryRecord("time_entry.deleted", "v_row", false)}
+  ${entryRecord("time_entry.purged", "v_row", false)}
   return ${entryJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("delete_time_entry")}(uuid)`)}
+${userGrant(`${fn("purge_time_entry")}(uuid)`)}
 
 -- A member's entries (the caller's by default), or every member's on a
 -- record with everyone. Other members' entries need the read permission.
-${employeeMode ? `${dropSignatures(fn("list_time_entries"), listTypes, false)}\n` : ""}create or replace function ${fn("list_time_entries")}(tenant ${ctx.idType}, user_id uuid default null, starts timestamptz default null, ends timestamptz default null, subject_type text default null, subject_id text default null, everyone boolean default false, page_size integer default 200${employeeMode ? ", employee_id uuid default null" : ""})
+${dropSignatures(fn("list_time_entries"), listTypes, false)}${employeeMode ? `\n${dropSignatures(fn("list_time_entries"), `${listTypes}, uuid`, false)}` : ""}
+-- archived: false hides archived entries, true lists only them.
+create or replace function ${fn("list_time_entries")}(tenant ${ctx.idType}, user_id uuid default null, starts timestamptz default null, ends timestamptz default null, subject_type text default null, subject_id text default null, everyone boolean default false, page_size integer default 200${employeeMode ? ", employee_id uuid default null" : ""}${archivable ? ", archived boolean default false" : ""})
 returns jsonb
 language plpgsql
 stable
@@ -923,14 +986,14 @@ begin
       and (list_time_entries.starts is null or coalesce(${ended("x")}, 'infinity'::timestamptz) > list_time_entries.starts)
       and (list_time_entries.ends is null or x.${e("startedAt")} < list_time_entries.ends)
       and (list_time_entries.subject_type is null or ${rowSubject("x").type} = list_time_entries.subject_type)
-      and (list_time_entries.subject_id is null or ${rowSubject("x").id} = list_time_entries.subject_id)
+      and (list_time_entries.subject_id is null or ${rowSubject("x").id} = list_time_entries.subject_id)${archivable ? `\n      and ((x.${e("archivedAt")} is not null) = coalesce(list_time_entries.archived, false))` : ""}
     order by x.${e("startedAt")} desc
     limit ${pageSize("list_time_entries.page_size", 200, 1000)}
   ) q;
   return v_rows;
 end;
 $$;
-${userGrant(`${fn("list_time_entries")}(${listTypes}${employeeMode ? ", uuid" : ""})`)}
+${userGrant(`${fn("list_time_entries")}(${listTypes}${employeeMode ? ", uuid" : ""}${archivable ? ", boolean" : ""})`)}
 
 ${
   statusMode
@@ -1009,6 +1072,10 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "stop_timer", args: ["{id}", "uuid"], returns: "jsonb" },
+    ...(ctx.has("entries", "archivedAt")
+      ? archiveRestoreContract("time_entry")
+      : []),
+    { name: "purge_time_entry", args: ["uuid"], returns: "jsonb" },
     { name: "running_timers", args: ["{id}"], returns: "jsonb" },
     ...(durationEntries(ctx)
       ? [{ name: "resume_timer", args: ["uuid"], returns: "jsonb" }]
@@ -1044,6 +1111,31 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
+/** Version 4: the overlap constraint skips archived entries. */
+function upgradeArchive(ctx: BlockSqlContext): string {
+  if (
+    !ctx.owns("entries") ||
+    !ctx.has("entries", "archivedAt") ||
+    timerOptions(ctx).allowOverlap
+  ) {
+    return "";
+  }
+
+  const entries = ctx.table("entries");
+  const e = (column: string): string => ctx.col("entries", column);
+  const owner = byEmployee(ctx) ? e("employee") : e("user");
+  const name = sqlIdent(`${ctx.tableName("entries").name}_no_overlap_excl`);
+
+  return `drop function if exists ${ctx.fn("delete_time_entry")}(uuid);
+alter table ${entries} add column if not exists ${e("archivedAt")} timestamptz;
+alter table ${entries} drop constraint if exists ${name};
+alter table ${entries} add constraint ${name} exclude using gist (
+  ${e("tenant")} with =,
+  ${owner} with =,
+  tstzrange(${e("startedAt")}, coalesce(${e("endedAt")}, 'infinity'::timestamptz)) with &&
+) where (${e("archivedAt")} is null);`;
+}
+
 const REQUIRES = ["memberships", "permissions", "approvals"] as const;
 
 export const TIME_ENTRIES: BlockSqlDefinition = {
@@ -1061,7 +1153,7 @@ export const TIME_ENTRIES: BlockSqlDefinition = {
   integrates: ["outbox", "audit", "employees"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -1074,6 +1166,12 @@ export const TIME_ENTRIES: BlockSqlDefinition = {
       description:
         "The entry guard lets through an update that changes only employee_id, which employees keeps current.",
       sql: () => "",
+    },
+    {
+      from: 3,
+      description:
+        "Entries can be archived (ADR 1046): the overlap constraint skips archived rows, and delete_time_entry becomes purge_time_entry.",
+      sql: upgradeArchive,
     },
   ],
   names: NAMES,

@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@2 managed
--- @bsb-hash sha256:fb8e54f96a2f9b8fb4ae018fb2a3ab0e5cef93bba717ab1f91f3856c0e2feb1e
+-- @bsb-hash sha256:bc4860cb678f99c6a4063300416859cf1198f8c3442b0ee6e1a3c4523df65f78
 -- The app-wide subject registry from config.recordTypes: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,7 +129,7 @@ begin
     when 'post' then
       return (select s."title"::text from "better_supabase"."posts" s where s."id" = (subject_title.subject_id)::uuid);
     when 'activity' then
-      return (select s."title"::text from "better_supabase"."activities" s where s."id" = (subject_title.subject_id)::uuid);
+      return (select s."title"::text from "better_supabase"."activities" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'quote' then
       return (select s."title"::text from "better_supabase"."quotes" s where s."id" = (subject_title.subject_id)::uuid);
     when 'work_item' then
@@ -387,7 +387,7 @@ begin
       'type', 'activity', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
     from "better_supabase"."activities" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'activity')::uuid[])), '[]'::jsonb);
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'activity')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'quote', 'id', s."id"::text,
@@ -821,7 +821,7 @@ begin
     when 'activity' then
       return exists (
         select 1 from "better_supabase"."activities" s
-        where s."id" = (can_subject.subject_id)::uuid
+        where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'activities.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'activities.write'), false)
@@ -1455,7 +1455,7 @@ begin
     when 'activity' then
       return query
         select s."id"::text from "better_supabase"."activities" s
-        where s."id" = any ((can_subjects.subject_ids)::uuid[])
+        where s."id" = any ((can_subjects.subject_ids)::uuid[]) and s."archived_at" is null
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subjects.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'activities.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'activities.write'), false)
@@ -2109,7 +2109,7 @@ begin
     when 'activity' then
       return exists (
         select 1 from "better_supabase"."activities" s
-        where s."id" = (can_subject_for.subject_id)::uuid
+        where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'activities.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'activities.write'), false)

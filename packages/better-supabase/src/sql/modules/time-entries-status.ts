@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
+import { entryLive } from "./time-entries-owner.ts";
 
 const WHERE = "blocks.time-entries.options.userTimeZone";
 
@@ -295,7 +296,7 @@ begin
           from ${entries} y
           where y.${e("tenant")} = get_timesheet.tenant and y.${owner.entries} = ${ownerVar}
             and ${week(`y.${e("startedAt")}`, `y.${owner.entries}`)} = v_week
-            and y.${e("billable")} and y.${e("rate")} is not null
+            and y.${e("billable")} and y.${e("rate")} is not null and ${entryLive(ctx, "y")}
           group by y.${e("rateCurrency")}
         ) q
       )
@@ -303,7 +304,7 @@ begin
     into v_entries, v_totals
   from ${entries} x
   where x.${e("tenant")} = get_timesheet.tenant and x.${owner.entries} = ${ownerVar}
-    and ${week(`x.${e("startedAt")}`, `x.${owner.entries}`)} = v_week;
+    and ${week(`x.${e("startedAt")}`, `x.${owner.entries}`)} = v_week and ${entryLive(ctx, "x")};
   return v_json || jsonb_build_object('entries', v_entries, 'totals', v_totals);
 end;
 $$;

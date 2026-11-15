@@ -13,7 +13,9 @@ export type ActivitiesEvents = {
   readonly "activity.logged": ActivityEventData;
   readonly "activity.updated": ActivityEventData;
   readonly "activity.completed": ActivityEventData;
-  readonly "activity.deleted": ActivityEventData;
+  readonly "activity.archived": ActivityEventData;
+  readonly "activity.restored": ActivityEventData;
+  readonly "activity.purged": ActivityEventData;
   /** A recording was attached (`options.recordings`). */
   readonly "activity.recorded": ActivityRecordingEventData;
   /** A recording's transcript was saved. */
@@ -31,7 +33,9 @@ export const activitiesEvents: Events<ActivitiesEvents> = defineEvents({
   "activity.logged": event<ActivityEventData>(),
   "activity.updated": event<ActivityEventData>(),
   "activity.completed": event<ActivityEventData>(),
-  "activity.deleted": event<ActivityEventData>(),
+  "activity.archived": event<ActivityEventData>(),
+  "activity.restored": event<ActivityEventData>(),
+  "activity.purged": event<ActivityEventData>(),
   "activity.recorded": event<ActivityRecordingEventData>(),
   "activity.transcribed": event<ActivityRecordingEventData>(),
   "activity.summarized": event<ActivityEventData>(),

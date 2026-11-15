@@ -175,7 +175,7 @@ describe.skipIf(!live)("time-entries", () => {
       expect(await time.submit({ week: WEEK }).then(hint)).toBe(
         "TIME_ENTRIES_TIMESHEET_SUBMITTED",
       );
-      expect(await time.remove(logged.id).then(hint)).toBe(
+      expect(await time.purge(logged.id).then(hint)).toBe(
         "TIME_PERIOD_LOCKED",
       );
       expect(
@@ -255,7 +255,7 @@ describe.skipIf(!live)("time-entries", () => {
         "TIME_ENTRIES_TIMESHEET_NOT_APPROVED",
       );
       await s.as(ada);
-      await time.remove(logged.id).orThrow();
+      await time.purge(logged.id).orThrow();
 
       await time.start().orThrow();
       const today = Temporal.Now.plainDateISO("UTC");
@@ -310,7 +310,7 @@ describe.skipIf(!live)("time-entries", () => {
       ]);
       await time.reopen(sheet.id!).orThrow();
       await s.as(ada);
-      await time.remove(entry.id).orThrow();
+      await time.purge(entry.id).orThrow();
 
       const events = await s.rows<{ type: string }>(
         "select type from better_supabase.outbox_events where tenant_id = $1 and (type like 'time_entry.%' or type like 'timesheet.%') order by position",
@@ -323,7 +323,7 @@ describe.skipIf(!live)("time-entries", () => {
         "timesheet.submitted",
         "timesheet.approved",
         "timesheet.reopened",
-        "time_entry.deleted",
+        "time_entry.purged",
       ]);
     } finally {
       await s.close();

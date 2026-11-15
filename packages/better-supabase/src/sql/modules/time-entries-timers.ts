@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { fail, userGrant } from "../shared.ts";
+import { entryLive } from "./time-entries-owner.ts";
 
 const WHERE = "blocks.time-entries.options";
 
@@ -167,6 +168,9 @@ begin
   end if;
   if ${running("v_row")} then
     ${fail("TIME_TIMER_RUNNING", "this timer is already running", "55000")}
+  end if;
+  if not (${entryLive(ctx, "v_row")}) then
+    ${fail("TIME_ENTRY_ARCHIVED", "restore this entry before resuming it", "55000")}
   end if;
   perform pg_advisory_xact_lock(hashtextextended('time_entry:' || v_row.${e("tenant")}::text || ':' || ${ownerVar}::text, 0));${
     manyTimers

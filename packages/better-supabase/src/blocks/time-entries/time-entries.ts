@@ -82,6 +82,8 @@ export interface TimeEntry<F extends object = Record<never, never>> {
   readonly note?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  /** Set while the entry is archived. */
+  readonly archivedAt?: Temporal.Instant;
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
 }
@@ -137,6 +139,11 @@ export interface TimeEntryListOptions {
   readonly to?: Temporal.Instant;
   /** Entries on this record only. */
   readonly subject?: RecordRef;
+  /**
+   * `true` lists only the archived entries; archived ones are hidden
+   * otherwise.
+   */
+  readonly archived?: boolean;
   readonly pageSize?: number;
 }
 
@@ -247,7 +254,23 @@ export interface TimeEntries<F extends object = Record<never, never>> {
     entryId: string;
     patch: TimeEntryPatch<F>;
   }): AsyncResult<TimeEntry<F>>;
-  remove(entryId: string): AsyncResult<TimeEntry<F>>;
+  /**
+   * Archives a finished entry of a week that is not locked: it leaves lists,
+   * timesheet totals, reports, invoices and payroll, and no longer blocks an
+   * overlapping entry. Records `time_entry.archived`.
+   */
+  archive(entryId: string): AsyncResult<TimeEntry<F>>;
+  /**
+   * Brings an archived entry back; records `time_entry.restored`. It fails
+   * while the week's timesheet is submitted or approved
+   * (`TIME_PERIOD_LOCKED`) and when the time now overlaps another entry.
+   */
+  restore(entryId: string): AsyncResult<TimeEntry<F>>;
+  /**
+   * Removes an entry for good; `permissions.purge` gates this, and without it
+   * the owner or `manage` may. A locked week or an invoiced entry refuses it.
+   */
+  purge(entryId: string): AsyncResult<TimeEntry<F>>;
   /** Newest first. */
   list(options?: TimeEntryListOptions): AsyncResult<readonly TimeEntry<F>[]>;
   /** A member's week (the caller's by default) with its entries and totals. */
@@ -566,9 +589,17 @@ export function createTimeEntries<
           ).andThen(fields.row),
         );
     },
-    remove: (entryId) =>
-      call("delete_time_entry", { entry_id: entryId }, (value) =>
-        entryOf(value, "delete_time_entry"),
+    archive: (entryId) =>
+      call("archive_time_entry", { entry_id: entryId }, (value) =>
+        entryOf(value, "archive_time_entry"),
+      ).andThen(fields.row),
+    restore: (entryId) =>
+      call("restore_time_entry", { entry_id: entryId }, (value) =>
+        entryOf(value, "restore_time_entry"),
+      ).andThen(fields.row),
+    purge: (entryId) =>
+      call("purge_time_entry", { entry_id: entryId }, (value) =>
+        entryOf(value, "purge_time_entry"),
       ).andThen(fields.row),
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
@@ -583,6 +614,7 @@ export function createTimeEntries<
             subject_id: list.subject?.id ?? null,
             everyone: list.everyone ?? false,
             page_size: list.pageSize ?? null,
+            archived: list.archived ?? false,
             ...optional("employee_id", list.employeeId),
           },
           (value) =>

@@ -63,18 +63,18 @@ export interface BlockNameRegistry {
   };
   readonly "activities": {
     readonly tables: {
-      readonly "activities": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt" | "audience" | "restrictedRoles" | "category" | "lockedAt" | "amends" | "goal" | "markedErrorAt" | "markedErrorBy" | "markedErrorReason";
+      readonly "activities": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt" | "archivedAt" | "audience" | "restrictedRoles" | "category" | "lockedAt" | "amends" | "goal" | "markedErrorAt" | "markedErrorBy" | "markedErrorReason";
       readonly "links": "tenant" | "activity" | "subjectType" | "subjectId" | "position";
       readonly "recordings": "id" | "tenant" | "activity" | "file" | "filename" | "mediaType" | "status" | "language" | "durationSeconds" | "error" | "model" | "createdBy" | "createdAt" | "transcribedAt";
       readonly "segments": "recording" | "tenant" | "position" | "speaker" | "speakerUser" | "startsMs" | "endsMs" | "text" | "confidence";
       readonly "notes": "activity" | "tenant" | "summary" | "model" | "source" | "createdBy" | "createdAt" | "updatedAt";
       readonly "actions": "id" | "tenant" | "activity" | "task" | "createdAt";
     };
-    readonly functions: "activities_of" | "amend_activity" | "complete_activity" | "delete_activity" | "log_activity" | "mark_activity_error" | "next_activity" | "open_activities" | "update_activity";
+    readonly functions: "activities_of" | "amend_activity" | "archive_activity" | "complete_activity" | "log_activity" | "mark_activity_error" | "next_activity" | "open_activities" | "purge_activity" | "restore_activity" | "update_activity";
     readonly actions: "read" | "write" | "manage" | "readRestricted";
     readonly hooks: "before_activity_log" | "after_activity_log";
     readonly entities: {
-      readonly "activity": "id" | "tenant_id" | "type" | "title" | "body" | "outcome" | "owner_id" | "due_at" | "done_at" | "duration_seconds" | "external_ref" | "created_by" | "created_at" | "updated_at" | "audience" | "restricted_roles" | "category" | "locked_at" | "amends_id" | "goal_id" | "marked_error_at" | "marked_error_by" | "marked_error_reason";
+      readonly "activity": "id" | "tenant_id" | "type" | "title" | "body" | "outcome" | "owner_id" | "due_at" | "done_at" | "duration_seconds" | "external_ref" | "created_by" | "created_at" | "updated_at" | "archived_at" | "audience" | "restricted_roles" | "category" | "locked_at" | "amends_id" | "goal_id" | "marked_error_at" | "marked_error_by" | "marked_error_reason";
     };
     readonly primary: "activity";
   };
@@ -2468,14 +2468,14 @@ export interface BlockNameRegistry {
   };
   readonly "time-entries": {
     readonly tables: {
-      readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "seconds" | "runningSince" | "employee";
+      readonly "entries": "id" | "tenant" | "user" | "subjectType" | "subjectId" | "startedAt" | "endedAt" | "billable" | "rate" | "rateCurrency" | "note" | "createdAt" | "updatedAt" | "archivedAt" | "seconds" | "runningSince" | "employee";
       readonly "timesheets": "id" | "tenant" | "user" | "week" | "approval" | "note" | "submittedAt" | "approvedAt" | "createdAt" | "status" | "decidedBy" | "decidedAt" | "decisionNote" | "employee";
     };
-    readonly functions: "approve_timesheet" | "delete_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "reject_timesheet" | "reopen_timesheet" | "running_timer" | "running_timers" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_approved" | "time_week_locked" | "update_time_entry";
+    readonly functions: "approve_timesheet" | "archive_time_entry" | "get_timesheet" | "list_time_entries" | "list_timesheets" | "log_time" | "purge_time_entry" | "reject_timesheet" | "reopen_timesheet" | "restore_time_entry" | "running_timer" | "running_timers" | "start_timer" | "stop_timer" | "submit_timesheet" | "time_entry_guard" | "time_week" | "time_week_approved" | "time_week_locked" | "update_time_entry";
     readonly actions: "read" | "track" | "approve" | "manage";
     readonly hooks: "before_time_entry_save" | "after_time_entry_save" | "before_timesheet_submit" | "after_timesheet_submit";
     readonly entities: {
-      readonly "time_entry": "id" | "tenant_id" | "user_id" | "subject_type" | "subject_id" | "started_at" | "ended_at" | "billable" | "rate" | "rate_currency" | "note" | "created_at" | "updated_at" | "seconds" | "running_since" | "employee_id";
+      readonly "time_entry": "id" | "tenant_id" | "user_id" | "subject_type" | "subject_id" | "started_at" | "ended_at" | "billable" | "rate" | "rate_currency" | "note" | "created_at" | "updated_at" | "archived_at" | "seconds" | "running_since" | "employee_id";
       readonly "timesheet": "id" | "tenant_id" | "user_id" | "week" | "approval_id" | "note" | "submitted_at" | "approved_at" | "created_at" | "status" | "decided_by" | "decided_at" | "decision_note" | "employee_id";
     };
     readonly primary: "time_entry";
