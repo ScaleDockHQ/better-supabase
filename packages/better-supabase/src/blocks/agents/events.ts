@@ -8,7 +8,9 @@ export type AgentsEvents = {
   readonly "agent.created": AgentEventData;
   readonly "agent.updated": AgentEventData;
   readonly "agent.published": AgentEventData;
-  readonly "agent.deleted": AgentEventData;
+  readonly "agent.archived": AgentEventData;
+  readonly "agent.restored": AgentEventData;
+  readonly "agent.purged": AgentEventData;
   readonly "agent.installed": AgentEventData;
   readonly "agent.uninstalled": AgentEventData;
 };
@@ -18,7 +20,9 @@ export const agentsEvents: Events<AgentsEvents> = defineEvents({
   "agent.created": event<AgentEventData>(),
   "agent.updated": event<AgentEventData>(),
   "agent.published": event<AgentEventData>(),
-  "agent.deleted": event<AgentEventData>(),
+  "agent.archived": event<AgentEventData>(),
+  "agent.restored": event<AgentEventData>(),
+  "agent.purged": event<AgentEventData>(),
   "agent.installed": event<AgentEventData>(),
   "agent.uninstalled": event<AgentEventData>(),
 });

@@ -38,7 +38,7 @@ describe("agents module", () => {
     for (const name of [
       "save_agent",
       "publish_agent",
-      "delete_agent",
+      "purge_agent",
       "get_agent",
       "list_agents",
       "install_agent",

@@ -163,7 +163,9 @@ describe("createAgents", () => {
       install_agent: () => true,
       rate_agent: () => agentRow(),
       set_agent_skills: () => 2,
-      delete_agent: () => true,
+      archive_agent: () => agentRow({ archived_at: "2026-02-01T00:00:00Z" }),
+      restore_agent: () => agentRow(),
+      purge_agent: () => true,
     });
 
     const agents = createAgents({ transport, schema: "app" });
@@ -200,11 +202,21 @@ describe("createAgents", () => {
         })
         .orThrow(),
     ).toBe(2);
-    expect(await agents.remove("a1").orThrow()).toBe(true);
+    expect((await agents.archive("a1").orThrow()).archivedAt?.toString()).toBe(
+      "2026-02-01T00:00:00Z",
+    );
+    expect((await agents.restore("a1").orThrow()).archivedAt).toBeUndefined();
+    expect(await agents.purge("a1").orThrow()).toBe(true);
     expect(calls.map(({ fn, args }) => [fn, args])).toEqual([
       [
         "list_agents",
-        { tenant: "o1", filter: "store", search: "w", max_rows: 5 },
+        {
+          tenant: "o1",
+          filter: "store",
+          search: "w",
+          max_rows: 5,
+          include_archived: false,
+        },
       ],
       ["publish_agent", { id: "a1", visibility: "public" }],
       ["install_agent", { tenant: "o1", agent_id: "a1", installed: true }],
@@ -219,7 +231,9 @@ describe("createAgents", () => {
           },
         },
       ],
-      ["delete_agent", { id: "a1" }],
+      ["archive_agent", { id: "a1" }],
+      ["restore_agent", { id: "a1" }],
+      ["purge_agent", { id: "a1" }],
     ]);
   });
 });

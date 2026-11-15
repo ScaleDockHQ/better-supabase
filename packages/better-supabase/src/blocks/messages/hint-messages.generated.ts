@@ -92,6 +92,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "ADVISORY_FORBIDDEN": "Not allowed to read advisories.",
   "ADVISORY_INVALID": "Key must be lowercase letters, digits, dots, dashes and underscores, 1 to 63 characters.",
   "ADVISORY_NOT_FOUND": "No such product in this organization.",
+  "AGENT_ARCHIVED": "Agent is archived; restore it first.",
   "AGENT_CHECKOUT_NOT_CONFIGURED": "Agent checkout not configured.",
   "AGENT_FORBIDDEN": "You may not create agents here.",
   "AGENT_INVALID": "Fields must be an object.",
