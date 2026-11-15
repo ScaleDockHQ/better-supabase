@@ -3796,17 +3796,20 @@ msgstr "Model"
 
 #: src/features/ai-usage/components/model-spend-table.tsx
 #: src/features/ai-usage/components/usage-overview.tsx
+#: src/features/ai-usage/components/user-spend-table.tsx
 msgctxt "aiUsage.W1Qs5O"
 msgid "Runs"
 msgstr "Runs"
 
 #: src/features/ai-usage/components/model-spend-table.tsx
 #: src/features/ai-usage/components/usage-overview.tsx
+#: src/features/ai-usage/components/user-spend-table.tsx
 msgctxt "aiUsage.rpnhrR"
 msgid "Tokens in / out"
 msgstr "Tokens in / out"
 
 #: src/features/ai-usage/components/model-spend-table.tsx
+#: src/features/ai-usage/components/user-spend-table.tsx
 msgctxt "aiUsage.fBG_Ge"
 msgid "Cost"
 msgstr "Cost"
@@ -3872,6 +3875,16 @@ msgid "Every run so far."
 msgstr "Every run so far."
 
 #: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.KqMrjM"
+msgid "Per member"
+msgstr "Per member"
+
+#: src/features/ai-usage/components/usage-overview.tsx
+msgctxt "aiUsage.rsCnsN"
+msgid "Runs, tokens and cost of every member in this range. Only members who manage the assistant see this."
+msgstr "Runs, tokens and cost of every member in this range. Only members who manage the assistant see this."
+
+#: src/features/ai-usage/components/usage-overview.tsx
 msgctxt "aiUsage.fE5h2Q"
 msgid "Per model"
 msgstr "Per model"
@@ -3880,6 +3893,21 @@ msgstr "Per model"
 msgctxt "aiUsage.8erBos"
 msgid "Cached input is the share of input tokens a provider served from its prompt cache. The call cache below keeps whole answers."
 msgstr "Cached input is the share of input tokens a provider served from its prompt cache. The call cache below keeps whole answers."
+
+#: src/features/ai-usage/components/user-spend-table.tsx
+msgctxt "aiUsage.7L86Z5"
+msgid "Member"
+msgstr "Member"
+
+#: src/features/ai-usage/components/user-spend-table.tsx
+msgctxt "aiUsage.-xWeXU"
+msgid "No member spend yet"
+msgstr "No member spend yet"
+
+#: src/features/ai-usage/components/user-spend-table.tsx
+msgctxt "aiUsage.5cKsKZ"
+msgid "Members appear here after their first answer in this range."
+msgstr "Members appear here after their first answer in this range."
 
 #: src/features/announcements/components/announcement-banner.tsx
 #: src/features/announcements/components/dismiss-button.tsx

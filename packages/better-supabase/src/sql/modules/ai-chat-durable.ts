@@ -89,6 +89,9 @@ function runs(ctx: BlockSqlContext, names: AiChatNames): string {
   const a = names.c.approvals;
   const s = names.c.steps;
 
+  const tokens = (column: string, key: string): string =>
+    `case when jsonb_typeof(x.${column} -> '${key}') = 'number' then (x.${column} ->> '${key}')::numeric end`;
+
   const noRun = (arg: string): string =>
     raise("No run %", "P0002", "AI_RUN_NOT_FOUND", arg);
 
@@ -158,6 +161,56 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_ai_runs")}(uuid, boolean, integer)`)}
+
+-- What each user of a tenant spent on runs, most expensive first, for the
+-- runs that started in since (inclusive) to until (exclusive). ai_runs is
+-- readable by its owner only, so this is the one read across a tenant
+-- (${names.perm.admin}). Usage keys that are not numbers count as zero.
+create or replace function ${fn("ai_usage_by_user")}(tenant ${ctx.idType}, since timestamptz default null, until timestamptz default null, size integer default 50)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not (${SERVICE_CALLER} or ${ctx.scope.can("ai_usage_by_user.tenant", names.perm.admin)}) then
+    ${raise("You may not read usage here", "42501", "AI_CHAT_FORBIDDEN")}
+  end if;
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'user_id', u.user_id,
+      'runs', u.runs,
+      'failed', u.failed,
+      'input_tokens', u.input_tokens,
+      'output_tokens', u.output_tokens,
+      'cached_input_tokens', u.cached_input_tokens,
+      'cost_micro_usd', u.cost_micro_usd,
+      'last_run_at', u.last_run_at
+    ) order by u.cost_micro_usd desc, u.runs desc, u.user_id), '[]'::jsonb)
+    from (
+      select
+        x.${r.owner} as user_id,
+        count(*) as runs,
+        count(*) filter (where ${asText(ctx, "runs", `x.${r.status}`)} = 'failed') as failed,
+        coalesce(sum(${tokens(r.usage, "inputTokens")}), 0)::bigint as input_tokens,
+        coalesce(sum(${tokens(r.usage, "outputTokens")}), 0)::bigint as output_tokens,
+        coalesce(sum(${tokens(r.usage, "cachedInputTokens")}), 0)::bigint as cached_input_tokens,
+        ${ctx.has("runs", "cost") ? `coalesce(sum(x.${r.cost}), 0)::bigint` : "0::bigint"} as cost_micro_usd,
+        max(x.${r.startedAt}) as last_run_at
+      from ${t.runs} x
+      join ${t.chats} c on c.${ch.id} = x.${r.chat}
+      where c.${ch.tenant} = ai_usage_by_user.tenant
+        and (ai_usage_by_user.since is null or x.${r.startedAt} >= ai_usage_by_user.since)
+        and (ai_usage_by_user.until is null or x.${r.startedAt} < ai_usage_by_user.until)
+      group by x.${r.owner}
+      order by cost_micro_usd desc, runs desc, user_id
+      limit ${pageSize("ai_usage_by_user.size", 50, 500)}
+    ) u
+  );
+end;
+$$;
+${userGrant(`${fn("ai_usage_by_user")}(${ctx.idType}, timestamptz, timestamptz, integer)`)}
 
 -- Records the durable engine's run id on a run claimed before the engine
 -- started (the service role only).

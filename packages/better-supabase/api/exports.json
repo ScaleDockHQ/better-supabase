@@ -5956,7 +5956,9 @@
       "AiToolCallPart",
       "AiToolPolicy",
       "AiToolResultPart",
+      "AiUsageByUserQuery",
       "AiUserMessageTrigger",
+      "AiUserUsage",
       "BlockTransport",
       "NewAiSandbox",
       "SharedAiChat"
