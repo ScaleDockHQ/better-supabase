@@ -9,9 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PeopleLoadError } from "@/features/people/components/people-load-error";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { pageBlockRows } from "@/lib/block-list";
 
-import { leaveList, leaveSpec } from "../leave-list";
 import { getLeave } from "../leave-queries";
 import { LeaveRecordList } from "./leave-record-list";
 import { RequestLeaveDialog } from "./request-leave-dialog";
@@ -62,7 +60,7 @@ export async function LeaveOverview() {
     return <PeopleLoadError title={t("Leave didn't load")} />;
   }
 
-  const { rows, types, balances } = leave.data;
+  const { initial, types, balances } = leave.data;
   const manager = can(permissions, "leave.manage");
 
   return (
@@ -81,7 +79,7 @@ export async function LeaveOverview() {
         </div>
       ) : null}
       <LeaveRecordList
-        initial={pageBlockRows(leaveList, leaveSpec, rows, leaveList.defaults)}
+        initial={initial}
         types={types.map((type) => ({ id: type.id, name: type.name }))}
       />
     </div>

@@ -8,11 +8,14 @@ export function useTemplateActiveLabel() {
   const t = useExtracted("documents");
 
   return (value: string): string => {
+    // The block's `active` facet counts "true" and "false".
     switch (value) {
+      case "true":
       case "active": {
         return t("Active");
       }
 
+      case "false":
       case "inactive": {
         return t("Inactive");
       }

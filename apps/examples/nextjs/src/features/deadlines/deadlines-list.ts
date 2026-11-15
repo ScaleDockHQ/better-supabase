@@ -1,6 +1,6 @@
-import type { BlockListSpec } from "@/lib/block-list";
+import type { EntityListMap } from "@/lib/block-entity-page";
 
-import { defineBlockList } from "@/lib/block-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** One computed deadline of a record, as the page and the list route send it. */
 export interface DeadlineRow {
@@ -19,24 +19,19 @@ export interface DeadlineRow {
 }
 
 export const deadlineList = defineBlockList({
-  facets: ["state", "result", "kind"],
-  sorts: ["due", "newest", "kind"],
+  facets: ["state", "result", "group"],
+  sorts: ["due", "newest"],
   defaultSort: "due",
   pageSize: 25,
 });
 
-export const deadlineSpec: BlockListSpec<DeadlineRow> = {
-  text: (row) => [row.kind, row.groupKey, row.jurisdiction, row.subjectType],
-  facets: {
-    state: (row) => row.state,
-    result: (row) => row.result,
-    kind: (row) => row.kind,
-  },
+/** The deadlines list's URL names on the deadlines block's list. */
+export const deadlineMap: EntityListMap = {
   sorts: {
-    // The nearest date first; deadlines with no date last.
-    due: (a, b) =>
-      (a.dueOn ?? "9999-12-31").localeCompare(b.dueOn ?? "9999-12-31"),
-    newest: (a, b) => b.computedAt.localeCompare(a.computedAt),
-    kind: (a, b) => a.kind.localeCompare(b.kind),
+    // The nearest date first.
+    due: { by: "dueOn", direction: "asc" },
+    newest: { by: "createdAt", direction: "desc" },
   },
+  filters: { group: "groupKey" },
+  facets: { group: "groupKey" },
 };

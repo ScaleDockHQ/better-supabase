@@ -1,54 +1,50 @@
 import "server-only";
-import type { LeaveBalance, LeaveType } from "better-supabase/blocks/leave";
+import type {
+  LeaveBalance,
+  LeaveRequest,
+  LeaveType,
+} from "better-supabase/blocks/leave";
 
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import type {
+  RecordListPage,
+  RecordListUrlQuery,
+} from "@/components/record-list/record-list-types";
 import type { Loaded } from "@/features/people/people-queries";
 
 import { settle } from "@/features/people/people-queries";
-import { readAllPages } from "@/lib/read-all-pages";
+import { pageEntityRows } from "@/lib/block-entity-page";
 import { bsb } from "@/lib/supabase/server";
 
 import type { LeaveRow } from "./leave-list";
 
 import { LEAVE_TAG } from "./leave-cache";
+import { leaveList, leaveMap } from "./leave-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
-/**
- * The requests the caller reads: everyone's with `leave.read`, else their own.
- * The block lists a bounded window and has no search of its own, so the list
- * kit searches, filters and pages these rows on the server (EX-901).
- */
-export async function readLeaveRows(
+/** Who and what a request row names: the leave types and the people. */
+interface LeaveNames {
+  readonly types: readonly LeaveType[];
+  readonly nameByUser: ReadonlyMap<string, string>;
+  readonly nameByEmployee: ReadonlyMap<string, string>;
+}
+
+async function readLeaveNames(
   db: Db,
   organizationId: string,
-): Promise<{
-  readonly rows: readonly LeaveRow[];
-  readonly types: readonly LeaveType[];
-}> {
-  const readRequests = (filters: Record<string, readonly string[]>) =>
-    readAllPages((page) =>
-      db.leave.requestPage({ organizationId, filters, ...page }),
-    );
-
-  const [types, all, chart] = await Promise.all([
+): Promise<LeaveNames> {
+  const [types, chart] = await Promise.all([
     db.leave.types({ organizationId }),
-    readRequests({ everyone: ["true"] }).then(
-      (rows) => rows,
-      () => null,
-    ),
     db.employees.orgChart({ organizationId }),
   ]);
-
-  const requests = all ?? (await readRequests({}));
 
   if (!types.ok) {
     throw new Error("The leave requests did not load");
   }
 
-  const typeById = new Map(types.data.map((type) => [type.id, type]));
   const nameByUser = new Map<string, string>();
   const nameByEmployee = new Map<string, string>();
 
@@ -62,38 +58,83 @@ export async function readLeaveRows(
     }
   }
 
-  return {
-    types: types.data,
-    rows: requests.map((request): LeaveRow => {
-      const type = typeById.get(request.typeId);
+  return { types: types.data, nameByUser, nameByEmployee };
+}
 
-      return {
-        id: request.id,
-        who:
-          (request.employeeId
-            ? nameByEmployee.get(request.employeeId)
-            : null) ??
-          (request.userId ? nameByUser.get(request.userId) : null) ??
-          "–",
-        typeId: request.typeId,
-        typeName: type?.name ?? "–",
-        unit: type?.unit ?? "days",
-        startsOn: request.startsOn.toString(),
-        endsOn: request.endsOn.toString(),
-        amount: request.amount,
-        status: request.status,
-        approvalId: request.approvalId ?? null,
-        note: request.note ?? null,
-      };
-    }),
+function leaveRowOf(request: LeaveRequest, names: LeaveNames): LeaveRow {
+  const type = names.types.find((entry) => entry.id === request.typeId);
+
+  return {
+    id: request.id,
+    who:
+      (request.employeeId
+        ? names.nameByEmployee.get(request.employeeId)
+        : null) ??
+      (request.userId ? names.nameByUser.get(request.userId) : null) ??
+      "–",
+    typeId: request.typeId,
+    typeName: type?.name ?? "–",
+    unit: type?.unit ?? "days",
+    startsOn: request.startsOn.toString(),
+    endsOn: request.endsOn.toString(),
+    amount: request.amount,
+    status: request.status,
+    approvalId: request.approvalId ?? null,
+    note: request.note ?? null,
   };
+}
+
+/**
+ * One page of the requests the caller reads, with the leave block's page and
+ * facet methods: everyone's with `leave.read`, else their own.
+ */
+export async function loadLeavePage(
+  db: Db,
+  organizationId: string,
+  query: RecordListUrlQuery,
+  known?: LeaveNames,
+): Promise<{
+  readonly page: RecordListPage<LeaveRow>;
+  readonly types: readonly LeaveType[];
+}> {
+  const { leave } = db;
+
+  const [names, everyone] = await Promise.all([
+    known ?? readLeaveNames(db, organizationId),
+    leave.requestCount({ organizationId, filters: { everyone: ["true"] } }),
+  ]);
+
+  const scope = everyone.ok ? { everyone: ["true"] } : {};
+
+  const page = await pageEntityRows({
+    pager: {
+      page: (options) =>
+        leave.requestPage({
+          organizationId,
+          ...options,
+          filters: { ...options.filters, ...scope },
+        }),
+      facets: (options) =>
+        leave.requestFacets({
+          organizationId,
+          ...options,
+          filters: { ...options.filters, ...scope },
+        }),
+    },
+    map: leaveMap,
+    query,
+    pageSize: leaveList.config.pageSize,
+    rowsOf: (items) => items.map((request) => leaveRowOf(request, names)),
+  });
+
+  return { page, types: names.types };
 }
 
 export interface LeaveOverviewData {
   /** Plain fields only: a cached value cannot hold the block's Temporal dates. */
   readonly types: readonly { readonly id: string; readonly name: string }[];
   readonly balances: readonly LeaveBalance[];
-  readonly rows: readonly LeaveRow[];
+  readonly initial: RecordListPage<LeaveRow>;
 }
 
 async function loadLeave(): Promise<LeaveOverviewData | null> {
@@ -106,12 +147,16 @@ async function loadLeave(): Promise<LeaveOverviewData | null> {
     return null;
   }
 
-  const [{ rows, types }, balances] = await Promise.all([
-    readLeaveRows(db, organizationId),
+  const [{ page, types }, balances] = await Promise.all([
+    loadLeavePage(db, organizationId, leaveList.defaults),
     db.leave.balances({ organizationId }).orThrow(),
   ]);
 
-  return { types: types.map(({ id, name }) => ({ id, name })), balances, rows };
+  return {
+    types: types.map(({ id, name }) => ({ id, name })),
+    balances,
+    initial: page,
+  };
 }
 
 export function getLeave(): Promise<Loaded<LeaveOverviewData>> {
@@ -145,12 +190,20 @@ async function loadLeaveRequest(id: string): Promise<LeaveDetailData | null> {
     return null;
   }
 
-  const { rows } = await readLeaveRows(db, organizationId);
-  const request = rows.find((row) => row.id === id);
+  const found = await db.leave.getRequest(id);
 
-  if (!request) {
-    return { found: false };
+  if (!found.ok) {
+    if (found.error.kind === "not_found") {
+      return { found: false };
+    }
+
+    throw new Error(found.error.message);
   }
+
+  const request = leaveRowOf(
+    found.data,
+    await readLeaveNames(db, organizationId),
+  );
 
   const [ledger, balances] = await Promise.all([
     db.leave.ledger({ organizationId, typeId: request.typeId }),

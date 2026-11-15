@@ -4,7 +4,7 @@ import { useRecordListState } from "better-supabase/react";
 import { parseAsArrayOf, parseAsString, useQueryStates } from "nuqs";
 import { useMemo } from "react";
 
-import type { BlockList } from "@/lib/block-list";
+import type { BlockList } from "@/lib/block-list-url";
 
 import type { RecordListUrl } from "./record-list-types";
 
