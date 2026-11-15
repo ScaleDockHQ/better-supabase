@@ -384,6 +384,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
+      name: "page_expense_categories",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "page_expense_reports", args: ["{id}", "jsonb"], returns: "jsonb" },
+    {
       name: "create_expense_report",
       args: ["{id}", "text", "text", "text", ...extra],
       returns: "jsonb",

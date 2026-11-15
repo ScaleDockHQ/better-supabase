@@ -4,9 +4,20 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -15,6 +26,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult } from "../../core/result.ts";
@@ -31,6 +43,11 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import {
+  expenseCategoryListSurface,
+  expenseListSurface,
+  expenseReportListSurface,
+} from "./lists.ts";
 
 export type ExpenseReportStatus =
   | "draft"
@@ -262,9 +279,29 @@ export interface Expenses<F extends object = Record<never, never>> {
   archiveCategory(categoryId: string): AsyncResult<ExpenseCategory>;
   /** Makes an archived category available to new expenses again. */
   restoreCategory(categoryId: string): AsyncResult<ExpenseCategory>;
+  /**
+   * The categories, by name.
+   *
+   * @deprecated Use `categoryPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   categories(options?: {
     readonly includeArchived?: boolean;
   }): AsyncResult<readonly ExpenseCategory[]>;
+  /**
+   * One keyset page of the categories, by name. `filters` takes `currency` as a
+   * list and `archived` as `["true"]` for the archived ones; `q` searches the
+   * name. The organization comes from `organizationId` or `options.tenant`.
+   */
+  categoryPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<ExpenseCategory>>;
+  /** The values of the `currency` facet and how many categories hold each. */
+  categoryFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many categories match the page's filters. */
+  categoryCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
   /** A draft report of the caller. Needs `expenses.submit`. */
   create(input: ExpenseReportInput<F>): AsyncResult<ExpenseReport<F>>;
   /**
@@ -320,9 +357,34 @@ export interface Expenses<F extends object = Record<never, never>> {
     };
   }): AsyncResult<ExpenseReport<F>>;
   get(reportId: string): AsyncResult<ExpenseReport<F>>;
+  /**
+   * The caller's reports, newest first.
+   *
+   * @deprecated Use `reportPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   list(
     options?: ExpenseReportListOptions,
   ): AsyncResult<readonly ExpenseReport<F>[]>;
+  /**
+   * One keyset page of reports, newest first. A member with `expenses.read`
+   * sees every member's reports unless `filters.mine` is `["true"]`; anyone
+   * else sees their own. `filters` takes `userId`, `status` and `currency` as
+   * lists; `q` searches the title. The organization comes from `organizationId`
+   * or `options.tenant`.
+   */
+  reportPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<ExpenseReport<F>>>;
+  /**
+   * The values of each facet (`status`, `currency`) and how many reports hold
+   * each.
+   */
+  reportFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many reports match the page's filters. */
+  reportCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
   createExpense(input: ExpenseInput<F>): AsyncResult<Expense<F>>;
   updateExpense(input: {
     expenseId: string;
@@ -351,9 +413,35 @@ export interface Expenses<F extends object = Record<never, never>> {
     input?: { readonly reference?: string } | undefined;
   }): AsyncResult<Expense<F>>;
   getExpense(expenseId: string): AsyncResult<Expense<F>>;
+  /**
+   * The caller's expenses, newest spend first.
+   *
+   * @deprecated Use `expensePage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   listExpenses(
     options?: ExpenseListOptions,
   ): AsyncResult<readonly Expense<F>[]>;
+  /**
+   * One keyset page of expenses when reports are off, newest spend first. A
+   * member with `expenses.read` sees every member's expenses unless
+   * `filters.mine` is `["true"]`. `filters` takes `userId`, `status`,
+   * `currency` and `categoryId` as lists; `q` searches the description and
+   * merchant. The organization comes from `organizationId` or
+   * `options.tenant`.
+   */
+  expensePage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<Expense<F>>>;
+  /**
+   * The values of each facet (`status`, `currency`) and how many expenses hold
+   * each.
+   */
+  expenseFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many expenses match the page's filters. */
+  expenseCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
 }
 
 function optional<K extends string, V>(
@@ -586,6 +674,33 @@ export function createExpenses<
     (value: unknown): ExpenseCategory =>
       categoryOf(value, fn);
 
+  const categoryList = entityList<ExpenseCategory, TenantOption>({
+    entity: "expense category",
+    surface: expenseCategoryListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_expense_categories",
+    rowOf: (row, fn) => categoryOf(row, fn),
+  });
+
+  const reportList = entityList<ExpenseReport, TenantOption>({
+    entity: "expense report",
+    surface: expenseReportListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_expense_reports",
+    rowOf: (row, fn) => reportOf(row, fn),
+  });
+
+  const expenseList = entityList<Expense, TenantOption>({
+    entity: "expense",
+    surface: expenseListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_expenses",
+    rowOf: (row, fn) => expenseOf(row, fn),
+  });
+
   const fields: BlockFields<F> = blockFields(
     options.fields,
     "expense report fields",
@@ -657,6 +772,10 @@ export function createExpenses<
         { category_id: categoryId },
         category("restore_expense_category"),
       ),
+    categoryPage: (page = {}) => categoryList.page(page),
+    categoryFacets: (facets = {}) => categoryList.facets(facets),
+    categoryCount: (count = {}) => categoryList.count(count),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     categories: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -770,6 +889,15 @@ export function createExpenses<
         { report_id: reportId },
         report("get_expense_report"),
       ).andThen(fields.row),
+    reportPage: (page = {}) =>
+      reportList
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    reportFacets: (facets = {}) => reportList.facets(facets),
+    reportCount: (count = {}) => reportList.count(count),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -882,6 +1010,15 @@ export function createExpenses<
         { expense_id: expenseId },
         expense("get_expense"),
       ).andThen(fields.row),
+    expensePage: (page = {}) =>
+      expenseList
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    expenseFacets: (facets = {}) => expenseList.facets(facets),
+    expenseCount: (count = {}) => expenseList.count(count),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listExpenses: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(

@@ -5,6 +5,7 @@ import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { invoicesEvents } from "./events.ts";
 import { createInvoices } from "./invoices.ts";
+import { invoiceListSurface } from "./lists.ts";
 import { invoicesSqlOptions } from "./options.ts";
 import { invoicesBinding } from "./record-binding.ts";
 
@@ -27,6 +28,7 @@ export const invoicesBlock: BlockOf<
   importTarget: ["invoice", "credit_note", "open_item", "invoice_allocation"],
   entities: {
     invoice: {
+      ...invoiceListSurface,
       mutability: "editable",
       emits: { create: true, update: true, delete: true },
     },

@@ -1,6 +1,6 @@
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:27034d2bd3e42c94d64c2fe41500361b1068b203bd0520bf0cbefa48b28ef552
+-- @bsb-hash sha256:7fa3b09eacc6fe253099fafcaa2d6c7c9b7aedb7a60f818b9d91e014ed5a3bef
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -228,6 +228,229 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_expense_categories"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."list_expense_categories"(uuid, boolean) to authenticated, service_role;
+
+-- The organization's expense categories as a keyset page, by name (ADR 1077).
+-- filters is { currency (a value or a list), archived (["true"] lists the
+-- archived ones), search (name), sort (name, createdAt), direction, facet,
+-- count, limit, after, offset, paged, total, totalCap }.
+create or replace function "better_supabase"."page_expense_categories"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_expense_categories.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_expense_categories.tenant, 'expenses.read'), false)) or coalesce(better_supabase.can('tenant', page_expense_categories.tenant, 'expenses.submit'), false)) then
+    raise exception 'not allowed to read expense categories' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('currency') then
+      raise exception 'facet is one of currency' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'currency' then (coalesce(c."currency", ''))::text end) as v
+      from "better_supabase"."expense_categories" c
+      where c."tenant_id" = page_expense_categories.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (c."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else c."archived_at" is null end)
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or c."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or c."name" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."expense_categories" c
+      where c."tenant_id" = page_expense_categories.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (c."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else c."archived_at" is null end)
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or c."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or c."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('name', 'createdAt') then
+    raise exception 'sort is one of name, createdAt' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'key', c."key", 'name', c."name", 'currency', c."currency", 'limitAmount', c."limit_amount"::text, 'receiptOver', c."receipt_over"::text, 'archivedAt', c."archived_at", 'createdAt', c."created_at", 'updatedAt', c."updated_at") as j, jsonb_build_array((lower(c."name"))::text, (c."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_categories" c
+      where c."tenant_id" = page_expense_categories.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (c."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else c."archived_at" is null end)
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or c."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or c."name" ilike v_search)
+        and (v_after is null or (lower(c."name"), c."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(c."name") asc, c."id" asc
+      limit v_limit + 1 offset v_offset
+    ) c
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'key', c."key", 'name', c."name", 'currency', c."currency", 'limitAmount', c."limit_amount"::text, 'receiptOver', c."receipt_over"::text, 'archivedAt', c."archived_at", 'createdAt', c."created_at", 'updatedAt', c."updated_at") as j, jsonb_build_array((lower(c."name"))::text, (c."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_categories" c
+      where c."tenant_id" = page_expense_categories.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (c."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else c."archived_at" is null end)
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or c."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or c."name" ilike v_search)
+        and (v_after is null or (lower(c."name") <= (v_after ->> 0)::text and ((lower(c."name") < (v_after ->> 0)::text) or (lower(c."name") = (v_after ->> 0)::text and c."id" > (v_after ->> 1)::uuid))))
+      order by lower(c."name") desc, c."id" asc
+      limit v_limit + 1 offset v_offset
+    ) c
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'key', c."key", 'name', c."name", 'currency', c."currency", 'limitAmount', c."limit_amount"::text, 'receiptOver', c."receipt_over"::text, 'archivedAt', c."archived_at", 'createdAt', c."created_at", 'updatedAt', c."updated_at") as j, jsonb_build_array((lower(c."name"))::text, (c."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_categories" c
+      where c."tenant_id" = page_expense_categories.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (c."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else c."archived_at" is null end)
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or c."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or c."name" ilike v_search)
+        and (v_after is null or (lower(c."name"), c."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(c."name") asc, c."id" asc
+      limit v_limit + 1 offset v_offset
+    ) c
+  ) p;
+  elsif v_sort = 'name' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'key', c."key", 'name', c."name", 'currency', c."currency", 'limitAmount', c."limit_amount"::text, 'receiptOver', c."receipt_over"::text, 'archivedAt', c."archived_at", 'createdAt', c."created_at", 'updatedAt', c."updated_at") as j, jsonb_build_array((lower(c."name"))::text, (c."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_categories" c
+      where c."tenant_id" = page_expense_categories.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (c."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else c."archived_at" is null end)
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or c."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or c."name" ilike v_search)
+        and (v_after is null or (lower(c."name") <= (v_after ->> 0)::text and ((lower(c."name") < (v_after ->> 0)::text) or (lower(c."name") = (v_after ->> 0)::text and c."id" > (v_after ->> 1)::uuid))))
+      order by lower(c."name") desc, c."id" asc
+      limit v_limit + 1 offset v_offset
+    ) c
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'key', c."key", 'name', c."name", 'currency', c."currency", 'limitAmount', c."limit_amount"::text, 'receiptOver', c."receipt_over"::text, 'archivedAt', c."archived_at", 'createdAt', c."created_at", 'updatedAt', c."updated_at") as j, jsonb_build_array((c."created_at")::text, (c."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_categories" c
+      where c."tenant_id" = page_expense_categories.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (c."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else c."archived_at" is null end)
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or c."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or c."name" ilike v_search)
+        and (v_after is null or (c."created_at", c."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by c."created_at" asc, c."id" asc
+      limit v_limit + 1 offset v_offset
+    ) c
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_CATEGORY_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', c."id", 'organizationId', c."tenant_id", 'key', c."key", 'name', c."name", 'currency', c."currency", 'limitAmount', c."limit_amount"::text, 'receiptOver', c."receipt_over"::text, 'archivedAt', c."archived_at", 'createdAt', c."created_at", 'updatedAt', c."updated_at") as j, jsonb_build_array((c."created_at")::text, (c."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_categories" c
+      where c."tenant_id" = page_expense_categories.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (c."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else c."archived_at" is null end)
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or c."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or c."name" ilike v_search)
+        and (v_after is null or (c."created_at" <= (v_after ->> 0)::timestamptz and ((c."created_at" < (v_after ->> 0)::timestamptz) or (c."created_at" = (v_after ->> 0)::timestamptz and c."id" > (v_after ->> 1)::uuid))))
+      order by c."created_at" desc, c."id" asc
+      limit v_limit + 1 offset v_offset
+    ) c
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."expense_categories" c
+      where c."tenant_id" = page_expense_categories.tenant
+        and (case when (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) then (not (v_filters -> 'archived' is not null and jsonb_typeof(v_filters -> 'archived') <> 'null' and not (jsonb_typeof(v_filters -> 'archived') = 'array' and jsonb_array_length(v_filters -> 'archived') = 0)) or (c."archived_at" is not null)::text = any((case when jsonb_typeof(v_filters -> 'archived') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'archived')) else array[v_filters ->> 'archived'] end)::text[])) else c."archived_at" is null end)
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or c."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or c."name" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_expense_categories"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_expense_categories"(uuid, jsonb) to authenticated, service_role;
 
 -- The spend policy findings of a report, empty when it may be submitted:
 -- a category total over its limit, a line over its category's receipt
@@ -794,6 +1017,255 @@ $$;
 revoke execute on function "better_supabase"."list_expense_reports"(uuid, uuid, text, boolean, integer) from public, anon;
 grant execute on function "better_supabase"."list_expense_reports"(uuid, uuid, text, boolean, integer) to authenticated, service_role;
 
+-- Reports as a keyset page, newest first: the caller's, or everyone's with
+-- expenses.read unless filters.mine is true (ADR 1077). filters is { userId,
+-- status, currency (each a value or a list), mine (["true"]), search (title),
+-- sort (createdAt, title), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function "better_supabase"."page_expense_reports"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_expense_reports.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_reader boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_expense_reports.tenant, 'expenses.read'), false));
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (v_reader or coalesce(better_supabase.can('tenant', page_expense_reports.tenant, 'expenses.submit'), false)) then
+    raise exception 'not allowed to list expense reports' using errcode = '42501', hint = 'EXPENSES_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'EXPENSE_REPORT_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'currency') then
+      raise exception 'facet is one of status, currency' using errcode = '22023', hint = 'EXPENSE_REPORT_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then ((select (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id"))::text when 'currency' then (x."currency")::text end) as v
+      from "better_supabase"."expense_reports" x
+      where x."tenant_id" = page_expense_reports.tenant
+        and ((v_reader and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or x."user_id" = auth.uid())
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (select (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."expense_reports" x
+      where x."tenant_id" = page_expense_reports.tenant
+        and ((v_reader and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or x."user_id" = auth.uid())
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (select (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('createdAt', 'title') then
+    raise exception 'sort is one of createdAt, title' using errcode = '22023', hint = 'EXPENSE_REPORT_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'EXPENSE_REPORT_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_REPORT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'title', x."title", 'currency', x."currency", 'note', x."note", 'status', (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = x."id"), 0)::text, 'approvalId', x."approval_id", 'submittedAt', x."submitted_at", 'approvedAt', x."approved_at", 'approvalTransactionId', x."approval_transaction_id", 'reimbursedAt', x."reimbursed_at", 'reimbursementTransactionId', x."reimbursement_transaction_id", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', (select count(*) from "better_supabase"."attachments" t where t."subject_type" = 'expense_line' and t."subject_id" = l."id"::text and t."uploaded_at" is not null and t."status" <> 'infected'), 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = x."id")) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_reports" x
+      where x."tenant_id" = page_expense_reports.tenant
+        and ((v_reader and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or x."user_id" = auth.uid())
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (select (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_REPORT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'title', x."title", 'currency', x."currency", 'note', x."note", 'status', (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = x."id"), 0)::text, 'approvalId', x."approval_id", 'submittedAt', x."submitted_at", 'approvedAt', x."approved_at", 'approvalTransactionId', x."approval_transaction_id", 'reimbursedAt', x."reimbursed_at", 'reimbursementTransactionId', x."reimbursement_transaction_id", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', (select count(*) from "better_supabase"."attachments" t where t."subject_type" = 'expense_line' and t."subject_id" = l."id"::text and t."uploaded_at" is not null and t."status" <> 'infected'), 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = x."id")) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_reports" x
+      where x."tenant_id" = page_expense_reports.tenant
+        and ((v_reader and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or x."user_id" = auth.uid())
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (select (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_REPORT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'title', x."title", 'currency', x."currency", 'note', x."note", 'status', (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = x."id"), 0)::text, 'approvalId', x."approval_id", 'submittedAt', x."submitted_at", 'approvedAt', x."approved_at", 'approvalTransactionId', x."approval_transaction_id", 'reimbursedAt', x."reimbursed_at", 'reimbursementTransactionId', x."reimbursement_transaction_id", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', (select count(*) from "better_supabase"."attachments" t where t."subject_type" = 'expense_line' and t."subject_id" = l."id"::text and t."uploaded_at" is not null and t."status" <> 'infected'), 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = x."id")) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_reports" x
+      where x."tenant_id" = page_expense_reports.tenant
+        and ((v_reader and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or x."user_id" = auth.uid())
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (select (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."created_at", x."id") > ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_REPORT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'title', x."title", 'currency', x."currency", 'note', x."note", 'status', (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = x."id"), 0)::text, 'approvalId', x."approval_id", 'submittedAt', x."submitted_at", 'approvedAt', x."approved_at", 'approvalTransactionId', x."approval_transaction_id", 'reimbursedAt', x."reimbursed_at", 'reimbursementTransactionId', x."reimbursement_transaction_id", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', (select count(*) from "better_supabase"."attachments" t where t."subject_type" = 'expense_line' and t."subject_id" = l."id"::text and t."uploaded_at" is not null and t."status" <> 'infected'), 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = x."id")) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_reports" x
+      where x."tenant_id" = page_expense_reports.tenant
+        and ((v_reader and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or x."user_id" = auth.uid())
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (select (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (x."created_at" <= (v_after ->> 0)::timestamptz and ((x."created_at" < (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" > (v_after ->> 1)::uuid))))
+      order by x."created_at" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_REPORT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'title', x."title", 'currency', x."currency", 'note', x."note", 'status', (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = x."id"), 0)::text, 'approvalId', x."approval_id", 'submittedAt', x."submitted_at", 'approvedAt', x."approved_at", 'approvalTransactionId', x."approval_transaction_id", 'reimbursedAt', x."reimbursed_at", 'reimbursementTransactionId', x."reimbursement_transaction_id", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', (select count(*) from "better_supabase"."attachments" t where t."subject_type" = 'expense_line' and t."subject_id" = l."id"::text and t."uploaded_at" is not null and t."status" <> 'infected'), 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = x."id")) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_reports" x
+      where x."tenant_id" = page_expense_reports.tenant
+        and ((v_reader and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or x."user_id" = auth.uid())
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (select (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by lower(x."title") asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'EXPENSE_REPORT_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'title', x."title", 'currency', x."currency", 'note', x."note", 'status', (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end), 'total', coalesce((select sum(y."amount") from "better_supabase"."expense_lines" y where y."report_id" = x."id"), 0)::text, 'approvalId', x."approval_id", 'submittedAt', x."submitted_at", 'approvedAt', x."approved_at", 'approvalTransactionId', x."approval_transaction_id", 'reimbursedAt', x."reimbursed_at", 'reimbursementTransactionId', x."reimbursement_transaction_id", 'cancelledAt', x."cancelled_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at",
+      'lines', (select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'reportId', l."report_id", 'categoryId', l."category_id", 'spentOn', l."spent_on", 'description', l."description", 'merchant', l."merchant", 'dimensions', l."dimensions", 'amount', l."amount"::text, 'currency', (select rc."currency" from "better_supabase"."expense_reports" rc where rc."id" = l."report_id"), 'receipts', (select count(*) from "better_supabase"."attachments" t where t."subject_type" = 'expense_line' and t."subject_id" = l."id"::text and t."uploaded_at" is not null and t."status" <> 'infected'), 'createdAt', l."created_at", 'updatedAt', l."updated_at") order by l."spent_on", l."created_at"), '[]'::jsonb) from "better_supabase"."expense_lines" l where l."report_id" = x."id")) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") as j, jsonb_build_array((lower(x."title"))::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."expense_reports" x
+      where x."tenant_id" = page_expense_reports.tenant
+        and ((v_reader and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or x."user_id" = auth.uid())
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (select (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by lower(x."title") desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."expense_reports" x
+      where x."tenant_id" = page_expense_reports.tenant
+        and ((v_reader and not coalesce(nullif(coalesce(v_filters #>> '{mine,0}', v_filters ->> 'mine'), '') = 'true', false)) or x."user_id" = auth.uid())
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or (select (case when x."cancelled_at" is not null then 'cancelled' when x."reimbursed_at" is not null then 'reimbursed' when x."approved_at" is not null then 'approved' when ap."status" = 'pending' then 'submitted' when ap."status" in ('rejected', 'expired') then 'rejected' else 'draft' end) from (values (1)) d(n) left join "better_supabase"."approval_requests" ap on ap."id" = x."approval_id") = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_expense_reports"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_expense_reports"(uuid, jsonb) to authenticated, service_role;
+
 -- The entry of an approved expense report for accounting: its lines as
 -- expenses (one per set of line dimensions), owed to the member.
 create or replace function "better_supabase"."accounting_expense_report_lines"(source_id text)
@@ -948,6 +1420,16 @@ as $$ select "better_supabase"."list_expense_categories"($1, $2) $$;
 revoke execute on function "api"."list_expense_categories"(uuid, boolean) from public, anon;
 grant execute on function "api"."list_expense_categories"(uuid, boolean) to authenticated, service_role;
 
+create or replace function "api"."page_expense_categories"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_expense_categories"($1, $2) $$;
+revoke execute on function "api"."page_expense_categories"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_expense_categories"(uuid, jsonb) to authenticated, service_role;
+
 create or replace function "api"."create_expense_report"(tenant uuid, title text, currency text, note text default null)
 returns jsonb
 language sql
@@ -1040,3 +1522,13 @@ set search_path = ''
 as $$ select "better_supabase"."list_expense_reports"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."list_expense_reports"(uuid, uuid, text, boolean, integer) from public, anon;
 grant execute on function "api"."list_expense_reports"(uuid, uuid, text, boolean, integer) to authenticated, service_role;
+
+create or replace function "api"."page_expense_reports"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_expense_reports"($1, $2) $$;
+revoke execute on function "api"."page_expense_reports"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_expense_reports"(uuid, jsonb) to authenticated, service_role;

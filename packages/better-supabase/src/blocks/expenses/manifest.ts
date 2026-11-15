@@ -5,6 +5,10 @@ import { blockLink } from "../composition.ts";
 import { defineBlock } from "../define-block.ts";
 import { expensesEvents } from "./events.ts";
 import { createExpenses } from "./expenses.ts";
+import {
+  expenseCategoryListSurface,
+  expenseReportListSurface,
+} from "./lists.ts";
 import { expensesSqlOptions } from "./options.ts";
 import { expensesBinding } from "./record-binding.ts";
 import {
@@ -35,12 +39,20 @@ export const expensesBlock: BlockOf<
   record: expensesBinding,
   category: "commerce",
   entities: {
-    expense_report: { mutability: "state-machine", emits: { create: true } },
+    expense_report: {
+      ...expenseReportListSurface,
+      mutability: "state-machine",
+      emits: { create: true },
+    },
     expense_line: {
       mutability: "editable",
       emits: { create: false, update: false, delete: false },
     },
-    expense_category: { mutability: "editable", emits: { update: false } },
+    expense_category: {
+      ...expenseCategoryListSurface,
+      mutability: "editable",
+      emits: { update: false },
+    },
   },
   links: [
     blockLink("project", "reference", "expense_line", "tasks", "project"),

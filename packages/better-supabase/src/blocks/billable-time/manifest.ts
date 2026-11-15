@@ -4,6 +4,7 @@ import type { BillableTimeEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createBillableTime } from "./billable-time.ts";
 import { billableTimeEvents } from "./events.ts";
+import { rateListSurface } from "./lists.ts";
 import { billableTimeBinding } from "./record-binding.ts";
 import { timeRateInputSchema } from "./schemas.ts";
 
@@ -26,6 +27,7 @@ export const billableTimeBlock: BlockOf<
   category: "commerce",
   entities: {
     time_rate: {
+      ...rateListSurface,
       mutability: "editable",
       emits: { update: false, delete: false },
     },

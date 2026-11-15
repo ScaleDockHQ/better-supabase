@@ -2,6 +2,14 @@ import type { BlockSqlContext, ExtraColumn } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { bookSource } from "../accounting-sources-sql.ts";
+import { archivedListFilter } from "../archive-sql.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import {
   extraFieldsArg,
   extraFieldsJson,
@@ -253,6 +261,42 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
   const categoryJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}, 'key', ${categoryKey(row)}, 'name', ${row}.${k("name")}, 'currency', ${or("categories", row, "currency")}, 'limitAmount', ${or("categories", row, "limitAmount")}::text, 'receiptOver', ${or("categories", row, "receiptOver")}::text, 'archivedAt', ${row}.${k("archivedAt")}, 'createdAt', ${row}.${k("createdAt")}, 'updatedAt', ${row}.${k("updatedAt")}${extraFieldsJson(row, categoryExtras)})`;
 
+  const categoryIdKey = {
+    expr: `c.${k("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const categoryNameKeys = [
+    { expr: `lower(c.${k("name")})`, dir: "asc", type: "text" },
+    categoryIdKey,
+  ] as const;
+
+  const categoryPage = {
+    name: "page_expense_categories",
+    from: categories,
+    alias: "c",
+    where: [
+      `c.${k("tenant")} = page_expense_categories.tenant`,
+      archivedListFilter("c", k("archivedAt")),
+      filterAny("currency", or("categories", "c", "currency")),
+      `(v_search is null or c.${k("name")} ilike v_search)`,
+    ],
+    keys: categoryNameKeys,
+    sorts: {
+      name: categoryNameKeys,
+      createdAt: [
+        { expr: `c.${k("createdAt")}`, dir: "desc", type: "timestamptz" },
+        categoryIdKey,
+      ],
+    },
+    facets: { currency: `coalesce(${or("categories", "c", "currency")}, '')` },
+    rowJson: categoryJson("c"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => invalid("EXPENSE_CATEGORY_INVALID", message),
+  } as const;
+
   const receipts = (line: string): string =>
     attachments === undefined
       ? "0"
@@ -287,6 +331,53 @@ ${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
   const reportJson = (row: string, approval: string): string =>
     `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'title', ${row}.${r("title")}, 'currency', ${row}.${r("currency")}, 'note', ${or("reports", row, "note")}, 'status', ${status(row, approval)}, 'total', ${total(row)}::text, 'approvalId', ${or("reports", row, "approval")}, 'submittedAt', ${row}.${r("submittedAt")}, 'approvedAt', ${row}.${r("approvedAt")}, 'approvalTransactionId', ${or("reports", row, "approvalTransaction")}, 'reimbursedAt', ${row}.${r("reimbursedAt")}, 'reimbursementTransactionId', ${or("reports", row, "reimbursement")}, 'cancelledAt', ${row}.${r("cancelledAt")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}${extraFieldsJson(row, extras)},
       'lines', (select coalesce(jsonb_agg(${lineJson("l")} order by l.${x("spentOn")}, l.${x("createdAt")}), '[]'::jsonb) from ${lines} l where l.${x("report")} = ${row}.${r("id")}))`;
+
+  // The approval request joins through a scalar subquery so the page reads one
+  // row per report whatever the approvals block is.
+  const viaApproval = (expr: (approval: string) => string): string =>
+    approvals === undefined
+      ? expr("")
+      : `(select ${expr("ap")} from (values (1)) d(n) left join ${ar} ap on ap.${a("id")} = x.${r("approval")})`;
+
+  const reportIdKey = {
+    expr: `x.${r("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const reportCreatedKeys = [
+    { expr: `x.${r("createdAt")}`, dir: "desc", type: "timestamptz" },
+    reportIdKey,
+  ] as const;
+
+  const reportStatus = viaApproval((approval) => status("x", approval));
+
+  const reportPage = {
+    name: "page_expense_reports",
+    from: reports,
+    alias: "x",
+    where: [
+      `x.${r("tenant")} = page_expense_reports.tenant`,
+      `((v_reader and not ${filterFlag("mine")}) or x.${r("user")} = auth.uid())`,
+      filterAny("userId", `x.${r("user")}::text`),
+      filterAny("status", reportStatus),
+      filterAny("currency", `x.${r("currency")}`),
+      `(v_search is null or x.${r("title")} ilike v_search)`,
+    ],
+    keys: reportCreatedKeys,
+    sorts: {
+      createdAt: reportCreatedKeys,
+      title: [
+        { expr: `lower(x.${r("title")})`, dir: "asc", type: "text" },
+        reportIdKey,
+      ],
+    },
+    facets: { status: reportStatus, currency: `x.${r("currency")}` },
+    rowJson: viaApproval((approval) => reportJson("x", approval)),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => invalid("EXPENSE_REPORT_INVALID", message),
+  } as const;
 
   const reportRecord = (
     type: string,
@@ -543,6 +634,31 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_expense_categories")}(${idType}, boolean)`)}
+
+-- The organization's expense categories as a keyset page, by name (ADR 1077).
+-- filters is { currency (a value or a list), archived (["true"] lists the
+-- archived ones), search (name), sort (name, createdAt), direction, facet,
+-- count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_expense_categories")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_expense_categories.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(categoryPage)}
+begin
+  if not (${can("page_expense_categories.tenant", read)} or ${ctx.can("tenant", "page_expense_categories.tenant", submit)}) then
+    ${forbidden("not allowed to read expense categories")}
+  end if;
+  ${listBody(categoryPage)}
+end;
+$$;
+${userGrant(`${fn("page_expense_categories")}(${idType}, jsonb)`)}
 ${
   standalone
     ? expenseStandaloneSql(ctx)
@@ -915,6 +1031,33 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_expense_reports")}(${idType}, uuid, text, boolean, integer)`)}
+
+-- Reports as a keyset page, newest first: the caller's, or everyone's with
+-- expenses.read unless filters.mine is true (ADR 1077). filters is { userId,
+-- status, currency (each a value or a list), mine (["true"]), search (title),
+-- sort (createdAt, title), direction, facet, count, limit, after, offset,
+-- paged, total, totalCap }.
+create or replace function ${fn("page_expense_reports")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_expense_reports.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  v_reader boolean := ${can("page_expense_reports.tenant", read)};
+  ${listDeclare(reportPage)}
+begin
+  if not (v_reader or ${ctx.can("tenant", "page_expense_reports.tenant", submit)}) then
+    ${forbidden("not allowed to list expense reports")}
+  end if;
+  ${listBody(reportPage)}
+end;
+$$;
+${userGrant(`${fn("page_expense_reports")}(${idType}, jsonb)`)}
 `
 }`;
 }

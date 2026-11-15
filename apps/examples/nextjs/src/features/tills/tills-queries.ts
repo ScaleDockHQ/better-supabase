@@ -5,7 +5,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { BANKING_TAG } from "@/features/banking/banking-cache";
-import { readAllPages } from "@/lib/read-all-pages";
+import { readAllPages, readAllPagesResult } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { TILLS_TAG } from "./tills-cache";
@@ -219,7 +219,9 @@ export async function loadBankTargets(): Promise<BankTargets | null> {
     return null;
   }
 
-  const accounts = await db.banking.accounts().orThrow();
+  const accounts = await readAllPagesResult((page) =>
+    db.banking.accountPage(page),
+  ).orThrow();
 
   const lists = await Promise.all(
     accounts.map((account) =>

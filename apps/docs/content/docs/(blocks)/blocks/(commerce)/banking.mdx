@@ -339,3 +339,21 @@ const unmatched = board.lines.filter((line) => line.status === "unmatched");
 ## Write an adapter
 
 A package for the `BankFeed` port starts from a tested template in [Write an adapter](/docs/extending/write-an-adapter). The port's contract is in [Extension interfaces](/docs/extending/interfaces).
+
+## Paging accounts and payment batches
+
+`accountPage` pages the bank accounts by name and `batchPage` pages the payment batches, newest first (ADR 1077). `accounts` and `paymentBatches` stay as deprecated aliases until 0.70. Account filters are `currency` and `archived`, and `q` searches the name, IBAN and holder. Batch sorts are `createdAt` and `executionOn`, filters are `status`, `accountId` and `currency`, and `q` searches the reference and message id. The organization comes from `organizationId` or the block's `tenant` option.
+
+```ts
+const accounts = await banking
+  .accountPage({ filters: { currency: ["EUR"] } })
+  .orThrow();
+const batches = await banking
+  .batchPage({ filters: { status: ["posted"] }, limit: 20 })
+  .orThrow();
+const open = await banking
+  .batchCount({ filters: { status: ["draft"] } })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.

@@ -1,7 +1,18 @@
 import type { Money } from "../../commerce/money.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RecordRef } from "../../schema/types.ts";
@@ -11,6 +22,7 @@ import type { ProjectCosts } from "./project-costs.ts";
 import { bigintOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
@@ -30,6 +42,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { rateListSurface } from "./lists.ts";
 import { projectCostsOf } from "./project-costs.ts";
 
 /** How `unbilled` and `invoice` turn entries into lines. */
@@ -188,8 +201,33 @@ export interface BillableTime {
   setRate(input: TimeRateInput): AsyncResult<TimeRate>;
   /** Needs `billable_time.manage`. */
   deleteRate(rateId: string): AsyncResult<TimeRate>;
-  /** The rate card. Needs `billable_time.read`. */
+  /**
+   * The rate card.
+   *
+   * @deprecated Use `ratePage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   listRates(options?: TimeRateListOptions): AsyncResult<readonly TimeRate[]>;
+  /**
+   * One keyset page of the rate card, newest effective date first. Needs
+   * `billable_time.read`. `filters` takes `userId`, `subjectType`, `subjectId`
+   * and `currency` as lists; `q` searches the record type and id. The
+   * organization comes from `organizationId` or `options.tenant`.
+   */
+  ratePage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<TimeRate>>;
+  /**
+   * The values of each facet (`currency`, `subjectType`) and how many rates
+   * hold each.
+   */
+  rateFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many rates match the page's filters. */
+  rateCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One rate by id, or a `not_found` error. */
+  getRate(rateId: string): AsyncResult<TimeRate>;
   /**
    * The rate that applies to a member's time on a record: member and record
    * first, then the record, the member, the organization. `null` when none
@@ -321,7 +359,23 @@ export function createBillableTime(options: BillableTimeOptions): BillableTime {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
+  const rateList = entityList<TimeRate, TenantOption>({
+    entity: "time rate",
+    surface: rateListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_time_rates",
+    rowOf: (row, fn) => rateOf(row, fn),
+  });
+
   const client: BillableTime = {
+    ratePage: (page = {}) => rateList.page(page),
+    rateFacets: (facets = {}) => rateList.facets(facets),
+    rateCount: (count = {}) => rateList.count(count),
+    getRate: (rateId) =>
+      call("get_time_rate", { rate_id: rateId }, (value) =>
+        rateOf(value, "get_time_rate"),
+      ),
     setRate: (input) =>
       rateError(input) ??
       tenant().andThen((organizationId) =>
@@ -344,6 +398,7 @@ export function createBillableTime(options: BillableTimeOptions): BillableTime {
       call("delete_time_rate", { rate_id: rateId }, (value) =>
         rateOf(value, "delete_time_rate"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listRates: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(

@@ -5,6 +5,13 @@ import type {
 } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  filterFlag,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   extraFieldsArg,
@@ -168,6 +175,12 @@ export function standaloneContract(
       args: ["{id}", "boolean"],
       returns: "jsonb",
     },
+    {
+      name: "page_expense_categories",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    { name: "page_expenses", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "create_expense",
       args: [
@@ -367,6 +380,52 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
 
   const mine = (row: string): string =>
     `(coalesce(${owner.requester(row)} = auth.uid(), false) and ${ctx.can("tenant", `${row}.${e("tenant")}`, submit)})`;
+
+  const expenseIdKey = {
+    expr: `x.${e("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const expenseSpentKeys = [
+    { expr: `x.${e("spentOn")}`, dir: "desc", type: "date" },
+    { expr: `x.${e("createdAt")}`, dir: "desc", type: "timestamptz" },
+    expenseIdKey,
+  ] as const;
+
+  const expensePage = {
+    name: "page_expenses",
+    from: table,
+    alias: "x",
+    where: [
+      `x.${e("tenant")} = page_expenses.tenant`,
+      `((v_reader and not ${filterFlag("mine")}) or ${mine("x")})`,
+      filterAny("userId", `${userOf("x")}::text`),
+      filterAny("status", status("x")),
+      filterAny("currency", `x.${e("currency")}`),
+      ...(has("category")
+        ? [filterAny("categoryId", `x.${e("category")}::text`)]
+        : []),
+      `(v_search is null or x.${e("description")} ilike v_search${has("merchant") ? ` or x.${e("merchant")} ilike v_search` : ""})`,
+    ],
+    keys: expenseSpentKeys,
+    sorts: {
+      spentOn: expenseSpentKeys,
+      amount: [
+        { expr: `x.${e("amount")}`, dir: "desc", type: "bigint" },
+        expenseIdKey,
+      ],
+      createdAt: [
+        { expr: `x.${e("createdAt")}`, dir: "desc", type: "timestamptz" },
+        expenseIdKey,
+      ],
+    },
+    facets: { status: status("x"), currency: `x.${e("currency")}` },
+    rowJson: json("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("EXPENSE_INVALID", message, "22023"),
+  } as const;
 
   const managed = (row: string, key: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", `${row}.${e("tenant")}`, key)}${employee ? ` or ${owner.manages(`${row}.${e("tenant")}`, `${row}.${e("employee")}`)}` : ""})`;
@@ -796,5 +855,33 @@ ${
 end;
 $$;
 ${userGrant(`${fn("list_expenses")}(${listTypes}${employee ? ", uuid" : ""})`)}
+
+-- Expenses as a keyset page, newest spend first: the caller's, or everyone's
+-- with expenses.read unless filters.mine is true (ADR 1077). filters is
+-- { userId, status, currency, categoryId (each a value or a list), mine
+-- (["true"]), search (description, merchant), sort (spentOn, amount,
+-- createdAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function ${fn("page_expenses")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_expenses.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  v_reader boolean := ${SERVICE_CALLER} or ${ctx.can("tenant", "page_expenses.tenant", read)};
+  ${listDeclare(expensePage)}
+begin
+  if not (v_reader or ${ctx.can("tenant", "page_expenses.tenant", submit)}) then
+    ${forbidden("not allowed to list expenses")}
+  end if;
+  ${listBody(expensePage)}
+end;
+$$;
+${userGrant(`${fn("page_expenses")}(${idType}, jsonb)`)}
 `;
 }

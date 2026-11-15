@@ -8,6 +8,12 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -223,6 +229,45 @@ function functions(ctx: BlockSqlContext): string {
 
   const rateJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'rate', ${row}.${r("rate")}::text, 'currency', ${row}.${r("currency")}, 'effectiveFrom', ${row}.${r("effectiveFrom")}, 'cost', ${ctx.has("rates", "cost") ? `${row}.${r("cost")}::text` : "null"}, 'createdBy', ${or("rates", row, "createdBy")}, 'createdAt', ${or("rates", row, "createdAt")})`;
+
+  const rateIdKey = { expr: `x.${r("id")}`, dir: "asc", type: "uuid" } as const;
+
+  const ratePage = {
+    name: "page_time_rates",
+    from: rates,
+    alias: "x",
+    where: [
+      `x.${r("tenant")} = page_time_rates.tenant`,
+      filterAny("userId", `x.${r("user")}::text`),
+      filterAny("subjectType", `x.${r("subjectType")}`),
+      filterAny("subjectId", `x.${r("subjectId")}`),
+      filterAny("currency", `x.${r("currency")}`),
+      `(v_search is null or x.${r("subjectId")} ilike v_search or x.${r("subjectType")} ilike v_search)`,
+    ],
+    keys: [
+      { expr: `x.${r("effectiveFrom")}`, dir: "desc", type: "date" },
+      rateIdKey,
+    ],
+    sorts: {
+      effectiveFrom: [
+        { expr: `x.${r("effectiveFrom")}`, dir: "desc", type: "date" },
+        rateIdKey,
+      ],
+      rate: [
+        { expr: `x.${r("rate")}`, dir: "desc", type: "bigint" },
+        rateIdKey,
+      ],
+    },
+    facets: {
+      currency: `x.${r("currency")}`,
+      subjectType: `coalesce(x.${r("subjectType")}, '')`,
+    },
+    rowJson: rateJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) =>
+      fail("BILLABLE_TIME_INVALID", message, "22023"),
+  } as const;
 
   const { rowSubject } = entrySubjects(time, subjectsOption(time, ["column"]));
   const ended = (row: string): string => entryEnded(time, row);
@@ -452,6 +497,52 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_time_rates")}(${ctx.idType}, uuid, text, text, integer)`)}
+
+-- The rate card as a keyset page, newest effective date first (ADR 1077). Needs
+-- billable_time.read. filters is { userId, subjectType, subjectId, currency
+-- (each a value or a list), search (record type and id), sort (effectiveFrom,
+-- rate), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function ${fn("page_time_rates")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_time_rates.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(ratePage)}
+begin
+  if not ${can("page_time_rates.tenant", read)} then
+    ${forbidden("not allowed to read the rate card")}
+  end if;
+  ${listBody(ratePage)}
+end;
+$$;
+${userGrant(`${fn("page_time_rates")}(${ctx.idType}, jsonb)`)}
+
+-- One rate card entry, or a not-found error. Needs billable_time.read.
+create or replace function ${fn("get_time_rate")}(rate_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${rates}%rowtype;
+begin
+  select * into v_row from ${rates} x where x.${r("id")} = get_time_rate.rate_id;
+  if not found or not ${can(`v_row.${r("tenant")}`, read)} then
+    ${fail("BILLABLE_TIME_RATE_NOT_FOUND", "time rate not found", "P0002")}
+  end if;
+  return ${rateJson("v_row")};
+end;
+$$;
+${userGrant(`${fn("get_time_rate")}(uuid)`)}
 
 -- The rate card entry that applies to a member's time on a record on a day:
 -- member and record first, then the record, the member, the organization.
@@ -737,6 +828,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "uuid", "text", "text", "integer"],
       returns: "jsonb",
     },
+    { name: "page_time_rates", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_time_rate", args: ["uuid"], returns: "jsonb" },
     {
       name: "time_rate",
       args: ["{id}", "uuid", "text", "text", "date"],

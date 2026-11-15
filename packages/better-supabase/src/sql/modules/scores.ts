@@ -220,6 +220,7 @@ ${scoresFunctions(ctx)}`;
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_score_model", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "page_score_models", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "compute_score",
       args: ["{id}", "text", "text", "text", "jsonb", "text"],

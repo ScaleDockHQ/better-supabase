@@ -4,6 +4,7 @@ import type { BankingEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createBanking } from "./banking.ts";
 import { bankingEvents } from "./events.ts";
+import { bankAccountListSurface } from "./lists.ts";
 import {
   bankAccountInputSchema,
   bankMatchInputSchema,
@@ -29,7 +30,11 @@ export const bankingBlock: BlockOf<
   category: "commerce",
   entities: {
     bank_transaction: { mutability: "state-machine" },
-    bank_account: { mutability: "editable", emits: { update: false } },
+    bank_account: {
+      ...bankAccountListSurface,
+      mutability: "editable",
+      emits: { update: false },
+    },
     bank_statement: { mutability: "state-machine" },
     bank_match: { mutability: "read-only" },
     bank_rule: {

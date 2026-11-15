@@ -799,6 +799,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           },
         ]),
     { name: "list_invoice_payments", args: ["uuid"], returns: "jsonb" },
+    { name: "page_invoices", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "list_invoices_for_subject",
       args: ["{id}", "text", "text", "integer"],

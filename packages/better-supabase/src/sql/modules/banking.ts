@@ -209,6 +209,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "list_bank_accounts", args: ["{id}", "boolean"], returns: "jsonb" },
+    { name: "page_bank_accounts", args: ["{id}", "jsonb"], returns: "jsonb" },
     {
       name: "import_bank_statement",
       args: ["uuid", "jsonb"],

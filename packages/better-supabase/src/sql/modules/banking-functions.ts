@@ -1,5 +1,12 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { archivedListFilter } from "../archive-sql.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { pageSize, userGrant, writeExtraColumns } from "../shared.ts";
 import { bankingSql, linked, STATEMENT_FORMATS } from "./banking-sql.ts";
 
@@ -93,6 +100,44 @@ export function bankingFunctions(ctx: BlockSqlContext): string {
   const fn = (name: string): string => ctx.fn(name);
   const idType = ctx.idType;
   const accounting = linked(ctx, "accounting");
+
+  const accountIdKey = {
+    expr: `x.${a("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const accountPage = {
+    name: "page_bank_accounts",
+    from: q.accounts,
+    alias: "x",
+    where: [
+      `x.${a("tenant")} = page_bank_accounts.tenant`,
+      filterAny("currency", `x.${a("currency")}`),
+      archivedListFilter("x", a("archivedAt")),
+      `(v_search is null or x.${a("name")} ilike v_search or x.${a("iban")} ilike v_search or x.${a("holder")} ilike v_search)`,
+    ],
+    keys: [
+      { expr: `lower(x.${a("name")})`, dir: "asc", type: "text" },
+      accountIdKey,
+    ],
+    sorts: {
+      name: [
+        { expr: `lower(x.${a("name")})`, dir: "asc", type: "text" },
+        accountIdKey,
+      ],
+      createdAt: [
+        { expr: `x.${a("createdAt")}`, dir: "desc", type: "timestamptz" },
+        accountIdKey,
+      ],
+    },
+    facets: { currency: `x.${a("currency")}` },
+    rowJson: q.accountJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) =>
+      `raise exception '${message}' using errcode = '22023', hint = 'BANK_ACCOUNT_INVALID';`,
+  } as const;
 
   const journalCheck = accounting
     ? `
@@ -261,6 +306,30 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_bank_accounts")}(${idType}, boolean)`)}
+
+-- One keyset page of an organization's bank accounts by name: { items, next,
+-- more, total?, facets?, count? }. Filters: currency (list), archived
+-- (["true"] lists only the archived ones), q (name, IBAN, holder).
+create or replace function ${fn("page_bank_accounts")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_bank_accounts.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(accountPage)}
+begin
+  if not ${q.allowed("page_bank_accounts.tenant", q.read)} then
+    ${q.forbidden("not allowed to read bank accounts")}
+  end if;
+  ${listBody(accountPage)}
+end;
+$$;
+${userGrant(`${fn("page_bank_accounts")}(${idType}, jsonb)`)}
 
 -- Imports a statement or a feed's page of transactions into a bank account:
 -- { reference, fromOn, untilOn, openingBalance, closingBalance, format,

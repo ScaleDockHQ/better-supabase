@@ -473,3 +473,24 @@ file again writes nothing, because equal content is skipped.
 ## Write an adapter
 
 A package for the `AccountingChartFormat` and `TaxReportFormat` port starts from a tested template in [Write an adapter](/docs/extending/write-an-adapter). The port's contract is in [Extension interfaces](/docs/extending/interfaces).
+
+## Paging accounts and entries
+
+`accountPage` pages the chart of accounts by `code` and `entryPage` pages the entries by entry date, newest first (ADR 1077). `accounts` and `entries` stay as deprecated aliases until 0.70. Account sorts are `code` and `name`, filters are `type`, `active` and `archived` (`["true"]` lists only the archived ones), and `q` searches the code and name. Entry sorts are `entryDate` and `createdAt`, filters are `status`, `journalId`, `since` and `until`, and `q` searches the number, reference and memo. Each call takes `organizationId`.
+
+```ts
+const accounts = await accounting
+  .accountPage({ organizationId, filters: { type: ["asset"] }, limit: 50 })
+  .orThrow();
+
+const entries = await accounting
+  .entryPage({
+    organizationId,
+    filters: { status: ["posted"], since: "2026-01-01" },
+  })
+  .orThrow();
+
+const total = await accounting.entryCount({ organizationId }).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.

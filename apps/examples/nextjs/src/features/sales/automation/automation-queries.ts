@@ -5,6 +5,7 @@ import { cacheTag } from "next/cache";
 
 import { CRM_TAG } from "@/features/crm/crm-cache";
 import { orMissing } from "@/lib/or-missing";
+import { readAllPagesResult } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { queueOf, queuesFrom } from "../list-reads/queues-reads";
@@ -326,7 +327,10 @@ export async function loadHealth(): Promise<HealthData | null> {
     return null;
   }
 
-  const models = await db.scores.models({ subjectType: "company" }).orThrow();
+  const models = await readAllPagesResult((page) =>
+    db.scores.modelPage({ filters: { subjectType: ["company"] }, ...page }),
+  ).orThrow();
+
   const model = models.find((item) => item.key === "health") ?? models[0];
 
   if (!model) {

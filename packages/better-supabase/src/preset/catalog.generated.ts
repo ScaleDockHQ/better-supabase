@@ -9769,7 +9769,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               },
               "search": {
                 "title": "name",
-                "body": []
+                "body": [
+                  "name",
+                  "iban",
+                  "holder"
+                ]
               }
             }
           },
@@ -13457,6 +13461,47 @@ export const PRESET_CATALOG: PresetCatalog = {
           "accounting_budget.created",
           "accounting_budget.updated"
         ]
+      },
+      "entityLists": {
+        "accounting_account": {
+          "sorts": [
+            "code",
+            "name"
+          ],
+          "facets": [
+            "type",
+            "active"
+          ],
+          "filters": [
+            "type",
+            "active",
+            "archived"
+          ],
+          "search": [
+            "code",
+            "name"
+          ]
+        },
+        "accounting_entry": {
+          "sorts": [
+            "entryDate",
+            "createdAt"
+          ],
+          "facets": [
+            "status"
+          ],
+          "filters": [
+            "status",
+            "journalId",
+            "since",
+            "until"
+          ],
+          "search": [
+            "number",
+            "reference",
+            "memo"
+          ]
+        }
       }
     },
     {
@@ -17118,6 +17163,28 @@ export const PRESET_CATALOG: PresetCatalog = {
           "score_model.purged",
           "score.changed"
         ]
+      },
+      "entityLists": {
+        "score_model": {
+          "sorts": [
+            "name",
+            "key",
+            "version"
+          ],
+          "facets": [
+            "subjectType",
+            "enabled"
+          ],
+          "filters": [
+            "subjectType",
+            "enabled",
+            "archived"
+          ],
+          "search": [
+            "name",
+            "key"
+          ]
+        }
       }
     },
     {
@@ -17864,6 +17931,28 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "time_entry.invoiced"
         ]
+      },
+      "entityLists": {
+        "time_rate": {
+          "sorts": [
+            "effectiveFrom",
+            "rate"
+          ],
+          "facets": [
+            "currency",
+            "subjectType"
+          ],
+          "filters": [
+            "userId",
+            "subjectType",
+            "subjectId",
+            "currency"
+          ],
+          "search": [
+            "subjectType",
+            "subjectId"
+          ]
+        }
       }
     },
     {
@@ -18420,6 +18509,43 @@ export const PRESET_CATALOG: PresetCatalog = {
           "expense_category.archived",
           "expense_category.restored"
         ]
+      },
+      "entityLists": {
+        "expense_report": {
+          "sorts": [
+            "createdAt",
+            "title"
+          ],
+          "facets": [
+            "status",
+            "currency"
+          ],
+          "filters": [
+            "userId",
+            "status",
+            "currency",
+            "mine"
+          ],
+          "search": [
+            "title"
+          ]
+        },
+        "expense_category": {
+          "sorts": [
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "currency"
+          ],
+          "filters": [
+            "currency",
+            "archived"
+          ],
+          "search": [
+            "name"
+          ]
+        }
       }
     },
     {
@@ -27710,6 +27836,26 @@ export const PRESET_CATALOG: PresetCatalog = {
           "bank_transaction.matched",
           "bank_transaction.unmatched"
         ]
+      },
+      "entityLists": {
+        "bank_account": {
+          "sorts": [
+            "name",
+            "createdAt"
+          ],
+          "facets": [
+            "currency"
+          ],
+          "filters": [
+            "currency",
+            "archived"
+          ],
+          "search": [
+            "name",
+            "iban",
+            "holder"
+          ]
+        }
       }
     },
     {
@@ -31711,7 +31857,30 @@ export const PRESET_CATALOG: PresetCatalog = {
           "runs": "runDunning()",
           "description": "Raises overdue invoices to the reminder level they reached and adds the level's fee."
         }
-      ]
+      ],
+      "entityLists": {
+        "invoice": {
+          "sorts": [
+            "createdAt",
+            "dueOn",
+            "total"
+          ],
+          "facets": [
+            "status",
+            "currency"
+          ],
+          "filters": [
+            "status",
+            "currency",
+            "kind",
+            "subjectType",
+            "subjectId"
+          ],
+          "search": [
+            "number"
+          ]
+        }
+      }
     },
     {
       "name": "idempotency",
