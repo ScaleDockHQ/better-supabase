@@ -121,6 +121,17 @@ describe("seed-entity-pages", () => {
     expect(targetOf("app.pipelines").seed.rows).toHaveLength(2);
   });
 
+  it("seeds customers and the inbox, with the inbox ahead of the deals", () => {
+    expect(targetOf("app.customers").sql).toContain("public.customers");
+    expect(targetOf("app.inbox").sql).toContain("record_inbound");
+    expect(targetOf("app.inbox").after).toContain("last_message_at");
+    expect(targetOf("app.inbox").seed.rows).toHaveLength(3);
+
+    const order = orderedTargets().map((each) => each.seed.entity);
+
+    expect(order.indexOf("app.inbox")).toBeLessThan(order.indexOf("app.deals"));
+  });
+
   it("inserts the rows another page refers to first", () => {
     const order = orderedTargets().map((each) => each.seed.entity);
 
