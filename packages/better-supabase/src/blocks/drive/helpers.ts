@@ -1,4 +1,6 @@
 import type { BlockCall } from "../../core/block-helpers.ts";
+import type { BulkCallOptions, BulkReport } from "../../core/bulk.ts";
+import type { Result } from "../../core/result.ts";
 import type { FileStore } from "../../storage/file-store.ts";
 import type {
   Drive,
@@ -11,6 +13,7 @@ import type {
 } from "./drive.ts";
 
 import { recordOf } from "../../core/block-helpers.ts";
+import { bulkItems } from "../../core/bulk.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { firstFailure } from "../read-all.ts";
@@ -58,6 +61,13 @@ export interface DriveGrantInput {
   readonly expiresAt?: Temporal.Instant;
 }
 
+/** One node of `drive.bulkShare` with the grants to give on it (ADR 1075). */
+export interface DriveBulkShareItem {
+  /** The node's id; the report names the item by it. */
+  readonly id: string;
+  readonly grants: readonly DriveGrantInput[];
+}
+
 /** Looks up a principal's display name: a member, a team or a role. */
 export type DriveNames = (
   principal: DrivePrincipal,
@@ -98,8 +108,21 @@ export interface DriveHelpers<F extends object = Record<never, never>> {
     fields?: Readonly<Record<string, unknown>>;
   }): AsyncResult<DriveNode<F>>;
   /**
+   * Gives each node its own grants and reports per node (ADR 1075): a node
+   * whose grant fails lands in `failed` with the first error, and the other
+   * nodes still run. A grant is idempotent, so a retry finishes the rest. Takes
+   * at most 500 nodes.
+   */
+  bulkShare(
+    items: readonly DriveBulkShareItem[],
+    options?: BulkCallOptions,
+  ): AsyncResult<BulkReport>;
+  /**
    * Gives every grant on every node, one node at a time. It stops at the first
    * failure; the grants already given stay.
+   *
+   * @deprecated Use `bulkShare`, which reports per node and does not stop at
+   * the first failure. Removed in 0.70.
    */
   shareMany(input: {
     ids: readonly string[];
@@ -142,6 +165,32 @@ const flagsOf = (value: unknown): DriveFlags => {
 
 const principalKey = (principal: DrivePrincipal): string =>
   `${principal.type}:${principal.id}`;
+
+/** Gives the grants on one node in order; the first failure is the result. */
+async function shareGrants(
+  drive: Drive,
+  id: string,
+  grants: readonly DriveGrantInput[],
+): Promise<Result<readonly DriveGrant[]>> {
+  const given: DriveGrant[] = [];
+
+  for (const { principal, role, expiresAt } of grants) {
+    const result = await drive.share({
+      id,
+      principal,
+      role,
+      ...(expiresAt !== undefined && { expiresAt }),
+    });
+
+    if (!result.ok) {
+      return result;
+    }
+
+    given.push(result.data);
+  }
+
+  return ok(given);
+}
 
 /** `self` is the finished client, so its hooks and field parsing apply. */
 export function driveHelpers(
@@ -283,26 +332,25 @@ export function driveHelpers(
 
         return committed;
       }),
+    bulkShare: (items, bulkOptions) =>
+      bulkItems(
+        items,
+        (item) => shareGrants(self(), item.id, item.grants),
+        bulkOptions,
+      ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1075)
     shareMany: ({ ids, grants }) =>
       AsyncResult.from(async () => {
-        const drive = self();
         const given: DriveGrant[] = [];
 
         for (const id of ids) {
-          for (const { principal, role, expiresAt } of grants) {
-            const result = await drive.share({
-              id,
-              principal,
-              role,
-              ...(expiresAt !== undefined && { expiresAt }),
-            });
+          const result = await shareGrants(self(), id, grants);
 
-            if (!result.ok) {
-              return result;
-            }
-
-            given.push(result.data);
+          if (!result.ok) {
+            return result;
           }
+
+          given.push(...result.data);
         }
 
         return ok(given);

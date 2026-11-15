@@ -168,6 +168,7 @@ describe("drive.can, search, shareMany and grantsWithNames", () => {
       },
     });
 
+    // oxlint-disable-next-line typescript/no-deprecated -- the alias keeps its own test until 0.70
     const result = await createDrive({ transport: t }).shareMany({
       ids: ["a", "b"],
       grants: [
@@ -178,6 +179,38 @@ describe("drive.can, search, shareMany and grantsWithNames", () => {
 
     expect(result.ok).toBe(false);
     expect(calls).toBe(3);
+  });
+
+  it("bulkShare reports per node and keeps going after a failure", async () => {
+    const t = fieldsTransport({
+      drive_share: (args) => {
+        if (args["node"] === "b") {
+          throw new Error("denied");
+        }
+
+        return GRANT("g1", "u1");
+      },
+    });
+
+    const report = await createDrive({ transport: t })
+      .bulkShare([
+        {
+          id: "a",
+          grants: [{ principal: { type: "user", id: "u1" }, role: "viewer" }],
+        },
+        {
+          id: "b",
+          grants: [{ principal: { type: "user", id: "u1" }, role: "editor" }],
+        },
+        {
+          id: "c",
+          grants: [{ principal: { type: "team", id: "t1" }, role: "viewer" }],
+        },
+      ])
+      .orThrow();
+
+    expect(report.succeeded).toEqual(["a", "c"]);
+    expect(report.failed.map((f) => f.id)).toEqual(["b"]);
   });
 
   it("grantsWithNames asks once per principal", async () => {
