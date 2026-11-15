@@ -1,4 +1,4 @@
--- Archiving an agent (ADR 1079): an archived agent leaves list_agents and
+-- Archiving an agent (ADR 1080): an archived agent leaves list_agents and
 -- refuses save, publish, install and rate, restore brings it back, and purge is
 -- the hard delete behind the purge key, which a plain member lacks even for
 -- their own agent. Run with `supabase test db`.

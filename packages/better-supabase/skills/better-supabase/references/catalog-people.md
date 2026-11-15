@@ -47,7 +47,7 @@ Employees with or without an account, a manager, team, job title, employment typ
 - Entities: `employee`
 - Tables: `employees`
 - Permission keys: `employees.read`, `employees.write`, `employees.read_sensitive`
-- Events (`EmployeesEvents`): `employee.created`, `employee.deleted`, `employee.manager_changed`, `employee.offboarded`, `employee.updated`
+- Events (`EmployeesEvents`): `employee.created`, `employee.manager_changed`, `employee.offboarded`, `employee.purged`, `employee.updated`
 - Actions: `employees.from_application`
 
 ## leave

@@ -34,7 +34,7 @@ describe("employeeContractsBinding", () => {
     expect(contracts).toHaveBeenCalledWith("e1");
     expect(employeeContractsBinding.events).toEqual([
       "employee.updated",
-      "employee.deleted",
+      "employee.purged",
     ]);
     expect(employeesBlock.record).toBe(employeeContractsBinding);
   });

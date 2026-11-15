@@ -2856,9 +2856,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "events": [
         "employee.created",
-        "employee.deleted",
         "employee.manager_changed",
         "employee.offboarded",
+        "employee.purged",
         "employee.updated"
       ],
       "subpath": "better-supabase/blocks/employees",

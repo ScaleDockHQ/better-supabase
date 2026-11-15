@@ -1,4 +1,4 @@
-# 1079: Archive and restore an agent (lane Y2, slice 9)
+# 1080: Archive and restore an agent (lane Y2, slice 9)
 
 - Status: accepted
 - Date: 2026-11-15
