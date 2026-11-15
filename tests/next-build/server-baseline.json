@@ -312,7 +312,7 @@
   "/[locale]/(app)/crm/deals/page": {
     "raw": 3189380,
     "gzip": 971460,
-    "brotli": 807398
+    "brotli": 809420
   },
   "/[locale]/(app)/crm/forecasts/[id]/page": {
     "raw": 3175012,
@@ -762,7 +762,7 @@
   "/[locale]/(app)/people/onboarding/page": {
     "raw": 3129646,
     "gzip": 950843,
-    "brotli": 789158
+    "brotli": 791196
   },
   "/[locale]/(app)/people/page": {
     "raw": 3130857,
@@ -916,17 +916,17 @@
   },
   "/[locale]/(app)/settings/jobs/page": {
     "raw": 3210605,
-    "gzip": 975173,
+    "gzip": 977648,
     "brotli": 813148
   },
   "/[locale]/(app)/settings/jobs/runs/[queue]/[id]/page": {
     "raw": 3212415,
-    "gzip": 977643,
+    "gzip": 980117,
     "brotli": 815367
   },
   "/[locale]/(app)/settings/jobs/runs/page": {
     "raw": 3201925,
-    "gzip": 973338,
+    "gzip": 975808,
     "brotli": 811609
   },
   "/[locale]/(app)/settings/marketplace/[resource]/page": {
@@ -1515,7 +1515,7 @@
     "brotli": 300884
   },
   "/api/customers/records/route": {
-    "raw": 1445795,
+    "raw": 1446333,
     "gzip": 447537,
     "brotli": 384142
   },
