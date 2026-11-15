@@ -194,7 +194,7 @@
     "security-definer-functions": 48
   },
   "employees": {
-    "security-definer-functions": 76,
+    "security-definer-functions": 88,
     "row-triggers": 15
   },
   "enrichment": {
@@ -286,7 +286,7 @@
     "security-definer-functions": 56
   },
   "leave": {
-    "security-definer-functions": 123,
+    "security-definer-functions": 129,
     "row-triggers": 2
   },
   "ledger": {

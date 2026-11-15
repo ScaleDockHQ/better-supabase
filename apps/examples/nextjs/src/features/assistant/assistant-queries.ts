@@ -7,6 +7,7 @@ import { tenantOf } from "better-supabase/next";
 import type { OpsListQuery } from "@/components/ops-list/ops-list-params";
 
 import { getSession } from "@/features/user/user-queries";
+import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { aiChat, aiRuns } from "./assistant-server";
@@ -52,9 +53,11 @@ export async function getChatPage(query: OpsListQuery): Promise<ChatPage> {
     .chats.list({
       organizationId,
       limit: CHAT_PAGE_SIZE,
-      ...(query.q === "" ? {} : { search: query.q }),
-      ...(query.cursor === null ? {} : { cursor: query.cursor }),
-      ...(query.filter === "pinned" ? { pinned: true } : {}),
+      ...present({
+        search: query.q === "" ? undefined : query.q,
+        cursor: query.cursor ?? undefined,
+        pinned: query.filter === "pinned" ? true : undefined,
+      }),
       archived: query.filter === "archived",
     })
     .orThrow();

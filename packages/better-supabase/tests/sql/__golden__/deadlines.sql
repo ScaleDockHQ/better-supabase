@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:6c7eee43e8035cbab9cad15eccad8824b477353bd28fc40e73d2e9f57e398749
+-- @bsb-hash sha256:b8b75f4a3a39dc894d33b706012f2359ca4d1dc4aa797939786ed6031d3bd2d3
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1695,7 +1695,7 @@ grant execute on function "better_supabase"."list_deadlines"(uuid, jsonb) to aut
 -- An organization's deadlines as a keyset page (ADR 0749, 0949), soonest first.
 -- Security invoker, as list_deadlines is. filters is { subjectType, subjectId,
 -- groupKey, period, state, result, provisional (each a value or a list of
--- them), dueBefore (a date), sort, direction, facet, count, limit, after,
+-- them), dueBefore (a date), search (kind, jurisdiction, subject id, group), sort, direction, facet, count, limit, after,
 -- offset, paged, total, totalCap }.
 create or replace function "better_supabase"."page_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -1708,6 +1708,8 @@ as $$
 declare
   v_filters jsonb := coalesce(page_deadlines.filters, '{}'::jsonb);
   v_before date;
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -1753,6 +1755,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -1775,6 +1778,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -1806,6 +1810,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -1832,6 +1837,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -1858,6 +1864,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -1884,6 +1891,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -1910,6 +1918,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at" >= (v_after ->> 0)::timestamptz and ((z."created_at" > (v_after ->> 0)::timestamptz) or (z."created_at" = (v_after ->> 0)::timestamptz and z."id" < (v_after ->> 1)::uuid))))
       order by z."created_at" asc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -1936,6 +1945,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at", z."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by z."created_at" desc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -1957,6 +1967,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -2066,7 +2077,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:d92dde9194582c42f210a924de5fb54659ea24b475961afc99265bfed0cba4e9
+-- @bsb-hash sha256:24152b84762b1b1632895c90799228af2038ddf31a7457c734a586ea787b6a45
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3789,7 +3800,7 @@ grant execute on function "better_supabase"."list_deadlines"(uuid, jsonb) to aut
 -- An organization's deadlines as a keyset page (ADR 0749, 0949), soonest first.
 -- Security invoker, as list_deadlines is. filters is { subjectType, subjectId,
 -- groupKey, period, state, result, provisional (each a value or a list of
--- them), dueBefore (a date), sort, direction, facet, count, limit, after,
+-- them), dueBefore (a date), search (kind, jurisdiction, subject id, group), sort, direction, facet, count, limit, after,
 -- offset, paged, total, totalCap }.
 create or replace function "better_supabase"."page_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -3802,6 +3813,8 @@ as $$
 declare
   v_filters jsonb := coalesce(page_deadlines.filters, '{}'::jsonb);
   v_before date;
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -3847,6 +3860,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -3869,6 +3883,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -3900,6 +3915,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -3926,6 +3942,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -3952,6 +3969,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -3978,6 +3996,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -4004,6 +4023,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at" >= (v_after ->> 0)::timestamptz and ((z."created_at" > (v_after ->> 0)::timestamptz) or (z."created_at" = (v_after ->> 0)::timestamptz and z."id" < (v_after ->> 1)::uuid))))
       order by z."created_at" asc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -4030,6 +4050,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at", z."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by z."created_at" desc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -4051,6 +4072,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -4163,7 +4185,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:c544eb577a82b605013f4039ed959bc19e4ebdb29533e6c6a8331792cdabc45c
+-- @bsb-hash sha256:20d1c0e8507a11c2e92139316a4733011b96c7ef67b8e89b0e4d2ec1d7b9db39
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5862,7 +5884,7 @@ grant execute on function "app_private"."list_deadlines"(uuid, jsonb) to authent
 -- An organization's deadlines as a keyset page (ADR 0749, 0949), soonest first.
 -- Security invoker, as list_deadlines is. filters is { subjectType, subjectId,
 -- groupKey, period, state, result, provisional (each a value or a list of
--- them), dueBefore (a date), sort, direction, facet, count, limit, after,
+-- them), dueBefore (a date), search (kind, jurisdiction, subject id, group), sort, direction, facet, count, limit, after,
 -- offset, paged, total, totalCap }.
 create or replace function "app_private"."page_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -5875,6 +5897,8 @@ as $$
 declare
   v_filters jsonb := coalesce(page_deadlines.filters, '{}'::jsonb);
   v_before date;
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -5920,6 +5944,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -5942,6 +5967,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -5973,6 +5999,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -5999,6 +6026,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -6025,6 +6053,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -6051,6 +6080,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -6077,6 +6107,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at" >= (v_after ->> 0)::timestamptz and ((z."created_at" > (v_after ->> 0)::timestamptz) or (z."created_at" = (v_after ->> 0)::timestamptz and z."id" < (v_after ->> 1)::uuid))))
       order by z."created_at" asc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -6103,6 +6134,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at", z."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by z."created_at" desc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -6124,6 +6156,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -6233,7 +6266,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:7364a9ec6df5139954fae5cceacc026efa27b3e7c1701f701b2d3c32773fd6f5
+-- @bsb-hash sha256:cfa31e09ff98ce3105b07eb91f8ce5dfbc45d3843efb5c4f808d968a7d6ef137
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7927,7 +7960,7 @@ grant execute on function "better_supabase"."list_deadlines"(uuid, jsonb) to aut
 -- An organization's deadlines as a keyset page (ADR 0749, 0949), soonest first.
 -- Security invoker, as list_deadlines is. filters is { subjectType, subjectId,
 -- groupKey, period, state, result, provisional (each a value or a list of
--- them), dueBefore (a date), sort, direction, facet, count, limit, after,
+-- them), dueBefore (a date), search (kind, jurisdiction, subject id, group), sort, direction, facet, count, limit, after,
 -- offset, paged, total, totalCap }.
 create or replace function "better_supabase"."page_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -7940,6 +7973,8 @@ as $$
 declare
   v_filters jsonb := coalesce(page_deadlines.filters, '{}'::jsonb);
   v_before date;
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -7985,6 +8020,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -8007,6 +8043,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -8038,6 +8075,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -8064,6 +8102,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -8090,6 +8129,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -8116,6 +8156,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -8142,6 +8183,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at" >= (v_after ->> 0)::timestamptz and ((z."created_at" > (v_after ->> 0)::timestamptz) or (z."created_at" = (v_after ->> 0)::timestamptz and z."id" < (v_after ->> 1)::uuid))))
       order by z."created_at" asc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -8168,6 +8210,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at", z."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by z."created_at" desc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -8189,6 +8232,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -8410,7 +8454,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:f134d82a61ef30bba01426bd0065b85fc84109eb06047dd7cea7f009a89bd2b3
+-- @bsb-hash sha256:cd592d3d7b614be7a9d01fcf081fc1ce64b9fe7a76793af45d17174f03fa3009
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10093,7 +10137,7 @@ grant execute on function "better_supabase"."list_deadlines"(uuid, jsonb) to aut
 -- An organization's deadlines as a keyset page (ADR 0749, 0949), soonest first.
 -- Security invoker, as list_deadlines is. filters is { subjectType, subjectId,
 -- groupKey, period, state, result, provisional (each a value or a list of
--- them), dueBefore (a date), sort, direction, facet, count, limit, after,
+-- them), dueBefore (a date), search (kind, jurisdiction, subject id, group), sort, direction, facet, count, limit, after,
 -- offset, paged, total, totalCap }.
 create or replace function "better_supabase"."page_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -10106,6 +10150,8 @@ as $$
 declare
   v_filters jsonb := coalesce(page_deadlines.filters, '{}'::jsonb);
   v_before date;
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -10151,6 +10197,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -10173,6 +10220,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -10204,6 +10252,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -10230,6 +10279,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -10256,6 +10306,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -10282,6 +10333,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -10308,6 +10360,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at" >= (v_after ->> 0)::timestamptz and ((z."created_at" > (v_after ->> 0)::timestamptz) or (z."created_at" = (v_after ->> 0)::timestamptz and z."id" < (v_after ->> 1)::uuid))))
       order by z."created_at" asc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -10334,6 +10387,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at", z."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by z."created_at" desc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -10355,6 +10409,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;
@@ -10464,7 +10519,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_172_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:37e5bf1f31f6dc66e13581150016d4253eb79fbf609d4a483799f051029b6190
+-- @bsb-hash sha256:f152409c630ba5e7b2a9cecd03b05c4da3d0f0a7ea510b15606deb316faee159
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12158,7 +12213,7 @@ grant execute on function "better_supabase"."list_deadlines"(uuid, jsonb) to aut
 -- An organization's deadlines as a keyset page (ADR 0749, 0949), soonest first.
 -- Security invoker, as list_deadlines is. filters is { subjectType, subjectId,
 -- groupKey, period, state, result, provisional (each a value or a list of
--- them), dueBefore (a date), sort, direction, facet, count, limit, after,
+-- them), dueBefore (a date), search (kind, jurisdiction, subject id, group), sort, direction, facet, count, limit, after,
 -- offset, paged, total, totalCap }.
 create or replace function "better_supabase"."page_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
@@ -12171,6 +12226,8 @@ as $$
 declare
   v_filters jsonb := coalesce(page_deadlines.filters, '{}'::jsonb);
   v_before date;
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
   v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
   v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
   v_after jsonb := v_filters -> 'after';
@@ -12216,6 +12273,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     )
     select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
@@ -12238,6 +12296,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
     return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
@@ -12269,6 +12328,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -12295,6 +12355,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -12321,6 +12382,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date), z."created_at", z."id") > ((v_after ->> 0)::date, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
       order by coalesce(z."due_on", 'infinity'::date) asc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -12347,6 +12409,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (coalesce(z."due_on", 'infinity'::date) <= (v_after ->> 0)::date and ((coalesce(z."due_on", 'infinity'::date) < (v_after ->> 0)::date) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" > (v_after ->> 1)::timestamptz) or (coalesce(z."due_on", 'infinity'::date) = (v_after ->> 0)::date and z."created_at" = (v_after ->> 1)::timestamptz and z."id" > (v_after ->> 2)::uuid))))
       order by coalesce(z."due_on", 'infinity'::date) desc, z."created_at" asc, z."id" asc
       limit v_limit + 1 offset v_offset
@@ -12373,6 +12436,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at" >= (v_after ->> 0)::timestamptz and ((z."created_at" > (v_after ->> 0)::timestamptz) or (z."created_at" = (v_after ->> 0)::timestamptz and z."id" < (v_after ->> 1)::uuid))))
       order by z."created_at" asc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -12399,6 +12463,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
         and (v_after is null or (z."created_at", z."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
       order by z."created_at" desc, z."id" desc
       limit v_limit + 1 offset v_offset
@@ -12420,6 +12485,7 @@ begin
         and (not (v_filters -> 'result' is not null and jsonb_typeof(v_filters -> 'result') <> 'null' and not (jsonb_typeof(v_filters -> 'result') = 'array' and jsonb_array_length(v_filters -> 'result') = 0)) or z."result"::text = any((case when jsonb_typeof(v_filters -> 'result') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'result')) else array[v_filters ->> 'result'] end)::text[]))
         and (not (v_filters -> 'provisional' is not null and jsonb_typeof(v_filters -> 'provisional') <> 'null' and not (jsonb_typeof(v_filters -> 'provisional') = 'array' and jsonb_array_length(v_filters -> 'provisional') = 0)) or z."provisional"::text = any((case when jsonb_typeof(v_filters -> 'provisional') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'provisional')) else array[v_filters ->> 'provisional'] end)::text[]))
         and (v_before is null or z."due_on" < v_before)
+        and (v_search is null or z."kind" ilike v_search or z."jurisdiction" ilike v_search or z."subject_id" ilike v_search or z."group_key" ilike v_search)
       limit v_total_cap + 1
     ) c;
   end if;

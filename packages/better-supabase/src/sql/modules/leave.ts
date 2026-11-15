@@ -1,8 +1,16 @@
+/* oxlint-disable eslint/max-lines -- the keyset page and get functions add lines past the limit. 1 finding. */
 import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { employeeKeyBackfillSql, employeeKeySql } from "../employee-key-sql.ts";
+import {
+  filterAny,
+  filterFirst,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   extraFieldsArg,
@@ -226,8 +234,12 @@ function build(ctx: BlockSqlContext): string {
   const typeJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${ty("id")}, 'organizationId', ${row}.${ty("tenant")}, 'key', ${leaveTypeKey(ctx, row)}, 'name', ${row}.${ty("name")}, 'unit', ${row}.${ty("unit")}, 'paid', ${row}.${ty("paid")}, 'tracked', ${row}.${ty("tracked")}, 'allowance', ${or("types", row, "allowance")}::text, 'carryoverMax', ${or("types", row, "carryoverMax")}::text, 'color', ${or("types", row, "color")}${auto ? `, 'autoApprove', ${row}.${ty("autoApprove")}` : ""}, 'archivedAt', ${row}.${ty("archivedAt")}, 'createdAt', ${row}.${ty("createdAt")}, 'updatedAt', ${row}.${ty("updatedAt")})`;
 
-  const requestJson = (row: string, approval: string): string =>
-    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${or("requests", row, "user")}${owner.json(row)}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${leavePartial(ctx, row)}${parts ? `, 'startPart', ${leaveStartPart(ctx, row)}, 'endPart', ${leaveEndPart(ctx, row)}` : ""}, 'amount', ${row}.${q("amount")}::text, 'note', ${or("requests", row, "note")}, 'status', ${status(row, approval)}, 'approvalId', ${or("requests", row, "approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
+  const requestJson = (
+    row: string,
+    approval: string,
+    statusSql = status(row, approval),
+  ): string =>
+    `jsonb_build_object('id', ${row}.${q("id")}, 'organizationId', ${row}.${q("tenant")}, 'userId', ${or("requests", row, "user")}${owner.json(row)}, 'typeId', ${row}.${q("type")}, 'startsOn', ${row}.${q("startsOn")}, 'endsOn', ${row}.${q("endsOn")}, 'partial', ${leavePartial(ctx, row)}${parts ? `, 'startPart', ${leaveStartPart(ctx, row)}, 'endPart', ${leaveEndPart(ctx, row)}` : ""}, 'amount', ${row}.${q("amount")}::text, 'note', ${or("requests", row, "note")}, 'status', ${statusSql}, 'approvalId', ${or("requests", row, "approval")}, 'approvedAt', ${row}.${q("approvedAt")}, 'cancelledAt', ${row}.${q("cancelledAt")}, 'createdAt', ${row}.${q("createdAt")}, 'updatedAt', ${row}.${q("updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const requestRecord = (type: string, row: string, summary: string): string =>
     ctx.record({
@@ -744,6 +756,123 @@ $$;
 ${userGrant(`${fn("split_leave_request")}(uuid, date, date)`)}
 `;
 
+  const startKeys = [
+    { expr: `x.${q("startsOn")}`, dir: "asc", type: "date" },
+    { expr: `x.${q("createdAt")}`, dir: "asc", type: "timestamptz" },
+    { expr: `x.${q("id")}`, dir: "asc", type: "uuid" },
+  ] as const;
+
+  const pageList = {
+    name: "page_leave_requests",
+    from: `(select r.*, ${status("r", "p")} as leave_status from ${requests} r${joinApproval("r", "p")})`,
+    alias: "x",
+    where: [
+      `x.${q("tenant")} = page_leave_requests.tenant`,
+      owner.employee
+        ? `(v_everyone or x.${q("employee")} = v_owner)`
+        : `(case when v_everyone then true when v_user_arg is not null then x.${q("user")} = v_user_arg else x.${q("user")} = auth.uid() end)`,
+      filterAny("status", "x.leave_status"),
+      filterAny("typeId", `x.${q("type")}::text`),
+      `(v_from is null or x.${q("endsOn")} >= v_from)`,
+      `(v_to is null or x.${q("startsOn")} <= v_to)`,
+      `(v_search is null${ctx.has("requests", "note") ? ` or x.${q("note")} ilike v_search` : ""} or exists (select 1 from ${types} st where st.${ty("id")}::text = x.${q("type")}::text and st.${ty("name")} ilike v_search))`,
+      ...(leaveConfidential(ctx)
+        ? [
+            `(v_confidential or ${owner.employee ? `${ctx.fn("leave_is_mine")}(x.${q("tenant")}, x.${q("employee")})` : `x.${q("user")} = auth.uid()`} or not exists (select 1 from ${types} lc where lc.${ty("id")}::text = x.${q("type")}::text and lc.${ctx.col("types", "confidential")}))`,
+          ]
+        : []),
+    ],
+    keys: startKeys,
+    sorts: {
+      startsOn: startKeys,
+      endsOn: [
+        { expr: `x.${q("endsOn")}`, dir: "desc", type: "date" },
+        { expr: `x.${q("id")}`, dir: "asc", type: "uuid" },
+      ],
+      createdAt: [
+        { expr: `x.${q("createdAt")}`, dir: "desc", type: "timestamptz" },
+        { expr: `x.${q("id")}`, dir: "asc", type: "uuid" },
+      ],
+    },
+    facets: { status: "x.leave_status", typeId: `x.${q("type")}::text` },
+    rowJson: requestJson("x", "p", "x.leave_status"),
+    defaultLimit: 100,
+    maxLimit: 500,
+    invalid,
+  } as const;
+
+  const pageSql = `
+-- The requests that overlap a date range as a keyset page, soonest first (ADR
+-- 1077): the caller's, or everyone's with the read permission. filters is
+-- { everyone, userId, employeeId, from, to (dates), status, typeId (each a value
+-- or a list), search (note, type name), sort (startsOn, endsOn, createdAt),
+-- direction, facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_leave_requests")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_leave_requests.filters, '{}'::jsonb);
+  v_reader boolean := ${SERVICE_CALLER} or ${ctx.can("tenant", "page_leave_requests.tenant", read)};${
+    leaveConfidential(ctx)
+      ? `
+  v_confidential boolean := ${leaveConfidentialReader(ctx, "page_leave_requests.tenant")};`
+      : ""
+  }
+  v_everyone boolean := coalesce(${filterFirst("everyone")}::boolean, false);
+  v_user_arg uuid := ${filterFirst("userId")}::uuid;
+  v_employee_arg uuid := ${filterFirst("employeeId")}::uuid;
+  v_from date := ${filterFirst("from")}::date;
+  v_to date := ${filterFirst("to")}::date;
+  v_search text := ${searchPattern()};${owner.declare}
+  ${listDeclare(pageList)}
+begin
+${
+  owner.employee
+    ? `  ${owner.resolve("page_leave_requests.tenant", "v_user_arg", "v_employee_arg")}
+  if not v_reader and (v_everyone
+    or not ((coalesce(v_user = auth.uid(), false) and ${ctx.can("tenant", "page_leave_requests.tenant", request)}) or ${owner.manages("page_leave_requests.tenant", "v_owner")})) then
+    ${forbidden("not allowed to read this employee's leave")}
+  end if;`
+    : `  if not (v_reader or ${ctx.can("tenant", "page_leave_requests.tenant", request)}) then
+    ${forbidden("not allowed to list leave requests")}
+  end if;
+  if not v_reader and (v_everyone or (v_user_arg is not null and v_user_arg is distinct from auth.uid())) then
+    ${forbidden("not allowed to read another member's leave")}
+  end if;`
+}
+  ${listBody(pageList)}
+end;
+$$;
+${userGrant(`${fn("page_leave_requests")}(${idType}, jsonb)`)}
+
+-- One request by id. Security invoker: the read policy of the requests table
+-- decides what the caller sees.
+create or replace function ${fn("get_leave_request")}(request_id uuid)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${requests}%rowtype;${approvalVar}
+begin
+  select * into v_row from ${requests} x where x.${q("id")} = get_leave_request.request_id;
+  if not found then
+    ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
+  end if;${loadApproval}
+  return ${requestJson("v_row", approvalRow)};
+end;
+$$;
+${userGrant(`${fn("get_leave_request")}(uuid)`)}
+`;
+
   return `${schemaPreamble(ctx)}
 ${owner.helper}${tables}${employeeKey}${appBalances ? leaveBalanceFunctions(ctx, { owner, pending }) : leaveLedgerFunctions(ctx, { owner, pending })}
 -- The working days (options.workingDays) from one date to another, inclusive.
@@ -1021,7 +1150,8 @@ ${
 end;
 $$;
 ${userGrant(`${fn("list_leave_requests")}(${listBase}${owner.employee ? ", uuid" : ""})`)}
-${periodFunctions(ctx, joinApproval("r", "ap"), pendingIn("r", "ap"))}
+
+${pageSql}${periodFunctions(ctx, joinApproval("r", "ap"), pendingIn("r", "ap"))}
 `;
 }
 

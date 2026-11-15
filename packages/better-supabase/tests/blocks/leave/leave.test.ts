@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated array method until 0.70 (ADR 1077). 1 finding. */
 import { describe, expect, it } from "vitest";
 
 import { createLeave } from "../../../src/blocks/leave/index.ts";
@@ -597,5 +598,52 @@ describe("leave client", () => {
     expect(feed?.requests[0]).toMatchObject({ type: "Vacation", amount: 5 });
     expect(feed?.requests[0]?.startsOn.toString()).toBe("2026-10-19");
     expect(await leave.feed("unknown").orThrow()).toBeNull();
+  });
+});
+
+describe("leave request pages", () => {
+  it("pages, facets, counts and gets requests", async () => {
+    const fake = transport({
+      page_leave_requests: (args) => {
+        const filters = (args as { filters: Record<string, unknown> }).filters;
+
+        if (filters["facet"] !== undefined) {
+          return {
+            facet: "status",
+            values: [{ value: "pending", count: { value: 1, exact: true } }],
+          };
+        }
+
+        if (filters["count"] === true) {
+          return { value: 1, exact: true };
+        }
+
+        return { items: [REQUEST], hasMore: false, nextCursor: null };
+      },
+      get_leave_request: () => REQUEST,
+    });
+
+    const leave = createLeave({ transport: fake, tenant: "o" });
+
+    const page = await leave
+      .requestPage({ filters: { status: ["pending"] } })
+      .orThrow();
+
+    expect(page.items.map((item) => item.id)).toEqual(["q1"]);
+
+    expect(
+      await leave.requestFacets({ facets: ["status"] }).orThrow(),
+    ).toHaveLength(1);
+
+    expect(await leave.requestCount().orThrow()).toEqual({
+      value: 1,
+      exact: true,
+    });
+
+    expect((await leave.getRequest("q1").orThrow()).id).toBe("q1");
+    expect(fake.calls.at(-1)).toEqual([
+      "get_leave_request",
+      { request_id: "q1" },
+    ]);
   });
 });

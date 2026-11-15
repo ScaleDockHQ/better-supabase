@@ -10,6 +10,7 @@ import {
   rpcTransport,
 } from "better-supabase/blocks/ai-guardrails";
 
+import { present } from "@/lib/present";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsbCore } from "@/lib/supabase/server-core";
 
@@ -20,7 +21,7 @@ import { bsbCore } from "@/lib/supabase/server-core";
 export function guardrailsBlock(access?: AiAccess): AiGuardrails {
   return createAiGuardrails({
     ...generatedOptions(blockConfig["ai-guardrails"]),
-    ...(access === undefined ? {} : { access }),
+    ...present({ access }),
     transport: rpcTransport(bsbCore.admin().$client, {
       schema: blockConfig["ai-guardrails"].api,
     }),

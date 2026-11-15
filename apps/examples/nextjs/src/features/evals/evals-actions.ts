@@ -8,6 +8,7 @@ import * as v from "valibot";
 
 import { actionAccess } from "@/features/assistant/assistant-ops";
 import { promptsBlock } from "@/features/prompts/prompts-server";
+import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { evalsBlock } from "./evals-server";
@@ -56,7 +57,7 @@ export const addEvalItems = bsbCore.action(
       datasetId: dataset.data.id,
       items: items.map((item) => ({
         input: item.input,
-        ...(item.expected === undefined ? {} : { expected: item.expected }),
+        ...present({ expected: item.expected }),
       })),
     });
 

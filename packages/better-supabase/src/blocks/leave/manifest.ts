@@ -4,6 +4,7 @@ import type { LeaveEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { leaveEvents } from "./events.ts";
 import { createLeave } from "./leave.ts";
+import { leaveRequestListSurface } from "./lists.ts";
 import { leaveSqlOptions } from "./options.ts";
 import { leaveBinding } from "./record-binding.ts";
 
@@ -25,6 +26,7 @@ export const leaveBlock: BlockOf<
   category: "people",
   entities: {
     leave_request: {
+      ...leaveRequestListSurface,
       mutability: "editable",
       emits: { update: true },
       permissions: {

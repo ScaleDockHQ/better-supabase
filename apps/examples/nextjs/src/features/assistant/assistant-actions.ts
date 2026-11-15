@@ -5,6 +5,7 @@ import { aiFileUrl } from "better-supabase/blocks/ai-files";
 import { refresh } from "next/cache";
 import * as v from "valibot";
 
+import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { aiChat, aiFiles } from "./assistant-server";
@@ -124,11 +125,7 @@ export const updateChat = bsbCore.action(
   async ({ chatId, title, pinned, archived }, { supabase }) => {
     const updated = await aiChat(supabase).chats.update({
       chatId,
-      patch: {
-        ...(title === undefined ? {} : { title }),
-        ...(pinned === undefined ? {} : { pinned }),
-        ...(archived === undefined ? {} : { archived }),
-      },
+      patch: { ...present({ title, pinned, archived }) },
     });
 
     if (!updated.ok) {

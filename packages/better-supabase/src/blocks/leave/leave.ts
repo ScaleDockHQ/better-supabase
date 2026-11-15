@@ -3,9 +3,20 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -16,6 +27,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -29,6 +41,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { leaveRequestListSurface } from "./lists.ts";
 
 export interface LeaveOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -400,10 +413,33 @@ export interface Leave<F extends object = Record<never, never>> {
     subject: RecordRef;
     limit?: number | undefined;
   }): AsyncResult<readonly LeaveRequest<F>[]>;
-  /** Earliest first. */
+  /**
+   * Earliest first.
+   *
+   * @deprecated Use `requestPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   list(
     input: { organizationId: string } & LeaveRequestListOptions,
   ): AsyncResult<readonly LeaveRequest<F>[]>;
+  /**
+   * One keyset page of requests, soonest start first. `filters` takes `status`
+   * and `typeId` (lists), `userId`, `employeeId`, `from` and `to` (a value),
+   * and `everyone: ["true"]` for every member's requests (needs `leave.read`);
+   * `q` searches the note and the type name. The organization comes from
+   * `organizationId` or `options.tenant`.
+   */
+  requestPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<LeaveRequest<F>>>;
+  /** The values of each facet (`status`, `typeId`) under the page's filters. */
+  requestFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many requests match the page's filters. */
+  requestCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One request by id, or a `not_found` error. */
+  getRequest(requestId: string): AsyncResult<LeaveRequest<F>>;
   /**
    * A member's balance of each tracked type (the caller's, this year by
    * default).
@@ -624,6 +660,19 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
     "leave request fields",
   );
 
+  // SAFETY: `requestOf` reads the extra columns as a record; `fields.rows` types them next.
+  const requestRowOf = (row: Record<string, unknown>, fn: string) =>
+    requestOf(row, fn) as LeaveRequest<F>;
+
+  const requests = entityList<LeaveRequest<F>, TenantOption>({
+    entity: "leave_request",
+    surface: leaveRequestListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_leave_requests",
+    rowOf: requestRowOf,
+  });
+
   const client: Leave<F> = {
     workingDays: ({ from, to }) =>
       call(
@@ -810,6 +859,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           })),
         };
       }),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, ...list }) =>
       call(
         "list_leave_requests",
@@ -828,8 +878,24 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
             requestOf(row, "list_leave_requests"),
           ),
       ).andThen(fields.rows),
+    requestPage: (page = {}) =>
+      requests
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    requestFacets: requests.facets,
+    requestCount: requests.count,
+    getRequest: (requestId) =>
+      call("get_leave_request", { request_id: requestId }, (value) =>
+        requestOf(value, "get_leave_request"),
+      ).andThen((row) =>
+        // SAFETY: `fields.rows` maps one row to one row.
+        fields.rows([row]).map(([first]) => first as LeaveRequest<F>),
+      ),
     forOwner: ({ subject, limit }) =>
       requireTenant(options.tenant).andThen((organizationId) =>
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
         client.list({
           organizationId,
           ...(subject.type === "employee"
@@ -920,6 +986,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           ...(decidedBy === undefined ? {} : { decidedBy }),
         },
       }),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     pending: (input) => hooked.list({ ...input, status: "pending" }),
   };
 

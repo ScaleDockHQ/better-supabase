@@ -21,11 +21,13 @@ import { rpcTransport } from "better-supabase/blocks/organizations";
 import { vaultCredentials } from "better-supabase/credentials";
 import { postgresStreamStore } from "better-supabase/streams";
 import { after } from "next/server";
+import * as v from "valibot";
 
 import { env } from "@/env";
 import { guardrailsBlock } from "@/features/guardrails/guardrails-server";
 import { knowledge, memory } from "@/features/knowledge/knowledge-server";
 import { promptsBlock } from "@/features/prompts/prompts-server";
+import { present } from "@/lib/present";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
@@ -66,7 +68,7 @@ function guardedModel(
     middleware: guardrailsMiddleware(guardrailsBlock(), {
       agent: ASSISTANT_AGENT,
       chatId,
-      ...(organizationId === null ? {} : { organizationId }),
+      ...present({ organizationId: organizationId ?? undefined }),
     }),
   });
 }
@@ -132,10 +134,16 @@ function aiProviders(): AiKeys {
   return providersInstance;
 }
 
-const priorityOf = (settings: Readonly<Record<string, unknown>>): number =>
-  typeof settings["priority"] === "number"
-    ? settings["priority"]
-    : Number.MAX_SAFE_INTEGER;
+const settingsSchema = v.fallback(
+  v.pipe(
+    v.object({ priority: v.number() }),
+    v.transform((settings) => settings.priority),
+  ),
+  Number.MAX_SAFE_INTEGER,
+);
+
+const priorityOf = <T>(settings: T): number =>
+  v.parse(settingsSchema, settings);
 
 /**
  * Adds the organization's own keys (BYOK) to the gateway options, when it saved

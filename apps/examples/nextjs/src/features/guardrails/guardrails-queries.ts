@@ -9,6 +9,7 @@ import type { OpsListQuery } from "@/components/ops-list/ops-list-params";
 
 import { agentsBlock } from "@/features/agents/agents-server";
 import { ASSISTANT_AGENT, opsAccess } from "@/features/assistant/assistant-ops";
+import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { guardrailsBlock } from "./guardrails-server";
@@ -129,11 +130,7 @@ export async function getDecisionPage(
       : undefined;
 
   const entries = await guardrailsBlock(access)
-    .decisions.list({
-      organizationId,
-      limit: 200,
-      ...(decision === undefined ? {} : { decision }),
-    })
+    .decisions.list({ organizationId, limit: 200, ...present({ decision }) })
     .orThrow();
 
   const needle = query.q.toLowerCase();

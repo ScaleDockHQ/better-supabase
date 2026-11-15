@@ -10,6 +10,7 @@ export const enrollmentsBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "enroll" },
   module: "enrollments",
+  // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
   load: (client: Enrollments, subject) => client.list({ subject }),
   events: [
     "enrollment.created",

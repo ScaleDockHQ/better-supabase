@@ -5,6 +5,7 @@ import { cacheTag } from "next/cache";
 import type { Loaded } from "@/features/people/people-queries";
 
 import { settle } from "@/features/people/people-queries";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type { DeadlineRow } from "./deadlines-list";
@@ -20,7 +21,7 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 export async function readDeadlineRows(
   db: Db,
 ): Promise<readonly DeadlineRow[]> {
-  const deadlines = await db.deadlines.list({ limit: 500 }).orThrow();
+  const deadlines = await readAllPages((page) => db.deadlines.page(page));
 
   return deadlines.map((deadline): DeadlineRow => ({
     id: deadline.id,

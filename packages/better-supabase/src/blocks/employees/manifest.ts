@@ -6,6 +6,7 @@ import { defineBlock } from "../define-block.ts";
 import { employeeFromApplicationFactory } from "./actions.ts";
 import { createEmployees } from "./employees.ts";
 import { employeesEvents } from "./events.ts";
+import { employeeListSurface } from "./lists.ts";
 import { employeesSqlOptions } from "./options.ts";
 import { employeeContractsBinding } from "./record-binding.ts";
 import { employeeChangeSchema, employeeInputSchema } from "./schemas.ts";
@@ -28,6 +29,7 @@ export const employeesBlock: BlockOf<
   record: employeeContractsBinding,
   entities: {
     employee: {
+      ...employeeListSurface,
       mutability: "editable",
       emits: { create: true, update: true, delete: true },
     },

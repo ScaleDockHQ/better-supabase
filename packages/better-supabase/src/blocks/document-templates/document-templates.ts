@@ -1,4 +1,11 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type { CountOptions, FacetOptions } from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type {
@@ -11,6 +18,7 @@ import type { DocumentVariables } from "./variables.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { err } from "../../core/result.ts";
 import {
@@ -24,6 +32,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { documentTemplateListSurface } from "./lists.ts";
 import { renderDocumentHtml } from "./template.ts";
 
 /** A template of one slot: a document type, a name, an entity and a language. */
@@ -171,11 +180,28 @@ export interface DocumentTemplates {
     active: boolean;
   }): AsyncResult<DocumentTemplate>;
   getTemplate(id: string): AsyncResult<DocumentTemplate>;
+  /**
+   * @deprecated Use `templatePage`, which pages, searches, sorts and counts
+   *   (ADR 1077).
+   */
   listTemplates(filter?: {
     readonly documentType?: DocumentTypeName;
     readonly legalEntityId?: string;
     readonly activeOnly?: boolean;
   }): AsyncResult<readonly DocumentTemplate[]>;
+  /**
+   * One keyset page of templates by name, with `q` over the name, type and
+   * body, array filters (`documentType`, `legalEntityId`, `language`, `active`)
+   * and `sort` (`name`, `updatedAt`). `getTemplate` reads one.
+   */
+  templatePage(options?: PageOptions): AsyncResult<ListPage<DocumentTemplate>>;
+  /**
+   * The values of each template facet and their counts, under the page's
+   * filters.
+   */
+  templateFacets(options?: FacetOptions): AsyncResult<readonly FacetResult[]>;
+  /** How many templates match the page's filters. */
+  templateCount(options?: CountOptions): AsyncResult<Count>;
   saveTextBlock(
     input: SaveDocumentTextBlockInput,
   ): AsyncResult<DocumentTextBlock>;
@@ -388,6 +414,15 @@ export function createDocumentTemplates(
       ),
     );
 
+  const templates = entityList({
+    entity: "document_template",
+    surface: documentTemplateListSurface,
+    call,
+    tenant,
+    fn: "page_document_templates",
+    rowOf: templateOf,
+  });
+
   const client: DocumentTemplates = {
     saveTemplate: (input) =>
       tenant().andThen((organizationId) =>
@@ -417,6 +452,7 @@ export function createDocumentTemplates(
         { template_id: id },
         one("get_document_template"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listTemplates: (filter = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -433,6 +469,9 @@ export function createDocumentTemplates(
             ),
         ),
       ),
+    templatePage: templates.page,
+    templateFacets: templates.facets,
+    templateCount: templates.count,
     saveTextBlock: (input) =>
       tenant().andThen((organizationId) =>
         call(

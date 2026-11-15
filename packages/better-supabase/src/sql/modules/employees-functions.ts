@@ -2,6 +2,12 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { createdFromLink } from "../links.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { fail, insertExtraColumns, userGrant } from "../shared.ts";
 import { subjectTitle } from "../subject-check-sql.ts";
 import { hasValueEntry } from "../value-maps.ts";
@@ -318,7 +324,109 @@ export function employeeFunctions(
   const rowWith = (alias: string, depth: string): string =>
     `${n.json(alias)} || jsonb_build_object('depth', ${depth}, 'direct_reports', (select count(*) from ${table} r where r.${e("manager")} = ${alias}.${e("id")} and ${ctx.is("employees", "status", `r.${e("status")}`, ["offboarded"], true)}))`;
 
+  const keyOf = (expr: string, dir: "asc" | "desc", type: string) =>
+    ({ expr, dir, type }) as const;
+
+  const idKey = keyOf(`x.${e("id")}`, "asc", "uuid");
+  const nameKey = keyOf(`lower(${n.name("x")})`, "asc", "text");
+
+  const startKeys = has("startDate")
+    ? [
+        keyOf(
+          `coalesce(x.${e("startDate")}, date '0001-01-01')`,
+          "desc",
+          "date",
+        ),
+      ]
+    : [];
+
+  const optional = <T>(column: string, value: T): readonly T[] =>
+    has(column) ? [value] : [];
+
+  const employeePage = {
+    name: "page_employees",
+    from: table,
+    alias: "x",
+    where: [
+      `x.${e("tenant")} = page_employees.tenant`,
+      ...optional("status", filterAny("status", `x.${e("status")}`)),
+      ...optional(
+        "employmentType",
+        filterAny("employmentType", `x.${e("employmentType")}`),
+      ),
+      ...optional("team", filterAny("teamId", `x.${e("team")}`, "uuid")),
+      ...optional(
+        "manager",
+        filterAny("managerId", `x.${e("manager")}`, "uuid"),
+      ),
+      ...optional("user", filterAny("userId", `x.${e("user")}`, "uuid")),
+      `(v_search is null or ${n.name("x")} ilike v_search${has("email") ? ` or x.${e("email")} ilike v_search` : ""}${has("jobTitle") ? ` or x.${e("jobTitle")} ilike v_search` : ""})`,
+    ],
+    keys: [nameKey, idKey],
+    sorts: {
+      name: [nameKey, idKey],
+      ...(startKeys.length > 0 ? { startDate: [...startKeys, idKey] } : {}),
+    },
+    facets: {
+      ...(has("status") ? { status: `x.${e("status")}` } : {}),
+      ...(has("employmentType")
+        ? { employmentType: `x.${e("employmentType")}` }
+        : {}),
+      ...(has("team") ? { teamId: `x.${e("team")}::text` } : {}),
+    },
+    rowJson: n.json("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("EMPLOYEE_INVALID", message, "22023"),
+  } as const;
+
   return `
+-- The organization's employees as a keyset page, by name (ADR 1077). Needs
+-- employees.read. filters is { status, employmentType, teamId, managerId,
+-- userId (each a value or a list), search, sort (name, startDate), direction,
+-- facet, count, limit, after, offset, paged, total, totalCap }.
+create or replace function ${fn("page_employees")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_employees.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(employeePage)}
+begin
+  if not (${n.service} or ${ctx.scope.can("page_employees.tenant", n.read)}) then
+    ${fail("EMPLOYEE_FORBIDDEN", "not allowed to read the employees")}
+  end if;
+  ${listBody(employeePage)}
+end;
+$$;
+${userGrant(`${fn("page_employees")}(${ctx.idType}, jsonb)`)}
+
+-- One employee by id. Needs employees.read, or being the employee or one of
+-- their managers.
+create or replace function ${fn("get_employee")}(employee uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${table};
+begin
+  select * into v_row from ${table} x where x.${e("id")} = get_employee.employee;
+  if v_row.${e("id")} is null or not (${n.service} or ${ctx.scope.can(`v_row.${e("tenant")}`, n.read)} or ${inMyTree("get_employee.employee")}) then
+    ${fail("EMPLOYEE_NOT_FOUND", "no such employee you can read", "P0002")}
+  end if;
+  return ${n.json("v_row")};
+end;
+$$;
+${userGrant(`${fn("get_employee")}(uuid)`)}
+
 -- Creates an employee. attrs: name (required), email, userId, jobTitle,
 -- teamId, managerId, employmentType, status, startDate, endDate, origin
 -- ({ type, id }) and the extra columns. With an origin, creating again

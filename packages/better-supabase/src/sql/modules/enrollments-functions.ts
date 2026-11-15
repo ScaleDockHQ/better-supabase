@@ -1,7 +1,12 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { createdOrUpdated } from "../event-verbs.ts";
-import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import {
   fail,
   NOTHING,
@@ -135,6 +140,7 @@ export function enrollmentsFunctions(ctx: BlockSqlContext): string {
       filterAny("subjectType", `x.${e("subjectType")}`),
       filterAny("subjectId", `x.${e("subjectId")}`),
       filterAny("status", `x.${e("status")}::text`),
+      `(v_search is null or x.${e("program")} ilike v_search or x.${e("subjectId")} ilike v_search)`,
     ],
     keys: updatedKeys,
     sorts: {
@@ -805,7 +811,7 @@ ${userGrant(`${fn("get_enrollment")}(uuid)`)}
 -- The organization's enrollments as a keyset page, most recently changed first
 -- (ADR 0749, 0779). Without enrollments.read a member sees only their own.
 -- filters is { program, status, subjectType, subjectId (each a value or a list of
--- them), sort, direction, facet, count, limit, after, offset, paged, total,
+-- them), search (program key, subject id), sort, direction, facet, count, limit, after, offset, paged, total,
 -- totalCap }.
 create or replace function ${fn("page_enrollments")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
@@ -818,6 +824,7 @@ as $$
 declare
   v_filters jsonb := coalesce(page_enrollments.filters, '{}'::jsonb);
   v_read boolean := ${allowed("page_enrollments.tenant", read)};
+  v_search text := ${searchPattern()};
   ${listDeclare(pageList)}
 begin
   if not v_read and auth.uid() is null then

@@ -16736,6 +16736,32 @@ export const PRESET_CATALOG: PresetCatalog = {
           "read": "leave.read",
           "manage": "leave.manage"
         }
+      },
+      "entityLists": {
+        "leave_request": {
+          "sorts": [
+            "startsOn",
+            "endsOn",
+            "createdAt"
+          ],
+          "facets": [
+            "status",
+            "typeId"
+          ],
+          "filters": [
+            "status",
+            "typeId",
+            "everyone",
+            "userId",
+            "employeeId",
+            "from",
+            "to"
+          ],
+          "search": [
+            "note",
+            "type"
+          ]
+        }
       }
     },
     {
@@ -17120,6 +17146,10 @@ export const PRESET_CATALOG: PresetCatalog = {
             "status",
             "program",
             "subjectType",
+            "subjectId"
+          ],
+          "search": [
+            "program",
             "subjectId"
           ]
         }
@@ -25853,6 +25883,12 @@ export const PRESET_CATALOG: PresetCatalog = {
             "result",
             "provisional",
             "dueBefore"
+          ],
+          "search": [
+            "kind",
+            "jurisdiction",
+            "subjectId",
+            "groupKey"
           ]
         }
       }
@@ -28126,6 +28162,30 @@ export const PRESET_CATALOG: PresetCatalog = {
           "document_text_block.updated",
           "document_snapshot.created"
         ]
+      },
+      "entityLists": {
+        "document_template": {
+          "sorts": [
+            "name",
+            "updatedAt"
+          ],
+          "facets": [
+            "documentType",
+            "active",
+            "language"
+          ],
+          "filters": [
+            "documentType",
+            "legalEntityId",
+            "language",
+            "active"
+          ],
+          "search": [
+            "name",
+            "documentType",
+            "body"
+          ]
+        }
       }
     },
     {
@@ -29814,7 +29874,32 @@ export const PRESET_CATALOG: PresetCatalog = {
           "kind": "employees.from_application",
           "title": "Preboard the hired candidate"
         }
-      ]
+      ],
+      "entityLists": {
+        "employee": {
+          "sorts": [
+            "name",
+            "startDate"
+          ],
+          "facets": [
+            "status",
+            "employmentType",
+            "teamId"
+          ],
+          "filters": [
+            "status",
+            "employmentType",
+            "teamId",
+            "managerId",
+            "userId"
+          ],
+          "search": [
+            "name",
+            "email",
+            "jobTitle"
+          ]
+        }
+      }
     },
     {
       "name": "activities",

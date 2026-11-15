@@ -51,7 +51,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "payroll-export":
     "create_payroll_run delete_payroll_run get_payroll_run list_payroll_runs mark_payroll_run_exported page_payroll_runs refresh_payroll_run",
   "document-templates":
-    "document_template_contract freeze_document get_document_template list_document_templates list_document_text_blocks render_document resolve_document_template save_document_template save_document_text_block set_document_template_active validate_document_template",
+    "document_template_contract freeze_document get_document_template list_document_templates list_document_text_blocks page_document_templates render_document resolve_document_template save_document_template save_document_text_block set_document_template_active validate_document_template",
   tax: "compute_document_tax file_tax_return list_tax_codes list_tax_returns prepare_tax_return save_tax_code save_tax_rate tax_rate_on",
   "billable-time":
     "delete_time_rate invoice_from_time list_invoiced_time list_time_rates project_costs set_time_rate time_rate unbilled_time wip_valuation",
@@ -108,7 +108,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   drive:
     "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_lock drive_move drive_node_access drive_path drive_release_hold drive_rename drive_search drive_set_download_blocked drive_share drive_shared drive_transfer_ownership drive_unlock drive_unshare",
   employees:
-    "add_employee_contract create_employee delete_employee employee_contracts employee_private_details offboard_employee org_chart reports_of save_employee_private_details update_employees",
+    "add_employee_contract create_employee delete_employee employee_contracts employee_private_details get_employee offboard_employee org_chart page_employees reports_of save_employee_private_details update_employees",
   enrichment:
     "enrichment_due enrichment_target enrichments_of record_enrichment",
   enrollments:
@@ -187,7 +187,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   leases:
     "activate_lease create_lease get_lease list_lease_charges list_leases post_due_rent record_rent_payment renew_lease terminate_lease",
   leave:
-    "accrue_leave adjust_leave_balance archive_leave_type cancel_leave_request close_leave_year leave_balances leave_ledger_entries leave_working_days list_leave_requests list_leave_types request_leave restore_leave_type save_leave_type split_leave_request update_leave_request",
+    "accrue_leave adjust_leave_balance archive_leave_type cancel_leave_request close_leave_year get_leave_request leave_balances leave_ledger_entries leave_working_days list_leave_requests list_leave_types page_leave_requests request_leave restore_leave_type save_leave_type split_leave_request update_leave_request",
   ledger:
     "capture_ledger_hold close_ledger_account get_ledger_transaction ledger_account_entries list_ledger_accounts open_ledger_account place_ledger_hold post_ledger_transaction release_ledger_hold reverse_ledger_transaction",
   "legal-entities":
