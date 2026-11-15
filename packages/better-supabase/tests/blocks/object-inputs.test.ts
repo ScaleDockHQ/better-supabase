@@ -27,6 +27,7 @@ const POSITIONAL = new Set<string>([
   "approvals/approvals.ts:rowOf",
   "banking/berlin-group.ts:transactions",
   "bulk-actions/bulk-actions.ts:bulk",
+  "contracts/contracts.ts:rowOf",
   "create-blocks.ts:serviceBlocks",
   "domains/provider.ts:add",
   "domains/provider.ts:addProjectDomain",

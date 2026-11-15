@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:c9e026a6f6c4fff0225ee8192d2ba37574f41c8b4e40a309961996bec4588bd5
+-- @bsb-hash sha256:50b10f2c5217bbe3a6d8fc024156c97a1f3b5e3937853b0d44b23e96441daee5
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -978,7 +978,7 @@ begin
     ), '[]'::jsonb)) into v_row from "better_supabase"."pipelines" x
   where x."id" = get_pipeline.pipeline and x."archived_at" is null;
   if v_row is null then
-    raise exception 'no pipeline you can read has this id' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
+    raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
   return v_row;
 end;
@@ -1071,7 +1071,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:d06dc4795e8a93469684f5ad2e14db5f092dc9ecaea74ae038fe50df7b2543f7
+-- @bsb-hash sha256:b7ec62a0e3db9e14a13772913bab52b2d931fa9a8f6f0f506e01fac9020aca71
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2873,7 +2873,7 @@ begin
     ), '[]'::jsonb)) into v_row from "better_supabase"."pipelines" x
   where x."id" = get_pipeline.pipeline and x."archived_at" is null;
   if v_row is null then
-    raise exception 'no pipeline you can read has this id' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
+    raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
   return v_row;
 end;
@@ -3008,7 +3008,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:ecd6ad689528e5923e5b1341094bba0d408bfd5e8beda5ab632ea72a497d5a07
+-- @bsb-hash sha256:da6bc339f2872be11e77d16b1708c93d98bcf7ebb2b0914cd033d30f47c4289d
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3990,7 +3990,7 @@ begin
     ), '[]'::jsonb)) into v_row from "app_private"."pipelines" x
   where x."id" = get_pipeline.pipeline and x."archived_at" is null;
   if v_row is null then
-    raise exception 'no pipeline you can read has this id' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
+    raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
   return v_row;
 end;
@@ -4083,7 +4083,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:90647d8cabebfe78b401ef8ccbdd3a702d68e4d6328da385d097c8d264f33e25
+-- @bsb-hash sha256:d79ccf6865d20dc613cb1430339cc9124b8c6d9e2ad342f4b060542589ed5257
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5060,7 +5060,7 @@ begin
     ), '[]'::jsonb)) into v_row from "better_supabase"."pipelines" x
   where x."id" = get_pipeline.pipeline and x."archived_at" is null;
   if v_row is null then
-    raise exception 'no pipeline you can read has this id' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
+    raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
   return v_row;
 end;
@@ -5298,7 +5298,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:9ea3de4a25b823fca24304278cfcd6e106fe2dd232e983a983467a507eb81a51
+-- @bsb-hash sha256:2dc159e0114665e7be3e88da13baab9978c73785bc85ad369627af0283512036
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6268,7 +6268,7 @@ begin
     ), '[]'::jsonb)) into v_row from "better_supabase"."pipelines" x
   where x."id" = get_pipeline.pipeline and x."archived_at" is null;
   if v_row is null then
-    raise exception 'no pipeline you can read has this id' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
+    raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
   return v_row;
 end;
@@ -6361,7 +6361,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:496ef6f9369046cda9543093c0e71d2926e5ffaeac52c3d882e9ab6201b664d2
+-- @bsb-hash sha256:8cdddb634322b53b756d3cad439973c3966babafe822180066d68e39cbd18fc2
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7338,7 +7338,7 @@ begin
     ), '[]'::jsonb)) into v_row from "better_supabase"."pipelines" x
   where x."id" = get_pipeline.pipeline and x."archived_at" is null;
   if v_row is null then
-    raise exception 'no pipeline you can read has this id' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
+    raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
   return v_row;
 end;

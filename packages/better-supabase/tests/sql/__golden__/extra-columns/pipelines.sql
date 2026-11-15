@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:672a9510d08b26c129866b397cdda203d3742c2dc21c1611340bd6315ca6ea24
+-- @bsb-hash sha256:726ebebe43fcf631bd9939a77111c27936fe3a11dd85e68290a990c34e949081
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -981,7 +981,7 @@ begin
     ), '[]'::jsonb)) into v_row from "better_supabase"."pipelines" x
   where x."id" = get_pipeline.pipeline and x."archived_at" is null;
   if v_row is null then
-    raise exception 'no pipeline you can read has this id' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
+    raise exception 'pipeline not found' using errcode = 'P0002', hint = 'PIPELINE_NOT_FOUND';
   end if;
   return v_row;
 end;
