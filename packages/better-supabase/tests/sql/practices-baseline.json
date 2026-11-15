@@ -420,7 +420,7 @@
     "row-triggers": 1
   },
   "queue": {
-    "security-definer-functions": 105
+    "security-definer-functions": 110
   },
   "quotes": {
     "security-definer-functions": 139,

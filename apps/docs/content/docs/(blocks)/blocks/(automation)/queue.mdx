@@ -176,6 +176,34 @@ validating them, since the schema may have changed since. All three call
 so they need a SQL connection or the API transport described in
 [Without a database connection](#without-a-database-connection).
 
+### Reading one message
+
+`enqueueJob` takes the same input as `enqueue` and returns
+`{ jobId: "queue:<queue>:<id>" }`. `get` reads that message's run record, and
+`runs` is the `queue` source of `createJobs`, so a page reads it with the
+common `jobs.get`:
+
+```ts
+const jobs = createJobs({ queue: queue.runs });
+
+const { jobId } = await queue
+  .enqueueJob({ queue: "send_email", payload: { to } })
+  .orThrow();
+
+const job = await jobs.get(jobId).orThrow();
+// { status: "pending" | "running" | "completed" | "failed", done, error, ... }
+
+const run = await queue.get({ queue: "send_email", id: 42 }).orThrow();
+// { state, attempts, maxAttempts, enqueuedAt, finishedAt, lastError } or null
+```
+
+A message that waits, including one that waits out a retry backoff, is
+`pending`. A message a worker holds is `running`, an archived one is
+`completed`, and a dead letter is `failed` with the hint `QUEUE_JOB_DEAD`. The
+record never holds the payload, which may contain personal data. A message
+purged from the archive reads as not found. `get` calls
+`better_supabase.get_job`, so it needs a SQL connection or the API transport.
+
 ### Actor and tenant
 
 The queue itself runs on a service-role connection, but the work inside a
@@ -1156,8 +1184,8 @@ Over PostgREST you get `enqueue`, `claim`, `complete`, `fail`, `drain` and
 - there is no lease check on `complete`;
 - a failed job reappears when its lease ends (`retryIn` is ignored), and
   there's no heartbeat;
-- `dedupeKey`, `enqueueOnce`, `schedule`, `stats`, `listDead` and
-  `retryDead` return `invalid_request`.
+- `dedupeKey`, `enqueueOnce`, `schedule`, `stats`, `listDead`, `retryDead`
+  and `get` return `invalid_request`.
 
 To get the whole API without a direct connection, write wrappers for the
 module into an exposed schema with `blocks.queue.api` and pass an

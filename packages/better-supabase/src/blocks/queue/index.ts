@@ -174,6 +174,8 @@ export type {
   QueueMessageBody,
   QueueMessageRow,
   QueueRpcClient,
+  QueueRun,
+  QueueRunState,
   QueueStats,
   QueuePurgeOptions,
   ScheduleProvider,

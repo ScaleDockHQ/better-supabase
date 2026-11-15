@@ -374,6 +374,35 @@ as $$
   where m.${c("queue")} = job_queue_stats.queue;
 $$;
 
+-- One message's state without its payload: waiting, running, done or dead.
+-- Null when the id is unknown or purge_job_archive removed it, and for a dead
+-- letter that replay_dead_job moved to a new id.
+create or replace function better_supabase.get_job(queue text, job_id bigint)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'queue', m.${c("queue")},
+    'id', m.${c("id")},
+    'state', case
+      when m.${c("dead")} then 'dead'
+      when m.${c("archivedAt")} is not null then 'done'
+      when m.${c("attempts")} > 0 and m.${c("visibleAt")} > clock_timestamp() and not m.${c("message")} ? 'last_error' then 'running'
+      else 'waiting'
+    end,
+    'attempts', m.${c("attempts")},
+    'enqueuedAt', m.${c("enqueuedAt")},
+    'finishedAt', m.${c("archivedAt")},
+    'lastError', m.${c("message")} ->> 'last_error',
+    'maxAttempts', coalesce((m.${c("message")} ->> 'max_attempts')::integer, 5)
+  )
+  from ${messages} m
+  where m.${c("queue")} = get_job.queue and m.${c("id")} = get_job.job_id;
+$$;
+
 -- A queue's dead letters, newest first, before before_id when given.
 create or replace function better_supabase.list_dead_jobs(queue text, max_rows integer default 100, before_id bigint default null)
 returns table (id bigint, attempts integer, enqueued_at timestamptz, died_at timestamptz, message jsonb)
