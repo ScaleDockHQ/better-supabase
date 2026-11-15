@@ -35,7 +35,9 @@ export type PostsEvents = {
   readonly "post.status_changed": PostEventData;
   readonly "post.moderated": PostEventData;
   readonly "post.merged": PostEventData;
-  readonly "post.deleted": PostEventData;
+  readonly "post.archived": PostEventData;
+  readonly "post.restored": PostEventData;
+  readonly "post.purged": PostEventData;
 };
 
 /** The `posts` block's event types, for its manifest and `onBlockEvent`. */
@@ -47,5 +49,7 @@ export const postsEvents: Events<PostsEvents> = defineEvents({
   "post.status_changed": event<PostEventData>(),
   "post.moderated": event<PostEventData>(),
   "post.merged": event<PostEventData>(),
-  "post.deleted": event<PostEventData>(),
+  "post.archived": event<PostEventData>(),
+  "post.restored": event<PostEventData>(),
+  "post.purged": event<PostEventData>(),
 });

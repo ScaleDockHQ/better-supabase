@@ -228,7 +228,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   pipelines:
     "archive_pipeline archive_pipeline_stage list_pipelines pipeline_board pipeline_health pipeline_stats rank_pipeline_stage restore_pipeline restore_pipeline_stage save_pipeline save_pipeline_stage set_pipeline_transitions",
   posts:
-    "create_post delete_post get_post list_post_boards list_posts merge_posts save_post_board set_post_state update_post vote_on_post",
+    "archive_post create_post get_post list_post_boards list_posts merge_posts purge_post restore_post save_post_board set_post_state update_post vote_on_post",
   profiles: "my_profile update_my_profile",
   promotions:
     "apply_promotion_code create_promotion_codes delete_promotion delete_promotion_code remove_promotion_code save_promotion set_promotion_active",

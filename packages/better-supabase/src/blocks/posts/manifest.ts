@@ -27,7 +27,13 @@ export const postsBlock: BlockOf<"posts", typeof createPosts, PostsEvents> =
       },
       post: {
         mutability: "editable",
-        emits: { create: true, update: true, delete: true },
+        emits: {
+          create: true,
+          update: true,
+          archive: true,
+          restore: true,
+          purge: true,
+        },
       },
     },
     concerns: ["lifecycle", "search"],
