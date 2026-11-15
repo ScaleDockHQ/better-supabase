@@ -1,5 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { getFunction } from "../get-template.ts";
+import { filterAny, pageFunction } from "../list-template.ts";
 import { fail, pageSize, userGrant } from "../shared.ts";
 import { warehouseSql } from "./warehouse-sql.ts";
 
@@ -26,6 +28,42 @@ export function warehouseCounting(ctx: BlockSqlContext): string {
   const m = (column: string): string => inventory.col("countLines", column);
   const post = inventory.fn("post_stock_count");
   const open = inventory.fn("open_stock_count");
+
+  const planKeys = (
+    first: "nextRunOn" | "name",
+  ): readonly {
+    readonly expr: string;
+    readonly dir: "asc" | "desc";
+    readonly type: string;
+  }[] => [
+    first === "nextRunOn"
+      ? {
+          expr: `coalesce(x.${n("nextRunOn")}, 'infinity'::date)`,
+          dir: "asc",
+          type: "date",
+        }
+      : { expr: `lower(x.${n("name")})`, dir: "asc", type: "text" },
+    { expr: `x.${n("id")}`, dir: "asc", type: "uuid" },
+  ];
+
+  const planPage = {
+    name: "page_count_plans",
+    from: plans,
+    alias: "x",
+    where: [
+      `x.${n("tenant")} = page_count_plans.tenant`,
+      filterAny("active", `x.${n("active")}::text`),
+      filterAny("locationId", `x.${n("location")}::text`),
+      `(v_search is null or x.${n("name")} ilike v_search)`,
+    ],
+    keys: planKeys("nextRunOn"),
+    sorts: { nextRunOn: planKeys("nextRunOn"), name: planKeys("name") },
+    facets: { active: `x.${n("active")}::text` },
+    rowJson: q.planJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: q.invalid,
+  } as const;
 
   const countMissing = fail(
     "WAREHOUSE_COUNT_NOT_FOUND",
@@ -116,6 +154,32 @@ end;
 $$;
 ${userGrant(`${fn("list_count_plans")}(${idType})`)}
 
+-- The count plans of an organization as a keyset page, by next run unless
+-- sort says otherwise (ADR 1077). filters may hold active ("true" or
+-- "false") and locationId (a value or a list), search, sort (nextRunOn,
+-- name), direction, facet, count, limit and after. Needs warehouse.read.
+${pageFunction({
+  name: fn("page_count_plans"),
+  idType,
+  list: planPage,
+  allowed: q.allowed("page_count_plans.tenant", q.read),
+  forbidden: q.forbidden("not allowed to read count plans"),
+  grant: userGrant(`${fn("page_count_plans")}(${idType}, jsonb)`),
+})}
+-- One count plan the caller may read, or null.
+${getFunction({
+  name: fn("get_count_plan"),
+  bare: "get_count_plan",
+  arg: "plan_id",
+  from: plans,
+  idColumn: n("id"),
+  tenantColumn: n("tenant"),
+  tenantType: idType,
+  rowJson: q.planJson("x"),
+  allowed: (tenant) => q.allowed(tenant, q.read),
+  forbidden: q.forbidden("not allowed to read count plans"),
+  grant: userGrant(`${fn("get_count_plan")}(uuid)`),
+})}
 -- Opens the plan's stock count and moves its next run on. A plan whose last
 -- count is still open doesn't open another. Not granted to anyone.
 create or replace function ${fn("count_plan_run")}(plan_id uuid)

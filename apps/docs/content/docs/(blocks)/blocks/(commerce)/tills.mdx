@@ -188,3 +188,7 @@ const total = await tills
 ```
 
 A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.
+
+### Paging tills
+
+`listTills` is deprecated in favor of `tillPage` (ADR 1077). `tillPage` pages tills by name (the default) or `createdAt`. Filters are `currency` and `includeArchived: ["true"]`, the facet is `currency`, and `q` searches the till name. `tillFacets` and `tillCount` read under the same options, and `getTill(id)` returns one till or a `not_found` error. The SQL functions are `list_tills` (a page with `paged: true`) and `get_till`. `sessionPage` also takes `q`, which searches the session notes.

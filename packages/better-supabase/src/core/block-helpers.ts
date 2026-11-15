@@ -355,6 +355,22 @@ export function credentialRefOf(value: unknown): CredentialRef | undefined {
 export const notFoundError = (message: string, hint?: string): DbError =>
   dbError("not_found", message, hint === undefined ? {} : { hint });
 
+/**
+ * The row a `get_*` function returned, mapped by `read`, or a `not_found` error
+ * when it returned null (ADR 1077).
+ */
+export function foundRow<T>(
+  result: AsyncResult<unknown>,
+  message: string,
+  read: (value: Record<string, unknown>) => T,
+): AsyncResult<T> {
+  return result.andThen((value) =>
+    isRecord(value)
+      ? AsyncResult.ok(read(value))
+      : AsyncResult.err(notFoundError(message)),
+  );
+}
+
 /** A `timestamptz` from jsonb or `pg`, or `undefined` for null. */
 export const optionalInstant = (
   value: unknown,

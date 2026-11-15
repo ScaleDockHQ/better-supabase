@@ -3,6 +3,7 @@ import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
 import { postgres, userClaims } from "@/features/developer/postgres";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { LIMS_TAG } from "./lims-cache";
@@ -69,7 +70,7 @@ export async function loadMethods(): Promise<readonly MethodRow[] | null> {
     return null;
   }
 
-  const methods = await db.lims.listMethods().orThrow();
+  const methods = await readAllPages((page) => db.lims.methodPage(page));
 
   return methods.map((row) => ({
     id: row.id,

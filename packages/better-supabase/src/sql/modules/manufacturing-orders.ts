@@ -2,7 +2,12 @@ import type { BlockSqlContext } from "../context.ts";
 import type { ManufacturingSql } from "./manufacturing-sql.ts";
 
 import { bookSource } from "../accounting-sources-sql.ts";
-import { filterAny, listBody, listDeclare } from "../list-template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import { fail, userGrant, writeExtraColumns } from "../shared.ts";
 import { movementLots } from "./inventory-ledger.ts";
@@ -89,6 +94,7 @@ export function productionFunctions(ctx: BlockSqlContext): string {
       `x.${po("tenant")} = list_production_orders.tenant`,
       filterAny("status", `x.${po("status")}`),
       filterAny("variantId", `x.${po("variant")}`, "uuid"),
+      `(v_search is null or x.${po("number")} ilike v_search or coalesce(x.${po("note")}, '') ilike v_search)`,
     ],
     keys: orderKeys("dueOn"),
     sorts: {
@@ -620,7 +626,7 @@ $$;
 ${userGrant(`${fn("get_production_order")}(uuid)`)}
 
 -- The organization's production orders, due first: filters is { status (a value
--- or a list), variantId (a value or a list), sort, direction, facet, count,
+-- or a list), variantId (a value or a list), search, sort, direction, facet, count,
 -- limit, after, offset, paged, total, totalCap } (ADR 0749; limit 1 to 500,
 -- default 100).
 create or replace function ${fn("list_production_orders")}(tenant ${idType}, filters jsonb default null)
@@ -633,6 +639,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_filters jsonb := coalesce(list_production_orders.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
   ${listDeclare(orderList)}
 begin
   if not ${q.allowed("list_production_orders.tenant", q.read)} then

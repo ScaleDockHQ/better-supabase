@@ -213,3 +213,15 @@ const total = await warehouse
 ```
 
 A cursor belongs to the sort it came from; start again from the first page when `sort` or `direction` changes. A sort or filter the entity does not declare returns an `invalid_input` error.
+
+### Paging waves, rules and plans
+
+`listPickWaves`, `listPutawayRules` and `listCountPlans` are deprecated in favor of `pickWavePage`, `putawayRulePage` and `countPlanPage` (ADR 1077). Each has a `Facets` and a `Count` method and a getter (`getPickWave`, `getPutawayRule`, `getCountPlan`) that returns one row or a `not_found` error.
+
+| Method            | Sorts                             | Filters and facets                  | `q` searches   |
+| ----------------- | --------------------------------- | ----------------------------------- | -------------- |
+| `pickWavePage`    | `createdAt` (default), `name`     | `status`, `locationId`              | the wave name  |
+| `countPlanPage`   | `nextRunOn` (default), `name`     | `active`, `locationId`              | the plan name  |
+| `putawayRulePage` | `priority` (default), `createdAt` | `locationId`, `variantId`, `active` | not searchable |
+
+The SQL functions are `page_pick_waves`, `page_count_plans`, `list_putaway_rules` (a page with `paged: true`) and the three `get_*` functions.

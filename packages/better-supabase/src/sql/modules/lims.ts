@@ -262,6 +262,8 @@ function contract(): readonly BlockSqlContractFunction[] {
     { name: "archive_lims_method", args: ["uuid"], returns: "jsonb" },
     { name: "restore_lims_method", args: ["uuid"], returns: "jsonb" },
     { name: "list_lims_methods", args: ["{id}", "boolean"], returns: "jsonb" },
+    { name: "page_lims_methods", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_lims_method", args: ["uuid"], returns: "jsonb" },
     { name: "register_sample", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "get_sample", args: ["uuid"], returns: "jsonb" },
     { name: "list_samples", args: ["{id}", "jsonb"], returns: "jsonb" },

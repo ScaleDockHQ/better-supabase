@@ -1448,7 +1448,7 @@ export interface BlockNameRegistry {
       readonly "samples": "id" | "tenant" | "number" | "sequence" | "title" | "kind" | "lot" | "receivedOn" | "status" | "notes" | "rejectionReason" | "completedAt" | "releasedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "results": "id" | "tenant" | "sample" | "method" | "value" | "outcome" | "instrument" | "submission" | "case" | "note" | "testedBy" | "testedAt" | "createdAt";
     };
-    readonly functions: "archive_lims_method" | "complete_sample" | "get_sample" | "instrument_status" | "list_lims_methods" | "list_qualified_instruments" | "list_samples" | "record_lims_result" | "register_sample" | "reject_sample" | "release_sample" | "restore_lims_method" | "save_lims_method";
+    readonly functions: "archive_lims_method" | "complete_sample" | "get_lims_method" | "get_sample" | "instrument_status" | "list_lims_methods" | "list_qualified_instruments" | "list_samples" | "page_lims_methods" | "record_lims_result" | "register_sample" | "reject_sample" | "release_sample" | "restore_lims_method" | "save_lims_method";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_lims_sample_register" | "after_lims_sample_register" | "before_lims_result_record" | "after_lims_result_record";
     readonly entities: {
@@ -1485,7 +1485,7 @@ export interface BlockNameRegistry {
       readonly "readings": "id" | "tenant" | "meter" | "value" | "readAt" | "readBy";
       readonly "calibrations": "id" | "tenant" | "asset" | "instrument" | "performedAt" | "dueAt" | "result" | "reference" | "performedBy" | "qualifications";
     };
-    readonly functions: "archive_maintenance_plan" | "create_maintenance_meter" | "create_maintenance_plan" | "generate_maintenance_work_orders" | "get_calibration" | "get_maintenance_plan" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_next_occurrence" | "purge_maintenance_plan" | "record_calibration" | "record_meter_reading" | "restore_maintenance_plan" | "update_maintenance_plan";
+    readonly functions: "archive_maintenance_plan" | "create_maintenance_meter" | "create_maintenance_plan" | "generate_maintenance_work_orders" | "get_calibration" | "get_maintenance_meter" | "get_maintenance_plan" | "list_calibrations" | "list_maintenance_meters" | "list_maintenance_plans" | "maintenance_next_occurrence" | "page_maintenance_meters" | "purge_maintenance_plan" | "record_calibration" | "record_meter_reading" | "restore_maintenance_plan" | "update_maintenance_plan";
     readonly actions: "read" | "record" | "manage";
     readonly hooks: "before_maintenance_plan_create" | "after_maintenance_plan_create";
     readonly entities: {
@@ -1508,7 +1508,7 @@ export interface BlockNameRegistry {
       readonly "consumptions": "id" | "tenant" | "order" | "variant" | "lot" | "serial" | "quantity" | "cost" | "currency" | "movement" | "createdBy" | "createdAt";
       readonly "lotLinks": "tenant" | "parent" | "child" | "order" | "quantity" | "createdAt";
     };
-    readonly functions: "activate_bom" | "bom_reaches" | "bom_where_used" | "cancel_production_order" | "complete_production_order" | "create_from_requirements" | "create_production_order" | "explode_bom" | "finish_production_operation" | "get_bom" | "get_production_order" | "list_boms" | "list_production_orders" | "list_work_centers" | "lot_genealogy" | "lot_recall" | "material_requirements" | "production_consume" | "production_quantity" | "record_production_consumption" | "release_production_order" | "requirements_pass" | "save_bom" | "save_work_center" | "start_production_operation";
+    readonly functions: "activate_bom" | "bom_reaches" | "bom_where_used" | "cancel_production_order" | "complete_production_order" | "create_from_requirements" | "create_production_order" | "explode_bom" | "finish_production_operation" | "get_bom" | "get_production_order" | "get_work_center" | "list_boms" | "list_production_orders" | "list_work_centers" | "lot_genealogy" | "lot_recall" | "material_requirements" | "page_boms" | "page_work_centers" | "production_consume" | "production_quantity" | "record_production_consumption" | "release_production_order" | "requirements_pass" | "save_bom" | "save_work_center" | "start_production_operation";
     readonly actions: "read" | "write" | "produce" | "manage";
     readonly hooks: "before_production_order_release" | "after_production_order_release" | "before_production_order_complete" | "after_production_order_complete";
     readonly entities: {
@@ -2454,7 +2454,7 @@ export interface BlockNameRegistry {
       readonly "counts": "id" | "tenant" | "session" | "denominations" | "expected" | "counted" | "variance" | "countedBy" | "countedAt" | "entry" | "notes";
       readonly "deposits": "id" | "tenant" | "session" | "amount" | "depositedOn" | "reference" | "status" | "entry" | "bankTransaction" | "reconciledAt" | "createdBy" | "createdAt";
     };
-    readonly functions: "close_till_session" | "create_till" | "deposit_till_cash" | "get_till_session" | "list_till_sessions" | "list_tills" | "open_till_session" | "reconcile_till_deposit" | "record_till_movement" | "update_till";
+    readonly functions: "close_till_session" | "create_till" | "deposit_till_cash" | "get_till" | "get_till_session" | "list_till_sessions" | "list_tills" | "open_till_session" | "reconcile_till_deposit" | "record_till_movement" | "update_till";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_till_session_open" | "after_till_session_open" | "before_till_session_close" | "after_till_session_close" | "before_till_deposit" | "after_till_deposit";
     readonly entities: {
@@ -2584,7 +2584,7 @@ export interface BlockNameRegistry {
       readonly "slots": "id" | "tenant" | "bin" | "walkRank" | "capacity" | "updatedAt";
       readonly "sizes": "id" | "tenant" | "variant" | "size" | "updatedAt";
     };
-    readonly functions: "cancel_pick_wave" | "complete_pick_list" | "count_plan_run" | "create_count_plan" | "create_pick_list" | "create_pick_wave" | "delete_putaway_rule" | "get_cycle_count_variance" | "get_pick_list" | "list_bin_slots" | "list_count_plans" | "list_pick_lists" | "list_pick_waves" | "list_putaway_rules" | "pick_list_json" | "pick_list_task" | "post_cycle_count" | "putaway_plan" | "putaway_rule_json" | "record_pick" | "release_pick_wave" | "run_count_plan" | "run_due_count_plans" | "save_bin_slot" | "save_putaway_rule" | "save_variant_size" | "set_pick_route" | "suggest_putaway" | "suggest_receipt_putaway" | "suggest_slotting";
+    readonly functions: "cancel_pick_wave" | "complete_pick_list" | "count_plan_run" | "create_count_plan" | "create_pick_list" | "create_pick_wave" | "delete_putaway_rule" | "get_count_plan" | "get_cycle_count_variance" | "get_pick_list" | "get_pick_wave" | "get_putaway_rule" | "list_bin_slots" | "list_count_plans" | "list_pick_lists" | "list_pick_waves" | "list_putaway_rules" | "page_count_plans" | "page_pick_waves" | "pick_list_json" | "pick_list_task" | "post_cycle_count" | "putaway_plan" | "putaway_rule_json" | "record_pick" | "release_pick_wave" | "run_count_plan" | "run_due_count_plans" | "save_bin_slot" | "save_putaway_rule" | "save_variant_size" | "set_pick_route" | "suggest_putaway" | "suggest_receipt_putaway" | "suggest_slotting";
     readonly actions: "read" | "pick" | "manage";
     readonly hooks: "before_pick_list_create" | "after_pick_list_create";
     readonly entities: {

@@ -10,3 +10,32 @@ export const pickListListSurface: EntityListSurface = {
   facets: ["status", "documentType"],
   filters: ["waveId", "status", "documentType", "documentId", "mine"],
 };
+
+/** The same for a pick wave (`page_pick_waves`). */
+export const pickWaveListSurface: EntityListSurface = {
+  sorts: ["createdAt", "name"],
+  facets: ["status", "locationId"],
+  filters: ["status", "locationId"],
+  search: ["name"],
+};
+
+/**
+ * The same for a putaway rule (`list_putaway_rules`). `active` is `["true"]` or
+ * `["false"]`.
+ */
+export const putawayRuleListSurface: EntityListSurface = {
+  sorts: ["priority", "createdAt"],
+  facets: ["active"],
+  filters: ["locationId", "variantId", "active"],
+};
+
+/**
+ * The same for a count plan (`page_count_plans`). `active` is `["true"]` or
+ * `["false"]`.
+ */
+export const countPlanListSurface: EntityListSurface = {
+  sorts: ["nextRunOn", "name"],
+  facets: ["active"],
+  filters: ["active", "locationId"],
+  search: ["name"],
+};

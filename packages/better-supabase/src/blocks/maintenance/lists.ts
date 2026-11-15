@@ -10,6 +10,7 @@ export const maintenancePlanListSurface: EntityListSurface = {
   sorts: ["nextDueAt", "title"],
   facets: ["status", "kind"],
   filters: ["status", "kind", "assetId", "due", "archived"],
+  search: ["title"],
 };
 
 /**
@@ -20,4 +21,13 @@ export const maintenanceCalibrationListSurface: EntityListSurface = {
   sorts: ["performedAt", "dueAt"],
   facets: ["result"],
   filters: ["assetId", "dueBefore"],
+  search: ["instrument", "reference"],
+};
+
+/** The same for a meter (`page_maintenance_meters`). */
+export const maintenanceMeterListSurface: EntityListSurface = {
+  sorts: ["name", "readAt"],
+  facets: ["unit", "assetId"],
+  filters: ["unit", "assetId"],
+  search: ["name"],
 };

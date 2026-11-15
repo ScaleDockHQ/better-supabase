@@ -10,7 +10,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult as AsyncResultType } from "../../core/result.ts";
 import type { BlockOptions } from "../shared.ts";
 
-import { plainDateOf } from "../../core/block-helpers.ts";
+import { foundRow, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { entityList } from "../../core/entity-list.ts";
@@ -29,7 +29,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
-import { limsSampleListSurface } from "./lists.ts";
+import { limsMethodListSurface, limsSampleListSurface } from "./lists.ts";
 
 /** Where a sample is in the laboratory. */
 export type LimsSampleStatus = (typeof LIMS_SAMPLE_STATUSES)[number];
@@ -159,9 +159,29 @@ export interface Lims {
   archiveMethod(methodId: string): AsyncResultType<LimsMethod>;
   /** Brings an archived method back; needs `lims.manage`. */
   restoreMethod(methodId: string): AsyncResultType<LimsMethod>;
+  /**
+   * Test methods by key.
+   *
+   * @deprecated Use `methodPage`, which pages by keyset and takes `q`, `sort`
+   * and array filters. The alias stays until 0.70 (ADR 1077).
+   */
   listMethods(options?: {
     readonly includeArchived?: boolean;
   }): AsyncResultType<readonly LimsMethod[]>;
+  /**
+   * One keyset page of test methods, by key unless `sort` says otherwise, with
+   * `hasMore` and a `nextCursor` to pass as `after`.
+   */
+  methodPage(options?: PageOptions): AsyncResultType<ListPage<LimsMethod>>;
+  /**
+   * The values of each facet of test methods and their counts, under the page's
+   * filters.
+   */
+  methodFacets(options?: FacetOptions): AsyncResultType<readonly FacetResult[]>;
+  /** How many test methods match the page's filters. */
+  methodCount(options?: CountOptions): AsyncResultType<Count>;
+  /** One test method, or a `not_found` error. */
+  getMethod(methodId: string): AsyncResultType<LimsMethod>;
   /** Registers and numbers a sample; needs `lims.write`. */
   registerSample(input: LimsSampleInput): AsyncResultType<LimsSample>;
   getSample(sampleId: string): AsyncResultType<LimsSampleDetail>;
@@ -331,6 +351,15 @@ export function createLims(options: LimsOptions): Lims {
     rowOf: sampleOf,
   });
 
+  const methods = entityList({
+    entity: "lims_method",
+    surface: limsMethodListSurface,
+    call,
+    tenant,
+    fn: "page_lims_methods",
+    rowOf: methodOf,
+  });
+
   const client: Lims = {
     saveMethod: ({ input, methodId }) =>
       tenant().andThen((organizationId) =>
@@ -352,6 +381,16 @@ export function createLims(options: LimsOptions): Lims {
       call("restore_lims_method", { method_id: methodId }, (value) =>
         methodOf(value, "restore_lims_method"),
       ),
+    methodPage: methods.page,
+    methodFacets: methods.facets,
+    methodCount: methods.count,
+    getMethod: (methodId) =>
+      foundRow(
+        call("get_lims_method", { method_id: methodId }, (value) => value),
+        "test method not found",
+        (row) => methodOf(row, "get_lims_method"),
+      ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listMethods: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
