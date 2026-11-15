@@ -89,6 +89,8 @@ export interface Activity<F extends object = Record<never, never>> {
   readonly overdue: boolean;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
+  /** Set while the activity is archived. */
+  readonly archivedAt?: Temporal.Instant;
   /** `team` unless set; absent when the table has no audience column. */
   readonly audience?: ActivityAudience;
   /** The record team roles that read a `restricted` activity. */
@@ -162,7 +164,20 @@ export interface Activities<F extends object = Record<never, never>> {
       readonly outcome?: string;
     },
   ): AsyncResult<Activity<F>>;
-  remove(id: string): AsyncResult<boolean>;
+  /**
+   * Archives an activity: it leaves `of`, `next`, `open` and search, and takes
+   * no changes until it is restored. A locked note refuses it. Records
+   * `activity.archived`.
+   */
+  archive(id: string): AsyncResult<Activity<F>>;
+  /** Brings an archived activity back; records `activity.restored`. */
+  restore(id: string): AsyncResult<Activity<F>>;
+  /**
+   * Removes an activity for good, with its records, recordings and notes.
+   * `permissions.purge` gates this; without it whoever may edit it may.
+   * Resolves with `false` when there was nothing to purge.
+   */
+  purge(id: string): AsyncResult<boolean>;
   /**
    * Adds an addendum to an activity the caller can read: a new activity with
    * `body`, on the same records, with the same type, title and audience. A
@@ -180,6 +195,8 @@ export interface Activities<F extends object = Record<never, never>> {
       readonly types?: readonly string[];
       readonly before?: Temporal.Instant;
       readonly limit?: number;
+      /** `true` lists only the archived ones; they are hidden otherwise. */
+      readonly archived?: boolean;
     },
   ): AsyncResult<Activity<F>[]>;
   /** The next open activity with a due time on a record, or `undefined`. */
@@ -310,6 +327,7 @@ function activityOf(value: unknown): Activity {
         : undefined,
     externalRef: optionalText(row["external_ref"]),
     createdBy: optionalText(row["created_by"]),
+    archivedAt: optionalInstant(row["archived_at"]),
     audience: isAudience(row["audience"]) ? row["audience"] : undefined,
     restrictedRoles: Array.isArray(row["restricted_roles"])
       ? row["restricted_roles"].map(textOf)
@@ -547,8 +565,12 @@ export function createActivities<
         },
         activityOf,
       ).andThen(parsed),
-    remove: (id) =>
-      call("delete_activity", { activity: id }, (value) => value === true),
+    archive: (id) =>
+      call("archive_activity", { activity: id }, activityOf).andThen(parsed),
+    restore: (id) =>
+      call("restore_activity", { activity: id }, activityOf).andThen(parsed),
+    purge: (id) =>
+      call("purge_activity", { activity: id }, (value) => value === true),
     amend: ({ id, body }) =>
       call("amend_activity", { activity: id, body }, activityOf).andThen(
         parsed,
@@ -566,6 +588,7 @@ export function createActivities<
           types: list.types === undefined ? null : [...list.types],
           before: instantArg(list.before) ?? null,
           page_size: list.limit ?? null,
+          archived: list.archived ?? false,
         },
         (value) => recordsOf(value, "activities_of").map(activityOf),
       ).andThen(parsedAll),

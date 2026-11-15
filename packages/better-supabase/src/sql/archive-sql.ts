@@ -23,6 +23,8 @@ export interface ArchiveSpec {
   readonly load: (fn: string) => string;
   /** An extra refusal before an archive (the row is still in use). */
   readonly beforeArchive?: string;
+  /** An extra refusal before a restore (the row would clash with another). */
+  readonly beforeRestore?: string;
   /** The JSON of `v_row` the function returns. */
   readonly json: string;
   /** The `ctx.record` statement for an event type, over `v_row`. */
@@ -64,7 +66,7 @@ begin
   ${spec.load(`${verb}_${spec.entity}`)}
   if v_row.${spec.archivedAt} ${verb === "archive" ? "is not null" : "is null"} then
     return ${spec.json};
-  end if;${verb === "archive" ? (spec.beforeArchive ?? "") : ""}
+  end if;${verb === "archive" ? (spec.beforeArchive ?? "") : (spec.beforeRestore ?? "")}
   update ${spec.table} x set
     ${spec.archivedAt} = ${verb === "archive" ? "now()" : "null"}${spec.updatedAt ? `,\n    ${spec.updatedAt} = now()` : ""}
   where x.${spec.id} = v_row.${spec.id}

@@ -31,6 +31,7 @@ import { moduleOperations } from "./permissions-model.ts";
 import {
   durationEntries,
   entryEnded,
+  entryLive,
   entrySubjects,
 } from "./time-entries-owner.ts";
 
@@ -235,6 +236,7 @@ function functions(ctx: BlockSqlContext): string {
     "billable",
     "rate",
     "rateCurrency",
+    ...(time.has("entries", "archivedAt") ? ["archivedAt"] : []),
   ]
     .map((column) => `old.${e(column)} is distinct from new.${e(column)}`)
     .join(" or ");
@@ -257,7 +259,7 @@ function functions(ctx: BlockSqlContext): string {
       limit 1
     ) card on x.${e("rate")} is null
     where x.${e("tenant")} = ${tenant}
-      and x.${e("billable")} and ${ended("x")} is not null
+      and x.${e("billable")} and ${ended("x")} is not null and ${entryLive(time, "x")}
       and not exists (select 1 from ${billed} d where d.${b("entry")} = x.${e("id")})
       and (${scope} -> 'subject' is null or (${rowSubject("x").type} = ${scope} -> 'subject' ->> 'type' and ${rowSubject("x").id} = ${scope} -> 'subject' ->> 'id'))
       and (${scope} ->> 'userId' is null or x.${e("user")} = (${scope} ->> 'userId')::uuid)

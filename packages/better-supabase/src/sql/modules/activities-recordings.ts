@@ -518,7 +518,12 @@ as $$
   from (
     select rx.${r("id")} as id, rx.${r("createdAt")} as at
     from ${t("recordings")} rx
-    where rx.${r("status")} = 'pending'
+    where rx.${r("status")} = 'pending'${
+      ctx.has("activities", "archivedAt")
+        ? `
+      and not exists (select 1 from ${t("activities")} ax where ax.${e("id")} = rx.${r("activity")} and ax.${e("archivedAt")} is not null)`
+        : ""
+    }
     order by rx.${r("createdAt")}
     limit ${pageSize("pending_activity_recordings.batch", 20, 200)}
   ) p

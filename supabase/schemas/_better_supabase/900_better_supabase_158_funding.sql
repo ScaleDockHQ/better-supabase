@@ -1,6 +1,6 @@
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:c7e4307ae43cef6b372ffbbea68a063821c240ae605470422ca79da2aefc7e92
+-- @bsb-hash sha256:df416f9852a0fb25f09e55de07ccf28b873a45d9a4dbed5848d51bf68790feed
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -894,7 +894,7 @@ begin
       x."user_id" as performer, null::text as category
     from "better_supabase"."time_entries" x
     where x."tenant_id" = register_funding_deliveries_from_time.tenant
-      and x."ended_at" is not null
+      and x."ended_at" is not null and x."archived_at" is null
       and x."subject_type" is not null
       and x."started_at" >= (register_funding_deliveries_from_time.since::timestamp at time zone 'UTC')
       and x."started_at" < ((register_funding_deliveries_from_time.until + 1)::timestamp at time zone 'UTC')

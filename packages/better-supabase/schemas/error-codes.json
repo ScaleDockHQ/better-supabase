@@ -147,6 +147,10 @@
     "message": "the activity is already marked in error"
   },
   {
+    "code": "ACTIVITY_ARCHIVED",
+    "message": "the activity is archived: restore it first"
+  },
+  {
     "code": "ACTIVITY_AUDIENCE_INVALID",
     "message": "restrictedRoles must be a list of record team roles"
   },
@@ -5647,6 +5651,10 @@
     "message": "stop the running timer before submitting this week"
   },
   {
+    "code": "TIME_ENTRY_ARCHIVED",
+    "message": "restore this entry before resuming it"
+  },
+  {
     "code": "TIME_ENTRY_INVALID",
     "message": "ended_at must be after started_at"
   },
@@ -5700,7 +5708,7 @@
   },
   {
     "code": "TIME_TIMER_RUNNING",
-    "message": "this timer is already running"
+    "message": "stop the running timer before archiving it"
   },
   {
     "code": "TIME_USER_INVALID",
