@@ -65,7 +65,7 @@ describe("createAnnouncements", () => {
     const { call, client } = fake((fn) =>
       fn === "list_announcements"
         ? rows
-        : fn === "delete_announcement"
+        : fn === "purge_announcement"
           ? true
           : row,
     );
@@ -124,12 +124,38 @@ describe("createAnnouncements", () => {
       { id: "a1", fields: { audience: "plan", targets: ["pro"] } },
       { id: "a1", fields: { ends_at: null, href: null } },
     ]);
-    expect(await client.remove("a1").orThrow()).toBe(true);
+    expect(await client.purge("a1").orThrow()).toBe(true);
     expect(() =>
       client.update({
         announcementId: "a1",
         input: { audience: { type: "everyone" } as never },
       }),
     ).toThrow("Unknown audience");
+  });
+
+  it("archives, restores and lists with archived ones on request", async () => {
+    const archivedRow = { ...row, archived_at: "2026-01-05T00:00:00Z" };
+
+    const { call, client } = fake((fn) =>
+      fn === "archive_announcement"
+        ? archivedRow
+        : fn === "restore_announcement"
+          ? row
+          : [archivedRow],
+    );
+
+    const archived = await client.archive("a1").orThrow();
+    expect(archived.archivedAt?.toString()).toBe("2026-01-05T00:00:00Z");
+    expect(call.mock.calls[0]?.slice(1)).toEqual([
+      "archive_announcement",
+      { id: "a1" },
+    ]);
+    expect((await client.restore("a1").orThrow()).archivedAt).toBeUndefined();
+    await client.list();
+    await client.list({ includeArchived: true });
+    expect(call.mock.calls.slice(2).map((c) => c[2])).toEqual([
+      { include_archived: false },
+      { include_archived: true },
+    ]);
   });
 });

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:9c67fecaa664b029fb91be118f2eea105d3708fa00558bf62e7cded13ee45a9a
+-- @bsb-hash sha256:a61824ac28bb6eba55512501070e17d2b397d963d8330c356de7a2e7e3134f60
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20,6 +20,7 @@ create table "better_supabase"."announcements" (
   "starts_at" timestamptz not null default now(),
   "ends_at" timestamptz,
   "dismissible" boolean not null default true,
+  "archived_at" timestamptz,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -72,6 +73,7 @@ begin
     select coalesce(jsonb_agg(to_jsonb(x) - 'targets' order by x."starts_at" desc), '[]'::jsonb)
     from "better_supabase"."announcements" x
     where x."starts_at" <= now()
+      and x."archived_at" is null
       and (x."ends_at" is null or x."ends_at" > now())
       and case x."audience"
         when 'all' then true
@@ -119,8 +121,9 @@ begin
 end;
 $$;
 
--- Every announcement, for staff (announcements.manage on the platform).
-create or replace function "better_supabase"."list_announcements"()
+-- Every announcement, for staff (announcements.manage on the platform);
+-- archived ones only with include_archived.
+create or replace function "better_supabase"."list_announcements"(include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -134,6 +137,7 @@ begin
   return (
     select coalesce(jsonb_agg(to_jsonb(x) order by x."starts_at" desc), '[]'::jsonb)
     from "better_supabase"."announcements" x
+    where list_announcements.include_archived or x."archived_at" is null
   );
 end;
 $$;
@@ -174,7 +178,7 @@ begin
     if v_row."id" is null then
       raise exception 'No announcement %', save_announcement.id using errcode = 'P0002', hint = 'ANNOUNCEMENT_NOT_FOUND';
     end if;
-    v_row := jsonb_populate_record(v_row, save_announcement.fields - 'id' - 'created_by' - 'created_at');
+    v_row := jsonb_populate_record(v_row, save_announcement.fields - 'id' - 'archived_at' - 'created_by' - 'created_at');
     v_row."updated_at" := now();
     update "better_supabase"."announcements" x set ("title", "body", "severity", "href", "audience", "targets", "starts_at", "ends_at", "dismissible", "updated_at") = (v_row."title", v_row."body", v_row."severity", v_row."href", v_row."audience", v_row."targets", v_row."starts_at", v_row."ends_at", v_row."dismissible", v_row."updated_at")
     where x."id" = v_row."id"
@@ -189,7 +193,70 @@ begin
 end;
 $$;
 
-create or replace function "better_supabase"."delete_announcement"(id uuid)
+-- Archives an announcement: it stops showing and keeps its dismissals.
+create or replace function "better_supabase"."archive_announcement"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."announcements";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('announcements.manage'), false))) then
+    raise exception 'You may not manage announcements' using errcode = '42501', hint = 'ANNOUNCEMENT_FORBIDDEN';
+  end if;
+  select * into v_row from "better_supabase"."announcements" x where x."id" = archive_announcement.id for update;
+  if v_row."id" is null then
+    raise exception 'No announcement %', archive_announcement.id using errcode = 'P0002', hint = 'ANNOUNCEMENT_NOT_FOUND';
+  end if;
+  if v_row."archived_at" is not null then
+    return to_jsonb(v_row);
+  end if;
+  update "better_supabase"."announcements" x set "archived_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Brings an archived announcement back, inside its window.
+create or replace function "better_supabase"."restore_announcement"(id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."announcements";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('announcements.manage'), false))) then
+    raise exception 'You may not manage announcements' using errcode = '42501', hint = 'ANNOUNCEMENT_FORBIDDEN';
+  end if;
+  select * into v_row from "better_supabase"."announcements" x where x."id" = restore_announcement.id for update;
+  if v_row."id" is null then
+    raise exception 'No announcement %', restore_announcement.id using errcode = 'P0002', hint = 'ANNOUNCEMENT_NOT_FOUND';
+  end if;
+  if v_row."archived_at" is null then
+    return to_jsonb(v_row);
+  end if;
+  update "better_supabase"."announcements" x set "archived_at" = null, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+
+-- Removes an announcement and its dismissals for good. Archive keeps the row.
+create or replace function "better_supabase"."purge_announcement"(id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -204,7 +271,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('announcements.manage'), false))) then
     raise exception 'You may not manage announcements' using errcode = '42501', hint = 'ANNOUNCEMENT_FORBIDDEN';
   end if;
-  delete from "better_supabase"."announcements" x where x."id" = delete_announcement.id;
+  delete from "better_supabase"."announcements" x where x."id" = purge_announcement.id;
   get diagnostics v_count = row_count;
   if v_count > 0 then
     null;
@@ -242,14 +309,18 @@ create policy bsb_announcements_receive on realtime.messages
 
 revoke execute on function "better_supabase"."active_announcements"(uuid) from public, anon;
 revoke execute on function "better_supabase"."dismiss_announcement"(uuid) from public, anon;
-revoke execute on function "better_supabase"."list_announcements"() from public, anon;
+revoke execute on function "better_supabase"."list_announcements"(boolean) from public, anon;
 revoke execute on function "better_supabase"."save_announcement"(uuid, jsonb) from public, anon;
-revoke execute on function "better_supabase"."delete_announcement"(uuid) from public, anon;
+revoke execute on function "better_supabase"."archive_announcement"(uuid) from public, anon;
+revoke execute on function "better_supabase"."restore_announcement"(uuid) from public, anon;
+revoke execute on function "better_supabase"."purge_announcement"(uuid) from public, anon;
 grant execute on function "better_supabase"."active_announcements"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."dismiss_announcement"(uuid) to authenticated, service_role;
-grant execute on function "better_supabase"."list_announcements"() to authenticated, service_role;
+grant execute on function "better_supabase"."list_announcements"(boolean) to authenticated, service_role;
 grant execute on function "better_supabase"."save_announcement"(uuid, jsonb) to authenticated, service_role;
-grant execute on function "better_supabase"."delete_announcement"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."archive_announcement"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."restore_announcement"(uuid) to authenticated, service_role;
+grant execute on function "better_supabase"."purge_announcement"(uuid) to authenticated, service_role;
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements

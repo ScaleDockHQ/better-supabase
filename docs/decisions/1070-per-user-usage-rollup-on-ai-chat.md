@@ -38,7 +38,7 @@ their chats.
 
 - The example's usage page shows a "Per member" card to callers with
   `ai_chat.manage`.
-- The migration `20270119000060_y6_ai_usage_by_user.sql` adds the function;
+- The migration `20270119130000_y6_ai_usage_by_user.sql` adds the function;
   apps run `better-supabase upgrade` and apply the migration it generates.
 - The grouping scans the tenant's runs in the range. The existing
   `ai_runs_chat_idx` serves the join; a range that spans millions of runs

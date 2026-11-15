@@ -938,8 +938,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
+        "announcement.archived",
         "announcement.created",
-        "announcement.deleted",
+        "announcement.purged",
+        "announcement.restored",
         "announcement.updated"
       ],
       "subpath": "better-supabase/blocks/announcements",
@@ -2292,7 +2294,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "events": [
         "form.created",
-        "form_submission.deleted",
+        "form_submission.archived",
+        "form_submission.purged",
+        "form_submission.restored",
         "form_submission.reviewed",
         "form_submission.submitted",
         "form_version.published"

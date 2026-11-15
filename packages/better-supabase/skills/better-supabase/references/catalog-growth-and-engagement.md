@@ -58,7 +58,7 @@ In-app announcements for everyone, tenants, roles or plans within a time window,
 - Entities: `announcement`
 - Tables: `announcements`
 - Permission keys: `announcements.manage`
-- Events (`AnnouncementsEvents`): `announcement.created`, `announcement.deleted`, `announcement.updated`
+- Events (`AnnouncementsEvents`): `announcement.archived`, `announcement.created`, `announcement.purged`, `announcement.restored`, `announcement.updated`
 
 ## scores
 
