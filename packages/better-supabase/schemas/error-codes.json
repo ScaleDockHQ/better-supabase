@@ -1794,6 +1794,10 @@
     "message": "only a posted gift gets a receipt"
   },
   {
+    "code": "DRIVE_ARCHIVED",
+    "message": "drive is archived; restore it first"
+  },
+  {
     "code": "DRIVE_ATTACHMENT_NOT_FOUND",
     "message": "that version of the file was not found"
   },
@@ -1870,6 +1874,10 @@
   {
     "code": "DRIVE_NOT_A_FILE",
     "message": "a folder has no previews"
+  },
+  {
+    "code": "DRIVE_NOT_ARCHIVED",
+    "message": "archive the drive before purging it"
   },
   {
     "code": "DRIVE_NOT_CONNECTED",
