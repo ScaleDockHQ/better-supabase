@@ -5752,7 +5752,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "version": "version",
               "createdBy": "created_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "archivedAt": "archived_at"
             }
           }
         },
@@ -16967,7 +16968,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "score_model.created",
           "score_model.updated",
-          "score_model.deleted",
+          "score_model.archived",
+          "score_model.restored",
+          "score_model.purged",
           "score.changed"
         ]
       }

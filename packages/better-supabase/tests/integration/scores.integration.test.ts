@@ -371,13 +371,46 @@ describe.skipIf(!live)("scores module in Postgres", () => {
     expect((await scoresFor(tenant).model(model!.id)).error?.kind).toBe(
       "not_found",
     );
-    expect((await scoresFor(tenant).deleteModel(model!.id)).error?.hint).toBe(
+    expect((await scoresFor(tenant).purgeModel(model!.id)).error?.hint).toBe(
+      "SCORES_FORBIDDEN",
+    );
+    expect((await scoresFor(tenant).archiveModel(model!.id)).error?.hint).toBe(
       "SCORES_FORBIDDEN",
     );
 
     await session.as(owner);
-    expect(await owned.deleteModel(model!.id).orThrow()).toBe(true);
-    expect(await owned.deleteModel(model!.id).orThrow()).toBe(false);
+    await owned.saveModel({ id: model!.id, enabled: true }).orThrow();
+    await owned
+      .compute({ modelKey: "lead", subject: lead, fields: {} })
+      .orThrow();
+
+    const archived = await owned.archiveModel(model!.id).orThrow();
+
+    expect(archived.archivedAt).toBeDefined();
+    expect(await owned.models().orThrow()).toEqual([]);
+    expect(
+      await owned.models({ includeArchived: true }).orThrow(),
+    ).toHaveLength(1);
+    expect(await owned.list({ on: lead }).orThrow()).toEqual([]);
+    expect(
+      (await owned.compute({ modelKey: "lead", subject: lead, fields: {} }))
+        .error?.hint,
+    ).toBe("SCORES_MODEL_ARCHIVED");
+    expect(
+      (await owned.saveModel({ id: model!.id, name: "Renamed" })).error?.hint,
+    ).toBe("SCORES_MODEL_ARCHIVED");
+    expect(
+      (await owned.history({ modelKey: "lead", subject: lead }).orThrow())
+        .length,
+    ).toBeGreaterThan(0);
+
+    const restored = await owned.restoreModel(model!.id).orThrow();
+
+    expect(restored.archivedAt).toBeUndefined();
+    expect(await owned.models().orThrow()).toHaveLength(1);
+
+    expect(await owned.purgeModel(model!.id).orThrow()).toBe(true);
+    expect(await owned.purgeModel(model!.id).orThrow()).toBe(false);
     expect(
       await owned.history({ modelKey: "lead", subject: lead }).orThrow(),
     ).toEqual([]);
