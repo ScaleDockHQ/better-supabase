@@ -11,7 +11,7 @@ import { fail, userGrant } from "../shared.ts";
 import { packsOn } from "./custom-fields-packs.ts";
 
 /** The JSON of definition row `alias`, as `list_field_definitions` returns it. */
-export function definitionJson(
+function definitionJson(
   ctx: BlockSqlContext,
   alias: string,
   rank: string,

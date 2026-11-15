@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:4f753d1fc1954df29ba2a07807e24d801c1953dbfc3fc26c953539c39ed34a9f
+-- @bsb-hash sha256:4f84003dd6cc2753831dc29f28878f9a81474ab6f5a15a553e9a248cbd585282
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -996,6 +996,524 @@ $$;
 revoke execute on function "better_supabase"."latest_observations"(text, text) from public, anon;
 grant execute on function "better_supabase"."latest_observations"(text, text) to authenticated, service_role;
 
+-- A record's observations as a keyset page, the latest first (ADR 1077).
+-- filters is { subjectType, subjectId, definitionKey, status (each a value or
+-- a list; without status only final observations), sort (observedAt,
+-- createdAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "better_supabase"."page_observations"(filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observations.filters, '{}'::jsonb);
+  v_search text := null;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'definitionKey') then
+      raise exception 'facet is one of status, definitionKey' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text when 'definitionKey' then ((select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id"))::text end) as v
+      from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('observedAt', 'createdAt') then
+    raise exception 'sort is one of observedAt, createdAt' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_observations"(jsonb) from public, anon;
+grant execute on function "better_supabase"."page_observations"(jsonb) to authenticated, service_role;
+
+-- One observation the caller reads, or null.
+create or replace function "better_supabase"."get_observation"(observation_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at")
+  from "better_supabase"."observations" x
+  join "better_supabase"."observation_definitions" y on y."id" = x."definition_id"
+  where x."id" = get_observation.observation_id
+$$;
+revoke execute on function "better_supabase"."get_observation"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_observation"(uuid) to authenticated, service_role;
+
+-- An organization's definitions with the system ones it does not override, as
+-- a keyset page by title.
+create or replace function "better_supabase"."page_observation_definitions"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observation_definitions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('valueType', 'scope') then
+      raise exception 'facet is one of valueType, scope' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'valueType' then (x."value_type"::text)::text when 'scope' then (case when x."tenant_id" is null then 'system' else 'organization' end)::text end) as v
+      from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('title', 'key') then
+    raise exception 'sort is one of title, key' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key" <= (v_after ->> 0)::text and ((x."key" < (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."key" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_observation_definitions"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_observation_definitions"(uuid, jsonb) to authenticated, service_role;
+
+-- One definition the caller reads, or null.
+create or replace function "better_supabase"."get_observation_definition"(definition_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."observation_definitions" x where x."id" = get_observation_definition.definition_id
+$$;
+revoke execute on function "better_supabase"."get_observation_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_observation_definition"(uuid) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1049,7 +1567,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:af545eb7d11c6defe56e671fe92c7efaac5d8dbfb9c032b813c4bfdb5868efa6
+-- @bsb-hash sha256:8b118bcc6857a3ae96de0f09c106a9fa7f986cee0f075c0565897bb19d1696af
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2141,6 +2659,524 @@ $$;
 revoke execute on function "better_supabase"."latest_observations"(text, text) from public, anon;
 grant execute on function "better_supabase"."latest_observations"(text, text) to authenticated, service_role;
 
+-- A record's observations as a keyset page, the latest first (ADR 1077).
+-- filters is { subjectType, subjectId, definitionKey, status (each a value or
+-- a list; without status only final observations), sort (observedAt,
+-- createdAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "better_supabase"."page_observations"(filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observations.filters, '{}'::jsonb);
+  v_search text := null;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'definitionKey') then
+      raise exception 'facet is one of status, definitionKey' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text when 'definitionKey' then ((select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id"))::text end) as v
+      from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('observedAt', 'createdAt') then
+    raise exception 'sort is one of observedAt, createdAt' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_observations"(jsonb) from public, anon;
+grant execute on function "better_supabase"."page_observations"(jsonb) to authenticated, service_role;
+
+-- One observation the caller reads, or null.
+create or replace function "better_supabase"."get_observation"(observation_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at")
+  from "better_supabase"."observations" x
+  join "better_supabase"."observation_definitions" y on y."id" = x."definition_id"
+  where x."id" = get_observation.observation_id
+$$;
+revoke execute on function "better_supabase"."get_observation"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_observation"(uuid) to authenticated, service_role;
+
+-- An organization's definitions with the system ones it does not override, as
+-- a keyset page by title.
+create or replace function "better_supabase"."page_observation_definitions"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observation_definitions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('valueType', 'scope') then
+      raise exception 'facet is one of valueType, scope' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'valueType' then (x."value_type"::text)::text when 'scope' then (case when x."tenant_id" is null then 'system' else 'organization' end)::text end) as v
+      from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('title', 'key') then
+    raise exception 'sort is one of title, key' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key" <= (v_after ->> 0)::text and ((x."key" < (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."key" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_observation_definitions"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_observation_definitions"(uuid, jsonb) to authenticated, service_role;
+
+-- One definition the caller reads, or null.
+create or replace function "better_supabase"."get_observation_definition"(definition_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."observation_definitions" x where x."id" = get_observation_definition.definition_id
+$$;
+revoke execute on function "better_supabase"."get_observation_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_observation_definition"(uuid) to authenticated, service_role;
+
 -- Records the observations a submission's fields map to. p_quiet skips a
 -- submission the caller can't record for, which the trigger relies on.
 create or replace function "better_supabase"."observation_submission_apply"(p_submission uuid, p_quiet boolean)
@@ -2325,7 +3361,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:32286eec65fc2f0ab2ef1f6dca257a17d5371f5a214785001f42a3ecccc91558
+-- @bsb-hash sha256:b7cb70696fb87ed8390b31ebaed18d5c289590677e0519afe8faad42df689e06
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3325,6 +4361,524 @@ $$;
 revoke execute on function "app_private"."latest_observations"(text, text) from public, anon;
 grant execute on function "app_private"."latest_observations"(text, text) to authenticated, service_role;
 
+-- A record's observations as a keyset page, the latest first (ADR 1077).
+-- filters is { subjectType, subjectId, definitionKey, status (each a value or
+-- a list; without status only final observations), sort (observedAt,
+-- createdAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "app_private"."page_observations"(filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observations.filters, '{}'::jsonb);
+  v_search text := null;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'definitionKey') then
+      raise exception 'facet is one of status, definitionKey' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text when 'definitionKey' then ((select y."key" from "app_private"."observation_definitions" y where y."id" = x."definition_id"))::text end) as v
+      from "app_private"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "app_private"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "app_private"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('observedAt', 'createdAt') then
+    raise exception 'sort is one of observedAt, createdAt' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "app_private"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "app_private"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "app_private"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "app_private"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "app_private"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "app_private"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "app_private"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "app_private"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "app_private"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "app_private"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "app_private"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "app_private"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "app_private"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_observations"(jsonb) from public, anon;
+grant execute on function "app_private"."page_observations"(jsonb) to authenticated, service_role;
+
+-- One observation the caller reads, or null.
+create or replace function "app_private"."get_observation"(observation_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at")
+  from "app_private"."observations" x
+  join "app_private"."observation_definitions" y on y."id" = x."definition_id"
+  where x."id" = get_observation.observation_id
+$$;
+revoke execute on function "app_private"."get_observation"(uuid) from public, anon;
+grant execute on function "app_private"."get_observation"(uuid) to authenticated, service_role;
+
+-- An organization's definitions with the system ones it does not override, as
+-- a keyset page by title.
+create or replace function "app_private"."page_observation_definitions"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observation_definitions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('valueType', 'scope') then
+      raise exception 'facet is one of valueType, scope' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'valueType' then (x."value_type"::text)::text when 'scope' then (case when x."tenant_id" is null then 'system' else 'organization' end)::text end) as v
+      from "app_private"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "app_private"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "app_private"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "app_private"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('title', 'key') then
+    raise exception 'sort is one of title, key' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "app_private"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "app_private"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "app_private"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "app_private"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "app_private"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "app_private"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "app_private"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key" <= (v_after ->> 0)::text and ((x."key" < (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."key" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "app_private"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "app_private"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "app_private"."page_observation_definitions"(uuid, jsonb) from public, anon;
+grant execute on function "app_private"."page_observation_definitions"(uuid, jsonb) to authenticated, service_role;
+
+-- One definition the caller reads, or null.
+create or replace function "app_private"."get_observation_definition"(definition_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "app_private"."observation_definitions" x where x."id" = get_observation_definition.definition_id
+$$;
+revoke execute on function "app_private"."get_observation_definition"(uuid) from public, anon;
+grant execute on function "app_private"."get_observation_definition"(uuid) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3378,7 +4932,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:22d8ae23dd13cf41594e10664cbe2d5cebdba588a3f4d0e3c7b31ea41c1ce0b4
+-- @bsb-hash sha256:7a480250237b476f3d3f8cf40b76ce1a22ea73b3a90590179108a553965ab43c
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4373,6 +5927,524 @@ $$;
 revoke execute on function "better_supabase"."latest_observations"(text, text) from public, anon;
 grant execute on function "better_supabase"."latest_observations"(text, text) to authenticated, service_role;
 
+-- A record's observations as a keyset page, the latest first (ADR 1077).
+-- filters is { subjectType, subjectId, definitionKey, status (each a value or
+-- a list; without status only final observations), sort (observedAt,
+-- createdAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "better_supabase"."page_observations"(filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observations.filters, '{}'::jsonb);
+  v_search text := null;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'definitionKey') then
+      raise exception 'facet is one of status, definitionKey' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text when 'definitionKey' then ((select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id"))::text end) as v
+      from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('observedAt', 'createdAt') then
+    raise exception 'sort is one of observedAt, createdAt' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_observations"(jsonb) from public, anon;
+grant execute on function "better_supabase"."page_observations"(jsonb) to authenticated, service_role;
+
+-- One observation the caller reads, or null.
+create or replace function "better_supabase"."get_observation"(observation_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at")
+  from "better_supabase"."observations" x
+  join "better_supabase"."observation_definitions" y on y."id" = x."definition_id"
+  where x."id" = get_observation.observation_id
+$$;
+revoke execute on function "better_supabase"."get_observation"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_observation"(uuid) to authenticated, service_role;
+
+-- An organization's definitions with the system ones it does not override, as
+-- a keyset page by title.
+create or replace function "better_supabase"."page_observation_definitions"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observation_definitions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('valueType', 'scope') then
+      raise exception 'facet is one of valueType, scope' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'valueType' then (x."value_type"::text)::text when 'scope' then (case when x."tenant_id" is null then 'system' else 'organization' end)::text end) as v
+      from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('title', 'key') then
+    raise exception 'sort is one of title, key' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key" <= (v_after ->> 0)::text and ((x."key" < (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."key" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_observation_definitions"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_observation_definitions"(uuid, jsonb) to authenticated, service_role;
+
+-- One definition the caller reads, or null.
+create or replace function "better_supabase"."get_observation_definition"(definition_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."observation_definitions" x where x."id" = get_observation_definition.definition_id
+$$;
+revoke execute on function "better_supabase"."get_observation_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_observation_definition"(uuid) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4525,6 +6597,46 @@ as $$ select "better_supabase"."latest_observations"($1, $2) $$;
 revoke execute on function "api"."latest_observations"(text, text) from public, anon;
 grant execute on function "api"."latest_observations"(text, text) to authenticated, service_role;
 
+create or replace function "api"."page_observations"(filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_observations"($1) $$;
+revoke execute on function "api"."page_observations"(jsonb) from public, anon;
+grant execute on function "api"."page_observations"(jsonb) to authenticated, service_role;
+
+create or replace function "api"."get_observation"(observation_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_observation"($1) $$;
+revoke execute on function "api"."get_observation"(uuid) from public, anon;
+grant execute on function "api"."get_observation"(uuid) to authenticated, service_role;
+
+create or replace function "api"."page_observation_definitions"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."page_observation_definitions"($1, $2) $$;
+revoke execute on function "api"."page_observation_definitions"(uuid, jsonb) from public, anon;
+grant execute on function "api"."page_observation_definitions"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."get_observation_definition"(definition_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_observation_definition"($1) $$;
+revoke execute on function "api"."get_observation_definition"(uuid) from public, anon;
+grant execute on function "api"."get_observation_definition"(uuid) to authenticated, service_role;
+
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block-data observations
@@ -4542,7 +6654,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:35fa5ee8af645a4074368eb33546ffdc14cfee8ac5fa629588a713ede6d8edd1
+-- @bsb-hash sha256:b36753beef8fae7c2abb21bc0d1f7b0274936b51360fd9d33640a883af2dda73
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5518,6 +7630,524 @@ $$;
 revoke execute on function "better_supabase"."latest_observations"(text, text) from public, anon;
 grant execute on function "better_supabase"."latest_observations"(text, text) to authenticated, service_role;
 
+-- A record's observations as a keyset page, the latest first (ADR 1077).
+-- filters is { subjectType, subjectId, definitionKey, status (each a value or
+-- a list; without status only final observations), sort (observedAt,
+-- createdAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "better_supabase"."page_observations"(filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observations.filters, '{}'::jsonb);
+  v_search text := null;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'definitionKey') then
+      raise exception 'facet is one of status, definitionKey' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text when 'definitionKey' then ((select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id"))::text end) as v
+      from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('observedAt', 'createdAt') then
+    raise exception 'sort is one of observedAt, createdAt' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_observations"(jsonb) from public, anon;
+grant execute on function "better_supabase"."page_observations"(jsonb) to authenticated, service_role;
+
+-- One observation the caller reads, or null.
+create or replace function "better_supabase"."get_observation"(observation_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at")
+  from "better_supabase"."observations" x
+  join "better_supabase"."observation_definitions" y on y."id" = x."definition_id"
+  where x."id" = get_observation.observation_id
+$$;
+revoke execute on function "better_supabase"."get_observation"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_observation"(uuid) to authenticated, service_role;
+
+-- An organization's definitions with the system ones it does not override, as
+-- a keyset page by title.
+create or replace function "better_supabase"."page_observation_definitions"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observation_definitions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('valueType', 'scope') then
+      raise exception 'facet is one of valueType, scope' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'valueType' then (x."value_type"::text)::text when 'scope' then (case when x."tenant_id" is null then 'system' else 'organization' end)::text end) as v
+      from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('title', 'key') then
+    raise exception 'sort is one of title, key' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key" <= (v_after ->> 0)::text and ((x."key" < (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."key" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observation_definitions" x
+      where (x."tenant_id" = page_observation_definitions.tenant or (x."tenant_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."tenant_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."tenant_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_observation_definitions"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_observation_definitions"(uuid, jsonb) to authenticated, service_role;
+
+-- One definition the caller reads, or null.
+create or replace function "better_supabase"."get_observation_definition"(definition_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'system', x."tenant_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."observation_definitions" x where x."id" = get_observation_definition.definition_id
+$$;
+revoke execute on function "better_supabase"."get_observation_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_observation_definition"(uuid) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -5571,7 +8201,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:9d1d6919fa4bd1a83dcb5dbd6b369695db7c4146718ab4fdf4e4cc5db47ee80e
+-- @bsb-hash sha256:ab36907bd97d4cc13f1462c94ac70c117ae5d2d8f6d267f3dcc8ebf508af049d
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6565,6 +9195,524 @@ as $$
 $$;
 revoke execute on function "better_supabase"."latest_observations"(text, text) from public, anon;
 grant execute on function "better_supabase"."latest_observations"(text, text) to authenticated, service_role;
+
+-- A record's observations as a keyset page, the latest first (ADR 1077).
+-- filters is { subjectType, subjectId, definitionKey, status (each a value or
+-- a list; without status only final observations), sort (observedAt,
+-- createdAt), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "better_supabase"."page_observations"(filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observations.filters, '{}'::jsonb);
+  v_search text := null;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('status', 'definitionKey') then
+      raise exception 'facet is one of status, definitionKey' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'status' then (x."status"::text)::text when 'definitionKey' then ((select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id"))::text end) as v
+      from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('observedAt', 'createdAt') then
+    raise exception 'sort is one of observedAt, createdAt' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at" >= (v_after ->> 0)::timestamptz and ((x."observed_at" > (v_after ->> 0)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" < (v_after ->> 1)::timestamptz) or (x."observed_at" = (v_after ->> 0)::timestamptz and x."created_at" = (v_after ->> 1)::timestamptz and x."id" < (v_after ->> 2)::uuid))))
+      order by x."observed_at" asc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'observedAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."observed_at")::text, (x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."observed_at", x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::timestamptz, (v_after ->> 2)::uuid))
+      order by x."observed_at" desc, x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at" >= (v_after ->> 0)::timestamptz and ((x."created_at" > (v_after ->> 0)::timestamptz) or (x."created_at" = (v_after ->> 0)::timestamptz and x."id" < (v_after ->> 1)::uuid))))
+      order by x."created_at" asc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'createdAt' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, (select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at") from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") as j, jsonb_build_array((x."created_at")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+        and (v_after is null or (x."created_at", x."id") < ((v_after ->> 0)::timestamptz, (v_after ->> 1)::uuid))
+      order by x."created_at" desc, x."id" desc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observations" x
+      where (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'definitionKey' is not null and jsonb_typeof(v_filters -> 'definitionKey') <> 'null' and not (jsonb_typeof(v_filters -> 'definitionKey') = 'array' and jsonb_array_length(v_filters -> 'definitionKey') = 0)) or (select y."key" from "better_supabase"."observation_definitions" y where y."id" = x."definition_id") = any((case when jsonb_typeof(v_filters -> 'definitionKey') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'definitionKey')) else array[v_filters ->> 'definitionKey'] end)::text[]))
+        and (case when (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) then (not (v_filters -> 'status' is not null and jsonb_typeof(v_filters -> 'status') <> 'null' and not (jsonb_typeof(v_filters -> 'status') = 'array' and jsonb_array_length(v_filters -> 'status') = 0)) or x."status"::text = any((case when jsonb_typeof(v_filters -> 'status') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'status')) else array[v_filters ->> 'status'] end)::text[])) else x."status" = 'final' end)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_observations"(jsonb) from public, anon;
+grant execute on function "better_supabase"."page_observations"(jsonb) to authenticated, service_role;
+
+-- One observation the caller reads, or null.
+create or replace function "better_supabase"."get_observation"(observation_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'definitionId', x."definition_id", 'definitionKey', y."key", 'title', y."title", 'valueType', y."value_type", 'unit', y."unit", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'observedAt', x."observed_at", 'value', case y."value_type"
+      when 'boolean' then to_jsonb(x."value_code" = 'true')
+      when 'code' then to_jsonb(x."value_code")
+      when 'text' then to_jsonb(x."value_text")
+      when 'components' then x."components"
+      else to_jsonb(x."value_number")
+    end, 'flag', x."flag", 'status', x."status", 'replacesId', x."replaces_id", 'reason', x."reason", 'method', x."method", 'device', x."device", 'source', x."source", 'externalId', x."external_id", 'submissionId', x."submission_id", 'performerId', x."performer_id", 'note', x."note", 'createdAt', x."created_at")
+  from "better_supabase"."observations" x
+  join "better_supabase"."observation_definitions" y on y."id" = x."definition_id"
+  where x."id" = get_observation.observation_id
+$$;
+revoke execute on function "better_supabase"."get_observation"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_observation"(uuid) to authenticated, service_role;
+
+-- An organization's definitions with the system ones it does not override, as
+-- a keyset page by title.
+create or replace function "better_supabase"."page_observation_definitions"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_observation_definitions.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('valueType', 'scope') then
+      raise exception 'facet is one of valueType, scope' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'valueType' then (x."value_type"::text)::text when 'scope' then (case when x."org_id" is null then 'system' else 'organization' end)::text end) as v
+      from "better_supabase"."observation_definitions" x
+      where (x."org_id" = page_observation_definitions.tenant or (x."org_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."org_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."org_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observation_definitions" x
+      where (x."org_id" = page_observation_definitions.tenant or (x."org_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."org_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."org_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('title', 'key') then
+    raise exception 'sort is one of title, key' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'system', x."org_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."org_id" = page_observation_definitions.tenant or (x."org_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."org_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."org_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'system', x."org_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."org_id" = page_observation_definitions.tenant or (x."org_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."org_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."org_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'system', x."org_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."org_id" = page_observation_definitions.tenant or (x."org_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."org_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."org_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title"), x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::text, (v_after ->> 2)::uuid))
+      order by lower(x."title") asc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'title' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 3) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'system', x."org_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((lower(x."title"))::text, (x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."org_id" = page_observation_definitions.tenant or (x."org_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."org_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."org_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (lower(x."title") <= (v_after ->> 0)::text and ((lower(x."title") < (v_after ->> 0)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" > (v_after ->> 1)::text) or (lower(x."title") = (v_after ->> 0)::text and x."key" = (v_after ->> 1)::text and x."id" > (v_after ->> 2)::uuid))))
+      order by lower(x."title") desc, x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'system', x."org_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."org_id" = page_observation_definitions.tenant or (x."org_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."org_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."org_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key", x."id") > ((v_after ->> 0)::text, (v_after ->> 1)::uuid))
+      order by x."key" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'key' and coalesce(v_dir, 'asc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'OBSERVATION_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'system', x."org_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as j, jsonb_build_array((x."key")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."observation_definitions" x
+      where (x."org_id" = page_observation_definitions.tenant or (x."org_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."org_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."org_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+        and (v_after is null or (x."key" <= (v_after ->> 0)::text and ((x."key" < (v_after ->> 0)::text) or (x."key" = (v_after ->> 0)::text and x."id" > (v_after ->> 1)::uuid))))
+      order by x."key" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."observation_definitions" x
+      where (x."org_id" = page_observation_definitions.tenant or (x."org_id" is null and not exists (select 1 from "better_supabase"."observation_definitions" y where y."org_id" = page_observation_definitions.tenant and y."key" = x."key")))
+        and (coalesce(nullif(coalesce(v_filters #>> '{archived,0}', v_filters ->> 'archived'), '') = 'true', false) or x."archived_at" is null)
+        and (not (v_filters -> 'valueType' is not null and jsonb_typeof(v_filters -> 'valueType') <> 'null' and not (jsonb_typeof(v_filters -> 'valueType') = 'array' and jsonb_array_length(v_filters -> 'valueType') = 0)) or x."value_type"::text = any((case when jsonb_typeof(v_filters -> 'valueType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'valueType')) else array[v_filters ->> 'valueType'] end)::text[]))
+        and (not (v_filters -> 'scope' is not null and jsonb_typeof(v_filters -> 'scope') <> 'null' and not (jsonb_typeof(v_filters -> 'scope') = 'array' and jsonb_array_length(v_filters -> 'scope') = 0)) or case when x."org_id" is null then 'system' else 'organization' end = any((case when jsonb_typeof(v_filters -> 'scope') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'scope')) else array[v_filters ->> 'scope'] end)::text[]))
+        and (v_search is null or x."title" ilike v_search or x."key" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_observation_definitions"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_observation_definitions"(uuid, jsonb) to authenticated, service_role;
+
+-- One definition the caller reads, or null.
+create or replace function "better_supabase"."get_observation_definition"(definition_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'system', x."org_id" is null, 'key', x."key", 'title', x."title", 'valueType', x."value_type", 'unit', x."unit", 'codeSystem', x."code_system", 'code', x."code", 'components', coalesce(x."components", '[]'::jsonb), 'decimals', x."decimals", 'validLow', x."valid_low", 'validHigh', x."valid_high", 'referenceLow', x."reference_low", 'referenceHigh', x."reference_high", 'criticalLow', x."critical_low", 'criticalHigh', x."critical_high", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."observation_definitions" x where x."id" = get_observation_definition.definition_id
+$$;
+revoke execute on function "better_supabase"."get_observation_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_observation_definition"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
