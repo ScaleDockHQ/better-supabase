@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:ac2305b9ed4e3bd9fae8839e6e6416ec2e6a347304bff2c4d2be5ddfade795e9
+-- @bsb-hash sha256:b233f2578dcf3217be0cc5cc2abe3e7bd2952f5cdee6561f86cdc1bf3035a64c
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -59,6 +59,7 @@ create table "better_supabase"."form_submissions" (
   "source" text not null default 'member' constraint bsb_form_submissions_source_check check ("source" in ('member', 'public', 'service')),
   "reviewed_by" uuid,
   "reviewed_at" timestamptz,
+  "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "submitted_at" timestamptz,
   "updated_at" timestamptz not null default now(),
@@ -959,7 +960,7 @@ begin
     end if;
   end;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."form_submission_save"(uuid, jsonb, text, text, uuid, text, boolean, uuid) from public, anon, authenticated;
@@ -1013,14 +1014,16 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."respondent_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."get_form_submission"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_form_submission"(uuid) to authenticated, service_role;
 
 -- Newest first. Reviewers see every submission; others see their own.
-create or replace function "better_supabase"."list_form_submissions"(form_id uuid, status text default null, page_size integer default 50, before timestamptz default null)
+-- Archived submissions stay out unless include_archived is true.
+
+create or replace function "better_supabase"."list_form_submissions"(form_id uuid, status text default null, page_size integer default 50, before timestamptz default null, include_archived boolean default false)
 returns jsonb
 language plpgsql
 stable
@@ -1037,21 +1040,22 @@ begin
     raise exception 'form not found' using errcode = 'P0002', hint = 'FORM_NOT_FOUND';
   end if;
   v_all := coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'forms.review'), false);
-  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at", 'score', r."score", 'maxScore', r."max_score", 'passed', r."passed") order by r."created_at" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'formId', r."form_id", 'versionId', r."version_id", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'respondentId', r."respondent_id", 'answers', r."answers", 'status', r."status", 'source', r."source", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at", 'archivedAt', r."archived_at", 'createdAt', r."created_at", 'submittedAt', r."submitted_at", 'updatedAt', r."updated_at", 'score', r."score", 'maxScore', r."max_score", 'passed', r."passed") order by r."created_at" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."form_submissions" x
     where x."form_id" = list_form_submissions.form_id
       and (v_all or x."respondent_id" = auth.uid())
       and (list_form_submissions.status is null or x."status"::text = list_form_submissions.status)
       and (list_form_submissions.before is null or x."created_at" < list_form_submissions.before)
+      and (coalesce(list_form_submissions.include_archived, false) or x."archived_at" is null)
     order by x."created_at" desc
     limit least(greatest(coalesce(list_form_submissions.page_size, 50), 1), 200)
   ) r;
   return v_rows;
 end;
 $$;
-revoke execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz) from public, anon;
-grant execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz, boolean) from public, anon;
+grant execute on function "better_supabase"."list_form_submissions"(uuid, text, integer, timestamptz, boolean) to authenticated, service_role;
 
 
 -- The Net Promoter Score of an nps field (the current version's first one by
@@ -1099,6 +1103,7 @@ begin
       from "better_supabase"."form_submissions" x
       where x."form_id" = form_nps.form_id
         and x."status" in ('submitted', 'accepted')
+        and x."archived_at" is null
         and (form_nps.since is null or x."submitted_at" >= form_nps.since)
         and (form_nps.until is null or x."submitted_at" < form_nps.until)
     ) r
@@ -1154,14 +1159,91 @@ begin
   where x."id" = review_form_submission.submission_id
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
 end;
 $$;
 revoke execute on function "better_supabase"."review_form_submission"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."review_form_submission"(uuid, text) to authenticated, service_role;
 
--- Reviewers delete any submission; a respondent deletes their own draft.
-create or replace function "better_supabase"."delete_form_submission"(submission_id uuid)
+
+-- Archives a submission: it leaves list_form_submissions and form_nps and keeps its answers, score and review.
+create or replace function "better_supabase"."archive_form_submission"(submission_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."form_submissions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."form_submissions" x where x."id" = archive_form_submission.submission_id for update;
+  if not found then
+    raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
+    raise exception 'not allowed to archive submissions' using errcode = '42501', hint = 'FORM_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
+  end if;
+  if v_row."status" = 'draft' then
+    raise exception 'a draft isn''t submitted yet' using errcode = '55000', hint = 'FORM_SUBMISSION_DRAFT';
+  end if;
+  update "better_supabase"."form_submissions" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_form_submission"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_form_submission"(uuid) to authenticated, service_role;
+
+-- Restores an archived submission to the lists.
+create or replace function "better_supabase"."restore_form_submission"(submission_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."form_submissions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."form_submissions" x where x."id" = restore_form_submission.submission_id for update;
+  if not found then
+    raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)) then
+    raise exception 'not allowed to restore submissions' using errcode = '42501', hint = 'FORM_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
+  end if;
+  update "better_supabase"."form_submissions" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'formId', v_row."form_id", 'versionId', v_row."version_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'respondentId', v_row."respondent_id", 'answers', v_row."answers", 'status', v_row."status", 'source', v_row."source", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'submittedAt', v_row."submitted_at", 'updatedAt', v_row."updated_at", 'score', v_row."score", 'maxScore', v_row."max_score", 'passed', v_row."passed");
+end;
+$$;
+revoke execute on function "better_supabase"."restore_form_submission"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_form_submission"(uuid) to authenticated, service_role;
+
+-- Removes a submission for good: a reviewer (or the key set as
+-- permissions.purge) any submission, a respondent their own draft. Archive
+-- keeps the row.
+
+create or replace function "better_supabase"."purge_form_submission"(submission_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1173,21 +1255,21 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."form_submissions" x where x."id" = delete_form_submission.submission_id for update;
+  select * into v_row from "better_supabase"."form_submissions" x where x."id" = purge_form_submission.submission_id for update;
   if not found then
     raise exception 'submission not found' using errcode = 'P0002', hint = 'FORM_SUBMISSION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.review'), false)
     or (coalesce(v_row."respondent_id" = auth.uid(), false) and v_row."status" = 'draft')) then
-    raise exception 'not allowed to delete this submission' using errcode = '42501', hint = 'FORM_FORBIDDEN';
+    raise exception 'not allowed to purge this submission' using errcode = '42501', hint = 'FORM_FORBIDDEN';
   end if;
-  delete from "better_supabase"."form_submissions" x where x."id" = delete_form_submission.submission_id;
+  delete from "better_supabase"."form_submissions" x where x."id" = purge_form_submission.submission_id;
   null;
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_form_submission"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_form_submission"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_form_submission"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_form_submission"(uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

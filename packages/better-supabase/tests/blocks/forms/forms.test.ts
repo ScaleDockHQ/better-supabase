@@ -133,7 +133,13 @@ describe("forms client", () => {
       ["list_forms", { tenant: "o", filters: {} }],
       [
         "list_form_submissions",
-        { form_id: "f1", status: null, page_size: null, before: null },
+        {
+          form_id: "f1",
+          status: null,
+          page_size: null,
+          before: null,
+          include_archived: null,
+        },
       ],
     ]);
   });
@@ -223,7 +229,7 @@ describe("forms client", () => {
     ]);
   });
 
-  it("submits, reviews, lists and deletes submissions", async () => {
+  it("submits, reviews, lists, archives and purges submissions", async () => {
     const fake = transport({
       submit_form: () => SUBMISSION,
       get_form_submission: () => SUBMISSION,
@@ -234,7 +240,12 @@ describe("forms client", () => {
         reviewedBy: "u1",
         reviewedAt: "2026-10-02T00:00:00Z",
       }),
-      delete_form_submission: () => true,
+      archive_form_submission: () => ({
+        ...SUBMISSION,
+        archivedAt: "2026-10-03T00:00:00Z",
+      }),
+      restore_form_submission: () => SUBMISSION,
+      purge_form_submission: () => true,
     });
 
     const forms = createForms({ transport: fake, schema: "app" });
@@ -267,6 +278,7 @@ describe("forms client", () => {
         status: "submitted",
         pageSize: 10,
         before: Temporal.Instant.from(AT),
+        includeArchived: true,
       })
       .orThrow();
 
@@ -278,7 +290,13 @@ describe("forms client", () => {
 
     expect(reviewed.reviewedBy).toBe("u1");
     expect(reviewed.reviewedAt?.toString()).toBe("2026-10-02T00:00:00Z");
-    expect(await forms.deleteSubmission("s1").orThrow()).toBe(true);
+    const archived = await forms.archiveSubmission("s1").orThrow();
+
+    expect(archived.archivedAt?.toString()).toBe("2026-10-03T00:00:00Z");
+    expect(
+      (await forms.restoreSubmission("s1").orThrow()).archivedAt,
+    ).toBeUndefined();
+    expect(await forms.purgeSubmission("s1").orThrow()).toBe(true);
     expect(fake.calls).toEqual([
       [
         "submit_form",
@@ -305,10 +323,18 @@ describe("forms client", () => {
       ["get_form_submission", { submission_id: "s1" }],
       [
         "list_form_submissions",
-        { form_id: "f1", status: "submitted", page_size: 10, before: AT },
+        {
+          form_id: "f1",
+          status: "submitted",
+          page_size: 10,
+          before: AT,
+          include_archived: true,
+        },
       ],
       ["review_form_submission", { submission_id: "s1", status: "accepted" }],
-      ["delete_form_submission", { submission_id: "s1" }],
+      ["archive_form_submission", { submission_id: "s1" }],
+      ["restore_form_submission", { submission_id: "s1" }],
+      ["purge_form_submission", { submission_id: "s1" }],
     ]);
   });
 
@@ -360,17 +386,17 @@ describe("forms client", () => {
   });
 
   it("runs hooks around a method", async () => {
-    const fake = transport({ delete_form_submission: () => false });
+    const fake = transport({ purge_form_submission: () => false });
     const after = vi.fn();
 
     const forms = createForms({
       transport: fake,
       schema: "app",
-      hooks: { deleteSubmission: { after } },
+      hooks: { purgeSubmission: { after } },
       logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
     });
 
-    expect(await forms.deleteSubmission("s1").orThrow()).toBe(false);
+    expect(await forms.purgeSubmission("s1").orThrow()).toBe(false);
     expect(after).toHaveBeenCalledOnce();
   });
 
