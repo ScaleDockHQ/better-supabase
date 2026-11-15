@@ -62,10 +62,10 @@ export const deleteField = bsb.action(
     permission: "custom_fields.manage",
   },
   async ({ id }, { db, auth }) => {
-    const deleted = await db.customFields.deleteDefinition(id);
+    const archived = await db.customFields.archiveDefinition(id);
 
-    if (!deleted.ok) {
-      return deleted;
+    if (!archived.ok) {
+      return archived;
     }
 
     await refreshCaller(auth, [
@@ -75,7 +75,7 @@ export const deleteField = bsb.action(
       CUSTOMERS_TAG,
     ]);
 
-    return ok(deleted.data);
+    return ok(true);
   },
 );
 

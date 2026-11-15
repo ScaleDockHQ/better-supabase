@@ -536,7 +536,7 @@
   },
   "/[locale]/(app)/finance/payables/page": {
     "raw": 3177263,
-    "gzip": 965621,
+    "gzip": 967222,
     "brotli": 802958
   },
   "/[locale]/(app)/finance/periods/[id]/page": {
@@ -636,7 +636,7 @@
   },
   "/[locale]/(app)/legal-entities/page": {
     "raw": 3181156,
-    "gzip": 966482,
+    "gzip": 968091,
     "brotli": 803727
   },
   "/[locale]/(app)/lims/[id]/page": {
@@ -1842,7 +1842,7 @@
   "/api/assignment-queues/list/route": {
     "raw": 2609961,
     "gzip": 789016,
-    "brotli": 670226
+    "brotli": 671718
   },
   "/api/contracts/list/route": {
     "raw": 2610231,
@@ -1852,7 +1852,7 @@
   "/api/deals/list/route": {
     "raw": 2610955,
     "gzip": 789392,
-    "brotli": 670543
+    "brotli": 672062
   },
   "/api/pipelines/list/route": {
     "raw": 2609712,
@@ -1862,7 +1862,7 @@
   "/api/scores/list/route": {
     "raw": 2609808,
     "gzip": 788978,
-    "brotli": 670176
+    "brotli": 671670
   },
   "/api/segments/list/route": {
     "raw": 2609936,

@@ -1502,8 +1502,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "custom"
       ],
       "events": [
+        "field_definition.archived",
         "field_definition.created",
-        "field_definition.deleted",
+        "field_definition.purged",
+        "field_definition.restored",
         "field_definition.updated",
         "field_value.deleted",
         "field_value.set"

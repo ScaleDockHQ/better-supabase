@@ -57,6 +57,24 @@ need `custom_fields.manage` and the record's `fields` action, and fail with
 `CUSTOM_FIELD_VALUE_INVALID` for a value the field's format refuses. The SQL functions
 are `update_field_value(value_id, value)` and `delete_field_value(value_id)`.
 
+Retire a field without losing what people entered:
+
+```ts
+await db.customFields.archiveDefinition(definition.id).orThrow();
+await db.customFields.restoreDefinition(definition.id).orThrow();
+```
+
+An archived field leaves `listDefinitions(entity)`, and `saveDefinition` and
+`setValue` refuse it with `CUSTOM_FIELD_ARCHIVED` until you restore it. Its
+values stay and `readValues` still returns them.
+`listDefinitions({ entity, includeArchived: true })` lists archived fields too
+and reports `archivedAt`. `purgeDefinition(id)` deletes a field for good with
+every value stored under it; it needs `permissions.purge`, which falls back to
+`custom_fields.manage`. The SQL functions are `archive_field_definition`,
+`restore_field_definition` and `purge_field_definition`, and
+`list_field_definitions` takes `include_archived` as a third argument. The
+inline and keyed layouts have no definition rows, so they have no archive.
+
 ## Types
 
 `CUSTOM_FIELD_TYPES` lists the types a definition takes. A value is stored as text whatever the type; the type tells the form and the UI what it holds. The names match the [app table formats](/docs/repository/tables), so a field and a column that hold the same thing use the same word.

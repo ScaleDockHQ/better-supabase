@@ -43,7 +43,7 @@ Field definitions, options and typed values. A sensitive value is readable only 
 - Entities: `field_definition`
 - Tables: `field_definitions`
 - Permission keys: `custom_fields.manage`, `custom_fields.read`, `custom_fields.read_sensitive`
-- Events (`CustomFieldsEvents`): `field_definition.created`, `field_definition.deleted`, `field_definition.updated`, `field_value.deleted`, `field_value.set`
+- Events (`CustomFieldsEvents`): `field_definition.archived`, `field_definition.created`, `field_definition.purged`, `field_definition.restored`, `field_definition.updated`, `field_value.deleted`, `field_value.set`
 - Provides: `customFields`
 
 ## saved-views

@@ -1435,12 +1435,16 @@
     "code": "CREDENTIALS_FORBIDDEN"
   },
   {
+    "code": "CUSTOM_FIELD_ARCHIVED",
+    "message": "field is archived; restore it first"
+  },
+  {
     "code": "CUSTOM_FIELD_ENTITY_UNKNOWN",
     "message": "the entity is not a registered subject type"
   },
   {
     "code": "CUSTOM_FIELD_FORBIDDEN",
-    "message": "not allowed to set custom fields"
+    "message": "not allowed to manage custom fields"
   },
   {
     "code": "CUSTOM_FIELD_NOT_FOUND",

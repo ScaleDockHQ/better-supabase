@@ -1973,7 +1973,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "rank": "rank",
               "encrypted": "encrypted",
               "pack": "pack",
-              "packVersion": "pack_version"
+              "packVersion": "pack_version",
+              "archivedAt": "archived_at"
             }
           }
         },
@@ -16130,7 +16131,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "field_definition.created",
           "field_definition.updated",
-          "field_definition.deleted",
+          "field_definition.archived",
+          "field_definition.restored",
+          "field_definition.purged",
           "field_value.set",
           "field_value.deleted",
           "field_value.viewed"

@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:aac3b6f4ab1307ffb4998fa3b6486acadf12b1cc180fac2e2cf9533c0bdc9296
+-- @bsb-hash sha256:a691df038b6f5d6de3a351f7a2dc1fd557f0873237d6b00071066932bceafcdb
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -215,7 +215,10 @@ $$;
 revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_field_definition"(definition uuid)
+-- Deletes a field for good with every value stored under it; archive keeps
+-- them. Needs 'custom_fields.manage', which falls back to the manage key.
+
+create or replace function "better_supabase"."purge_field_definition"(definition uuid)
 returns boolean
 language plpgsql
 security definer
@@ -227,22 +230,24 @@ begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select "tenant_id" into v_tenant from "centrakit"."field_definitions" where "id" = delete_field_definition.definition;
+  select "tenant_id" into v_tenant from "centrakit"."field_definitions" where "id" = purge_field_definition.definition;
   if not found then
     raise exception 'field not found' using errcode = 'P0002', hint = 'CUSTOM_FIELD_NOT_FOUND';
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
-    raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
+    raise exception 'not allowed to purge custom fields' using errcode = '42501', hint = 'CUSTOM_FIELD_FORBIDDEN';
   end if;
-  delete from "centrakit"."field_definitions" where "id" = delete_field_definition.definition;
-  perform "better_supabase".emit_event('field_definition.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_field_definition.definition), 'custom-fields/' || delete_field_definition.definition::text, (v_tenant)::text, null, 'domain');
+  delete from "centrakit"."field_definitions" where "id" = purge_field_definition.definition;
+  perform "better_supabase".emit_event('field_definition.purged', jsonb_build_object('organizationId', v_tenant, 'id', purge_field_definition.definition), 'custom-fields/' || purge_field_definition.definition::text, (v_tenant)::text, null, 'domain');
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_field_definition"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_field_definition"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_field_definition"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_field_definition"(uuid) to authenticated, service_role;
 
--- The definitions of one entity in display order.
+
+-- The definitions of one entity in display order. Archived fields stay out
+-- unless include_archived is true.
 create or replace function "better_supabase"."list_field_definitions"(tenant uuid, entity text)
 returns jsonb
 language sql

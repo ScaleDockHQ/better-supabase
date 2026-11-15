@@ -246,6 +246,9 @@ the `archived_at` column and replaces the delete function with `purge`.
 | `agents`                    | `agents.remove(id)`, `delete_agent()`                     | `agents.purge(id)`, `purge_agent()` (ADR 1080)                                                    |
 | `agents`                    | event `agent.deleted`                                     | `agent.purged`, plus `archived` and `restored`                                                    |
 | `agents`                    | `agents.list()` shows every agent                         | hides archived agents; `list({ includeArchived: true })` adds them                                |
+| `custom-fields`             | `deleteDefinition(id)`, `delete_field_definition()`       | `purgeDefinition(id)`, `purge_field_definition()` (ADR 1083)                                      |
+| `custom-fields`             | event `field_definition.deleted`                          | `field_definition.purged`, plus `archived` and `restored`                                         |
+| `custom-fields`             | `listDefinitions(entity)` shows every field               | hides archived fields; `listDefinitions({ entity, includeArchived: true })` adds them             |
 
 ## Team purge
 

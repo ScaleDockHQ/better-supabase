@@ -10,7 +10,9 @@ import { defineEvents, event } from "../../core/event-map.ts";
 export type CustomFieldsEvents = {
   readonly "field_definition.created": SaasEventData;
   readonly "field_definition.updated": SaasEventData;
-  readonly "field_definition.deleted": SaasEventData;
+  readonly "field_definition.archived": SaasEventData;
+  readonly "field_definition.restored": SaasEventData;
+  readonly "field_definition.purged": SaasEventData;
   readonly "field_value.set": SaasSubjectEventData;
   /** A value was removed (`delete_field_value`, keyed layout). */
   readonly "field_value.deleted": SaasSubjectEventData;
@@ -31,7 +33,9 @@ export interface FieldValueReadEventData extends SaasSubjectEventData {
 export const customFieldsEvents: Events<CustomFieldsEvents> = defineEvents({
   "field_definition.created": event<SaasEventData>(),
   "field_definition.updated": event<SaasEventData>(),
-  "field_definition.deleted": event<SaasEventData>(),
+  "field_definition.archived": event<SaasEventData>(),
+  "field_definition.restored": event<SaasEventData>(),
+  "field_definition.purged": event<SaasEventData>(),
   "field_value.set": event<SaasSubjectEventData>(),
   "field_value.deleted": event<SaasSubjectEventData>(),
   "field_value.viewed": event<FieldValueReadEventData>(),
