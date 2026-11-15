@@ -1112,12 +1112,12 @@
   "/[locale]/(app)/shop/inventory/lots/page": {
     "raw": 3134578,
     "gzip": 951013,
-    "brotli": 790258
+    "brotli": 792347
   },
   "/[locale]/(app)/shop/inventory/movements/page": {
     "raw": 3134635,
     "gzip": 951023,
-    "brotli": 790242
+    "brotli": 792334
   },
   "/[locale]/(app)/shop/inventory/page": {
     "raw": 3148864,
