@@ -5,6 +5,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { CronCaller } from "../../core/cron-route.ts";
 import type { DbError, ErrorMapper } from "../../core/errors.ts";
+import type { JobRef, JobSource } from "../../core/jobs.ts";
 import type { Kick } from "../../core/kick.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Actor, RequestContext } from "../../core/plugin.ts";
@@ -15,6 +16,7 @@ import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type {
   QueueProvider,
   QueueRpcClient,
+  QueueRun,
   QueueStats,
   ScheduleProvider,
 } from "./backends.ts";
@@ -439,6 +441,28 @@ export interface Queue<Q extends QueueSchemas> {
     payload: PayloadIn<Q, N>;
     options: EnqueueOnceOptions;
   }): AsyncResult<EnqueueOnceResult>;
+  /**
+   * `enqueue` that returns `{ jobId: "queue:<queue>:<id>" }`, so `jobs.get`
+   * reads the message back (ADR 1076).
+   */
+  enqueueJob<N extends Extract<keyof Q, string>>(
+    input: { queue: N; payload: PayloadIn<Q, N> } & EnqueueOptions,
+  ): AsyncResult<JobRef>;
+  /**
+   * One message's run record: its state, attempts and last error, never its
+   * payload. `null` when the id is unknown, or purged from the archive. SQL
+   * connections or a transport only.
+   */
+  get(input: {
+    queue: Extract<keyof Q, string>;
+    id: number;
+  }): AsyncResult<QueueRun | null>;
+  /**
+   * The `queue` source of `createJobs`: `jobs.get("queue:<queue>:<id>")` reads
+   * a message that `enqueueJob`, or a block that enqueues on this queue,
+   * returned.
+   */
+  readonly runs: JobSource;
   claim<N extends Extract<keyof Q, string>>(
     input: { queue: N } & ClaimOptions,
   ): AsyncResult<Job<PayloadOut<Q, N>>[]>;

@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the run record (get_job, queue.get and the job source) adds lines past the limit. 1 finding. */
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import type { Budget } from "../../core/block-helpers.ts";
@@ -11,6 +12,7 @@ import type {
   QueueMessageRow,
   QueueProvider,
   QueueRpcClient,
+  QueueRun,
   QueueStats,
   ScheduleProvider,
   StoredSchedule,
@@ -40,6 +42,7 @@ import { tenantFrom, tenantPathsFor } from "../../core/claims.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import { nextCronRun } from "../../core/cron.ts";
 import { dbError, DbException } from "../../core/errors.ts";
+import { jobRef } from "../../core/jobs.ts";
 import { kicker, kickHooks } from "../../core/kick.ts";
 import { consoleLogger } from "../../core/logger.ts";
 import { allTenantsContext } from "../../core/plugin.ts";
@@ -64,6 +67,7 @@ import {
   transportQueueProvider,
 } from "./backends.ts";
 import { unwrap, wrapPayload } from "./envelope.ts";
+import { queueRuns } from "./runs.ts";
 import { checkSchedulerPair } from "./scheduler-pair.ts";
 
 /**
@@ -750,7 +754,24 @@ export function createQueue<const Q extends QueueSchemas>(
     return ok({ message: message.data, delay: delay.data });
   };
 
+  const getRun = (queue: string, id: number): AsyncResult<QueueRun | null> =>
+    run(() => {
+      schemaOf(queue);
+
+      return transport.get?.(queue, id) ?? sqlOnly("get");
+    });
+
   const client: Queue<Q> = {
+    runs: queueRuns({
+      get: getRun,
+      declared: (queue) => Object.hasOwn(queues, queue),
+    }),
+    get: ({ queue, id }) => getRun(queue, id),
+    enqueueJob(input) {
+      return client
+        .enqueue(input)
+        .map((id) => jobRef("queue", `${input.queue}:${String(id)}`));
+    },
     enqueue({ queue, payload, ...enqueueOptions }) {
       return AsyncResult.from(async () => {
         const prepared = await prepareSend(queue, payload, enqueueOptions);

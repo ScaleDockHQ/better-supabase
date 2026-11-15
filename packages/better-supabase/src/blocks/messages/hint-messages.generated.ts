@@ -1326,6 +1326,7 @@ export const BLOCK_HINT_MESSAGES: Readonly<Record<BlockHint, string>> = {
   "QUALIFICATION_REQUIREMENT_NOT_FOUND": "Requirement not found.",
   "QUALIFICATION_TYPE_INVALID": "The key takes lowercase letters, digits, dots, dashes and underscores.",
   "QUALIFICATION_TYPE_NOT_FOUND": "Qualification type not found.",
+  "QUEUE_JOB_DEAD": "Queue job dead.",
   "QUEUE_TICK_NO_PG_NET": "The queue tick needs pg_net: create extension pg_net.",
   "QUEUE_TICK_NO_VAULT": "The queue tick reads its URL and token from Vault: create extension supabase_vault.",
   "QUOTA_EXCEEDED": "Quota exceeded.",
