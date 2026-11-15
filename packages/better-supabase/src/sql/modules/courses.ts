@@ -35,7 +35,9 @@ const COURSE_ITEM_PAYLOAD = [
 const EVENTS: BlockSqlEvents<CoursesEvents> = {
   "course.created": { subject: "courses", payload: COURSE_PAYLOAD },
   "course.updated": { subject: "courses", payload: COURSE_PAYLOAD },
-  "course.deleted": { subject: "courses", payload: COURSE_PAYLOAD },
+  "course.archived": { subject: "courses", payload: COURSE_PAYLOAD },
+  "course.restored": { subject: "courses", payload: COURSE_PAYLOAD },
+  "course.purged": { subject: "courses", payload: COURSE_PAYLOAD },
   "course.enrolled": { subject: "courses", payload: LEARNER_PAYLOAD },
   "course.unenrolled": { subject: "courses", payload: LEARNER_PAYLOAD },
   "course.completed": { subject: "courses", payload: LEARNER_PAYLOAD },

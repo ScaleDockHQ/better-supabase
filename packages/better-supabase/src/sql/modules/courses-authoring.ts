@@ -1,5 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { filterAny, listBody, listDeclare } from "../list-template.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
@@ -136,6 +137,11 @@ export function courseAuthoringFunctions(ctx: BlockSqlContext): string {
     ctx.has("lessons", column)
       ? `case when save_course_lesson.lesson ? '${value}' then ${old} else v_old.${l(column)} end`
       : "null";
+
+  const purgeKey =
+    ctx.config.permissions["purge"] === undefined
+      ? q.manage
+      : sqlString(ctx.config.permissions["purge"]);
 
   const manageCourse = (
     row: string,
@@ -328,9 +334,65 @@ end;
 $$;
 ${userGrant(`${fn("save_course")}(${idType}, jsonb)`)}
 
--- Deletes a course with its modules, lessons, enrollments, progress and
--- certificates; false when it was already gone.
-create or replace function ${fn("delete_course")}(course_id uuid)
+-- Archives a course: it takes status archived, which hides it from everyone
+-- without courses.manage, and records course.archived. Enrollments and
+-- progress stay. Does nothing when it is archived already.
+create or replace function ${fn("archive_course")}(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${q.courses};
+begin
+  select * into v_row from ${q.courses} x where x.${c("id")} = archive_course.course_id for update;
+  if v_row.${c("id")} is null then
+    ${fail("COURSE_NOT_FOUND", "course not found", "P0002")}
+  end if;
+  ${manageCourse("v_row")}
+  if v_row.${c("status")} <> 'archived' then
+    update ${q.courses} x set ${c("status")} = ${ctx.cast("courses", "status", "'archived'")}${touched("courses")}
+    where x.${c("id")} = v_row.${c("id")}
+    returning * into v_row;
+    ${courseRecord("course.archived", "v_row", "archived a course")}
+  end if;
+  return ${fn("course_json")}(v_row.${c("id")});
+end;
+$$;
+${userGrant(`${fn("archive_course")}(uuid)`)}
+
+-- Brings an archived course back as a draft, so it is published again on
+-- purpose, and records course.restored. Does nothing when it is not archived.
+create or replace function ${fn("restore_course")}(course_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${q.courses};
+begin
+  select * into v_row from ${q.courses} x where x.${c("id")} = restore_course.course_id for update;
+  if v_row.${c("id")} is null then
+    ${fail("COURSE_NOT_FOUND", "course not found", "P0002")}
+  end if;
+  ${manageCourse("v_row")}
+  if v_row.${c("status")} = 'archived' then
+    update ${q.courses} x set ${c("status")} = ${ctx.cast("courses", "status", "'draft'")}${touched("courses")}
+    where x.${c("id")} = v_row.${c("id")}
+    returning * into v_row;
+    ${courseRecord("course.restored", "v_row", "restored a course")}
+  end if;
+  return ${fn("course_json")}(v_row.${c("id")});
+end;
+$$;
+${userGrant(`${fn("restore_course")}(uuid)`)}
+
+-- Removes a course for good, with its modules, lessons, enrollments, progress
+-- and certificates; false when it was already gone. Needs permissions.purge,
+-- which falls back to courses.manage.
+create or replace function ${fn("purge_course")}(course_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -339,18 +401,20 @@ as $$
 declare
   v_row ${q.courses};
 begin
-  select * into v_row from ${q.courses} x where x.${c("id")} = delete_course.course_id for update;
+  select * into v_row from ${q.courses} x where x.${c("id")} = purge_course.course_id for update;
   if v_row.${c("id")} is null then
     return false;
   end if;
-  ${manageCourse("v_row")}
+  if not ${q.allowed(`v_row.${c("tenant")}`, purgeKey)} then
+    ${q.forbidden("not allowed to purge courses")}
+  end if;
   delete from ${q.enrollments} x where x.${e("tenant")} = v_row.${c("tenant")} and x.${e("program")} = ${q.program(`v_row.${c("id")}`)};
   delete from ${q.courses} x where x.${c("id")} = v_row.${c("id")};
-  ${courseRecord("course.deleted", "v_row", "deleted a course")}
+  ${courseRecord("course.purged", "v_row", "purged a course")}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_course")}(uuid)`)}
+${userGrant(`${fn("purge_course")}(uuid)`)}
 
 -- The organization's courses by title. Without courses.manage only the
 -- published ones. filters is { status (a value or a list of them), sort,

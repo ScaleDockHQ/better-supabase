@@ -140,7 +140,7 @@
     "row-triggers": 6
   },
   "courses": {
-    "security-definer-functions": 139
+    "security-definer-functions": 151
   },
   "created-by": {
     "security-definer-functions": 4
@@ -313,7 +313,7 @@
     "security-definer-functions": 84
   },
   "meetings": {
-    "security-definer-functions": 103,
+    "security-definer-functions": 115,
     "row-triggers": 1
   },
   "memberships-many-roles": {

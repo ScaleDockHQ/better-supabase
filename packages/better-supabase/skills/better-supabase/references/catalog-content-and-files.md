@@ -103,7 +103,7 @@ Courses of modules and lessons ordered by rank keys, with quiz lessons graded by
 - Entities: `course`, `course_module`, `course_lesson`, `course_certificate`
 - Tables: `courses`, `course_modules`, `course_lessons`, `course_certificates`
 - Permission keys: `courses.read`, `courses.enroll`, `courses.manage`
-- Events (`CoursesEvents`): `course.completed`, `course.created`, `course.deleted`, `course.enrolled`, `course.unenrolled`, `course.updated`, `course_certificate.issued`, `course_certificate.revoked`, `course_lesson.completed`
+- Events (`CoursesEvents`): `course.archived`, `course.completed`, `course.created`, `course.enrolled`, `course.purged`, `course.restored`, `course.unenrolled`, `course.updated`, `course_certificate.issued`, `course_certificate.revoked`, `course_lesson.completed`
 
 ## content
 

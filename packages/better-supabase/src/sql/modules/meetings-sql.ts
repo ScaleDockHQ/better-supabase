@@ -163,7 +163,7 @@ export function meetingsSql(ctx: BlockSqlContext): MeetingsSql {
       `raise exception 'the meeting can''t move from % to %', ${row}.${m("status")}, ${sqlString(to)} using errcode = '55000', hint = 'MEETING_STATUS_INVALID', detail = jsonb_build_object('from', ${row}.${m("status")}, 'to', ${sqlString(to)})::text;`,
     meetingJson: (row) =>
       withExtraFields(
-        `jsonb_build_object('id', ${row}.${m("id")}, 'organizationId', ${row}.${m("tenant")}, 'kind', ${row}.${m("kind")}, 'title', ${row}.${m("title")}, 'location', ${of("meetings", row, "location")}, 'startsAt', ${row}.${m("startsAt")}, 'endsAt', ${row}.${m("endsAt")}, 'status', ${row}.${m("status")}, 'startedAt', ${row}.${m("startedAt")}, 'heldAt', ${row}.${m("heldAt")}, 'summary', ${of("meetings", row, "summary")}, 'createdBy', ${of("meetings", row, "createdBy")}, 'createdAt', ${row}.${m("createdAt")}, 'updatedAt', ${row}.${m("updatedAt")})`,
+        `jsonb_build_object('id', ${row}.${m("id")}, 'organizationId', ${row}.${m("tenant")}, 'kind', ${row}.${m("kind")}, 'title', ${row}.${m("title")}, 'location', ${of("meetings", row, "location")}, 'startsAt', ${row}.${m("startsAt")}, 'endsAt', ${row}.${m("endsAt")}, 'status', ${row}.${m("status")}, 'startedAt', ${row}.${m("startedAt")}, 'heldAt', ${row}.${m("heldAt")}, 'archivedAt', ${of("meetings", row, "archivedAt")}, 'summary', ${of("meetings", row, "summary")}, 'createdBy', ${of("meetings", row, "createdBy")}, 'createdAt', ${row}.${m("createdAt")}, 'updatedAt', ${row}.${m("updatedAt")})`,
         row,
         extras,
       ),

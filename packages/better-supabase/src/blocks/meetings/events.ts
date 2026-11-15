@@ -46,7 +46,9 @@ export type MeetingsEvents = {
   readonly "meeting.started": MeetingEventData;
   readonly "meeting.concluded": MeetingEventData;
   readonly "meeting.cancelled": MeetingCanceledEventData;
-  readonly "meeting.deleted": MeetingEventData;
+  readonly "meeting.archived": MeetingEventData;
+  readonly "meeting.restored": MeetingEventData;
+  readonly "meeting.purged": MeetingEventData;
   readonly "meeting_decision.recorded": MeetingDecisionEventData;
   readonly "meeting_decision.decided": MeetingDecisionEventData;
   readonly "meeting_action_item.created": MeetingActionItemEventData;
@@ -59,7 +61,9 @@ export const meetingsEvents: Events<MeetingsEvents> = defineEvents({
   "meeting.started": event<MeetingEventData>(),
   "meeting.concluded": event<MeetingEventData>(),
   "meeting.cancelled": event<MeetingCanceledEventData>(),
-  "meeting.deleted": event<MeetingEventData>(),
+  "meeting.archived": event<MeetingEventData>(),
+  "meeting.restored": event<MeetingEventData>(),
+  "meeting.purged": event<MeetingEventData>(),
   "meeting_decision.recorded": event<MeetingDecisionEventData>(),
   "meeting_decision.decided": event<MeetingDecisionEventData>(),
   "meeting_action_item.created": event<MeetingActionItemEventData>(),
