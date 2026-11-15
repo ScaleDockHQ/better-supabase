@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 1 finding. */
 import type { PoolClient } from "pg";
 
 import { QueryClient } from "@tanstack/query-core";

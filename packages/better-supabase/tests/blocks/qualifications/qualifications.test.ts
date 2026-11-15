@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 2 findings. */
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
@@ -493,5 +494,23 @@ describe("qualifications block", () => {
         grantedOn: "soon",
       }).issues,
     ).toBeDefined();
+  });
+});
+
+describe("qualification type page", () => {
+  it("maps a page and reads one type by id", async () => {
+    const qualifications = createQualifications({
+      transport: fieldsTransport({
+        page_qualification_types: () => ({ items: [TYPE], hasMore: false }),
+        get_qualification_type: () => TYPE,
+      }),
+    });
+
+    const page = await qualifications
+      .typePage({ organizationId: "org-1" })
+      .orThrow();
+
+    expect(page.items.map((type) => type.key)).toEqual(["forklift"]);
+    expect((await qualifications.getType("t1").orThrow()).id).toBe("t1");
   });
 });

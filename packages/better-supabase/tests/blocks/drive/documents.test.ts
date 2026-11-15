@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 2 findings. */
 import { describe, expect, it } from "vitest";
 
 import { createAttachments } from "../../../src/blocks/attachments/attachments.ts";
@@ -236,5 +237,29 @@ describe("drive documents", () => {
         effectiveAttachmentId: null,
       }),
     ).toBe("https://down/o/attachments/a2");
+  });
+});
+
+describe("drive document page", () => {
+  it("maps a page and reads one document by id", async () => {
+    const fake = transport({
+      page_drive_documents: () => ({ items: [NODE], hasMore: false }),
+      drive_get: (args) =>
+        (args as { node: string }).node === "n1"
+          ? NODE
+          : { ...NODE, document: undefined },
+    });
+
+    const drive = createDrive({ transport: fake });
+    const page = await drive.documentPage({ organizationId: "o" }).orThrow();
+
+    expect(page.items.map((node) => node.id)).toEqual(["n1"]);
+    expect((await drive.getDocument("n1").orThrow()).document?.number).toBe(
+      "DOC-00001",
+    );
+
+    const plain = await drive.getDocument("n2");
+
+    expect(plain.ok ? undefined : plain.error.hint).toBe("DRIVE_NOT_FOUND");
   });
 });

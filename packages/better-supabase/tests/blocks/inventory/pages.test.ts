@@ -87,4 +87,22 @@ describe("inventory pages", () => {
 
     expect(result.ok).toBe(false);
   });
+
+  it("pages movements and lots", async () => {
+    const inventory = createInventory({
+      transport: fieldsTransport({
+        page_inventory_movements: () => ({ items: [movement], hasMore: false }),
+        page_inventory_lots: () => ({ items: [lot], hasMore: false }),
+      }),
+    });
+
+    const movements = await inventory
+      .movementPage({ organizationId: "org-1" })
+      .orThrow();
+
+    const lots = await inventory.lotPage({ organizationId: "org-1" }).orThrow();
+
+    expect(movements.items).toEqual([movement]);
+    expect(lots.items).toEqual([lot]);
+  });
 });

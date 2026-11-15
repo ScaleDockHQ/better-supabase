@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list method until 0.70 (ADR 1077). 2 findings. */
 import { describe, expect, it } from "vitest";
 
 import { createSignatures } from "../../../src/blocks/signatures/index.ts";
@@ -277,5 +278,19 @@ describe("signatures client", () => {
     });
 
     expect((await signatures.get("r1")).ok).toBe(false);
+  });
+});
+
+describe("signatures page", () => {
+  it("maps the rows of one page", async () => {
+    const fake = transport({
+      page_signature_requests: () => ({ items: [REQUEST], hasMore: false }),
+    });
+
+    const page = await createSignatures({ transport: fake })
+      .requestPage({ organizationId: "o" })
+      .orThrow();
+
+    expect(page.items.map((request) => request.id)).toEqual(["r1"]);
   });
 });

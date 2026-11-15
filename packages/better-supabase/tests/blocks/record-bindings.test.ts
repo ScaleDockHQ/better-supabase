@@ -8,6 +8,7 @@ import {
   attachmentsBlock,
   attachmentsOptimistic,
 } from "../../src/blocks/attachments/index.ts";
+import { attachmentsBinding } from "../../src/blocks/attachments/record-binding.ts";
 import {
   commentsBlock,
   commentsOptimistic,
@@ -18,7 +19,9 @@ import {
   recordEventMatches,
 } from "../../src/blocks/record-bindings.ts";
 import { renameBlock } from "../../src/blocks/rename-block.ts";
+import { signaturesBinding } from "../../src/blocks/signatures/record-binding.ts";
 import { tagsBlock, tagsOptimistic } from "../../src/blocks/tags/index.ts";
+import { versionsBinding } from "../../src/blocks/versions/record-binding.ts";
 import { AsyncResult, ok } from "../../src/core/result.ts";
 
 const comment = (id: string, body = id): Comment =>
@@ -202,5 +205,44 @@ describe("bindings of a renamed block", () => {
 
     expect(bare.record.count).toBeUndefined();
     expect(bare.record.optimistic).toBeUndefined();
+  });
+});
+
+describe("the document block bindings", () => {
+  const subject = { type: "project", id: "p1" };
+  const at = "2026-10-06T12:00:00Z";
+
+  it("loads and lists the attachments, signature requests and versions of a record", async () => {
+    const attachmentRow = { id: "a1", createdAt: at, uploadedBy: "u1" };
+    const requestRow = { id: "r1", createdAt: at, requestedBy: "u0" };
+    const versionRow = { id: "v1", createdAt: at, createdBy: "u2" };
+
+    // SAFETY: only `list` is read by the bindings' loaders.
+    const asClient = <C>(rows: unknown): C =>
+      ({ list: () => AsyncResult.from(() => Promise.resolve(ok(rows))) }) as C;
+
+    const attachments = await attachmentsBinding
+      .load(asClient([attachmentRow]), subject, undefined)
+      .orThrow();
+
+    const requests = await signaturesBinding
+      .load(asClient([requestRow]), subject, undefined)
+      .orThrow();
+
+    const versions = await versionsBinding
+      .load(asClient([versionRow]), subject, {})
+      .orThrow();
+
+    expect(attachmentsBinding.timeline?.(attachments)).toMatchObject([
+      { id: "a1", kind: "attachment", actor: "u1" },
+    ]);
+
+    expect(signaturesBinding.timeline?.(requests)).toMatchObject([
+      { id: "r1", kind: "signature_request", actor: "u0" },
+    ]);
+
+    expect(versionsBinding.timeline?.(versions)).toMatchObject([
+      { id: "v1", kind: "version", actor: "u2" },
+    ]);
   });
 });
