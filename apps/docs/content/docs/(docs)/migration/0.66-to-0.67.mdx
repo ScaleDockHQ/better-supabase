@@ -27,42 +27,10 @@ the
 | [Session status](#session-status)             | None; a 403 that is not Auth's JSON now reads as `unknown`                  |
 | [eve 1.0](#eve-10)                            | Upgrade eve, rename hook events and `credentialOwner`                       |
 | [Workflow 5.5](#workflow-55)                  | Upgrade the `workflow-sdk` SQL module, then deploy                          |
-| [Team purge](#team-purge)                     | Rename `teams.delete`, `team.deleted` and `permissions.delete`              |
-| [Per-row bulk](#per-row-bulk)                 | None; move off `shareMany` and `setMany` before 0.70                        |
-| [Submission purge](#submission-purge)         | Rename `forms.deleteSubmission` and `form_submission.deleted`               |
-| Section                                       | Needs code                                                                  |
-| --------------------------------------------- | --------------------------------------------------------------              |
-| [Supabase peers](#supabase-peers)             | Bump the Supabase packages                                                  |
-| [Dropped majors](#dropped-majors)             | Move to the supported major of each framework                               |
-| [Other peer floors](#other-peer-floors)       | Upgrade a peer that is older than its new floor                             |
-| [Expo](#expo)                                 | Remove the `unstable_` options from `app.json`                              |
-| [New optional peers](#new-optional-peers)     | None; install one only for the subpath you use                              |
-| [Lite browser client](#lite-browser-client)   | Import `better-supabase/client`                                             |
-| [Session cookies](#session-cookies)           | Replace `readSession` with `await ssrSession`                               |
-| [Sign-in flows](#sign-in-flows)               | Replace `passwordGrant`, and check the PKCE error code                      |
-| [Notification avatars](#notification-avatars) | Pass a function to `avatars`                                                |
-| [Session status](#session-status)             | None; a 403 that is not Auth's JSON now reads as `unknown`                  |
-| [eve 1.0](#eve-10)                            | Upgrade eve, rename hook events and `credentialOwner`                       |
-| [Workflow 5.5](#workflow-55)                  | Upgrade the `workflow-sdk` SQL module, then deploy                          |
-| [Team purge](#team-purge)                     | Rename `teams.delete`, `team.deleted` and `permissions.delete`              |
-| [Submission purge](#submission-purge)         | Rename `forms.deleteSubmission` and `form_submission.deleted`               |
-| Section                                       | Needs code                                                                  |
-| --------------------------------------------- | --------------------------------------------------------------------------- |
-| [Supabase peers](#supabase-peers)             | Bump the Supabase packages                                                  |
-| [Dropped majors](#dropped-majors)             | Move to the supported major of each framework                               |
-| [Other peer floors](#other-peer-floors)       | Upgrade a peer that is older than its new floor                             |
-| [Expo](#expo)                                 | Remove the `unstable_` options from `app.json`                              |
-| [New optional peers](#new-optional-peers)     | None; install one only for the subpath you use                              |
-| [Lite browser client](#lite-browser-client)   | Import `better-supabase/client`                                             |
-| [Session cookies](#session-cookies)           | Replace `readSession` with `await ssrSession`                               |
-| [Sign-in flows](#sign-in-flows)               | Replace `passwordGrant`, and check the PKCE error code                      |
-| [Notification avatars](#notification-avatars) | Pass a function to `avatars`                                                |
-| [Session status](#session-status)             | None; a 403 that is not Auth's JSON now reads as `unknown`                  |
-| [eve 1.0](#eve-10)                            | Upgrade eve, rename hook events and `credentialOwner`                       |
-| [Workflow 5.5](#workflow-55)                  | Upgrade the `workflow-sdk` SQL module, then deploy                          |
 | [Archive and purge](#archive-and-purge)       | Rename each `delete`, `deleted` event and `permissions.delete` in its table |
 | [Submission purge](#submission-purge)         | Rename `forms.deleteSubmission` and `form_submission.deleted`               |
 | [Team purge](#team-purge)                     | Rename `teams.delete`, `team.deleted` and `permissions.delete`              |
+| [Per-row bulk](#per-row-bulk)                 | None; move off `shareMany` and `setMany` before 0.70                        |
 
 ## Supabase peers
 
