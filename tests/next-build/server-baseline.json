@@ -546,7 +546,7 @@
   },
   "/[locale]/(app)/finance/periods/page": {
     "raw": 3160671,
-    "gzip": 958790,
+    "gzip": 961189,
     "brotli": 798916
   },
   "/[locale]/(app)/finance/recurring/[id]/page": {
