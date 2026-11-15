@@ -3,6 +3,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 import type { FieldsOf, RowFields } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type { BulkCallOptions, BulkReport } from "../../core/bulk.ts";
 import type {
   AuthorizationHooks,
   SubscriberPolicy,
@@ -228,6 +229,9 @@ export interface ContactDelivery {
   /** Why it failed. */
   readonly error?: string;
 }
+
+/** The actions `notifications.bulk` takes. */
+export type NotificationBulkAction = "read" | "unread" | "dismiss";
 
 export interface NotificationUpdate {
   readonly count: number;
@@ -534,6 +538,18 @@ export interface Notifications<
     readonly tenant?: string;
   }): AsyncResult<NotificationUpdate>;
   dismiss(ids: readonly string[]): AsyncResult<NotificationUpdate>;
+  /**
+   * `read`, `unread` or `dismiss` for the given notifications in one call, as
+   * the common `bulk(ids, action)` (ADR 0854): `{ succeeded, failed }`. An id
+   * the call did not change (missing, not yours, or already in that state) is
+   * `failed` with `not_found`. More ids than the limit (500) fail with
+   * `BULK_TOO_MANY`.
+   */
+  bulk(
+    ids: readonly string[],
+    action: NotificationBulkAction,
+    options?: BulkCallOptions & { readonly tenant?: string },
+  ): AsyncResult<BulkReport>;
   /** Resolves every recipient's notification of a type about a subject. */
   resolve(input: {
     readonly type: TypeName<K>;
