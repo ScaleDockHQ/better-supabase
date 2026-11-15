@@ -30506,7 +30506,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "form_version.published",
           "form_submission.submitted",
           "form_submission.reviewed",
-          "form_submission.deleted"
+          "form_submission.archived",
+          "form_submission.restored",
+          "form_submission.purged"
         ]
       },
       "entityLists": {

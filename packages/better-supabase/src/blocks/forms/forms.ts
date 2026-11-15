@@ -136,6 +136,8 @@ export interface FormSubmission {
   readonly source: FormSubmissionSource;
   readonly reviewedBy?: string;
   readonly reviewedAt?: Temporal.Instant;
+  /** Set while the submission is archived; `listSubmissions` hides it. */
+  readonly archivedAt?: Temporal.Instant;
   readonly createdAt: Temporal.Instant;
   readonly submittedAt?: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
@@ -232,6 +234,8 @@ export interface SubmissionListOptions {
   readonly pageSize?: number;
   /** Submissions created before this time, for the next page. */
   readonly before?: Temporal.Instant;
+  /** Also list archived submissions. Default: hidden. */
+  readonly includeArchived?: boolean;
 }
 
 /** `F` types the forms' extra columns, from the `fields` schema. */
@@ -281,7 +285,20 @@ export interface Forms<F extends object = Record<never, never>> {
     id: string;
     status: "accepted" | "rejected" | "submitted";
   }): AsyncResult<FormSubmission>;
-  deleteSubmission(id: string): AsyncResult<boolean>;
+  /**
+   * Hides a submitted, accepted or rejected submission from the lists and
+   * `nps`, keeping its answers. A draft is purged instead. Needs the review
+   * permission.
+   */
+  archiveSubmission(id: string): AsyncResult<FormSubmission>;
+  /** Brings an archived submission back to the lists. */
+  restoreSubmission(id: string): AsyncResult<FormSubmission>;
+  /**
+   * Removes a submission for good (hard delete): reviewers any submission, a
+   * respondent their own draft. `permissions.purge` gates reviewers, falling
+   * back to `review`.
+   */
+  purgeSubmission(id: string): AsyncResult<boolean>;
   /**
    * The Net Promoter Score of the form's submitted and accepted answers, for
    * reviewers.
@@ -383,6 +400,7 @@ function submissionOf(value: unknown, fn: string): FormSubmission {
     ...optional("respondentId", optionalText(row["respondentId"])),
     ...optional("reviewedBy", optionalText(row["reviewedBy"])),
     ...optional("reviewedAt", optionalInstant(row["reviewedAt"])),
+    ...optional("archivedAt", optionalInstant(row["archivedAt"])),
     ...optional("submittedAt", optionalInstant(row["submittedAt"])),
     ...optional("score", scoreOf(row)),
   };
@@ -619,6 +637,7 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
           status: list.status ?? null,
           page_size: list.pageSize ?? null,
           before: instantArg(list.before) ?? null,
+          include_archived: list.includeArchived ?? null,
         },
         (value) =>
           recordsOf(value, "list_form_submissions").map((row) =>
@@ -629,9 +648,17 @@ export function createForms<S extends StandardSchemaV1 | undefined = undefined>(
       call("review_form_submission", { submission_id: id, status }, (value) =>
         submissionOf(value, "review_form_submission"),
       ),
-    deleteSubmission: (id) =>
+    archiveSubmission: (id) =>
+      call("archive_form_submission", { submission_id: id }, (value) =>
+        submissionOf(value, "archive_form_submission"),
+      ),
+    restoreSubmission: (id) =>
+      call("restore_form_submission", { submission_id: id }, (value) =>
+        submissionOf(value, "restore_form_submission"),
+      ),
+    purgeSubmission: (id) =>
       call(
-        "delete_form_submission",
+        "purge_form_submission",
         { submission_id: id },
         (value) => value === true,
       ),

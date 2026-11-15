@@ -29,6 +29,7 @@ the
 | [Workflow 5.5](#workflow-55)                  | Upgrade the `workflow-sdk` SQL module, then deploy             |
 | [Team purge](#team-purge)                     | Rename `teams.delete`, `team.deleted` and `permissions.delete` |
 | [Per-row bulk](#per-row-bulk)                 | None; move off `shareMany` and `setMany` before 0.70           |
+| [Submission purge](#submission-purge)         | Rename `forms.deleteSubmission` and `form_submission.deleted`  |
 
 ## Supabase peers
 
@@ -210,6 +211,27 @@ Run `better-supabase upgrade` and apply the migration, which drops
 block is ignored after the upgrade, so purging falls back to `manage` until
 you set `purge`. Sinks and workflows that match `team.deleted` need the new
 type.
+
+## Submission purge
+
+A form submission can now be archived and restored, so its hard delete is
+`purge` (ADR 1051). Archive keeps the row, hides it from `listSubmissions` and
+`nps`, and `restoreSubmission` brings it back.
+
+| Before                                 | After                                                  |
+| -------------------------------------- | ------------------------------------------------------ |
+| `forms.deleteSubmission(id)`           | `forms.purgeSubmission(id)`                            |
+| SQL function `delete_form_submission`  | `purge_form_submission(submission_id)`                 |
+| Event `form_submission.deleted`        | `form_submission.purged`                               |
+| `list_form_submissions(...)` four args | a fifth argument, `include_archived` (default `false`) |
+| no archive                             | `archiveSubmission`, `restoreSubmission`, `archivedAt` |
+
+Run `better-supabase upgrade` and apply the migration, which adds the
+`archived_at` column, drops `delete_form_submission` and the four-argument
+`list_form_submissions`, and adds the new functions. Purging needs the review
+permission until you set `permissions.purge`. Sinks and workflows that match
+`form_submission.deleted` need the new type, and a `hooks.deleteSubmission`
+entry moves to `hooks.purgeSubmission`.
 
 ## eve 1.0
 

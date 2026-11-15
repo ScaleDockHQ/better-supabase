@@ -1001,6 +1001,7 @@ Each lane edits only its own subsection, in its first commit (`in progress`), on
 - Log: 2026-11-14, slice 5 (ADR 1027): audited about 110 ending events, renamed none (two outliers keep a domain verb, `lease.terminated` and `medication_order.stopped`) and closed the vocabulary in `check:naming` with `bannedEnding` and `endingExceptions`. Lane I merged; EX-1206 and EX-1207 stay deferred with their reasons, EX-1230 is fixed.
 - Log: 2026-11-15, lane Y2 slice 1 (ADR 1028, PR [#986](https://github.com/ScaleDockHQ/better-supabase/pull/986), branch `feat/audit-y2-archive`): `archive` and `restore` for invoices, risks, shipments and bookings, with `archived_at` columns on shipments and bookings. PR #972 was closed as already landed on main (a merge left no net diff). The care-plan restore and the delete-only blocks follow.
 - Log: 2026-11-15, lane Y2 slice 2 (ADR 1040, PR [#989](https://github.com/ScaleDockHQ/better-supabase/pull/989)): `restore` for care plans; the plan comes back as a draft and its actions stay ended. EX-1206 is fixed.
+- Log: 2026-11-15, lane Y2 slices 4 and 5 (ADRs 1050 and 1051, PRs [#994](https://github.com/ScaleDockHQ/better-supabase/pull/994) and [#996](https://github.com/ScaleDockHQ/better-supabase/pull/996)): group two of ADR 1041 read per entity. Review, inspection finding, case action, message, version and organization keep their delete; form submissions get `archive`, `restore` and `purge`. Employee and meeting belong to group 1.
 
 ### Lane L
 

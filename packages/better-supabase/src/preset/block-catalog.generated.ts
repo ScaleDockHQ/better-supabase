@@ -2292,7 +2292,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "events": [
         "form.created",
-        "form_submission.deleted",
+        "form_submission.archived",
+        "form_submission.purged",
+        "form_submission.restored",
         "form_submission.reviewed",
         "form_submission.submitted",
         "form_version.published"

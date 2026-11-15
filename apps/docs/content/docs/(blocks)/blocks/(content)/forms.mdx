@@ -155,6 +155,8 @@ await forms.review(page[0]!.id, "accepted").orThrow();
 
 `draft: true` saves answers without checking them, and a later `submit` with `submissionId` finishes the draft against the current version. Pass `subjectType` and `subjectId` to link a submission to a record the caller can read, such as a deal. `listSubmissions` returns the newest first, 50 to a page by default; pass the last `createdAt` as `before` for the next page.
 
+`archiveSubmission(id)` hides a submitted, accepted or rejected submission from `listSubmissions` and `nps` and keeps its answers, score and review; `restoreSubmission(id)` brings it back, and `listSubmissions` takes `includeArchived: true` to list both. Both need the review permission, and a draft is refused (`FORM_SUBMISSION_DRAFT`) because the respondent's draft is purged, not archived. `getSubmission` still reads an archived submission by id, with `archivedAt` set. `purgeSubmission(id)` removes a submission for good: a reviewer any submission, a respondent their own draft. Set `permissions.purge` to a key of your own to split it from `review`.
+
 ## Scores and quizzes
 
 Give a field a `correct` answer to score it, and `points` to weigh it (1 by default). `scoring.passMark` is the percentage of the points a submission needs to pass. Every field type takes a correct answer except `consent`, `json` and `nps`, and the answer has to be one the field accepts.
@@ -344,7 +346,7 @@ export function Component(props: { version: QuestionnaireForm }) {
 
 ## Events and hooks
 
-The module records `form.created`, `form_version.published`, `form_submission.submitted` (with `versionId` and `source`: `member`, `public` or `service`), `form_submission.reviewed` (with `status`) and `form_submission.deleted`. The submission events carry the linked `subjectType` and `subjectId`, so an [outbox](/docs/blocks/outbox) consumer can count submissions per record. Creating a form, publishing, reviewing and deleting go to the [audit log](/docs/blocks/audit). It calls `before_form_publish`, `after_form_publish`, `before_form_submission`, `after_form_submission` and `before_public_form_submission`.
+The module records `form.created`, `form_version.published`, `form_submission.submitted` (with `versionId` and `source`: `member`, `public` or `service`), `form_submission.reviewed` (with `status`), `form_submission.archived`, `form_submission.restored` and `form_submission.purged`. The submission events carry the linked `subjectType` and `subjectId`, so an [outbox](/docs/blocks/outbox) consumer can count submissions per record. Creating a form, publishing, reviewing, archiving, restoring and purging go to the [audit log](/docs/blocks/audit). It calls `before_form_publish`, `after_form_publish`, `before_form_submission`, `after_form_submission` and `before_public_form_submission`.
 
 ## With ReUI
 
