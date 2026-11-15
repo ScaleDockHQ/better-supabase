@@ -1,4 +1,6 @@
 import "server-only";
+import type { PromptSummary } from "better-supabase/blocks/prompts";
+
 import type { OpsListQuery } from "@/components/ops-list/ops-list-params";
 
 import { agentsBlock } from "@/features/agents/agents-server";
@@ -30,9 +32,9 @@ export interface PromptPage {
 }
 
 /**
- * The names a tenant keeps prompts under: the assistant and each agent. The
- * block has no list of names (finding EX-312), so they come from the entities
- * that own a prompt.
+ * The names an organization keeps prompts under: the assistant and each agent.
+ * They give a name its title; `prompts.list` adds the saved names that no agent
+ * owns.
  */
 export async function promptSubjects(
   organizationId: string,
@@ -56,7 +58,37 @@ export async function promptSubjects(
   ];
 }
 
-/** One page of the prompt registry: names searched, filtered and sorted here. */
+/** Every prompt the organization saved, by name, read a page at a time. */
+async function savedPrompts(
+  prompts: ReturnType<typeof promptsBlock>,
+  organizationId: string,
+): Promise<ReadonlyMap<string, PromptSummary>> {
+  const saved = new Map<string, PromptSummary>();
+  let after: readonly string[] | undefined;
+
+  for (let pages = 0; pages < 10; pages += 1) {
+    const page = await prompts
+      .list({ organizationId, limit: 200, ...(after ? { after } : {}) })
+      .orThrow();
+
+    for (const item of page.items) {
+      saved.set(item.name, item);
+    }
+
+    if (page.nextCursor === null) {
+      break;
+    }
+
+    after = page.nextCursor;
+  }
+
+  return saved;
+}
+
+/**
+ * One page of the prompt registry: the assistant and each agent, plus any other
+ * saved name. Names are searched, filtered and sorted here.
+ */
 export async function getPromptPage(query: OpsListQuery): Promise<PromptPage> {
   const access = await opsAccess("ai_chat.manage");
   const organizationId = access.allowed ? access.organizationId : undefined;
@@ -77,26 +109,36 @@ export async function getPromptPage(query: OpsListQuery): Promise<PromptPage> {
 
   const start = Number(query.cursor ?? 0);
 
-  const rows = await Promise.all(
-    subjects.map(async (subject): Promise<PromptRow> => {
-      const versions = await prompts
-        .versions({ name: subject.name, organizationId })
-        .orThrow();
+  const saved = await savedPrompts(prompts, organizationId);
 
-      const latest = versions[0];
+  const rows: PromptRow[] = [
+    ...subjects.map((subject): PromptRow => {
+      const found = saved.get(subject.name);
 
       return {
         id: subject.name,
         title: subject.title,
-        latest: latest?.version,
-        production: versions.find((entry) =>
-          entry.labels.includes("production"),
-        )?.version,
-        versions: versions.length,
-        updatedAt: latest?.createdAt?.toString(),
+        latest: found?.latestVersion,
+        production: found?.labels["production"],
+        versions: found?.versionCount ?? 0,
+        updatedAt: found?.updatedAt?.toString(),
       };
     }),
-  );
+    ...[...saved.values()]
+      .filter(
+        (found) =>
+          !subjects.some((subject) => subject.name === found.name) &&
+          (needle === "" || found.name.includes(needle)),
+      )
+      .map((found): PromptRow => ({
+        id: found.name,
+        title: found.name,
+        latest: found.latestVersion,
+        production: found.labels["production"],
+        versions: found.versionCount,
+        updatedAt: found.updatedAt?.toString(),
+      })),
+  ];
 
   const filtered = rows.filter((row) =>
     query.filter === "unversioned"
