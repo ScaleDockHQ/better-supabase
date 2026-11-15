@@ -33,7 +33,13 @@ export const maintenanceBlock: BlockOf<
     maintenance_plan: {
       ...maintenancePlanListSurface,
       mutability: "editable",
-      emits: { create: true, update: true, delete: true },
+      emits: {
+        create: true,
+        update: true,
+        archive: true,
+        restore: true,
+        purge: true,
+      },
     },
     maintenance_plan_part: { mutability: "read-only" },
     maintenance_meter: { mutability: "append-only", emits: { create: false } },

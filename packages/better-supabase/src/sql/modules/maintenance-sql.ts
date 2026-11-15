@@ -26,6 +26,8 @@ export interface MaintenanceSql {
   readonly read: string;
   readonly record: string;
   readonly manage: string;
+  /** The key that purges a plan; `permissions.purge`, else `manage`. */
+  readonly purge: string;
   readonly allowed: (tenant: string, permission: string) => string;
   readonly invalid: (message: string) => string;
   readonly forbidden: (message: string) => string;
@@ -100,6 +102,10 @@ export function maintenanceSql(ctx: BlockSqlContext): MaintenanceSql {
     read: ctx.permission("read", OPERATIONS["maintenance.read"]),
     record: ctx.permission("record", OPERATIONS["maintenance.record"]),
     manage: ctx.permission("manage", OPERATIONS["maintenance.manage"]),
+    purge: sqlString(
+      ctx.config.permissions["purge"] ??
+        ctx.permissionKey("manage", OPERATIONS["maintenance.manage"]),
+    ),
     allowed,
     invalid: (message) => fail("MAINTENANCE_INVALID", message, "22023"),
     forbidden: (message) => fail("MAINTENANCE_FORBIDDEN", message),
@@ -155,7 +161,7 @@ export function maintenanceSql(ctx: BlockSqlContext): MaintenanceSql {
     nextOccurrence: (dtstart, tz, rrule, after) =>
       `${ctx.fn("maintenance_next_occurrence")}(${dtstart}, ${tz}, ${rrule}, ${after})`,
     planJson: (row) =>
-      `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'title', ${row}.${p("title")}, 'kind', ${row}.${p("kind")}, 'assetId', ${row}.${p("asset")}, 'everyDays', ${row}.${p("everyDays")}, 'meterId', ${row}.${p("meter")}, 'everyValue', ${row}.${p("everyValue")}::text, 'priority', ${row}.${p("priority")}, 'status', ${row}.${p("status")}, 'lastDoneAt', ${row}.${p("lastDoneAt")}, 'lastDoneValue', ${row}.${p("lastDoneValue")}::text, 'nextDueAt', ${row}.${p("nextDueAt")}, 'workOrderId', ${row}.${p("workOrder")}, 'rrule', ${row}.${p("rrule")}, 'dtstart', ${row}.${p("dtstart")}, 'tz', ${row}.${p("tz")}, 'requiredQualifications', to_jsonb(${row}.${p("requiredQualifications")}), 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${row}.${p("updatedAt")})`,
+      `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'title', ${row}.${p("title")}, 'kind', ${row}.${p("kind")}, 'assetId', ${row}.${p("asset")}, 'everyDays', ${row}.${p("everyDays")}, 'meterId', ${row}.${p("meter")}, 'everyValue', ${row}.${p("everyValue")}::text, 'priority', ${row}.${p("priority")}, 'status', ${row}.${p("status")}, 'lastDoneAt', ${row}.${p("lastDoneAt")}, 'lastDoneValue', ${row}.${p("lastDoneValue")}::text, 'nextDueAt', ${row}.${p("nextDueAt")}, 'workOrderId', ${row}.${p("workOrder")}, 'rrule', ${row}.${p("rrule")}, 'dtstart', ${row}.${p("dtstart")}, 'tz', ${row}.${p("tz")}, 'requiredQualifications', to_jsonb(${row}.${p("requiredQualifications")}), 'archivedAt', ${ctx.has("plans", "archivedAt") ? `${row}.${p("archivedAt")}` : "null"}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${row}.${p("updatedAt")})`,
     meterJson: (row) =>
       `jsonb_build_object('id', ${row}.${m("id")}, 'organizationId', ${row}.${m("tenant")}, 'name', ${row}.${m("name")}, 'unit', ${row}.${m("unit")}, 'assetId', ${row}.${m("asset")}, 'reading', ${row}.${m("reading")}::text, 'readAt', ${row}.${m("readAt")}, 'createdAt', ${row}.${m("createdAt")})`,
     calibrationJson: (row) =>

@@ -149,7 +149,7 @@ export const deletePlan = bsb.action(
     permission: "maintenance.manage",
   },
   async ({ planId }, { db, auth }) => {
-    const removed = await db.maintenance.deletePlan(planId);
+    const removed = await db.maintenance.purgePlan(planId);
 
     if (!removed.ok) {
       return removed;

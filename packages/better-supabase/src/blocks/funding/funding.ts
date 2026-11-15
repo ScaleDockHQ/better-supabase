@@ -246,6 +246,8 @@ export interface FundingClaim {
   readonly response?: Readonly<Record<string, unknown>>;
   readonly total: Money;
   readonly invoiceId?: string;
+  /** Set while the claim is archived. */
+  readonly archivedAt?: Temporal.Instant;
   readonly createdBy?: string;
 }
 
@@ -464,6 +466,8 @@ export interface Funding<F extends object = Record<never, never>> {
     input: { organizationId: string } & {
       readonly status?: FundingClaimStatus;
       readonly funderId?: string;
+      /** Adds archived claims to the list. */
+      readonly includeArchived?: boolean;
     },
   ): AsyncResult<readonly FundingClaim[]>;
   /**
@@ -492,8 +496,18 @@ export interface Funding<F extends object = Record<never, never>> {
   poll(
     input: { claimId: string } & { readonly signal?: AbortSignal },
   ): AsyncResult<FundingClaimWithLines | undefined>;
-  /** Deletes a draft claim; its deliveries can be claimed again. */
-  deleteClaim(claimId: string): AsyncResult<boolean>;
+  /**
+   * Archives a claim the funder answered; it leaves `claims` unless
+   * `includeArchived` is set. Records `funding_claim.archived`.
+   */
+  archiveClaim(claimId: string): AsyncResult<FundingClaimWithLines>;
+  /** Brings an archived claim back; records `funding_claim.restored`. */
+  restoreClaim(claimId: string): AsyncResult<FundingClaimWithLines>;
+  /**
+   * Removes a draft claim for good; its deliveries can be claimed again.
+   * `permissions.purge` gates this, falling back to `claim`.
+   */
+  purgeClaim(claimId: string): AsyncResult<boolean>;
   /**
    * Creates an invoice to the funder for an accepted claim's accepted lines.
    * Needs the invoices block; `attrs` goes to `create_invoice`.
@@ -667,6 +681,7 @@ function claimOf(value: unknown, fn: string): FundingClaim {
     ),
     total: moneyOf(row["total"], row["currency"], "total"),
     ...optional("invoiceId", optionalText(row["invoiceId"])),
+    ...optional("archivedAt", optionalInstant(row["archivedAt"])),
     ...optional("createdBy", optionalText(row["createdBy"])),
   };
 }
@@ -1041,6 +1056,7 @@ export function createFunding<
           tenant: organizationId,
           status: list.status ?? null,
           funder_id: list.funderId ?? null,
+          include_archived: list.includeArchived ?? false,
         },
         many("list_funding_claims", claimOf),
       ),
@@ -1103,9 +1119,21 @@ export function createFunding<
           }),
         ),
       ),
-    deleteClaim: (claimId) =>
+    archiveClaim: (claimId) =>
       call(
-        "delete_funding_claim",
+        "archive_funding_claim",
+        { claim_id: claimId },
+        one("archive_funding_claim", claimWithLinesOf),
+      ),
+    restoreClaim: (claimId) =>
+      call(
+        "restore_funding_claim",
+        { claim_id: claimId },
+        one("restore_funding_claim", claimWithLinesOf),
+      ),
+    purgeClaim: (claimId) =>
+      call(
+        "purge_funding_claim",
         { claim_id: claimId },
         (value) => value === true,
       ),
