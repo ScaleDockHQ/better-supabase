@@ -182,7 +182,7 @@
   "/[locale]/(app)/beta/page": {
     "raw": 3109515,
     "gzip": 942551,
-    "brotli": 781788
+    "brotli": 783859
   },
   "/[locale]/(app)/calendar/availability/page": {
     "raw": 3130359,
@@ -712,7 +712,7 @@
   "/[locale]/(app)/notifications/page": {
     "raw": 3117558,
     "gzip": 943827,
-    "brotli": 784760
+    "brotli": 786853
   },
   "/[locale]/(app)/observations/page": {
     "raw": 3131503,
@@ -867,7 +867,7 @@
   "/[locale]/(app)/settings/audit/page": {
     "raw": 3127730,
     "gzip": 948690,
-    "brotli": 787116
+    "brotli": 789196
   },
   "/[locale]/(app)/settings/billing/account/page": {
     "raw": 3129273,
@@ -982,7 +982,7 @@
   "/[locale]/(app)/settings/page": {
     "raw": 3107471,
     "gzip": 942055,
-    "brotli": 781335
+    "brotli": 783401
   },
   "/[locale]/(app)/settings/preferences/page": {
     "raw": 3109010,
@@ -1032,7 +1032,7 @@
   "/[locale]/(app)/settings/signing-keys/page": {
     "raw": 3127014,
     "gzip": 947088,
-    "brotli": 787511
+    "brotli": 789599
   },
   "/[locale]/(app)/settings/sso/page": {
     "raw": 3130894,
@@ -1322,7 +1322,7 @@
   "/[locale]/(public)/portal/page": {
     "raw": 2948162,
     "gzip": 890978,
-    "brotli": 738004
+    "brotli": 739856
   },
   "/[locale]/(public)/status/[slug]/page": {
     "raw": 2952638,
