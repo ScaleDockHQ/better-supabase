@@ -5,9 +5,7 @@ import { RecordListSkeleton } from "@/components/record-list/record-list-skeleto
 import { PeopleLoadError } from "@/features/people/components/people-load-error";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { pageBlockRows } from "@/lib/block-list";
 
-import { templateList, templateSpec } from "../document-templates-list";
 import { getTemplates } from "../document-templates-queries";
 import { AddStarterTemplateButton } from "./add-starter-template-button";
 import { TemplateRecordList } from "./template-record-list";
@@ -34,22 +32,18 @@ export async function TemplateOverview() {
 
   return (
     <div className="flex flex-col gap-4">
-      {templates.data.length === 0 &&
+      {templates.data.items.length === 0 &&
+      !templates.data.nextCursor &&
       can(permissions, "document_templates.manage") ? (
         <div className="flex justify-end">
           <AddStarterTemplateButton />
         </div>
       ) : null}
       <TemplateRecordList
-        initial={pageBlockRows(
-          templateList,
-          templateSpec,
-          templates.data,
-          templateList.defaults,
-        )}
-        types={[
-          ...new Set(templates.data.map((row) => row.documentType)),
-        ].toSorted()}
+        initial={templates.data}
+        types={Object.keys(
+          templates.data.facetCounts?.["type"] ?? {},
+        ).toSorted()}
       />
     </div>
   );

@@ -1,28 +1,28 @@
 import "server-only";
+import type { DocumentTemplate } from "better-supabase/blocks/document-templates";
+
 import { tenantOf } from "better-supabase/next";
 import { cacheTag } from "next/cache";
 
+import type {
+  RecordListPage,
+  RecordListUrlQuery,
+} from "@/components/record-list/record-list-types";
 import type { Loaded } from "@/features/people/people-queries";
 
 import { settle } from "@/features/people/people-queries";
-import { readAllPages } from "@/lib/read-all-pages";
+import { pageEntityRows } from "@/lib/block-entity-page";
 import { bsb } from "@/lib/supabase/server";
 
 import type { TemplateRow } from "./document-templates-list";
 
 import { DOCUMENT_TEMPLATES_TAG } from "./document-templates-cache";
+import { templateList, templateMap } from "./document-templates-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
-/** Every template of the organization; the list kit pages them (EX-901). */
-export async function readTemplateRows(
-  db: Db,
-): Promise<readonly TemplateRow[]> {
-  const templates = await readAllPages((page) =>
-    db.documentTemplates.templatePage(page),
-  );
-
-  return templates.map((template): TemplateRow => ({
+function templateRowOf(template: DocumentTemplate): TemplateRow {
+  return {
     id: template.id,
     name: template.name,
     documentType: template.documentType,
@@ -30,18 +30,40 @@ export async function readTemplateRows(
     version: template.version,
     active: template.active,
     updatedAt: template.updatedAt.toString(),
-  }));
+  };
 }
 
-async function loadTemplates(): Promise<readonly TemplateRow[] | null> {
+/**
+ * One page of templates for a list query, searched, filtered and sorted by the
+ * document templates block's `templatePage` and counted by `templateFacets`.
+ */
+export function loadTemplatePage(
+  db: Db,
+  query: RecordListUrlQuery,
+): Promise<RecordListPage<TemplateRow>> {
+  const { documentTemplates } = db;
+
+  return pageEntityRows({
+    pager: {
+      page: (options) => documentTemplates.templatePage(options),
+      facets: (options) => documentTemplates.templateFacets(options),
+    },
+    map: templateMap,
+    query,
+    pageSize: templateList.config.pageSize,
+    rowsOf: (items) => items.map(templateRowOf),
+  });
+}
+
+async function loadTemplates(): Promise<RecordListPage<TemplateRow> | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(DOCUMENT_TEMPLATES_TAG);
 
-  return tenantOf(session) ? readTemplateRows(db) : null;
+  return tenantOf(session) ? loadTemplatePage(db, templateList.defaults) : null;
 }
 
-export function getTemplates(): Promise<Loaded<readonly TemplateRow[]>> {
+export function getTemplates(): Promise<Loaded<RecordListPage<TemplateRow>>> {
   return settle(loadTemplates);
 }
 
@@ -61,16 +83,17 @@ async function loadTemplate(
     return null;
   }
 
-  const rows = await readTemplateRows(db);
-  const row = rows.find((entry) => entry.id === id);
+  const found = await db.documentTemplates.getTemplate(id);
 
-  if (!row) {
-    return "not-found";
+  if (!found.ok) {
+    if (found.error.kind === "not_found") {
+      return "not-found";
+    }
+
+    throw new Error(found.error.message);
   }
 
-  const template = await db.documentTemplates.getTemplate(id).orThrow();
-
-  return { row, body: template.body };
+  return { row: templateRowOf(found.data), body: found.data.body };
 }
 
 export function getTemplate(

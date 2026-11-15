@@ -1,23 +1,17 @@
-import {
-  deadlineList,
-  deadlineSpec,
-} from "@/features/deadlines/deadlines-list";
-import { readDeadlineRows } from "@/features/deadlines/deadlines-queries";
-import { pageBlockRows } from "@/lib/block-list";
+import { deadlineList } from "@/features/deadlines/deadlines-list";
+import { loadDeadlinePage } from "@/features/deadlines/deadlines-queries";
 import { bsb } from "@/lib/supabase/server";
 
 /**
- * `GET /api/deadlines/list?q=&state=&result=&kind=&sort=&after=`: one page of
- * deadlines, searched, filtered and sorted on the server.
+ * `GET /api/deadlines/list?q=&state=&result=&group=&sort=&after=`: one page of
+ * deadlines, searched, filtered and sorted by the deadlines block's page
+ * methods.
  */
 export const GET = bsb.route(
   async (request, { db }) => {
-    const rows = await readDeadlineRows(db);
     const query = deadlineList.parse(request.nextUrl.searchParams);
 
-    return Response.json(
-      pageBlockRows(deadlineList, deadlineSpec, rows, query.value),
-    );
+    return Response.json(await loadDeadlinePage(db, query.value));
   },
   { requireTenant: true, permission: "deadlines.read" },
 );

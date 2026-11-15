@@ -5,9 +5,7 @@ import { RecordListSkeleton } from "@/components/record-list/record-list-skeleto
 import { PeopleLoadError } from "@/features/people/components/people-load-error";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { pageBlockRows } from "@/lib/block-list";
 
-import { deadlineList, deadlineSpec } from "../deadlines-list";
 import { getDeadlines } from "../deadlines-queries";
 import { DeadlineRecordList } from "./deadline-record-list";
 
@@ -33,13 +31,10 @@ export async function DeadlineOverview() {
 
   return (
     <DeadlineRecordList
-      initial={pageBlockRows(
-        deadlineList,
-        deadlineSpec,
-        deadlines.data,
-        deadlineList.defaults,
-      )}
-      kinds={[...new Set(deadlines.data.map((row) => row.kind))].toSorted()}
+      initial={deadlines.data}
+      groups={Object.keys(
+        deadlines.data.facetCounts?.["group"] ?? {},
+      ).toSorted()}
     />
   );
 }

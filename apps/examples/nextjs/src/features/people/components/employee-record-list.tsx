@@ -13,12 +13,12 @@ import { RecordListView } from "@/components/record-list/record-list-view";
 import { useBlockListState } from "@/components/record-list/use-block-list-state";
 import { Link } from "@/i18n/navigation";
 
-import type { DirectoryEmployee } from "../people-queries";
+import type { EmployeeRow } from "../employees-list";
 
 import { employeeList } from "../employees-list";
 import { EmployeeStatusBadge, useEmployeeStatusLabel } from "./employee-status";
 
-type EmployeeCell = CellContext<ReadOnlyGridFeatures, DirectoryEmployee>;
+type EmployeeCell = CellContext<ReadOnlyGridFeatures, EmployeeRow>;
 
 function NameCell({ row }: EmployeeCell) {
   const { id, name, email } = row.original;
@@ -46,17 +46,16 @@ function StatusCell({ row }: EmployeeCell) {
 export function EmployeeRecordList({
   initial,
 }: {
-  initial: RecordListPage<DirectoryEmployee>;
+  initial: RecordListPage<EmployeeRow>;
 }) {
   const t = useExtracted("people");
   const statusLabel = useEmployeeStatusLabel();
   const list = useBlockListState(employeeList);
 
-  const columns: RecordListColumns<DirectoryEmployee> = [
+  const columns: RecordListColumns<EmployeeRow> = [
     { accessorKey: "name", header: t("Name"), size: 260, cell: NameCell },
     { accessorKey: "jobTitle", header: t("Job title"), size: 200 },
     { accessorKey: "startDate", header: t("Started"), size: 140 },
-    { accessorKey: "directReports", header: t("Reports"), size: 100 },
     { accessorKey: "status", header: t("Status"), size: 140, cell: StatusCell },
   ];
 
@@ -70,7 +69,6 @@ export function EmployeeRecordList({
       sorts={[
         { value: "name", label: t("Name") },
         { value: "start", label: t("Latest start") },
-        { value: "reports", label: t("Most reports") },
       ]}
       searchLabel={t("Search employees")}
       emptyIcon={<UsersIcon />}
