@@ -129,9 +129,11 @@ export async function getTeams(): Promise<readonly TeamOption[] | null> {
 
   cacheTag(teamsTag(tenant));
 
-  const teams = await db.teams.list(tenant, { limit: 100 }).orThrow();
+  const page = await db.teams
+    .teamPage({ organizationId: tenant, limit: 100 })
+    .orThrow();
 
-  return teams
+  return page.items
     .map((team) => ({ id: team.id, name: team.name }))
     .toSorted((a, b) => a.name.localeCompare(b.name));
 }
