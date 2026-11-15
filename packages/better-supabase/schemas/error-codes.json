@@ -1603,6 +1603,10 @@
     "message": "this alert has already been decided or resolved"
   },
   {
+    "code": "DECISION_SUPPORT_RULE_ARCHIVED",
+    "message": "the rule is archived; restore it first"
+  },
+  {
     "code": "DECISION_SUPPORT_RULE_NOT_FOUND",
     "message": "no such rule"
   },

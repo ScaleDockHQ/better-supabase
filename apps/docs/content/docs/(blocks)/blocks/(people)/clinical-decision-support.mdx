@@ -72,6 +72,19 @@ interaction names two. Duplicate therapy names two or more medications that
 count as one therapy group; without a rule, the same medication ordered twice
 is already a duplicate. `message` replaces the built-in text of the alert.
 
+Archive a rule you no longer want without losing it:
+
+```ts
+await db.clinicalDecisionSupport.archiveRule(rule.id).orThrow();
+await db.clinicalDecisionSupport.restoreRule(rule.id).orThrow();
+```
+
+An archived rule leaves `rules()` and the evaluation, and `saveRule` refuses it
+with `DECISION_SUPPORT_RULE_ARCHIVED` until you restore it. Alerts it raised
+stay until the next evaluation resolves them. `rules({ includeArchived: true })`
+lists archived rules too, and `purgeRule(id)` deletes one for good. Purging
+needs `permissions.purge`, which falls back to `manage`.
+
 ## Evaluate
 
 ```ts
@@ -134,10 +147,10 @@ Test an engine with `testClinicalDecisionSupport` from
 
 ## Events
 
-| Event                                                            | Data                                                                                       |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `care_alert.raised`, `care_alert.decided`, `care_alert.resolved` | `organizationId`, `id`, `subjectType`, `subjectId`, `kind`, `severity`, `source`, `status` |
-| `care_rule.created`, `care_rule.updated`, `care_rule.deleted`    | `organizationId`, `id`, `kind`, `severity`                                                 |
+| Event                                                                                                    | Data                                                                                       |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `care_alert.raised`, `care_alert.decided`, `care_alert.resolved`                                         | `organizationId`, `id`, `subjectType`, `subjectId`, `kind`, `severity`, `source`, `status` |
+| `care_rule.created`, `care_rule.updated`, `care_rule.archived`, `care_rule.restored`, `care_rule.purged` | `organizationId`, `id`, `kind`, `severity`                                                 |
 
 ## Hooks
 

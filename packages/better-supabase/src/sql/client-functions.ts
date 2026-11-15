@@ -152,7 +152,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "e-prescribing":
     "cancel_prescription create_prescription get_prescription list_prescriptions record_prescription_delivery record_prescription_dispense sign_prescription",
   "clinical-decision-support":
-    "care_decision_context decide_care_alert delete_care_rule evaluate_care_rules list_care_alerts list_care_rules record_care_alerts save_care_rule",
+    "archive_care_rule care_decision_context decide_care_alert evaluate_care_rules list_care_alerts list_care_rules purge_care_rule record_care_alerts restore_care_rule save_care_rule",
   commissions:
     "accrue_commission assign_commission_plan build_commission_statement commission_payroll_lines end_commission_assignment finalize_commission_statement get_commission_statement list_commission_plans list_commission_statements list_commissions pay_commission_statement reverse_commission save_commission_plan",
   referrals:

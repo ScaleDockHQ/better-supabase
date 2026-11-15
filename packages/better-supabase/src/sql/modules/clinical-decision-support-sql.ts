@@ -59,6 +59,9 @@ export function decisionSupportSql(ctx: BlockSqlContext): DecisionSupportSql {
   const r = (column: string): string => ctx.col("rules", column);
   const a = (column: string): string => ctx.col("alerts", column);
 
+  const ruleArchivedAt = (row: string): string =>
+    ctx.has("rules", "archivedAt") ? `${row}.${r("archivedAt")}` : "null";
+
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.can("tenant", tenant, permission)}))`;
 
@@ -100,7 +103,7 @@ export function decisionSupportSql(ctx: BlockSqlContext): DecisionSupportSql {
     consents: linked(ctx, "consents"),
     carePlans: linked(ctx, "care-plans"),
     ruleJson: (row) =>
-      `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'kind', ${row}.${r("kind")}, 'medicationIds', to_jsonb(${row}.${r("medicationIds")}), 'minDose', ${row}.${r("minDose")}, 'maxDose', ${row}.${r("maxDose")}, 'maxPerDay', ${row}.${r("maxPerDay")}, 'severity', ${row}.${r("severity")}, 'message', ${row}.${r("message")}, 'active', ${row}.${r("active")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")})`,
+      `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'kind', ${row}.${r("kind")}, 'medicationIds', to_jsonb(${row}.${r("medicationIds")}), 'minDose', ${row}.${r("minDose")}, 'maxDose', ${row}.${r("maxDose")}, 'maxPerDay', ${row}.${r("maxPerDay")}, 'severity', ${row}.${r("severity")}, 'message', ${row}.${r("message")}, 'active', ${row}.${r("active")}, 'createdAt', ${row}.${r("createdAt")}, 'updatedAt', ${row}.${r("updatedAt")}, 'archivedAt', ${ruleArchivedAt(row)})`,
     alertJson: (row) =>
       `jsonb_build_object('id', ${row}.${a("id")}, 'organizationId', ${row}.${a("tenant")}, 'subjectType', ${row}.${a("subjectType")}, 'subjectId', ${row}.${a("subjectId")}, 'kind', ${row}.${a("kind")}, 'severity', ${row}.${a("severity")}, 'source', ${row}.${a("source")}, 'ruleId', ${row}.${a("rule")}, 'orderIds', to_jsonb(${row}.${a("orderIds")}), 'message', ${row}.${a("message")}, 'details', ${row}.${a("details")}, 'fingerprint', ${row}.${a("fingerprint")}, 'status', ${row}.${a("status")}, 'decidedBy', ${row}.${a("decidedBy")}, 'decidedAt', ${row}.${a("decidedAt")}, 'decisionReason', ${row}.${a("decisionReason")}, 'createdAt', ${row}.${a("createdAt")}, 'updatedAt', ${row}.${a("updatedAt")})`,
     recordAlert: (type, row, summary) =>

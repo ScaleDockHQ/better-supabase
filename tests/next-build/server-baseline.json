@@ -1597,12 +1597,12 @@
   "/api/inventory/lots/list/route": {
     "raw": 2726137,
     "gzip": 823658,
-    "brotli": 700237
+    "brotli": 700958
   },
   "/api/inventory/movements/list/route": {
     "raw": 2726155,
     "gzip": 823661,
-    "brotli": 700243
+    "brotli": 700959
   },
   "/api/invitations/list/route": {
     "raw": 2600531,
@@ -1677,7 +1677,7 @@
   "/api/outbox/route": {
     "raw": 4675963,
     "gzip": 1411150,
-    "brotli": 1186699
+    "brotli": 1187347
   },
   "/api/passes/list/route": {
     "raw": 2713523,

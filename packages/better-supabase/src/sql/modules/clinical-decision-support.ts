@@ -45,7 +45,9 @@ const EVENTS: BlockSqlEvents<ClinicalDecisionSupportEvents> = {
   "care_alert.resolved": alert,
   "care_rule.created": rule,
   "care_rule.updated": rule,
-  "care_rule.deleted": rule,
+  "care_rule.archived": rule,
+  "care_rule.restored": rule,
+  "care_rule.purged": rule,
 };
 
 const NAMES: BlockSqlNames = {
@@ -61,6 +63,7 @@ const NAMES: BlockSqlNames = {
       name: "care_rules",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
+      optional: ["archivedAt"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -74,6 +77,7 @@ const NAMES: BlockSqlNames = {
         active: "active",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        archivedAt: "archived_at",
       },
     },
     alerts: {
@@ -114,6 +118,13 @@ function tables(ctx: BlockSqlContext): string {
   const name = (logical: string, suffix: string): string =>
     sqlIdent(`${ctx.tableName(logical).name}_${suffix}`);
 
+  const optional = (
+    table: string,
+    column: string,
+    definition: (ident: string) => string,
+  ): string =>
+    ctx.has(table, column) ? `\n  ${definition(ctx.col(table, column))},` : "";
+
   const appKey = (logical: string, what: string, columns: string): string =>
     ctx.owns(logical)
       ? ""
@@ -150,7 +161,7 @@ create table if not exists ${sql.rules} (
   ${r("message")} text check (${r("message")} is null or length(${r("message")}) <= 1000),
   ${r("active")} boolean not null default true,
   ${r("createdAt")} timestamptz not null default now(),
-  ${r("updatedAt")} timestamptz not null default now(),
+  ${r("updatedAt")} timestamptz not null default now(),${optional("rules", "archivedAt", (c) => `${c} timestamptz`)}
   check (
     (${r("kind")} = 'dose_range' and cardinality(${r("medicationIds")}) = 1 and (${r("minDose")} is not null or ${r("maxDose")} is not null or ${r("maxPerDay")} is not null))
     or (${r("kind")} = 'interaction' and cardinality(${r("medicationIds")}) = 2)
@@ -158,7 +169,7 @@ create table if not exists ${sql.rules} (
   )
 );${appKey("rules", "tenant_id", `${r("tenant")}, ${r("id")}`)}
 create index if not exists ${name("rules", "tenant_idx")} on ${sql.rules} (${r("tenant")}, ${r("kind")});
-${lockTable(sql.rules, { read: true })}
+${ctx.has("rules", "archivedAt") ? `alter table ${sql.rules} add column if not exists ${r("archivedAt")} timestamptz;\n` : ""}${lockTable(sql.rules, { read: true })}
 ${readPolicy("rules", r("tenant"))}
 
 -- An alert about a record, from the built-in rules or an external engine
@@ -209,8 +220,10 @@ ${tables(ctx)}${decisionSupportEvaluation(ctx)}${decisionSupportFunctions(ctx)}`
 function contract(): readonly BlockSqlContractFunction[] {
   return [
     { name: "save_care_rule", args: ["{id}", "jsonb"], returns: "jsonb" },
-    { name: "delete_care_rule", args: ["uuid"], returns: "jsonb" },
-    { name: "list_care_rules", args: ["{id}"], returns: "jsonb" },
+    { name: "archive_care_rule", args: ["uuid"], returns: "jsonb" },
+    { name: "restore_care_rule", args: ["uuid"], returns: "jsonb" },
+    { name: "purge_care_rule", args: ["uuid"], returns: "jsonb" },
+    { name: "list_care_rules", args: ["{id}", "boolean"], returns: "jsonb" },
     {
       name: "evaluate_care_rules",
       args: ["{id}", "text", "text"],
