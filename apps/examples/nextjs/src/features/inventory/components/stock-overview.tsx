@@ -18,9 +18,7 @@ import { CreateLocationButton } from "@/features/shop/components/create-location
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
-import { pageBlockRows } from "@/lib/block-list";
 
-import { stockList, stockSpec } from "../inventory-list";
 import { getStock } from "../inventory-queries";
 import { InventoryLoadError } from "./inventory-load-error";
 import { StockRecordList } from "./stock-record-list";
@@ -72,8 +70,15 @@ export async function StockOverview() {
     return <InventoryLoadError title={t("The stock levels didn't load")} />;
   }
 
-  const { locations, rows, lowCount, outCount, expiringCount, onHandTotal } =
-    stock.data;
+  const {
+    locations,
+    rows,
+    initial,
+    lowCount,
+    outCount,
+    expiringCount,
+    onHandTotal,
+  } = stock.data;
 
   if (locations.length === 0) {
     return (
@@ -141,10 +146,7 @@ export async function StockOverview() {
           hint={t("Within 30 days")}
         />
       </div>
-      <StockRecordList
-        initial={pageBlockRows(stockList, stockSpec, rows, stockList.defaults)}
-        locations={locations}
-      />
+      <StockRecordList initial={initial} locations={locations} />
     </div>
   );
 }

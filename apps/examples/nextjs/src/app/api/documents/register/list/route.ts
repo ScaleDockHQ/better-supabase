@@ -1,9 +1,5 @@
-import {
-  registerList,
-  registerSpec,
-} from "@/features/document-register/document-register-list";
-import { readRegisterRows } from "@/features/document-register/document-register-queries";
-import { pageBlockRows } from "@/lib/block-list";
+import { registerList } from "@/features/document-register/document-register-list";
+import { loadRegisterPage } from "@/features/document-register/document-register-queries";
 import { bsb } from "@/lib/supabase/server";
 
 /**
@@ -12,12 +8,9 @@ import { bsb } from "@/lib/supabase/server";
  */
 export const GET = bsb.route(
   async (request, { db, tenant }) => {
-    const rows = await readRegisterRows(db, tenant);
     const query = registerList.parse(request.nextUrl.searchParams);
 
-    return Response.json(
-      pageBlockRows(registerList, registerSpec, rows, query.value),
-    );
+    return Response.json(await loadRegisterPage(db, tenant, query.value));
   },
   { requireTenant: true, permission: "drive.read" },
 );
