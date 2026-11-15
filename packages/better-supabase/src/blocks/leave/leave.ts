@@ -856,6 +856,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           })),
         };
       }),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ organizationId, ...list }) =>
       call(
         "list_leave_requests",
@@ -886,10 +887,12 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
       call("get_leave_request", { request_id: requestId }, (value) =>
         requestOf(value, "get_leave_request"),
       ).andThen((row) =>
+        // SAFETY: `fields.rows` maps one row to one row.
         fields.rows([row]).map(([first]) => first as LeaveRequest<F>),
       ),
     forOwner: ({ subject, limit }) =>
       requireTenant(options.tenant).andThen((organizationId) =>
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
         client.list({
           organizationId,
           ...(subject.type === "employee"
@@ -980,6 +983,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           ...(decidedBy === undefined ? {} : { decidedBy }),
         },
       }),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     pending: (input) => hooked.list({ ...input, status: "pending" }),
   };
 

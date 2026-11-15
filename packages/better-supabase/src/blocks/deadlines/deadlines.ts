@@ -451,6 +451,7 @@ export function createDeadlines(options: DeadlinesOptions): Deadlines {
         },
         (value) => deadlineOf(value, "satisfy_deadline"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(

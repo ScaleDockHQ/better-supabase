@@ -569,6 +569,7 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
             isRecord(value) ? enrollmentOf(value, "enrollment") : null,
         ),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: (filter = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -620,6 +621,7 @@ export function createEnrollments(options: EnrollmentsOptions): Enrollments {
       ),
     restart: (enrollmentId) =>
       AsyncResult.from(async () => {
+        // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
         const found = await hooked.list({ pageSize: 200 });
 
         if (!found.ok) {

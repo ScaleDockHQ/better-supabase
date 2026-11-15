@@ -1,3 +1,4 @@
+/* oxlint-disable eslint/max-lines -- the keyset page and get functions add lines past the limit. 1 finding. */
 import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 

@@ -452,6 +452,7 @@ export function createDocumentTemplates(
         { template_id: id },
         one("get_document_template"),
       ),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     listTemplates: (filter = {}) =>
       tenant().andThen((organizationId) =>
         call(
