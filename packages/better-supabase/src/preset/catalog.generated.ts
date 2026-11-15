@@ -11658,7 +11658,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "message": "message",
               "active": "active",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "archivedAt": "archived_at"
             }
           }
         },
@@ -26444,7 +26445,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "care_alert.resolved",
           "care_rule.created",
           "care_rule.updated",
-          "care_rule.deleted"
+          "care_rule.archived",
+          "care_rule.restored",
+          "care_rule.purged"
         ]
       }
     },

@@ -23,7 +23,13 @@ export const clinicalDecisionSupportBlock: BlockOf<
     care_alert: { mutability: "state-machine" },
     care_rule: {
       mutability: "editable",
-      emits: { create: true, update: true, delete: true },
+      emits: {
+        create: true,
+        update: true,
+        archive: true,
+        restore: true,
+        purge: true,
+      },
     },
   },
   concerns: ["lifecycle"],

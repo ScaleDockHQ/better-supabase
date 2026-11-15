@@ -26,7 +26,7 @@ export function decisionSupportEvaluation(ctx: BlockSqlContext): string {
     `case ${row}.${a("severity")} when 'critical' then 0 when 'warning' then 1 else 2 end`;
 
   const rule = (kind: string): string =>
-    `r.${r("tenant")} = evaluate_care_rules.tenant and r.${r("active")} and r.${r("kind")} = '${kind}'`;
+    `r.${r("tenant")} = evaluate_care_rules.tenant and r.${r("active")}${ctx.has("rules", "archivedAt") ? ` and r.${r("archivedAt")} is null` : ""} and r.${r("kind")} = '${kind}'`;
 
   const doseAlert = (
     limit: "min" | "max" | "day",
