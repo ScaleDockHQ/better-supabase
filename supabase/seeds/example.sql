@@ -2,52 +2,14 @@
 -- then the rest of the demo. Runs after seed.sql, which holds the library seed
 -- that the pgTAP suite runs on.
 
--- The other channels of the unibox: email, Slack and WhatsApp inboxes with a
--- few conversations each, macros for the composer and one AI draft. They are
--- recorded as the channel adapters would record them; the simulator on /inbox
--- adds more. The WhatsApp conversation's last message is two days old, so its
--- 24 hour reply window is closed.
+-- The other channels of the unibox: email, Slack and WhatsApp inboxes,
+-- macros for the composer and one AI draft. Their conversations come from the
+-- generated seed of the inbox page (`pnpm db:seed:pages`, which `supabase:reset`
+-- runs): the WhatsApp one is two days old, so its 24 hour reply window is closed.
 insert into better_supabase.inboxes (id, tenant_id, name, channel, bot_mode, settings) values
   ('00000000-0000-4000-8000-00000000e002', '00000000-0000-4000-8000-000000000001', 'Support email', 'email', 'human', '{"simulator": true}'),
   ('00000000-0000-4000-8000-00000000e003', '00000000-0000-4000-8000-000000000001', 'Acme Slack', 'slack', 'human', '{"simulator": true}'),
   ('00000000-0000-4000-8000-00000000e004', '00000000-0000-4000-8000-000000000001', 'WhatsApp support', 'whatsapp', 'human', '{"simulator": true}');
-
-select better_supabase.record_inbound(jsonb_build_object(
-  'inbox_id', '00000000-0000-4000-8000-00000000e002',
-  'thread_id', 'sim:email:wile@acme-roadrunner.test',
-  'subject', 'Invoice 1042 is overdue',
-  'contact', jsonb_build_object('external_id', 'wile@acme-roadrunner.test', 'name', 'Wile E. Coyote', 'email', 'wile@acme-roadrunner.test'),
-  'message', jsonb_build_object('body', 'Invoice 1042 shows as overdue, but we paid it last week. Can you check?')
-));
-
-select better_supabase.record_inbound(jsonb_build_object(
-  'inbox_id', '00000000-0000-4000-8000-00000000e003',
-  'thread_id', 'sim:slack:C0ACME:1',
-  'subject', 'Shared channel: onboarding questions',
-  'contact', jsonb_build_object('external_id', 'U0BEEP', 'name', 'Beep Beep', 'email', 'beep@roadrunner.test'),
-  'message', jsonb_build_object('body', 'Who can set up SSO for our team?')
-));
-
-select better_supabase.record_inbound(jsonb_build_object(
-  'inbox_id', '00000000-0000-4000-8000-00000000e004',
-  'thread_id', 'sim:whatsapp:31612345678',
-  'subject', 'Delivery question',
-  'contact', jsonb_build_object('external_id', '31612345678', 'name', 'Daffy', 'phone', '+31612345678'),
-  'message', jsonb_build_object('body', 'Is my order on its way?')
-));
-
-update better_supabase.inbox_conversations c
-set last_inbound_at = now() - interval '2 days',
-    last_message_at = now() - interval '2 days',
-    created_at = now() - interval '2 days'
-where c.thread_id = 'sim:whatsapp:31612345678';
-
-update better_supabase.messages m
-set sent_at = now() - interval '2 days',
-    created_at = now() - interval '2 days'
-from better_supabase.inbox_conversations c
-where m.conversation_id = c.id
-  and c.thread_id = 'sim:whatsapp:31612345678';
 
 -- A WhatsApp webhook event the handler failed on, for the replay sheet on /inbox.
 -- It has used all its attempts, so the pending queue skips it until someone replays it.

@@ -298,3 +298,80 @@ export const contractsSeed = {
     },
   ],
 } as const satisfies PageSeed;
+
+// The fixed-id customers the pgTAP suite runs on stay in `supabase/seed.sql`;
+// these are the demo rows that only the example shows.
+export const customersSeed = {
+  tiers: ["demo"],
+  rows: [
+    {
+      name: "Globex Corporation",
+      kvk: "1003",
+      status: "active",
+      metadata: { tier: "gold", tags: [] },
+    },
+    {
+      name: "Hooli",
+      kvk: "1004",
+      status: "lead",
+      metadata: { tier: "silver", tags: [] },
+    },
+    {
+      name: "Pied Piper",
+      kvk: "1005",
+      status: "lead",
+      metadata: { tier: "bronze", tags: [] },
+    },
+    {
+      name: "Stark Industries",
+      kvk: "1006",
+      status: "active",
+      metadata: { tier: "gold", tags: ["vip"] },
+    },
+  ],
+} as const satisfies PageSeed;
+
+// The conversations of the other inboxes, recorded as the channel adapters
+// record them. `age_days` moves a conversation back in time, which the
+// WhatsApp one needs to close its 24 hour reply window.
+export const inboxSeed = {
+  tiers: ["demo"],
+  rows: [
+    {
+      inbox_id: "00000000-0000-4000-8000-00000000e002",
+      thread_id: "sim:email:wile@acme-roadrunner.test",
+      subject: "Invoice 1042 is overdue",
+      contact: {
+        external_id: "wile@acme-roadrunner.test",
+        name: "Wile E. Coyote",
+        email: "wile@acme-roadrunner.test",
+      },
+      message: {
+        body: "Invoice 1042 shows as overdue, but we paid it last week. Can you check?",
+      },
+    },
+    {
+      inbox_id: "00000000-0000-4000-8000-00000000e003",
+      thread_id: "sim:slack:C0ACME:1",
+      subject: "Shared channel: onboarding questions",
+      contact: {
+        external_id: "U0BEEP",
+        name: "Beep Beep",
+        email: "beep@roadrunner.test",
+      },
+      message: { body: "Who can set up SSO for our team?" },
+    },
+    {
+      inbox_id: "00000000-0000-4000-8000-00000000e004",
+      thread_id: "sim:whatsapp:31612345678",
+      subject: "Delivery question",
+      contact: {
+        external_id: "31612345678",
+        name: "Daffy",
+        phone: "+31612345678",
+      },
+      message: { body: "Is my order on its way?" },
+      age_days: 2,
+    },
+  ],
+} as const satisfies PageSeed;
