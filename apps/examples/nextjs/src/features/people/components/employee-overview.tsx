@@ -4,9 +4,7 @@ import { forbidden } from "next/navigation";
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { pageBlockRows } from "@/lib/block-list";
 
-import { employeeList, employeeSpec } from "../employees-list";
 import { loadDirectory, settle } from "../people-queries";
 import { AddEmployeeDialog } from "./add-employee-dialog";
 import { EmployeeRecordList } from "./employee-record-list";
@@ -37,10 +35,7 @@ export async function EmployeeOverview() {
     return <PeopleLoadError title={t("The directory didn't load")} />;
   }
 
-  const managers = directory.data.map((employee) => ({
-    value: employee.id,
-    label: employee.name,
-  }));
+  const { initial, managers } = directory.data;
 
   return (
     <div className="flex flex-col gap-4">
@@ -52,14 +47,7 @@ export async function EmployeeOverview() {
           />
         </div>
       ) : null}
-      <EmployeeRecordList
-        initial={pageBlockRows(
-          employeeList,
-          employeeSpec,
-          directory.data,
-          employeeList.defaults,
-        )}
-      />
+      <EmployeeRecordList initial={initial} />
     </div>
   );
 }

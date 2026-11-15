@@ -8,10 +8,19 @@ import { cacheTag } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
 
+import type {
+  RecordListPage,
+  RecordListUrlQuery,
+} from "@/components/record-list/record-list-types";
+
 import { CUSTOMERS_TAG } from "@/features/customers/customers-cache";
+import { pageEntityRows } from "@/lib/block-entity-page";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
+import type { EmployeeRow } from "./employees-list";
+
+import { employeeList, employeeMap } from "./employees-list";
 import { PEOPLE_TAG } from "./people-cache";
 
 /** What a loader gives a component: the data, a failed read, or no organization. */
@@ -81,15 +90,65 @@ export async function readDirectory(
   }));
 }
 
-export async function loadDirectory(): Promise<
-  readonly DirectoryEmployee[] | null
-> {
+/** One page of the directory for a list query, with its facet counts. */
+export function loadEmployeePage(
+  db: Db,
+  organizationId: string,
+  query: RecordListUrlQuery,
+): Promise<RecordListPage<EmployeeRow>> {
+  const { employees } = db;
+
+  return pageEntityRows({
+    pager: {
+      page: (options) => employees.page({ organizationId, ...options }),
+      facets: (options) => employees.facets({ organizationId, ...options }),
+    },
+    map: employeeMap,
+    query,
+    pageSize: employeeList.config.pageSize,
+    rowsOf: (items) =>
+      items.map((employee): EmployeeRow => ({
+        id: employee.id,
+        name: employee.name,
+        email: employee.email ?? null,
+        jobTitle: employee.jobTitle ?? null,
+        status: employee.status,
+        startDate: employee.startDate?.toString() ?? null,
+      })),
+  });
+}
+
+export interface DirectoryData {
+  readonly initial: RecordListPage<EmployeeRow>;
+  /** Who a new employee can report to. */
+  readonly managers: readonly {
+    readonly value: string;
+    readonly label: string;
+  }[];
+}
+
+export async function loadDirectory(): Promise<DirectoryData | null> {
   "use cache: private";
   const { session, db } = await bsb.cached();
   cacheTag(PEOPLE_TAG, CUSTOMERS_TAG);
   const tenant = tenantOf(session);
 
-  return tenant ? readDirectory(db, tenant) : null;
+  if (!tenant) {
+    return null;
+  }
+
+  const [initial, directory] = await Promise.all([
+    loadEmployeePage(db, tenant, employeeList.defaults),
+    readDirectory(db, tenant),
+  ]);
+
+  return {
+    initial,
+    managers: directory.map((employee) => ({
+      value: employee.id,
+      label: employee.name,
+    })),
+  };
 }
 
 export interface EmployeeDetail {

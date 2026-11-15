@@ -1,6 +1,6 @@
-import type { BlockListSpec } from "@/lib/block-list";
+import type { EntityListMap } from "@/lib/block-entity-page";
 
-import { defineBlockList } from "@/lib/block-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** One request of the leave overview, as the page and the list route send it. */
 export interface LeaveRow {
@@ -19,18 +19,18 @@ export interface LeaveRow {
 
 export const leaveList = defineBlockList({
   facets: ["status", "type"],
-  sorts: ["start", "newest", "name"],
+  sorts: ["start", "newest"],
   defaultSort: "start",
   pageSize: 25,
 });
 
-export const leaveSpec: BlockListSpec<LeaveRow> = {
-  text: (row) => [row.who, row.typeName, row.note],
-  facets: { status: (row) => row.status, type: (row) => row.typeId },
+/** The leave list's URL names on the leave block's request list. */
+export const leaveMap: EntityListMap = {
   sorts: {
-    // Next leave first: the soonest start date, requests already over last.
-    start: (a, b) => b.startsOn.localeCompare(a.startsOn),
-    newest: (a, b) => b.endsOn.localeCompare(a.endsOn),
-    name: (a, b) => a.who.localeCompare(b.who),
+    // Next leave first: the latest start date, as before.
+    start: { by: "startsOn", direction: "desc" },
+    newest: { by: "createdAt", direction: "desc" },
   },
+  filters: { type: "typeId" },
+  facets: { type: "typeId" },
 };

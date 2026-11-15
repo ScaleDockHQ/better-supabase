@@ -5,9 +5,7 @@ import { RecordListSkeleton } from "@/components/record-list/record-list-skeleto
 import { PeopleLoadError } from "@/features/people/components/people-load-error";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
-import { pageBlockRows } from "@/lib/block-list";
 
-import { onboardingList, onboardingSpec } from "../onboarding-list";
 import { getOnboarding } from "../onboarding-queries";
 import { EnrollEmployeeForm } from "./enroll-employee-form";
 import { OnboardingRecordList } from "./onboarding-record-list";
@@ -36,7 +34,7 @@ export async function OnboardingOverview() {
     return <PeopleLoadError title={t("Onboarding didn't load")} />;
   }
 
-  const { rows, programs, employees } = onboarding.data;
+  const { initial, programs, employees } = onboarding.data;
 
   return (
     <div className="flex flex-col gap-4">
@@ -51,15 +49,7 @@ export async function OnboardingOverview() {
           />
         ) : null}
       </div>
-      <OnboardingRecordList
-        initial={pageBlockRows(
-          onboardingList,
-          onboardingSpec,
-          rows,
-          onboardingList.defaults,
-        )}
-        programs={programs}
-      />
+      <OnboardingRecordList initial={initial} programs={programs} />
     </div>
   );
 }

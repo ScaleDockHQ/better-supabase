@@ -91,8 +91,7 @@ export function OnboardingRecordList({
       ]}
       sorts={[
         { value: "newest", label: t("Newest") },
-        { value: "progress", label: t("Least done") },
-        { value: "name", label: t("Name") },
+        { value: "updated", label: t("Recently changed") },
       ]}
       searchLabel={t("Search onboarding")}
       emptyIcon={<UserRoundCheckIcon />}
