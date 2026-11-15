@@ -1,5 +1,7 @@
 export type { AiAccess } from "../ai-access.ts";
 
+export type { ListPage } from "../../core/block-helpers.ts";
+
 export {
   type AiGuardrails,
   type AiGuardrailsOptions,

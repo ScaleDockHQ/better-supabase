@@ -1,3 +1,4 @@
+import type { ListPage } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
@@ -5,6 +6,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { AiAccess } from "../ai-access.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
+import { pageRowsOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { AsyncResult } from "../../core/result.ts";
 import { accessDenied } from "../ai-access.ts";
@@ -16,6 +18,19 @@ import {
   recordOf,
   textOf,
 } from "../shared.ts";
+
+/** One prompt name with what its versions say, from `Prompts.list`. */
+export interface PromptSummary {
+  /** The tenant that owns the prompt; `undefined` for a system prompt. */
+  readonly organizationId: string | undefined;
+  readonly name: string;
+  readonly latestVersion: number;
+  readonly versionCount: number;
+  /** Each label and the version it points at. */
+  readonly labels: Readonly<Record<string, number>>;
+  /** When the latest version was saved; `undefined` without the column. */
+  readonly updatedAt: Temporal.Instant | undefined;
+}
 
 /** One saved, immutable version of a named prompt template. */
 export interface PromptVersion {
@@ -88,6 +103,17 @@ export interface Prompts {
       readonly organizationId?: string;
     },
   ): AsyncResult<Prompt | undefined>;
+  /**
+   * One page of the prompt names of an organization (the system's without one),
+   * in name order, with the latest version, the version count and the labels.
+   * Templates are not read: use `get` or `versions` for one name. `limit`
+   * defaults to 50 and is capped at 200; pass `nextCursor` as `after`.
+   */
+  list(options?: {
+    readonly organizationId?: string;
+    readonly limit?: number;
+    readonly after?: readonly string[];
+  }): AsyncResult<ListPage<PromptSummary>>;
   /** Points `label` at an existing version, to promote or roll back. */
   setLabel(
     input: { name: string; label: string; version: number } & {
@@ -138,6 +164,31 @@ export function renderPrompt(
   return template.replaceAll(PLACEHOLDER, (_match, name: string) =>
     String(values[name]),
   );
+}
+
+function summaryOf(value: unknown): PromptSummary {
+  const row = recordOf(value, "list_prompts");
+  const labels = row["labels"];
+
+  const entries =
+    typeof labels === "object" && labels !== null && !Array.isArray(labels)
+      ? Object.entries(labels).map(([label, version]): [string, number] => [
+          label,
+          Number(version),
+        ])
+      : [];
+
+  return {
+    organizationId: optionalText(row["tenant_id"]),
+    name: textOf(row["name"]),
+    latestVersion: Number(row["latest_version"]),
+    versionCount: Number(row["version_count"]),
+    labels: Object.fromEntries(entries),
+    updatedAt:
+      row["updated_at"] === null || row["updated_at"] === undefined
+        ? undefined
+        : instantOf(row["updated_at"]),
+  };
 }
 
 function versionOf(value: unknown): PromptVersion {
@@ -208,6 +259,20 @@ export function createPrompts(options: PromptOptions): Prompts {
           };
         },
       ),
+    list: (listOptions = {}) =>
+      call(
+        "list_prompts",
+        {
+          tenant: listOptions.organizationId,
+          after: listOptions.after?.[0],
+          max_rows: listOptions.limit,
+        },
+        (value) => {
+          const page = pageRowsOf(value, "list_prompts");
+
+          return { ...page, items: page.items.map(summaryOf) };
+        },
+      ),
     setLabel: ({ name, label, version, ...labelOptions }) =>
       call(
         "set_prompt_label",
@@ -234,6 +299,11 @@ export function createPrompts(options: PromptOptions): Prompts {
       const denied = accessDenied(access, [input.organizationId]);
 
       return denied ? AsyncResult.err(denied) : client.get(input);
+    },
+    list: (listOptions) => {
+      const denied = accessDenied(access, [listOptions?.organizationId]);
+
+      return denied ? AsyncResult.err(denied) : client.list(listOptions);
     },
     setLabel: (input) => {
       const denied = accessDenied(access, [input.organizationId]);

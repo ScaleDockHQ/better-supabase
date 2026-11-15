@@ -4,6 +4,7 @@ export {
   type Prompt,
   type PromptOptions,
   type PromptSaveOptions,
+  type PromptSummary,
   type PromptVersion,
   type Prompts,
   createPrompts,
@@ -17,5 +18,7 @@ export {
 } from "../../core/block-transport.ts";
 
 export type { BlockTransport } from "../../core/block-transport.ts";
+
+export type { ListPage } from "../../core/block-helpers.ts";
 
 export { promptsBlock } from "./manifest.ts";

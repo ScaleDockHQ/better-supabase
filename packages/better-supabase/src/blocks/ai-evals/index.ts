@@ -1,11 +1,14 @@
 export type { AiAccess } from "../ai-access.ts";
 
+export type { ListPage } from "../../core/block-helpers.ts";
+
 export {
   type AiEvals,
   type AiEvalsOptions,
   type EvalComparison,
   type EvalComparisonItem,
   type EvalDataset,
+  type EvalDatasetSummary,
   type EvalExportOptions,
   type EvalItem,
   type EvalItemInput,
