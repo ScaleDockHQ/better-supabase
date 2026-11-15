@@ -126,6 +126,8 @@ export { testDomainProvider } from "./kits/domain-provider.ts";
 
 export { testKeyProvider } from "./kits/key-provider.ts";
 
+export { testBlockList } from "./kits/block-list.ts";
+
 export { testFileStore } from "./kits/file-store.ts";
 
 export {
@@ -185,6 +187,12 @@ export type { TestGeneratorPluginOptions } from "./generator.ts";
 export type { AdapterRun, TestAdapterOptions } from "./adapter.ts";
 
 export type { ConformanceCheck, ConformanceReport } from "./conformance.ts";
+
+export type {
+  BlockListPageOptions,
+  BlockListTarget,
+  TestBlockListOptions,
+} from "./kits/block-list.ts";
 
 export type { TestAuthResolverOptions } from "./kits/auth-resolver.ts";
 
