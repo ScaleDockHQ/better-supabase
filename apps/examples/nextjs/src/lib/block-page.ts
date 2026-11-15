@@ -20,7 +20,7 @@ export function encodeCursor(cursor: readonly string[] | null): string | null {
 }
 
 /** The keyset cursor an `after` parameter holds; none for a malformed one. */
-export function decodeCursor(
+function decodeCursor(
   after: string | undefined,
 ): readonly string[] | undefined {
   if (after === undefined) {
