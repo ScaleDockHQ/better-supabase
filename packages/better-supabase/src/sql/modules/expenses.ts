@@ -90,7 +90,7 @@ const EVENTS: BlockSqlEvents<ExpensesEvents> = {
   "expense.rejected": { subject: "expenses", payload: EXPENSE_PAYLOAD },
   "expense.reimbursed": { subject: "expenses", payload: EXPENSE_PAYLOAD },
   "expense.withdrawn": { subject: "expenses", payload: EXPENSE_PAYLOAD },
-  "expense.deleted": { subject: "expenses", payload: EXPENSE_PAYLOAD },
+  "expense.purged": { subject: "expenses", payload: EXPENSE_PAYLOAD },
 };
 
 const NAMES: BlockSqlNames = {
