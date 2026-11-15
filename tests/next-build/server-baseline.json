@@ -270,7 +270,7 @@
     "brotli": 800066
   },
   "/[locale]/(app)/crm/commissions/statements/[id]/page": {
-    "raw": 1549682,
+    "raw": 3168488,
     "gzip": 967907,
     "brotli": 804606
   },
@@ -280,7 +280,7 @@
     "brotli": 807488
   },
   "/[locale]/(app)/crm/companies/page": {
-    "raw": 1543404,
+    "raw": 3144486,
     "gzip": 959070,
     "brotli": 796941
   },
@@ -290,17 +290,17 @@
     "brotli": 807476
   },
   "/[locale]/(app)/crm/contacts/page": {
-    "raw": 1543404,
+    "raw": 3144480,
     "gzip": 959071,
     "brotli": 796942
   },
   "/[locale]/(app)/crm/contracts/[id]/page": {
-    "raw": 1549682,
+    "raw": 3168385,
     "gzip": 967889,
     "brotli": 804593
   },
   "/[locale]/(app)/crm/contracts/page": {
-    "raw": 1543404,
+    "raw": 3144166,
     "gzip": 958833,
     "brotli": 796751
   },
@@ -310,32 +310,32 @@
     "brotli": 808278
   },
   "/[locale]/(app)/crm/deals/page": {
-    "raw": 1634629,
+    "raw": 3161462,
     "gzip": 966158,
     "brotli": 803231
   },
   "/[locale]/(app)/crm/forecasts/[id]/page": {
-    "raw": 1346810,
+    "raw": 3146968,
     "gzip": 959833,
     "brotli": 797593
   },
   "/[locale]/(app)/crm/forecasts/page": {
-    "raw": 1545224,
+    "raw": 3132696,
     "gzip": 955798,
     "brotli": 794126
   },
   "/[locale]/(app)/crm/page": {
-    "raw": 1269445,
+    "raw": 3118798,
     "gzip": 950039,
     "brotli": 789342
   },
   "/[locale]/(app)/crm/pipelines/[id]/page": {
-    "raw": 1346810,
+    "raw": 3146968,
     "gzip": 959834,
     "brotli": 797600
   },
   "/[locale]/(app)/crm/pipelines/page": {
-    "raw": 1545224,
+    "raw": 3132067,
     "gzip": 955559,
     "brotli": 793928
   },
