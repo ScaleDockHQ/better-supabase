@@ -27,6 +27,42 @@ function fakeTransport(results: Record<string, unknown>) {
 }
 
 describe("createCustomFields", () => {
+  it("lists archived definitions on request and reports archivedAt", async () => {
+    const row = {
+      id: "d1",
+      entity: "contact",
+      key: "plan",
+      label: "Plan",
+      type: "text",
+      required: false,
+      sensitive: false,
+      archivedAt: "2026-11-15T10:00:00Z",
+    };
+
+    const fake = fakeTransport({ list_field_definitions: [row] });
+
+    const fields = createCustomFields({
+      transport: fake.transport,
+      tenant: "org",
+    });
+
+    const listed = await fields
+      .listDefinitions({ entity: "contact", includeArchived: true })
+      .orThrow();
+
+    expect(listed[0]?.archivedAt).toBe("2026-11-15T10:00:00Z");
+    expect(fake.calls).toEqual([
+      [
+        "list_field_definitions",
+        { tenant: "org", entity: "contact", include_archived: true },
+      ],
+    ]);
+
+    await fields.listDefinitions({ entity: "contact" }).orThrow();
+
+    expect(fake.calls.at(-1)?.[1]).toMatchObject({ include_archived: false });
+  });
+
   it("updates one value row by its id", async () => {
     const fake = fakeTransport({ update_field_value: { id: "v1" } });
     const fields = createCustomFields({ transport: fake.transport });
