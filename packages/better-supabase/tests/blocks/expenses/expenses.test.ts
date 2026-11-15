@@ -834,3 +834,56 @@ describe("expense report fields", () => {
     expect(decided.status).toBe("rejected");
   });
 });
+
+describe("expenses pages", () => {
+  it("maps the rows of the category, report and expense pages", async () => {
+    const expense = {
+      id: "exp-1",
+      organizationId: "org-1",
+      userId: null,
+      employeeId: "emp-1",
+      categoryId: null,
+      spentOn: "2026-10-20",
+      description: "Train",
+      merchant: "NS",
+      amount: "4250",
+      currency: "EUR",
+      status: "submitted",
+      submittedAt: AT,
+      decidedBy: null,
+      decidedAt: null,
+      decisionNote: null,
+      reimbursedAt: null,
+      reimbursement: null,
+      createdAt: AT,
+      updatedAt: AT,
+    };
+
+    const fake = fakeTransport({
+      page_expense_categories: {
+        items: [CATEGORY],
+        hasMore: false,
+        nextCursor: null,
+      },
+      page_expense_reports: {
+        items: [REPORT],
+        hasMore: false,
+        nextCursor: null,
+      },
+      page_expenses: { items: [expense], hasMore: false, nextCursor: null },
+    });
+
+    const expenses = createExpenses({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const categories = await expenses.categoryPage().orThrow();
+    const reports = await expenses.reportPage().orThrow();
+    const rows = await expenses.expensePage().orThrow();
+
+    expect(categories.items.map((row) => row.id)).toEqual([CATEGORY.id]);
+    expect(reports.items.map((row) => row.id)).toEqual([REPORT.id]);
+    expect(rows.items.map((row) => row.id)).toEqual(["exp-1"]);
+  });
+});

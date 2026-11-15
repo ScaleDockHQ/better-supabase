@@ -592,3 +592,23 @@ describe("project costing", () => {
     });
   });
 });
+
+describe("billable-time pages", () => {
+  it("maps the rows of the rate page and get", async () => {
+    const fake = fakeTransport({
+      page_time_rates: { items: [ORG_RATE], hasMore: false, nextCursor: null },
+      get_time_rate: ORG_RATE,
+    });
+
+    const time = createBillableTime({
+      transport: fake.transport,
+      tenant: "org-1",
+    });
+
+    const page = await time.ratePage().orThrow();
+    const one = await time.getRate(ORG_RATE.id).orThrow();
+
+    expect(page.items.map((row) => row.id)).toEqual([ORG_RATE.id]);
+    expect(one.id).toBe(ORG_RATE.id);
+  });
+});

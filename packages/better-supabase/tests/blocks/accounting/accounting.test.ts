@@ -890,3 +890,33 @@ describe("accounting schemas", () => {
     expect(accountingBlock.sql).toEqual(["accounting"]);
   });
 });
+
+describe("accounting pages", () => {
+  it("maps the rows of the account and entry pages", async () => {
+    const t = fieldsTransport({
+      page_accounting_accounts: () => ({
+        items: [ACCOUNT],
+        hasMore: false,
+        nextCursor: null,
+      }),
+      page_accounting_entries: () => ({
+        items: [ENTRY],
+        hasMore: false,
+        nextCursor: null,
+      }),
+    });
+
+    const books = createAccounting({ transport: t });
+
+    const accounts = await books
+      .accountPage({ organizationId: "org-1" })
+      .orThrow();
+
+    const entries = await books
+      .entryPage({ organizationId: "org-1" })
+      .orThrow();
+
+    expect(accounts.items.map((row) => row.id)).toEqual([ACCOUNT.id]);
+    expect(entries.items.map((row) => row.id)).toEqual([ENTRY.id]);
+  });
+});

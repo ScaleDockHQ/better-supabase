@@ -435,3 +435,16 @@ describe("scoresBinding", () => {
     expect(scoresEvents.types).toContain("score.changed");
   });
 });
+
+describe("scores pages", () => {
+  it("maps the rows of the model page", async () => {
+    const fake = fakeTransport({
+      page_score_models: { items: [MODEL], hasMore: false, nextCursor: null },
+    });
+
+    const scores = createScores({ transport: fake.transport, tenant: "org-1" });
+    const page = await scores.modelPage().orThrow();
+
+    expect(page.items.map((row) => row.id)).toEqual([MODEL.id]);
+  });
+});

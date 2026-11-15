@@ -12,6 +12,7 @@ import * as v from "valibot";
 
 import { BILLING_TAG } from "@/features/billing/billing-cache";
 import { SHOP_TAG } from "@/features/shop/shop-cache";
+import { readAllPagesResult } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import { BANKING_TAG } from "./banking-cache";
@@ -96,7 +97,10 @@ async function loadReconciliation(): Promise<
   }
 
   const { banking } = db;
-  const accounts = await banking.accounts().orThrow();
+
+  const accounts = await readAllPagesResult((page) =>
+    banking.accountPage(page),
+  ).orThrow();
 
   // One `reconciliationBoard` call per account replaces the status, the
   // transactions and the review queue.

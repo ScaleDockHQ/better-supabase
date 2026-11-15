@@ -759,3 +759,27 @@ describe("bankingBlock", () => {
     ).toBeDefined();
   });
 });
+
+describe("banking pages", () => {
+  it("maps the rows of the account and batch pages", async () => {
+    const t = fieldsTransport({
+      page_bank_accounts: () => ({
+        items: [ACCOUNT],
+        hasMore: false,
+        nextCursor: null,
+      }),
+      page_payment_batches: () => ({
+        items: [BATCH],
+        hasMore: false,
+        nextCursor: null,
+      }),
+    });
+
+    const banking = createBanking({ transport: t, tenant: "org-1" });
+    const accounts = await banking.accountPage().orThrow();
+    const batches = await banking.batchPage().orThrow();
+
+    expect(accounts.items.map((row) => row.id)).toEqual([ACCOUNT.id]);
+    expect(batches.items.map((row) => row.id)).toEqual([BATCH.id]);
+  });
+});

@@ -606,3 +606,19 @@ describe("invoice call arguments", () => {
     expect(t.calls.at(-1)?.[1]).toMatchObject({ deposit_bps: null });
   });
 });
+
+describe("invoices page and get", () => {
+  it("maps the rows of the page and the get", async () => {
+    const t = transport({
+      page_invoices: () => ({ items: [ROW], hasMore: false, nextCursor: null }),
+      get_invoice: () => ROW,
+    });
+
+    const invoices = createInvoices({ transport: t, tenant: "o" });
+    const page = await invoices.page().orThrow();
+    const one = await invoices.get("i1").orThrow();
+
+    expect(page.items.map((row) => row.id)).toEqual(["i1"]);
+    expect(one.id).toBe("i1");
+  });
+});
