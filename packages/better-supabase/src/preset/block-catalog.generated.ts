@@ -4663,9 +4663,11 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "funding_award.ended",
         "funding_award.exceeded",
         "funding_award.updated",
+        "funding_claim.archived",
         "funding_claim.created",
-        "funding_claim.deleted",
+        "funding_claim.purged",
         "funding_claim.responded",
+        "funding_claim.restored",
         "funding_claim.sent",
         "funding_delivery.registered"
       ],
@@ -4728,8 +4730,10 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "maintenance_calibration.recorded",
         "maintenance_meter_reading.recorded",
+        "maintenance_plan.archived",
         "maintenance_plan.created",
-        "maintenance_plan.deleted",
+        "maintenance_plan.purged",
+        "maintenance_plan.restored",
         "maintenance_plan.updated"
       ],
       "subpath": "better-supabase/blocks/maintenance",

@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { archiveRestoreContract } from "../archive-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
@@ -85,7 +86,9 @@ const EVENTS: BlockSqlEvents<FundingEvents> = {
     payload: [...CLAIM, "externalRef"],
   },
   "funding_claim.responded": { subject: "funding-claims", payload: CLAIM },
-  "funding_claim.deleted": { subject: "funding-claims", payload: CLAIM },
+  "funding_claim.archived": { subject: "funding-claims", payload: CLAIM },
+  "funding_claim.restored": { subject: "funding-claims", payload: CLAIM },
+  "funding_claim.purged": { subject: "funding-claims", payload: CLAIM },
 };
 
 const NAMES: BlockSqlNames = {
@@ -193,11 +196,18 @@ const NAMES: BlockSqlNames = {
         total: "total",
         currency: "currency",
         invoice: "invoice_id",
+        archivedAt: "archived_at",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["invoice", "createdBy", "createdAt", "updatedAt"],
+      optional: [
+        "invoice",
+        "archivedAt",
+        "createdBy",
+        "createdAt",
+        "updatedAt",
+      ],
     },
     claimLines: {
       name: "funding_claim_lines",
@@ -334,7 +344,7 @@ create table if not exists ${claims} (
   -- The funder's response as the format parsed it.
   ${c("response")} jsonb,
   ${c("total")} bigint not null default 0,
-  ${c("currency")} char(3) not null check (${c("currency")} ~ '^[A-Z]{3}$'),${opt("claims", "invoice", () => `${c("invoice")} uuid`)}${opt("claims", "createdBy", () => `${c("createdBy")} uuid`)}${stamps("claims", ["createdAt", "updatedAt"])}
+  ${c("currency")} char(3) not null check (${c("currency")} ~ '^[A-Z]{3}$'),${opt("claims", "invoice", () => `${c("invoice")} uuid`)}${opt("claims", "archivedAt", () => `${c("archivedAt")} timestamptz`)}${opt("claims", "createdBy", () => `${c("createdBy")} uuid`)}${stamps("claims", ["createdAt", "updatedAt"])}
   check (${c("periodEnd")} >= ${c("periodStart")}),
   unique (${c("tenant")}, ${c("id")})
 );${appKey("claims", "tenant_id", `${c("tenant")}, ${c("id")}`)}
@@ -507,7 +517,10 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "jsonb", "jsonb"],
       returns: "jsonb",
     },
-    { name: "delete_funding_claim", args: ["uuid"], returns: "boolean" },
+    ...(ctx.has("claims", "archivedAt")
+      ? archiveRestoreContract("funding_claim")
+      : []),
+    { name: "purge_funding_claim", args: ["uuid"], returns: "boolean" },
     ...(invoicesClaims(ctx)
       ? [
           {
@@ -519,7 +532,9 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       : []),
     {
       name: "list_funding_claims",
-      args: ["{id}", "text", "uuid"],
+      args: ctx.has("claims", "archivedAt")
+        ? ["{id}", "text", "uuid", "boolean"]
+        : ["{id}", "text", "uuid"],
       returns: "jsonb",
     },
   ];

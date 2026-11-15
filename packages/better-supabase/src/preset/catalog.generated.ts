@@ -10220,6 +10220,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "total": "total",
               "currency": "currency",
               "invoice": "invoice_id",
+              "archivedAt": "archived_at",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -10405,6 +10406,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "dtstart": "dtstart",
               "tz": "tz",
               "requiredQualifications": "required_qualifications",
+              "archivedAt": "archived_at",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -24132,7 +24134,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "maintenance_plan.created",
           "maintenance_plan.updated",
-          "maintenance_plan.deleted",
+          "maintenance_plan.archived",
+          "maintenance_plan.restored",
+          "maintenance_plan.purged",
           "maintenance_plan.triggered",
           "maintenance_plan.completed",
           "maintenance_meter_reading.recorded",
@@ -24153,7 +24157,8 @@ export const PRESET_CATALOG: PresetCatalog = {
             "status",
             "kind",
             "assetId",
-            "due"
+            "due",
+            "archived"
           ]
         },
         "maintenance_calibration": {
@@ -27532,6 +27537,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "FundingClaim"
         },
         {
+          "name": "FundingClaimArchivedEventData"
+        },
+        {
           "name": "FundingClaimChannel"
         },
         {
@@ -27539,9 +27547,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "FundingClaimCreatedEventData"
-        },
-        {
-          "name": "FundingClaimDeletedEventData"
         },
         {
           "name": "FundingClaimDelivery"
@@ -27556,10 +27561,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "FundingClaimLineStatus"
         },
         {
+          "name": "FundingClaimPurgedEventData"
+        },
+        {
           "name": "FundingClaimRespondedEventData"
         },
         {
           "name": "FundingClaimResponse"
+        },
+        {
+          "name": "FundingClaimRestoredEventData"
         },
         {
           "name": "FundingClaimSentEventData"
@@ -27715,7 +27726,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "funding_claim.created",
           "funding_claim.sent",
           "funding_claim.responded",
-          "funding_claim.deleted"
+          "funding_claim.archived",
+          "funding_claim.restored",
+          "funding_claim.purged"
         ]
       }
     },

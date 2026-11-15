@@ -484,7 +484,7 @@ describe("createFunding", () => {
         response: { message: "AW320" },
         lines: [{ ...LINE, status: "rejected", rejectionCode: "0233" }],
       }),
-      delete_funding_claim: () => true,
+      purge_funding_claim: () => true,
       invoice_funding_claim: () => ({
         claim: { ...CLAIM, status: "accepted", invoiceId: "i1" },
         invoice: { id: "i1" },
@@ -526,7 +526,7 @@ describe("createFunding", () => {
       })
       .orThrow();
 
-    const deleted = await funding.deleteClaim("k1").orThrow();
+    const deleted = await funding.purgeClaim("k1").orThrow();
 
     const invoiced = await funding
       .invoiceClaim({ claimId: "k1", attrs: { dueOn: "2026-12-01" } })
@@ -560,6 +560,7 @@ describe("createFunding", () => {
       tenant: "org-1",
       status: null,
       funder_id: null,
+      include_archived: false,
     });
     expect(t.calls[5]?.[1]).toEqual({
       claim_id: "k1",

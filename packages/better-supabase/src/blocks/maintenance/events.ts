@@ -43,7 +43,9 @@ export interface MaintenanceCalibrationEventData {
 export type MaintenanceEvents = {
   readonly "maintenance_plan.created": MaintenancePlanEventData;
   readonly "maintenance_plan.updated": MaintenancePlanEventData;
-  readonly "maintenance_plan.deleted": MaintenancePlanEventData;
+  readonly "maintenance_plan.archived": MaintenancePlanEventData;
+  readonly "maintenance_plan.restored": MaintenancePlanEventData;
+  readonly "maintenance_plan.purged": MaintenancePlanEventData;
   readonly "maintenance_plan.triggered": MaintenancePlanWorkOrderEventData;
   readonly "maintenance_plan.completed": MaintenancePlanWorkOrderEventData;
   readonly "maintenance_meter_reading.recorded": MaintenanceMeterReadingEventData;
@@ -54,7 +56,9 @@ export type MaintenanceEvents = {
 export const maintenanceEvents: Events<MaintenanceEvents> = defineEvents({
   "maintenance_plan.created": event<MaintenancePlanEventData>(),
   "maintenance_plan.updated": event<MaintenancePlanEventData>(),
-  "maintenance_plan.deleted": event<MaintenancePlanEventData>(),
+  "maintenance_plan.archived": event<MaintenancePlanEventData>(),
+  "maintenance_plan.restored": event<MaintenancePlanEventData>(),
+  "maintenance_plan.purged": event<MaintenancePlanEventData>(),
   "maintenance_plan.triggered": event<MaintenancePlanWorkOrderEventData>(),
   "maintenance_plan.completed": event<MaintenancePlanWorkOrderEventData>(),
   "maintenance_meter_reading.recorded":

@@ -29,7 +29,6 @@ the
 | [Workflow 5.5](#workflow-55)                  | Upgrade the `workflow-sdk` SQL module, then deploy                          |
 | [Archive and purge](#archive-and-purge)       | Rename each `delete`, `deleted` event and `permissions.delete` in its table |
 | [Submission purge](#submission-purge)         | Rename `forms.deleteSubmission` and `form_submission.deleted`               |
-| [Score model purge](#score-model-purge)       | Rename `scores.deleteModel` and `score_model.deleted`                       |
 | [Team purge](#team-purge)                     | Rename `teams.delete`, `team.deleted` and `permissions.delete`              |
 | [Per-row bulk](#per-row-bulk)                 | None; move off `shareMany` and `setMany` before 0.70                        |
 
@@ -204,14 +203,20 @@ needs `permissions.purge`, which falls back to the block's `manage` key until
 you set it. Run `better-supabase upgrade` and apply the migration, which adds
 the `archived_at` column and replaces the delete function with `purge`.
 
-| Block           | Before                                              | After                                                               |
-| --------------- | --------------------------------------------------- | ------------------------------------------------------------------- |
-| `announcements` | `announcements.remove(id)`, `delete_announcement()` | `announcements.purge(id)`, `purge_announcement()`                   |
-| `announcements` | event `announcement.deleted`                        | `announcement.purged`, plus `archived` and `restored`               |
-| `announcements` | `announcements.list()` shows every row              | hides archived rows; `list({ includeArchived: true })` adds them    |
-| `scores`        | `scores.deleteModel(id)`, `delete_score_model()`    | `scores.purgeModel(id)`, `purge_score_model()` (ADR 1053)           |
-| `scores`        | event `score_model.deleted`                         | `score_model.purged`, plus `archived` and `restored`                |
-| `scores`        | `models()` and `list_score_models()` show every row | hide archived models; `models({ includeArchived: true })` adds them |
+| Block           | Before                                                    | After                                                                                             |
+| --------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `announcements` | `announcements.remove(id)`, `delete_announcement()`       | `announcements.purge(id)`, `purge_announcement()`                                                 |
+| `announcements` | event `announcement.deleted`                              | `announcement.purged`, plus `archived` and `restored`                                             |
+| `announcements` | `announcements.list()` shows every row                    | hides archived rows; `list({ includeArchived: true })` adds them                                  |
+| `maintenance`   | `maintenance.deletePlan(id)`, `delete_maintenance_plan()` | `maintenance.purgePlan(id)`, `purge_maintenance_plan()`, plus `archivePlan` and `restorePlan`     |
+| `maintenance`   | event `maintenance_plan.deleted`                          | `maintenance_plan.purged`, plus `archived` and `restored`                                         |
+| `maintenance`   | an archived plan can still be due                         | an archived plan is never due and opens no work order; `listPlans({ archived: true })` lists them |
+| `funding`       | `funding.deleteClaim(id)`, `delete_funding_claim()`       | `funding.purgeClaim(id)`, `purge_funding_claim()`, plus `archiveClaim` and `restoreClaim`         |
+| `funding`       | event `funding_claim.deleted`                             | `funding_claim.purged`, plus `archived` and `restored`                                            |
+| `funding`       | `funding.claims()` shows every claim                      | hides archived claims; `claims({ includeArchived: true })` adds them                              |
+| `scores`        | `scores.deleteModel(id)`, `delete_score_model()`          | `scores.purgeModel(id)`, `purge_score_model()` (ADR 1053)                                         |
+| `scores`        | event `score_model.deleted`                               | `score_model.purged`, plus `archived` and `restored`                                              |
+| `scores`        | `models()` and `list_score_models()` show every row       | hide archived models; `models({ includeArchived: true })` adds them                               |
 
 ## Team purge
 
