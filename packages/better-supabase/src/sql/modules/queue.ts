@@ -435,37 +435,39 @@ security definer
 set search_path = ''
 as $$
 declare
-  r record;
+  found jsonb;
 begin
   if pg_catalog.to_regclass(format('pgmq.%I', 'q_' || queue)) is not null then
-    execute format('select read_ct, enqueued_at, vt, message from pgmq.%I where msg_id = $1', 'q_' || queue)
-      into r using job_id;
-    if r.read_ct is not null then
-      return jsonb_build_object(
-        'queue', queue,
-        'id', job_id,
-        'state', case when r.read_ct > 0 and r.vt > clock_timestamp() and not r.message ? 'last_error' then 'running' else 'waiting' end,
-        'attempts', r.read_ct,
-        'enqueuedAt', r.enqueued_at,
-        'lastError', r.message ->> 'last_error',
-        'maxAttempts', coalesce((r.message ->> 'max_attempts')::integer, 5)
-      );
+    execute format($q$
+      select jsonb_build_object(
+        'queue', %L,
+        'id', msg_id,
+        'state', case when read_ct > 0 and vt > clock_timestamp() and not message ? 'last_error' then 'running' else 'waiting' end,
+        'attempts', read_ct,
+        'enqueuedAt', enqueued_at,
+        'lastError', message ->> 'last_error',
+        'maxAttempts', coalesce((message ->> 'max_attempts')::integer, 5))
+      from pgmq.%I where msg_id = $1$q$, queue, 'q_' || queue)
+      into found using job_id;
+    if found is not null then
+      return found;
     end if;
   end if;
   if pg_catalog.to_regclass(format('pgmq.%I', 'a_' || queue)) is not null then
-    execute format('select read_ct, enqueued_at, archived_at, message from pgmq.%I where msg_id = $1', 'a_' || queue)
-      into r using job_id;
-    if r.read_ct is not null then
-      return jsonb_build_object(
-        'queue', queue,
-        'id', job_id,
-        'state', case when r.message ? 'dead' then 'dead' else 'done' end,
-        'attempts', r.read_ct,
-        'enqueuedAt', r.enqueued_at,
-        'finishedAt', r.archived_at,
-        'lastError', r.message ->> 'last_error',
-        'maxAttempts', coalesce((r.message ->> 'max_attempts')::integer, 5)
-      );
+    execute format($q$
+      select jsonb_build_object(
+        'queue', %L,
+        'id', msg_id,
+        'state', case when message ? 'dead' then 'dead' else 'done' end,
+        'attempts', read_ct,
+        'enqueuedAt', enqueued_at,
+        'finishedAt', archived_at,
+        'lastError', message ->> 'last_error',
+        'maxAttempts', coalesce((message ->> 'max_attempts')::integer, 5))
+      from pgmq.%I where msg_id = $1$q$, queue, 'a_' || queue)
+      into found using job_id;
+    if found is not null then
+      return found;
     end if;
   end if;
   return null;
@@ -1014,7 +1016,7 @@ export const JOBS: BlockSqlDefinition = {
   requires: ["housekeeping"],
   integrates: ["data-lifecycle"],
   target: "schema",
-  version: 15,
+  version: 16,
   names: NAMES,
   data: (ctx) =>
     [
@@ -1032,6 +1034,12 @@ export const JOBS: BlockSqlDefinition = {
       from: 14,
       description:
         "get_job(queue, job_id) reads one message's state (waiting, running, done or dead) without its payload, the run record behind queue.get and the queue job source.",
+      sql: () => "",
+    },
+    {
+      from: 15,
+      description:
+        "get_job builds the record in one statement per table, so plpgsql_check sees no record that is not assigned yet.",
       sql: () => "",
     },
     {

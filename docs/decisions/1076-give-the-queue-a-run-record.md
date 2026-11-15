@@ -13,7 +13,7 @@ only the dead ones.
 
 ## Decision
 
-The queue module (version 15) adds `get_job(queue, job_id)`, which returns one
+The queue module (version 16) adds `get_job(queue, job_id)`, which returns one
 message as `jsonb` without its payload: `state` (`waiting`, `running`, `done`
 or `dead`), `attempts`, `maxAttempts`, `enqueuedAt`, `finishedAt`, `lastError`.
 It exists for the pgmq and the table backend, is service-only like the other
