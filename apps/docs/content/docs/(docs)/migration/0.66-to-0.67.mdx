@@ -203,123 +203,50 @@ needs `permissions.purge`, which falls back to the block's `manage` key until
 you set it. Run `better-supabase upgrade` and apply the migration, which adds
 the `archived_at` column and replaces the delete function with `purge`.
 
-<<<<<<< HEAD
-| Block | Before | After |
+| Block                       | Before                                                    | After                                                                                                |
 | --------------------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `announcements` | `announcements.remove(id)`, `delete_announcement()` | `announcements.purge(id)`, `purge_announcement()` |
-| `announcements` | event `announcement.deleted` | `announcement.purged`, plus `archived` and `restored` |
-| `announcements` | `announcements.list()` shows every row | hides archived rows; `list({ includeArchived: true })` adds them |
-| `maintenance` | `maintenance.deletePlan(id)`, `delete_maintenance_plan()` | `maintenance.purgePlan(id)`, `purge_maintenance_plan()`, plus `archivePlan` and `restorePlan` |
-| `maintenance` | event `maintenance_plan.deleted` | `maintenance_plan.purged`, plus `archived` and `restored` |
-| `maintenance` | an archived plan can still be due | an archived plan is never due and opens no work order; `listPlans({ archived: true })` lists them |
-| `funding` | `funding.deleteClaim(id)`, `delete_funding_claim()` | `funding.purgeClaim(id)`, `purge_funding_claim()`, plus `archiveClaim` and `restoreClaim` |
-| `funding` | event `funding_claim.deleted` | `funding_claim.purged`, plus `archived` and `restored` |
-| `funding` | `funding.claims()` shows every claim | hides archived claims; `claims({ includeArchived: true })` adds them |
-| `meetings` | `meetings.delete(id)`, `delete_meeting()` | `meetings.purge(id)`, `purge_meeting()`, plus `archive` and `restore` |
-| `meetings` | event `meeting.deleted` | `meeting.purged`, plus `archived` and `restored` |
-| `meetings` | `meetings.list()` shows every meeting | hides archived meetings; `list({ archived: true })` lists only them |
-| `courses` | `courses.delete(id)`, `delete_course()` | `courses.purge(id)`, `purge_course()`, plus `archive` and `restore` |
-| `courses` | event `course.deleted` | `course.purged`, plus `archived` and `restored` |
-| `time_entries` | `timeEntries.remove(id)`, `delete_time_entry()` | `timeEntries.purge(id)`, `purge_time_entry()`, plus `archive` and `restore` (ADR 1046) |
-| `time_entries` | event `time_entry.deleted` | `time_entry.purged`, plus `archived` and `restored` |
-| `products` | `catalog.deleteProduct(id)`, `delete_product()` | `catalog.purgeProduct(id)`, `purge_product()`, plus `archiveProduct` and `restoreProduct` (ADR 1048) |
-| `product_variants` | `catalog.deleteVariant(id)`, `delete_variant()` | `catalog.purgeVariant(id)`, `purge_variant()`, plus `archiveVariant` and `restoreVariant` (ADR 1049) |
-| `products` | events `product.deleted`, `product_variant.deleted` | `product.purged`, `product_variant.purged`, plus `archived` and `restored` |
-| `products` | `blocks.catalog.permissions.delete` | `permissions.purge` (falls back to `catalog.manage`) |
-| `time_entries` | an entry always counts toward totals and reports | an archived entry leaves lists, totals, billing, payroll and metrics and never blocks an overlap |
-| `activities` | `activities.remove(id)`, `delete_activity()` | `activities.purge(id)`, `purge_activity()`, plus `archive` and `restore` (ADR 1047) |
-| `activities` | event `activity.deleted` | `activity.purged`, plus `archived` and `restored` |
-| `activities` | `activities.of()` shows every activity | hides archived activities; `of(subject, { archived: true })` lists only them |
-| `posts` | `posts.delete(id)`, `delete_post()` | `posts.purge(id)`, `purge_post()`, plus `archive` and `restore` |
-| `posts` | event `post.deleted` | `post.purged`, plus `archived` and `restored` |
-| `posts` | `posts.list()` shows every post | hides archived posts; `list({ archived: true })` lists only them |
-| `employees` | `employees.delete(id)`, `delete_employee()` | `employees.purge(id)`, `purge_employee()`; offboarding stays the archive |
-| `employees` | event `employee.deleted` | `employee.purged` |
-| `employees` | hooks `before_employee_delete`, `after_employee_delete` | `before_employee_purge`, `after_employee_purge` |
-| `scores` | `scores.deleteModel(id)`, `delete_score_model()` | `scores.purgeModel(id)`, `purge_score_model()` (ADR 1053) |
-| `scores` | event `score_model.deleted` | `score_model.purged`, plus `archived` and `restored` |
-| `scores` | `models()` and `list_score_models()` show every row | hide archived models; `models({ includeArchived: true })` adds them |
-| `clinical-decision-support` | `deleteRule(id)`, `delete_care_rule()` | `purgeRule(id)`, `purge_care_rule()` (ADR 1054) |
-| `clinical-decision-support` | event `care_rule.deleted` | `care_rule.purged`, plus `archived` and `restored` |
-| `clinical-decision-support` | `rules()` and `list_care_rules()` show every rule | hide archived rules; `rules({ includeArchived: true })` adds them |
-||||||| 5d35bd181f
-| Block | Before | After |
-| --------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `announcements` | `announcements.remove(id)`, `delete_announcement()` | `announcements.purge(id)`, `purge_announcement()` |
-| `announcements` | event `announcement.deleted` | `announcement.purged`, plus `archived` and `restored` |
-| `announcements` | `announcements.list()` shows every row | hides archived rows; `list({ includeArchived: true })` adds them |
-| `maintenance` | `maintenance.deletePlan(id)`, `delete_maintenance_plan()` | `maintenance.purgePlan(id)`, `purge_maintenance_plan()`, plus `archivePlan` and `restorePlan` |
-| `maintenance` | event `maintenance_plan.deleted` | `maintenance_plan.purged`, plus `archived` and `restored` |
-| `maintenance` | an archived plan can still be due | an archived plan is never due and opens no work order; `listPlans({ archived: true })` lists them |
-| `funding` | `funding.deleteClaim(id)`, `delete_funding_claim()` | `funding.purgeClaim(id)`, `purge_funding_claim()`, plus `archiveClaim` and `restoreClaim` |
-| `funding` | event `funding_claim.deleted` | `funding_claim.purged`, plus `archived` and `restored` |
-| `funding` | `funding.claims()` shows every claim | hides archived claims; `claims({ includeArchived: true })` adds them |
-| `meetings` | `meetings.delete(id)`, `delete_meeting()` | `meetings.purge(id)`, `purge_meeting()`, plus `archive` and `restore` |
-| `meetings` | event `meeting.deleted` | `meeting.purged`, plus `archived` and `restored` |
-| `meetings` | `meetings.list()` shows every meeting | hides archived meetings; `list({ archived: true })` lists only them |
-| `courses` | `courses.delete(id)`, `delete_course()` | `courses.purge(id)`, `purge_course()`, plus `archive` and `restore` |
-| `courses` | event `course.deleted` | `course.purged`, plus `archived` and `restored` |
-| `time_entries` | `timeEntries.remove(id)`, `delete_time_entry()` | `timeEntries.purge(id)`, `purge_time_entry()`, plus `archive` and `restore` (ADR 1046) |
-| `time_entries` | event `time_entry.deleted` | `time_entry.purged`, plus `archived` and `restored` |
-| `time_entries` | an entry always counts toward totals and reports | an archived entry leaves lists, totals, billing, payroll and metrics and never blocks an overlap |
-| `activities` | `activities.remove(id)`, `delete_activity()` | `activities.purge(id)`, `purge_activity()`, plus `archive` and `restore` (ADR 1047) |
-| `activities` | event `activity.deleted` | `activity.purged`, plus `archived` and `restored` |
-| `activities` | `activities.of()` shows every activity | hides archived activities; `of(subject, { archived: true })` lists only them |
-| `posts` | `posts.delete(id)`, `delete_post()` | `posts.purge(id)`, `purge_post()`, plus `archive` and `restore` |
-| `posts` | event `post.deleted` | `post.purged`, plus `archived` and `restored` |
-| `posts` | `posts.list()` shows every post | hides archived posts; `list({ archived: true })` lists only them |
-| `employees` | `employees.delete(id)`, `delete_employee()` | `employees.purge(id)`, `purge_employee()`; offboarding stays the archive |
-| `employees` | event `employee.deleted` | `employee.purged` |
-| `employees` | hooks `before_employee_delete`, `after_employee_delete` | `before_employee_purge`, `after_employee_purge` |
-| `scores` | `scores.deleteModel(id)`, `delete_score_model()` | `scores.purgeModel(id)`, `purge_score_model()` (ADR 1053) |
-| `scores` | event `score_model.deleted` | `score_model.purged`, plus `archived` and `restored` |
-| `scores` | `models()` and `list_score_models()` show every row | hide archived models; `models({ includeArchived: true })` adds them |
-| `clinical-decision-support` | `deleteRule(id)`, `delete_care_rule()` | `purgeRule(id)`, `purge_care_rule()` (ADR 1054) |
-| `clinical-decision-support` | event `care_rule.deleted` | `care_rule.purged`, plus `archived` and `restored` |
-| `clinical-decision-support` | `rules()` and `list_care_rules()` show every rule | hide archived rules; `rules({ includeArchived: true })` adds them |
-=======
-| Block | Before | After |
-| --------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `announcements` | `announcements.remove(id)`, `delete_announcement()` | `announcements.purge(id)`, `purge_announcement()` |
-| `announcements` | event `announcement.deleted` | `announcement.purged`, plus `archived` and `restored` |
-| `announcements` | `announcements.list()` shows every row | hides archived rows; `list({ includeArchived: true })` adds them |
-| `maintenance` | `maintenance.deletePlan(id)`, `delete_maintenance_plan()` | `maintenance.purgePlan(id)`, `purge_maintenance_plan()`, plus `archivePlan` and `restorePlan` |
-| `maintenance` | event `maintenance_plan.deleted` | `maintenance_plan.purged`, plus `archived` and `restored` |
-| `maintenance` | an archived plan can still be due | an archived plan is never due and opens no work order; `listPlans({ archived: true })` lists them |
-| `funding` | `funding.deleteClaim(id)`, `delete_funding_claim()` | `funding.purgeClaim(id)`, `purge_funding_claim()`, plus `archiveClaim` and `restoreClaim` |
-| `funding` | event `funding_claim.deleted` | `funding_claim.purged`, plus `archived` and `restored` |
-| `funding` | `funding.claims()` shows every claim | hides archived claims; `claims({ includeArchived: true })` adds them |
-| `meetings` | `meetings.delete(id)`, `delete_meeting()` | `meetings.purge(id)`, `purge_meeting()`, plus `archive` and `restore` |
-| `meetings` | event `meeting.deleted` | `meeting.purged`, plus `archived` and `restored` |
-| `meetings` | `meetings.list()` shows every meeting | hides archived meetings; `list({ archived: true })` lists only them |
-| `courses` | `courses.delete(id)`, `delete_course()` | `courses.purge(id)`, `purge_course()`, plus `archive` and `restore` |
-| `courses` | event `course.deleted` | `course.purged`, plus `archived` and `restored` |
-| `time_entries` | `timeEntries.remove(id)`, `delete_time_entry()` | `timeEntries.purge(id)`, `purge_time_entry()`, plus `archive` and `restore` (ADR 1046) |
-| `time_entries` | event `time_entry.deleted` | `time_entry.purged`, plus `archived` and `restored` |
-| `time_entries` | an entry always counts toward totals and reports | an archived entry leaves lists, totals, billing, payroll and metrics and never blocks an overlap |
-| `activities` | `activities.remove(id)`, `delete_activity()` | `activities.purge(id)`, `purge_activity()`, plus `archive` and `restore` (ADR 1047) |
-| `activities` | event `activity.deleted` | `activity.purged`, plus `archived` and `restored` |
-| `activities` | `activities.of()` shows every activity | hides archived activities; `of(subject, { archived: true })` lists only them |
-| `posts` | `posts.delete(id)`, `delete_post()` | `posts.purge(id)`, `purge_post()`, plus `archive` and `restore` |
-| `posts` | event `post.deleted` | `post.purged`, plus `archived` and `restored` |
-| `posts` | `posts.list()` shows every post | hides archived posts; `list({ archived: true })` lists only them |
-| `employees` | `employees.delete(id)`, `delete_employee()` | `employees.purge(id)`, `purge_employee()`; offboarding stays the archive |
-| `employees` | event `employee.deleted` | `employee.purged` |
-| `employees` | hooks `before_employee_delete`, `after_employee_delete` | `before_employee_purge`, `after_employee_purge` |
-| `expenses` | `expenses.deleteExpense(id)`, `delete_expense()` | `expenses.purgeExpense(id)`, `purge_expense()`; the status stays the archive |
-| `expenses` | event `expense.deleted` | `expense.purged` |
-| `expenses` | `permissions.delete` | `permissions.purge`; `delete` is still read when `purge` is unset |
-| `scores` | `scores.deleteModel(id)`, `delete_score_model()` | `scores.purgeModel(id)`, `purge_score_model()` (ADR 1053) |
-| `scores` | event `score_model.deleted` | `score_model.purged`, plus `archived` and `restored` |
-| `scores` | `models()` and `list_score_models()` show every row | hide archived models; `models({ includeArchived: true })` adds them |
-| `clinical-decision-support` | `deleteRule(id)`, `delete_care_rule()` | `purgeRule(id)`, `purge_care_rule()` (ADR 1054) |
-| `clinical-decision-support` | event `care_rule.deleted` | `care_rule.purged`, plus `archived` and `restored` |
-| `clinical-decision-support` | `rules()` and `list_care_rules()` show every rule | hide archived rules; `rules({ includeArchived: true })` adds them |
-| `agents` | `agents.remove(id)`, `delete_agent()` | `agents.purge(id)`, `purge_agent()` (ADR 1080) |
-| `agents` | event `agent.deleted` | `agent.purged`, plus `archived` and `restored` |
-| `agents` | `agents.list()` shows every agent | hides archived agents; `list({ includeArchived: true })` adds them |
-
-> > > > > > > origin/main
+| `announcements`             | `announcements.remove(id)`, `delete_announcement()`       | `announcements.purge(id)`, `purge_announcement()`                                                    |
+| `announcements`             | event `announcement.deleted`                              | `announcement.purged`, plus `archived` and `restored`                                                |
+| `announcements`             | `announcements.list()` shows every row                    | hides archived rows; `list({ includeArchived: true })` adds them                                     |
+| `maintenance`               | `maintenance.deletePlan(id)`, `delete_maintenance_plan()` | `maintenance.purgePlan(id)`, `purge_maintenance_plan()`, plus `archivePlan` and `restorePlan`        |
+| `maintenance`               | event `maintenance_plan.deleted`                          | `maintenance_plan.purged`, plus `archived` and `restored`                                            |
+| `maintenance`               | an archived plan can still be due                         | an archived plan is never due and opens no work order; `listPlans({ archived: true })` lists them    |
+| `funding`                   | `funding.deleteClaim(id)`, `delete_funding_claim()`       | `funding.purgeClaim(id)`, `purge_funding_claim()`, plus `archiveClaim` and `restoreClaim`            |
+| `funding`                   | event `funding_claim.deleted`                             | `funding_claim.purged`, plus `archived` and `restored`                                               |
+| `funding`                   | `funding.claims()` shows every claim                      | hides archived claims; `claims({ includeArchived: true })` adds them                                 |
+| `meetings`                  | `meetings.delete(id)`, `delete_meeting()`                 | `meetings.purge(id)`, `purge_meeting()`, plus `archive` and `restore`                                |
+| `meetings`                  | event `meeting.deleted`                                   | `meeting.purged`, plus `archived` and `restored`                                                     |
+| `meetings`                  | `meetings.list()` shows every meeting                     | hides archived meetings; `list({ archived: true })` lists only them                                  |
+| `courses`                   | `courses.delete(id)`, `delete_course()`                   | `courses.purge(id)`, `purge_course()`, plus `archive` and `restore`                                  |
+| `courses`                   | event `course.deleted`                                    | `course.purged`, plus `archived` and `restored`                                                      |
+| `time_entries`              | `timeEntries.remove(id)`, `delete_time_entry()`           | `timeEntries.purge(id)`, `purge_time_entry()`, plus `archive` and `restore` (ADR 1046)               |
+| `time_entries`              | event `time_entry.deleted`                                | `time_entry.purged`, plus `archived` and `restored`                                                  |
+| `products`                  | `catalog.deleteProduct(id)`, `delete_product()`           | `catalog.purgeProduct(id)`, `purge_product()`, plus `archiveProduct` and `restoreProduct` (ADR 1048) |
+| `product_variants`          | `catalog.deleteVariant(id)`, `delete_variant()`           | `catalog.purgeVariant(id)`, `purge_variant()`, plus `archiveVariant` and `restoreVariant` (ADR 1049) |
+| `products`                  | events `product.deleted`, `product_variant.deleted`       | `product.purged`, `product_variant.purged`, plus `archived` and `restored`                           |
+| `products`                  | `blocks.catalog.permissions.delete`                       | `permissions.purge` (falls back to `catalog.manage`)                                                 |
+| `time_entries`              | an entry always counts toward totals and reports          | an archived entry leaves lists, totals, billing, payroll and metrics and never blocks an overlap     |
+| `activities`                | `activities.remove(id)`, `delete_activity()`              | `activities.purge(id)`, `purge_activity()`, plus `archive` and `restore` (ADR 1047)                  |
+| `activities`                | event `activity.deleted`                                  | `activity.purged`, plus `archived` and `restored`                                                    |
+| `activities`                | `activities.of()` shows every activity                    | hides archived activities; `of(subject, { archived: true })` lists only them                         |
+| `posts`                     | `posts.delete(id)`, `delete_post()`                       | `posts.purge(id)`, `purge_post()`, plus `archive` and `restore`                                      |
+| `posts`                     | event `post.deleted`                                      | `post.purged`, plus `archived` and `restored`                                                        |
+| `posts`                     | `posts.list()` shows every post                           | hides archived posts; `list({ archived: true })` lists only them                                     |
+| `employees`                 | `employees.delete(id)`, `delete_employee()`               | `employees.purge(id)`, `purge_employee()`; offboarding stays the archive                             |
+| `employees`                 | event `employee.deleted`                                  | `employee.purged`                                                                                    |
+| `employees`                 | hooks `before_employee_delete`, `after_employee_delete`   | `before_employee_purge`, `after_employee_purge`                                                      |
+| `expenses`                  | `expenses.deleteExpense(id)`, `delete_expense()`          | `expenses.purgeExpense(id)`, `purge_expense()`; the status stays the archive                         |
+| `expenses`                  | event `expense.deleted`                                   | `expense.purged`                                                                                     |
+| `expenses`                  | `permissions.delete`                                      | `permissions.purge`; `delete` is still read when `purge` is unset                                    |
+| `scores`                    | `scores.deleteModel(id)`, `delete_score_model()`          | `scores.purgeModel(id)`, `purge_score_model()` (ADR 1053)                                            |
+| `scores`                    | event `score_model.deleted`                               | `score_model.purged`, plus `archived` and `restored`                                                 |
+| `scores`                    | `models()` and `list_score_models()` show every row       | hide archived models; `models({ includeArchived: true })` adds them                                  |
+| `clinical-decision-support` | `deleteRule(id)`, `delete_care_rule()`                    | `purgeRule(id)`, `purge_care_rule()` (ADR 1054)                                                      |
+| `clinical-decision-support` | event `care_rule.deleted`                                 | `care_rule.purged`, plus `archived` and `restored`                                                   |
+| `clinical-decision-support` | `rules()` and `list_care_rules()` show every rule         | hide archived rules; `rules({ includeArchived: true })` adds them                                    |
+| `agents`                    | `agents.remove(id)`, `delete_agent()`                     | `agents.purge(id)`, `purge_agent()` (ADR 1080)                                                       |
+| `agents`                    | event `agent.deleted`                                     | `agent.purged`, plus `archived` and `restored`                                                       |
+| `agents`                    | `agents.list()` shows every agent                         | hides archived agents; `list({ includeArchived: true })` adds them                                   |
 
 ## Team purge
 
