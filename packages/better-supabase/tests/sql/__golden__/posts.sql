@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:c20c40197075c0b8b4250a178012cb59234f3934e0c8813f2d4a77302f6c110b
+-- @bsb-hash sha256:e79274f7ea4cba63821e3f582d19c36708b2b9200a84c11cd1fcdfb831f4917c
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -35,6 +35,7 @@ create table "better_supabase"."posts" (
   "moderation_status" text not null default 'visible' constraint bsb_posts_moderation_status_check check ("moderation_status" in ('visible', 'pending', 'hidden', 'removed')),
   "pinned_at" timestamptz,
   "locked_at" timestamptz,
+  "archived_at" timestamptz,
   "merged_into_id" uuid references "better_supabase"."posts" ("id") on delete set null constraint bsb_posts_check check ("merged_into_id" is distinct from "id"),
   "reply_count" integer not null default 0,
   "last_activity_at" timestamptz not null default now(),
@@ -198,7 +199,7 @@ begin
   returning * into v_row;
   perform "better_supabase"."moderation_track"(v_row."tenant_id", 'post', v_row."id"::text, v_me, 'visible');
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."create_post"(uuid, jsonb) from public, anon;
@@ -233,6 +234,9 @@ begin
   if jsonb_typeof(update_post.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
+  if v_row."archived_at" is not null then
+    raise exception 'the post is archived; restore it first' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
   v_title := case when update_post.attrs ? 'title' then trim(update_post.attrs ->> 'title') else v_row."title" end;
   v_body := case when update_post.attrs ? 'body' then coalesce(update_post.attrs ->> 'body', '') else v_row."body" end;
   if coalesce(length(v_title), 0) not between 1 and 300 then
@@ -245,7 +249,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."update_post"(uuid, jsonb) from public, anon;
@@ -291,7 +295,7 @@ begin
   elsif v_row."pinned_at" is distinct from v_old."pinned_at" or v_row."locked_at" is distinct from v_old."locked_at" then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 exception when check_violation then
   raise exception 'unknown post status' using errcode = '22023', hint = 'POST_INVALID';
 end;
@@ -327,7 +331,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
+  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null or v_target."archived_at" is not null then
     raise exception 'merge into another post that wasn''t merged itself' using errcode = '22023', hint = 'POST_INVALID';
   end if;
   insert into "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id", "actor", "user_id", "kind", "emoji", "value")
@@ -349,16 +353,16 @@ begin
   update "better_supabase"."posts" x set "merged_into_id" = v_target."id", "updated_at" = now()
   where x."merged_into_id" = v_row."id";
   null;
-  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."tenant_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."tenant_id", 'post', v_target."id"::text));
+  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."tenant_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'archivedAt', v_target."archived_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."tenant_id", 'post', v_target."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."merge_posts"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."merge_posts"(uuid, uuid) to authenticated, service_role;
 
--- Deletes a post with its votes: its author, or a moderator. False when
--- there was none.
-create or replace function "better_supabase"."delete_post"(post_id uuid)
-returns boolean
+
+-- Archives a post: it leaves list_posts and keeps its replies and votes, but takes no new votes or replies. Its author or a moderator.
+create or replace function "better_supabase"."archive_post"(post_id uuid)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -370,20 +374,93 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."posts" x where x."id" = delete_post.post_id for update;
+  select * into v_row from "better_supabase"."posts" x where x."id" = archive_post.post_id for update;
   if not found then
-    return false;
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
-    raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  end if;
+  update "better_supabase"."posts" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."archive_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_post"(uuid) to authenticated, service_role;
+
+-- Brings an archived post back to list_posts. Its author or a moderator.
+create or replace function "better_supabase"."restore_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."posts" x where x."id" = restore_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  end if;
+  update "better_supabase"."posts" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."restore_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_post"(uuid) to authenticated, service_role;
+
+-- Removes a post for good, with its votes. Needs permissions.purge when the
+-- app sets it; otherwise the post's author or a moderator.
+create or replace function "better_supabase"."purge_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."posts" x where x."id" = purge_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to purge this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   delete from "better_supabase"."posts" x where x."id" = v_row."id";
   null;
-  return true;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
-revoke execute on function "better_supabase"."delete_post"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_post"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_post"(uuid) to authenticated, service_role;
 -- One post the caller reads, with its vote tally and the caller's vote, or
 -- null.
 create or replace function "better_supabase"."get_post"(post_id uuid)
@@ -393,7 +470,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -407,9 +484,10 @@ revoke execute on function "better_supabase"."get_post"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_post"(uuid) to authenticated, service_role;
 
 -- Posts the caller reads. filter is { boardId?, status?, authorId?, sort?,
--- merged?, limit?, offset? }: sort active (pinned first, then the latest
+-- merged?, archived?, limit?, offset? }: sort active (pinned first, then the latest
 -- activity; the default), new or top (most votes). Merged posts only with
--- merged true.
+-- merged true; archived posts are hidden unless archived is set (true lists
+-- only the archived ones).
 create or replace function "better_supabase"."list_posts"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -428,7 +506,7 @@ begin
   return (
     select coalesce(jsonb_agg(e.row order by e.n), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -446,6 +524,7 @@ begin
         and (v_filter ->> 'status' is null or x."status" = v_filter ->> 'status')
         and (v_filter ->> 'authorId' is null or x."author_id" = (v_filter ->> 'authorId')::uuid)
         and (coalesce((v_filter ->> 'merged')::boolean, false) or x."merged_into_id" is null)
+        and (case when v_filter ? 'archived' then (x."archived_at" is not null) = (v_filter ->> 'archived')::boolean else x."archived_at" is null end)
       order by n
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
       offset greatest(coalesce((v_filter ->> 'offset')::integer, 0), 0)
@@ -457,7 +536,7 @@ revoke execute on function "better_supabase"."list_posts"(uuid, jsonb) from publ
 grant execute on function "better_supabase"."list_posts"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the caller's vote on a post they read: 1 up, -1 down, 0 clears it.
--- Returns the post's tally. A merged post takes no votes.
+-- Returns the post's tally. A merged or archived post takes no votes.
 create or replace function "better_supabase"."vote_on_post"(post_id uuid, value integer)
 returns jsonb
 language plpgsql
@@ -468,14 +547,18 @@ as $$
 declare
   v_tenant uuid;
   v_merged uuid;
+  v_archived timestamptz;
 begin
-  select x."tenant_id", x."merged_into_id" into v_tenant, v_merged
+  select x."tenant_id", x."merged_into_id", x."archived_at" into v_tenant, v_merged, v_archived
   from "better_supabase"."posts" x where x."id" = vote_on_post.post_id and x."moderation_status" = 'visible';
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if v_merged is not null then
     raise exception 'the post was merged; vote on the post it was merged into' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_archived is not null then
+    raise exception 'the post is archived' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return "better_supabase"."vote"(v_tenant, 'post', vote_on_post.post_id::text, vote_on_post.value);
 end;
@@ -528,7 +611,7 @@ create trigger "bsb_posts_removed"
   after delete on "better_supabase"."posts"
   for each row execute function "better_supabase"."posts_removed"();
 
--- Refuses a reply on a locked, merged or hidden post, unless a moderator
+-- Refuses a reply on a locked, archived, merged or hidden post, unless a moderator
 -- writes it.
 create or replace function "better_supabase"."posts_reply_guard"()
 returns trigger
@@ -546,7 +629,7 @@ begin
   if v_post."id" is null then
     return new;
   end if;
-  if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
+  if (v_post."locked_at" is not null or v_post."archived_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
     and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
@@ -641,7 +724,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:4408ada5039ae8da47e97618855517ed5d13915fb4ab74cffc67d88ff5697a63
+-- @bsb-hash sha256:bfd7467c6a3da6a4d427a3d74e5b01e68aad0165dbd3414f6a4c0c330c0c2487
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -675,6 +758,7 @@ create table "better_supabase"."posts" (
   "moderation_status" text not null default 'visible' constraint bsb_posts_moderation_status_check check ("moderation_status" in ('visible', 'pending', 'hidden', 'removed')),
   "pinned_at" timestamptz,
   "locked_at" timestamptz,
+  "archived_at" timestamptz,
   "merged_into_id" uuid references "better_supabase"."posts" ("id") on delete set null constraint bsb_posts_check check ("merged_into_id" is distinct from "id"),
   "reply_count" integer not null default 0,
   "last_activity_at" timestamptz not null default now(),
@@ -858,7 +942,7 @@ begin
   returning * into v_row;
   perform "better_supabase"."moderation_track"(v_row."tenant_id", 'post', v_row."id"::text, v_me, 'visible');
   perform "better_supabase".emit_event('post.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'status', v_row."status", 'moderation', v_row."moderation_status", 'mergedIntoId', v_row."merged_into_id"), 'posts/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."create_post"(uuid, jsonb) from public, anon;
@@ -893,6 +977,9 @@ begin
   if jsonb_typeof(update_post.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
+  if v_row."archived_at" is not null then
+    raise exception 'the post is archived; restore it first' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
   v_title := case when update_post.attrs ? 'title' then trim(update_post.attrs ->> 'title') else v_row."title" end;
   v_body := case when update_post.attrs ? 'body' then coalesce(update_post.attrs ->> 'body', '') else v_row."body" end;
   if coalesce(length(v_title), 0) not between 1 and 300 then
@@ -905,7 +992,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   perform "better_supabase".emit_event('post.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'status', v_row."status", 'moderation', v_row."moderation_status", 'mergedIntoId', v_row."merged_into_id"), 'posts/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."update_post"(uuid, jsonb) from public, anon;
@@ -971,7 +1058,7 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'status', v_row."status", 'moderation', v_row."moderation_status", 'mergedIntoId', v_row."merged_into_id")
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 exception when check_violation then
   raise exception 'unknown post status' using errcode = '22023', hint = 'POST_INVALID';
 end;
@@ -1007,7 +1094,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
+  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null or v_target."archived_at" is not null then
     raise exception 'merge into another post that wasn''t merged itself' using errcode = '22023', hint = 'POST_INVALID';
   end if;
   insert into "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id", "actor", "user_id", "kind", "emoji", "value")
@@ -1039,16 +1126,16 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'status', v_row."status", 'moderation', v_row."moderation_status", 'mergedIntoId', v_row."merged_into_id")
   );
-  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."tenant_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."tenant_id", 'post', v_target."id"::text));
+  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."tenant_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'archivedAt', v_target."archived_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."tenant_id", 'post', v_target."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."merge_posts"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."merge_posts"(uuid, uuid) to authenticated, service_role;
 
--- Deletes a post with its votes: its author, or a moderator. False when
--- there was none.
-create or replace function "better_supabase"."delete_post"(post_id uuid)
-returns boolean
+
+-- Archives a post: it leaves list_posts and keeps its replies and votes, but takes no new votes or replies. Its author or a moderator.
+create or replace function "better_supabase"."archive_post"(post_id uuid)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -1060,30 +1147,123 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."posts" x where x."id" = delete_post.post_id for update;
+  select * into v_row from "better_supabase"."posts" x where x."id" = archive_post.post_id for update;
   if not found then
-    return false;
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
-    raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  delete from "better_supabase"."posts" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('post.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'status', v_row."status", 'moderation', v_row."moderation_status", 'mergedIntoId', v_row."merged_into_id"), 'posts/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  end if;
+  update "better_supabase"."posts" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('post.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'status', v_row."status", 'moderation', v_row."moderation_status", 'mergedIntoId', v_row."merged_into_id"), 'posts/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
   perform better_supabase.audit_event(
-    event_type => 'post.deleted',
+    event_type => 'post.archived',
     category => 'data',
     target_type => 'post',
     record_id => v_row."id"::text,
     target_label => v_row."title",
-    summary => 'deleted a post',
+    summary => 'post archived',
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'status', v_row."status", 'moderation', v_row."moderation_status", 'mergedIntoId', v_row."merged_into_id")
   );
-  return true;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
-revoke execute on function "better_supabase"."delete_post"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_post"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."archive_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_post"(uuid) to authenticated, service_role;
+
+-- Brings an archived post back to list_posts. Its author or a moderator.
+create or replace function "better_supabase"."restore_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."posts" x where x."id" = restore_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  end if;
+  update "better_supabase"."posts" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('post.restored', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'status', v_row."status", 'moderation', v_row."moderation_status", 'mergedIntoId', v_row."merged_into_id"), 'posts/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
+  perform better_supabase.audit_event(
+    event_type => 'post.restored',
+    category => 'data',
+    target_type => 'post',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'post restored',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'status', v_row."status", 'moderation', v_row."moderation_status", 'mergedIntoId', v_row."merged_into_id")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."restore_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_post"(uuid) to authenticated, service_role;
+
+-- Removes a post for good, with its votes. Needs permissions.purge when the
+-- app sets it; otherwise the post's author or a moderator.
+create or replace function "better_supabase"."purge_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."posts" x where x."id" = purge_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to purge this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."posts" x where x."id" = v_row."id";
+  perform "better_supabase".emit_event('post.purged', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'status', v_row."status", 'moderation', v_row."moderation_status", 'mergedIntoId', v_row."merged_into_id"), 'posts/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
+  perform better_supabase.audit_event(
+    event_type => 'post.purged',
+    category => 'data',
+    target_type => 'post',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'post purged',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'status', v_row."status", 'moderation', v_row."moderation_status", 'mergedIntoId', v_row."merged_into_id")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."purge_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_post"(uuid) to authenticated, service_role;
 -- One post the caller reads, with its vote tally and the caller's vote, or
 -- null.
 create or replace function "better_supabase"."get_post"(post_id uuid)
@@ -1093,7 +1273,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -1107,9 +1287,10 @@ revoke execute on function "better_supabase"."get_post"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_post"(uuid) to authenticated, service_role;
 
 -- Posts the caller reads. filter is { boardId?, status?, authorId?, sort?,
--- merged?, limit?, offset? }: sort active (pinned first, then the latest
+-- merged?, archived?, limit?, offset? }: sort active (pinned first, then the latest
 -- activity; the default), new or top (most votes). Merged posts only with
--- merged true.
+-- merged true; archived posts are hidden unless archived is set (true lists
+-- only the archived ones).
 create or replace function "better_supabase"."list_posts"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1128,7 +1309,7 @@ begin
   return (
     select coalesce(jsonb_agg(e.row order by e.n), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -1146,6 +1327,7 @@ begin
         and (v_filter ->> 'status' is null or x."status" = v_filter ->> 'status')
         and (v_filter ->> 'authorId' is null or x."author_id" = (v_filter ->> 'authorId')::uuid)
         and (coalesce((v_filter ->> 'merged')::boolean, false) or x."merged_into_id" is null)
+        and (case when v_filter ? 'archived' then (x."archived_at" is not null) = (v_filter ->> 'archived')::boolean else x."archived_at" is null end)
       order by n
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
       offset greatest(coalesce((v_filter ->> 'offset')::integer, 0), 0)
@@ -1157,7 +1339,7 @@ revoke execute on function "better_supabase"."list_posts"(uuid, jsonb) from publ
 grant execute on function "better_supabase"."list_posts"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the caller's vote on a post they read: 1 up, -1 down, 0 clears it.
--- Returns the post's tally. A merged post takes no votes.
+-- Returns the post's tally. A merged or archived post takes no votes.
 create or replace function "better_supabase"."vote_on_post"(post_id uuid, value integer)
 returns jsonb
 language plpgsql
@@ -1168,14 +1350,18 @@ as $$
 declare
   v_tenant uuid;
   v_merged uuid;
+  v_archived timestamptz;
 begin
-  select x."tenant_id", x."merged_into_id" into v_tenant, v_merged
+  select x."tenant_id", x."merged_into_id", x."archived_at" into v_tenant, v_merged, v_archived
   from "better_supabase"."posts" x where x."id" = vote_on_post.post_id and x."moderation_status" = 'visible';
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if v_merged is not null then
     raise exception 'the post was merged; vote on the post it was merged into' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_archived is not null then
+    raise exception 'the post is archived' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return "better_supabase"."vote"(v_tenant, 'post', vote_on_post.post_id::text, vote_on_post.value);
 end;
@@ -1228,7 +1414,7 @@ create trigger "bsb_posts_removed"
   after delete on "better_supabase"."posts"
   for each row execute function "better_supabase"."posts_removed"();
 
--- Refuses a reply on a locked, merged or hidden post, unless a moderator
+-- Refuses a reply on a locked, archived, merged or hidden post, unless a moderator
 -- writes it.
 create or replace function "better_supabase"."posts_reply_guard"()
 returns trigger
@@ -1246,7 +1432,7 @@ begin
   if v_post."id" is null then
     return new;
   end if;
-  if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
+  if (v_post."locked_at" is not null or v_post."archived_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
     and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
@@ -1345,7 +1531,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:d1085858e8f99cdb2c98b5efacc8787eda1c9e0c6d0819db32587d31e0143fa8
+-- @bsb-hash sha256:6d28e9e03eb5ca0da6769b0bce6b7781945e371f66c56c07f70ff8df48c4a986
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1384,6 +1570,7 @@ create table "app_private"."posts" (
   "moderation_status" text not null default 'visible' constraint bsb_posts_moderation_status_check check ("moderation_status" in ('visible', 'pending', 'hidden', 'removed')),
   "pinned_at" timestamptz,
   "locked_at" timestamptz,
+  "archived_at" timestamptz,
   "merged_into_id" uuid references "app_private"."posts" ("id") on delete set null constraint bsb_posts_check check ("merged_into_id" is distinct from "id"),
   "reply_count" integer not null default 0,
   "last_activity_at" timestamptz not null default now(),
@@ -1547,7 +1734,7 @@ begin
   returning * into v_row;
   perform "better_supabase"."moderation_track"(v_row."tenant_id", 'post', v_row."id"::text, v_me, 'visible');
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "app_private"."create_post"(uuid, jsonb) from public, anon;
@@ -1582,6 +1769,9 @@ begin
   if jsonb_typeof(update_post.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
+  if v_row."archived_at" is not null then
+    raise exception 'the post is archived; restore it first' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
   v_title := case when update_post.attrs ? 'title' then trim(update_post.attrs ->> 'title') else v_row."title" end;
   v_body := case when update_post.attrs ? 'body' then coalesce(update_post.attrs ->> 'body', '') else v_row."body" end;
   if coalesce(length(v_title), 0) not between 1 and 300 then
@@ -1594,7 +1784,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "app_private"."update_post"(uuid, jsonb) from public, anon;
@@ -1640,7 +1830,7 @@ begin
   elsif v_row."pinned_at" is distinct from v_old."pinned_at" or v_row."locked_at" is distinct from v_old."locked_at" then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 exception when check_violation then
   raise exception 'unknown post status' using errcode = '22023', hint = 'POST_INVALID';
 end;
@@ -1676,7 +1866,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
+  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null or v_target."archived_at" is not null then
     raise exception 'merge into another post that wasn''t merged itself' using errcode = '22023', hint = 'POST_INVALID';
   end if;
   insert into "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id", "actor", "user_id", "kind", "emoji", "value")
@@ -1698,16 +1888,16 @@ begin
   update "app_private"."posts" x set "merged_into_id" = v_target."id", "updated_at" = now()
   where x."merged_into_id" = v_row."id";
   null;
-  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."tenant_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."tenant_id", 'post', v_target."id"::text));
+  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."tenant_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'archivedAt', v_target."archived_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."tenant_id", 'post', v_target."id"::text));
 end;
 $$;
 revoke execute on function "app_private"."merge_posts"(uuid, uuid) from public, anon;
 grant execute on function "app_private"."merge_posts"(uuid, uuid) to authenticated, service_role;
 
--- Deletes a post with its votes: its author, or a moderator. False when
--- there was none.
-create or replace function "app_private"."delete_post"(post_id uuid)
-returns boolean
+
+-- Archives a post: it leaves list_posts and keeps its replies and votes, but takes no new votes or replies. Its author or a moderator.
+create or replace function "app_private"."archive_post"(post_id uuid)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -1719,20 +1909,93 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."posts" x where x."id" = delete_post.post_id for update;
+  select * into v_row from "app_private"."posts" x where x."id" = archive_post.post_id for update;
   if not found then
-    return false;
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
-    raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  end if;
+  update "app_private"."posts" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "app_private"."archive_post"(uuid) from public, anon;
+grant execute on function "app_private"."archive_post"(uuid) to authenticated, service_role;
+
+-- Brings an archived post back to list_posts. Its author or a moderator.
+create or replace function "app_private"."restore_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."posts" x where x."id" = restore_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  end if;
+  update "app_private"."posts" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "app_private"."restore_post"(uuid) from public, anon;
+grant execute on function "app_private"."restore_post"(uuid) to authenticated, service_role;
+
+-- Removes a post for good, with its votes. Needs permissions.purge when the
+-- app sets it; otherwise the post's author or a moderator.
+create or replace function "app_private"."purge_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "app_private"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."posts" x where x."id" = purge_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to purge this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   delete from "app_private"."posts" x where x."id" = v_row."id";
   null;
-  return true;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
-revoke execute on function "app_private"."delete_post"(uuid) from public, anon;
-grant execute on function "app_private"."delete_post"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."purge_post"(uuid) from public, anon;
+grant execute on function "app_private"."purge_post"(uuid) to authenticated, service_role;
 -- One post the caller reads, with its vote tally and the caller's vote, or
 -- null.
 create or replace function "app_private"."get_post"(post_id uuid)
@@ -1742,7 +2005,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -1756,9 +2019,10 @@ revoke execute on function "app_private"."get_post"(uuid) from public, anon;
 grant execute on function "app_private"."get_post"(uuid) to authenticated, service_role;
 
 -- Posts the caller reads. filter is { boardId?, status?, authorId?, sort?,
--- merged?, limit?, offset? }: sort active (pinned first, then the latest
+-- merged?, archived?, limit?, offset? }: sort active (pinned first, then the latest
 -- activity; the default), new or top (most votes). Merged posts only with
--- merged true.
+-- merged true; archived posts are hidden unless archived is set (true lists
+-- only the archived ones).
 create or replace function "app_private"."list_posts"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -1777,7 +2041,7 @@ begin
   return (
     select coalesce(jsonb_agg(e.row order by e.n), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -1795,6 +2059,7 @@ begin
         and (v_filter ->> 'status' is null or x."status" = v_filter ->> 'status')
         and (v_filter ->> 'authorId' is null or x."author_id" = (v_filter ->> 'authorId')::uuid)
         and (coalesce((v_filter ->> 'merged')::boolean, false) or x."merged_into_id" is null)
+        and (case when v_filter ? 'archived' then (x."archived_at" is not null) = (v_filter ->> 'archived')::boolean else x."archived_at" is null end)
       order by n
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
       offset greatest(coalesce((v_filter ->> 'offset')::integer, 0), 0)
@@ -1806,7 +2071,7 @@ revoke execute on function "app_private"."list_posts"(uuid, jsonb) from public, 
 grant execute on function "app_private"."list_posts"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the caller's vote on a post they read: 1 up, -1 down, 0 clears it.
--- Returns the post's tally. A merged post takes no votes.
+-- Returns the post's tally. A merged or archived post takes no votes.
 create or replace function "app_private"."vote_on_post"(post_id uuid, value integer)
 returns jsonb
 language plpgsql
@@ -1817,14 +2082,18 @@ as $$
 declare
   v_tenant uuid;
   v_merged uuid;
+  v_archived timestamptz;
 begin
-  select x."tenant_id", x."merged_into_id" into v_tenant, v_merged
+  select x."tenant_id", x."merged_into_id", x."archived_at" into v_tenant, v_merged, v_archived
   from "app_private"."posts" x where x."id" = vote_on_post.post_id and x."moderation_status" = 'visible';
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if v_merged is not null then
     raise exception 'the post was merged; vote on the post it was merged into' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_archived is not null then
+    raise exception 'the post is archived' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return "better_supabase"."vote"(v_tenant, 'post', vote_on_post.post_id::text, vote_on_post.value);
 end;
@@ -1877,7 +2146,7 @@ create trigger "bsb_posts_removed"
   after delete on "app_private"."posts"
   for each row execute function "app_private"."posts_removed"();
 
--- Refuses a reply on a locked, merged or hidden post, unless a moderator
+-- Refuses a reply on a locked, archived, merged or hidden post, unless a moderator
 -- writes it.
 create or replace function "app_private"."posts_reply_guard"()
 returns trigger
@@ -1895,7 +2164,7 @@ begin
   if v_post."id" is null then
     return new;
   end if;
-  if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
+  if (v_post."locked_at" is not null or v_post."archived_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
     and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
@@ -1990,7 +2259,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:f89c25e88fc7f350629ea31a4b2f76256e5291d838dd4d38d423b54359c6006c
+-- @bsb-hash sha256:768846976e3b2e1a4040ccf0f3b1f4939c752598a5dd39cc1ad52e39e57d163d
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2024,6 +2293,7 @@ create table "better_supabase"."posts" (
   "moderation_status" text not null default 'visible' constraint bsb_posts_moderation_status_check check ("moderation_status" in ('visible', 'pending', 'hidden', 'removed')),
   "pinned_at" timestamptz,
   "locked_at" timestamptz,
+  "archived_at" timestamptz,
   "merged_into_id" uuid references "better_supabase"."posts" ("id") on delete set null constraint bsb_posts_check check ("merged_into_id" is distinct from "id"),
   "reply_count" integer not null default 0,
   "last_activity_at" timestamptz not null default now(),
@@ -2187,7 +2457,7 @@ begin
   returning * into v_row;
   perform "better_supabase"."moderation_track"(v_row."tenant_id", 'post', v_row."id"::text, v_me, 'visible');
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."create_post"(uuid, jsonb) from public, anon;
@@ -2222,6 +2492,9 @@ begin
   if jsonb_typeof(update_post.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
+  if v_row."archived_at" is not null then
+    raise exception 'the post is archived; restore it first' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
   v_title := case when update_post.attrs ? 'title' then trim(update_post.attrs ->> 'title') else v_row."title" end;
   v_body := case when update_post.attrs ? 'body' then coalesce(update_post.attrs ->> 'body', '') else v_row."body" end;
   if coalesce(length(v_title), 0) not between 1 and 300 then
@@ -2234,7 +2507,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."update_post"(uuid, jsonb) from public, anon;
@@ -2280,7 +2553,7 @@ begin
   elsif v_row."pinned_at" is distinct from v_old."pinned_at" or v_row."locked_at" is distinct from v_old."locked_at" then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 exception when check_violation then
   raise exception 'unknown post status' using errcode = '22023', hint = 'POST_INVALID';
 end;
@@ -2316,7 +2589,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
+  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null or v_target."archived_at" is not null then
     raise exception 'merge into another post that wasn''t merged itself' using errcode = '22023', hint = 'POST_INVALID';
   end if;
   insert into "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id", "actor", "user_id", "kind", "emoji", "value")
@@ -2338,16 +2611,16 @@ begin
   update "better_supabase"."posts" x set "merged_into_id" = v_target."id", "updated_at" = now()
   where x."merged_into_id" = v_row."id";
   null;
-  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."tenant_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."tenant_id", 'post', v_target."id"::text));
+  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."tenant_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'archivedAt', v_target."archived_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."tenant_id", 'post', v_target."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."merge_posts"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."merge_posts"(uuid, uuid) to authenticated, service_role;
 
--- Deletes a post with its votes: its author, or a moderator. False when
--- there was none.
-create or replace function "better_supabase"."delete_post"(post_id uuid)
-returns boolean
+
+-- Archives a post: it leaves list_posts and keeps its replies and votes, but takes no new votes or replies. Its author or a moderator.
+create or replace function "better_supabase"."archive_post"(post_id uuid)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -2359,20 +2632,93 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."posts" x where x."id" = delete_post.post_id for update;
+  select * into v_row from "better_supabase"."posts" x where x."id" = archive_post.post_id for update;
   if not found then
-    return false;
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
-    raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  end if;
+  update "better_supabase"."posts" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."archive_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_post"(uuid) to authenticated, service_role;
+
+-- Brings an archived post back to list_posts. Its author or a moderator.
+create or replace function "better_supabase"."restore_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."posts" x where x."id" = restore_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  end if;
+  update "better_supabase"."posts" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."restore_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_post"(uuid) to authenticated, service_role;
+
+-- Removes a post for good, with its votes. Needs permissions.purge when the
+-- app sets it; otherwise the post's author or a moderator.
+create or replace function "better_supabase"."purge_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."posts" x where x."id" = purge_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to purge this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   delete from "better_supabase"."posts" x where x."id" = v_row."id";
   null;
-  return true;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
-revoke execute on function "better_supabase"."delete_post"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_post"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_post"(uuid) to authenticated, service_role;
 -- One post the caller reads, with its vote tally and the caller's vote, or
 -- null.
 create or replace function "better_supabase"."get_post"(post_id uuid)
@@ -2382,7 +2728,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -2396,9 +2742,10 @@ revoke execute on function "better_supabase"."get_post"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_post"(uuid) to authenticated, service_role;
 
 -- Posts the caller reads. filter is { boardId?, status?, authorId?, sort?,
--- merged?, limit?, offset? }: sort active (pinned first, then the latest
+-- merged?, archived?, limit?, offset? }: sort active (pinned first, then the latest
 -- activity; the default), new or top (most votes). Merged posts only with
--- merged true.
+-- merged true; archived posts are hidden unless archived is set (true lists
+-- only the archived ones).
 create or replace function "better_supabase"."list_posts"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -2417,7 +2764,7 @@ begin
   return (
     select coalesce(jsonb_agg(e.row order by e.n), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -2435,6 +2782,7 @@ begin
         and (v_filter ->> 'status' is null or x."status" = v_filter ->> 'status')
         and (v_filter ->> 'authorId' is null or x."author_id" = (v_filter ->> 'authorId')::uuid)
         and (coalesce((v_filter ->> 'merged')::boolean, false) or x."merged_into_id" is null)
+        and (case when v_filter ? 'archived' then (x."archived_at" is not null) = (v_filter ->> 'archived')::boolean else x."archived_at" is null end)
       order by n
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
       offset greatest(coalesce((v_filter ->> 'offset')::integer, 0), 0)
@@ -2446,7 +2794,7 @@ revoke execute on function "better_supabase"."list_posts"(uuid, jsonb) from publ
 grant execute on function "better_supabase"."list_posts"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the caller's vote on a post they read: 1 up, -1 down, 0 clears it.
--- Returns the post's tally. A merged post takes no votes.
+-- Returns the post's tally. A merged or archived post takes no votes.
 create or replace function "better_supabase"."vote_on_post"(post_id uuid, value integer)
 returns jsonb
 language plpgsql
@@ -2457,14 +2805,18 @@ as $$
 declare
   v_tenant uuid;
   v_merged uuid;
+  v_archived timestamptz;
 begin
-  select x."tenant_id", x."merged_into_id" into v_tenant, v_merged
+  select x."tenant_id", x."merged_into_id", x."archived_at" into v_tenant, v_merged, v_archived
   from "better_supabase"."posts" x where x."id" = vote_on_post.post_id and x."moderation_status" = 'visible';
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if v_merged is not null then
     raise exception 'the post was merged; vote on the post it was merged into' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_archived is not null then
+    raise exception 'the post is archived' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return "better_supabase"."vote"(v_tenant, 'post', vote_on_post.post_id::text, vote_on_post.value);
 end;
@@ -2517,7 +2869,7 @@ create trigger "bsb_posts_removed"
   after delete on "better_supabase"."posts"
   for each row execute function "better_supabase"."posts_removed"();
 
--- Refuses a reply on a locked, merged or hidden post, unless a moderator
+-- Refuses a reply on a locked, archived, merged or hidden post, unless a moderator
 -- writes it.
 create or replace function "better_supabase"."posts_reply_guard"()
 returns trigger
@@ -2535,7 +2887,7 @@ begin
   if v_post."id" is null then
     return new;
   end if;
-  if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
+  if (v_post."locked_at" is not null or v_post."archived_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
     and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
@@ -2672,14 +3024,32 @@ as $$ select "better_supabase"."merge_posts"($1, $2) $$;
 revoke execute on function "api"."merge_posts"(uuid, uuid) from public, anon;
 grant execute on function "api"."merge_posts"(uuid, uuid) to authenticated, service_role;
 
-create or replace function "api"."delete_post"(post_id uuid)
-returns boolean
+create or replace function "api"."archive_post"(post_id uuid)
+returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."delete_post"($1) $$;
-revoke execute on function "api"."delete_post"(uuid) from public, anon;
-grant execute on function "api"."delete_post"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."archive_post"($1) $$;
+revoke execute on function "api"."archive_post"(uuid) from public, anon;
+grant execute on function "api"."archive_post"(uuid) to authenticated, service_role;
+
+create or replace function "api"."restore_post"(post_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."restore_post"($1) $$;
+revoke execute on function "api"."restore_post"(uuid) from public, anon;
+grant execute on function "api"."restore_post"(uuid) to authenticated, service_role;
+
+create or replace function "api"."purge_post"(post_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."purge_post"($1) $$;
+revoke execute on function "api"."purge_post"(uuid) from public, anon;
+grant execute on function "api"."purge_post"(uuid) to authenticated, service_role;
 
 create or replace function "api"."get_post"(post_id uuid)
 returns jsonb
@@ -2727,7 +3097,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:b1dbb22b3546ba8f2b36c6774c8661635d475eeb0e0f83b89f9c8f6f72750e18
+-- @bsb-hash sha256:cba1e17aefa8e5a42d99ee50f5cba1c4157235796176ff48b2c1735a88b06625
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2757,6 +3127,7 @@ alter table "better_supabase"."posts" add column if not exists "status" text not
 alter table "better_supabase"."posts" add column if not exists "moderation_status" text not null default 'visible' constraint bsb_posts_moderation_status_check check ("moderation_status" in ('visible', 'pending', 'hidden', 'removed'));
 alter table "better_supabase"."posts" add column if not exists "pinned_at" timestamptz;
 alter table "better_supabase"."posts" add column if not exists "locked_at" timestamptz;
+alter table "better_supabase"."posts" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."posts" add column if not exists "merged_into_id" uuid references "better_supabase"."posts" ("id") on delete set null constraint bsb_posts_check check ("merged_into_id" is distinct from "id");
 alter table "better_supabase"."posts" add column if not exists "reply_count" integer not null default 0;
 alter table "better_supabase"."posts" add column if not exists "last_activity_at" timestamptz not null default now();
@@ -2917,7 +3288,7 @@ begin
   returning * into v_row;
   perform "better_supabase"."moderation_track"(v_row."tenant_id", 'post', v_row."id"::text, v_me, 'visible');
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."create_post"(uuid, jsonb) from public, anon;
@@ -2952,6 +3323,9 @@ begin
   if jsonb_typeof(update_post.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
+  if v_row."archived_at" is not null then
+    raise exception 'the post is archived; restore it first' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
   v_title := case when update_post.attrs ? 'title' then trim(update_post.attrs ->> 'title') else v_row."title" end;
   v_body := case when update_post.attrs ? 'body' then coalesce(update_post.attrs ->> 'body', '') else v_row."body" end;
   if coalesce(length(v_title), 0) not between 1 and 300 then
@@ -2964,7 +3338,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."update_post"(uuid, jsonb) from public, anon;
@@ -3010,7 +3384,7 @@ begin
   elsif v_row."pinned_at" is distinct from v_old."pinned_at" or v_row."locked_at" is distinct from v_old."locked_at" then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 exception when check_violation or invalid_text_representation then
   raise exception 'unknown post status' using errcode = '22023', hint = 'POST_INVALID';
 end;
@@ -3046,7 +3420,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
+  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null or v_target."archived_at" is not null then
     raise exception 'merge into another post that wasn''t merged itself' using errcode = '22023', hint = 'POST_INVALID';
   end if;
   insert into "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id", "actor", "user_id", "kind", "emoji", "value")
@@ -3068,16 +3442,16 @@ begin
   update "better_supabase"."posts" x set "merged_into_id" = v_target."id", "updated_at" = now()
   where x."merged_into_id" = v_row."id";
   null;
-  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."tenant_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."tenant_id", 'post', v_target."id"::text));
+  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."tenant_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'archivedAt', v_target."archived_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."tenant_id", 'post', v_target."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."merge_posts"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."merge_posts"(uuid, uuid) to authenticated, service_role;
 
--- Deletes a post with its votes: its author, or a moderator. False when
--- there was none.
-create or replace function "better_supabase"."delete_post"(post_id uuid)
-returns boolean
+
+-- Archives a post: it leaves list_posts and keeps its replies and votes, but takes no new votes or replies. Its author or a moderator.
+create or replace function "better_supabase"."archive_post"(post_id uuid)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -3089,20 +3463,93 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."posts" x where x."id" = delete_post.post_id for update;
+  select * into v_row from "better_supabase"."posts" x where x."id" = archive_post.post_id for update;
   if not found then
-    return false;
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
-    raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  end if;
+  update "better_supabase"."posts" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."archive_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_post"(uuid) to authenticated, service_role;
+
+-- Brings an archived post back to list_posts. Its author or a moderator.
+create or replace function "better_supabase"."restore_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."posts" x where x."id" = restore_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+  end if;
+  update "better_supabase"."posts" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."restore_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_post"(uuid) to authenticated, service_role;
+
+-- Removes a post for good, with its votes. Needs permissions.purge when the
+-- app sets it; otherwise the post's author or a moderator.
+create or replace function "better_supabase"."purge_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."posts" x where x."id" = purge_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to purge this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   delete from "better_supabase"."posts" x where x."id" = v_row."id";
   null;
-  return true;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."tenant_id", 'post', v_row."id"::text));
 end;
 $$;
-revoke execute on function "better_supabase"."delete_post"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_post"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_post"(uuid) to authenticated, service_role;
 -- One post the caller reads, with its vote tally and the caller's vote, or
 -- null.
 create or replace function "better_supabase"."get_post"(post_id uuid)
@@ -3112,7 +3559,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -3126,9 +3573,10 @@ revoke execute on function "better_supabase"."get_post"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_post"(uuid) to authenticated, service_role;
 
 -- Posts the caller reads. filter is { boardId?, status?, authorId?, sort?,
--- merged?, limit?, offset? }: sort active (pinned first, then the latest
+-- merged?, archived?, limit?, offset? }: sort active (pinned first, then the latest
 -- activity; the default), new or top (most votes). Merged posts only with
--- merged true.
+-- merged true; archived posts are hidden unless archived is set (true lists
+-- only the archived ones).
 create or replace function "better_supabase"."list_posts"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -3147,7 +3595,7 @@ begin
   return (
     select coalesce(jsonb_agg(e.row order by e.n), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+      select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."tenant_id" = x."tenant_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -3165,6 +3613,7 @@ begin
         and (v_filter ->> 'status' is null or x."status"::text = v_filter ->> 'status')
         and (v_filter ->> 'authorId' is null or x."author_id" = (v_filter ->> 'authorId')::uuid)
         and (coalesce((v_filter ->> 'merged')::boolean, false) or x."merged_into_id" is null)
+        and (case when v_filter ? 'archived' then (x."archived_at" is not null) = (v_filter ->> 'archived')::boolean else x."archived_at" is null end)
       order by n
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
       offset greatest(coalesce((v_filter ->> 'offset')::integer, 0), 0)
@@ -3176,7 +3625,7 @@ revoke execute on function "better_supabase"."list_posts"(uuid, jsonb) from publ
 grant execute on function "better_supabase"."list_posts"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the caller's vote on a post they read: 1 up, -1 down, 0 clears it.
--- Returns the post's tally. A merged post takes no votes.
+-- Returns the post's tally. A merged or archived post takes no votes.
 create or replace function "better_supabase"."vote_on_post"(post_id uuid, value integer)
 returns jsonb
 language plpgsql
@@ -3187,14 +3636,18 @@ as $$
 declare
   v_tenant uuid;
   v_merged uuid;
+  v_archived timestamptz;
 begin
-  select x."tenant_id", x."merged_into_id" into v_tenant, v_merged
+  select x."tenant_id", x."merged_into_id", x."archived_at" into v_tenant, v_merged, v_archived
   from "better_supabase"."posts" x where x."id" = vote_on_post.post_id and x."moderation_status" = 'visible';
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if v_merged is not null then
     raise exception 'the post was merged; vote on the post it was merged into' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_archived is not null then
+    raise exception 'the post is archived' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return "better_supabase"."vote"(v_tenant, 'post', vote_on_post.post_id::text, vote_on_post.value);
 end;
@@ -3247,7 +3700,7 @@ create trigger "bsb_posts_removed"
   after delete on "better_supabase"."posts"
   for each row execute function "better_supabase"."posts_removed"();
 
--- Refuses a reply on a locked, merged or hidden post, unless a moderator
+-- Refuses a reply on a locked, archived, merged or hidden post, unless a moderator
 -- writes it.
 create or replace function "better_supabase"."posts_reply_guard"()
 returns trigger
@@ -3265,7 +3718,7 @@ begin
   if v_post."id" is null then
     return new;
   end if;
-  if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
+  if (v_post."locked_at" is not null or v_post."archived_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
     and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
@@ -3360,7 +3813,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:59c7aadb4e26c8e359fed2f6065ea268bbcd767d33cdff27e583b041b42f7408
+-- @bsb-hash sha256:94629adcce94a939d60ca6e4543eb0c07f1dfe59bbc0adc90e57d67b30d06f5a
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3394,6 +3847,7 @@ create table "better_supabase"."posts" (
   "moderation_status" text not null default 'visible' constraint bsb_posts_moderation_status_check check ("moderation_status" in ('visible', 'pending', 'hidden', 'removed')),
   "pinned_at" timestamptz,
   "locked_at" timestamptz,
+  "archived_at" timestamptz,
   "merged_into_id" uuid references "better_supabase"."posts" ("id") on delete set null constraint bsb_posts_check check ("merged_into_id" is distinct from "id"),
   "reply_count" integer not null default 0,
   "last_activity_at" timestamptz not null default now(),
@@ -3557,7 +4011,7 @@ begin
   returning * into v_row;
   perform "better_supabase"."moderation_track"(v_row."org_id", 'post', v_row."id"::text, v_me, 'visible');
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."org_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."org_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."create_post"(uuid, jsonb) from public, anon;
@@ -3592,6 +4046,9 @@ begin
   if jsonb_typeof(update_post.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'POST_INVALID';
   end if;
+  if v_row."archived_at" is not null then
+    raise exception 'the post is archived; restore it first' using errcode = '22023', hint = 'POST_INVALID';
+  end if;
   v_title := case when update_post.attrs ? 'title' then trim(update_post.attrs ->> 'title') else v_row."title" end;
   v_body := case when update_post.attrs ? 'body' then coalesce(update_post.attrs ->> 'body', '') else v_row."body" end;
   if coalesce(length(v_title), 0) not between 1 and 300 then
@@ -3604,7 +4061,7 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."org_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."org_id", 'post', v_row."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."update_post"(uuid, jsonb) from public, anon;
@@ -3650,7 +4107,7 @@ begin
   elsif v_row."pinned_at" is distinct from v_old."pinned_at" or v_row."locked_at" is distinct from v_old."locked_at" then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."org_id", 'post', v_row."id"::text));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."org_id", 'post', v_row."id"::text));
 exception when check_violation then
   raise exception 'unknown post status' using errcode = '22023', hint = 'POST_INVALID';
 end;
@@ -3686,7 +4143,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false)) then
     raise exception 'not allowed to moderate posts' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
-  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null then
+  if v_target."id" = v_row."id" or v_target."merged_into_id" is not null or v_target."archived_at" is not null then
     raise exception 'merge into another post that wasn''t merged itself' using errcode = '22023', hint = 'POST_INVALID';
   end if;
   insert into "better_supabase"."reactions" ("org_id", "subject_type", "subject_id", "actor", "user_id", "kind", "emoji", "value")
@@ -3708,16 +4165,16 @@ begin
   update "better_supabase"."posts" x set "merged_into_id" = v_target."id", "updated_at" = now()
   where x."merged_into_id" = v_row."id";
   null;
-  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."org_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."org_id", 'post', v_target."id"::text));
+  return jsonb_build_object('id', v_target."id", 'organizationId', v_target."org_id", 'boardId', v_target."board_id", 'authorId', v_target."author_id", 'mine', coalesce(v_target."author_id" = (select auth.uid()), false), 'title', v_target."title", 'body', v_target."body", 'status', v_target."status", 'moderation', v_target."moderation_status", 'pinnedAt', v_target."pinned_at", 'lockedAt', v_target."locked_at", 'archivedAt', v_target."archived_at", 'mergedIntoId', v_target."merged_into_id", 'replyCount', v_target."reply_count", 'lastActivityAt', v_target."last_activity_at", 'createdAt', v_target."created_at", 'updatedAt', v_target."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_target."org_id", 'post', v_target."id"::text));
 end;
 $$;
 revoke execute on function "better_supabase"."merge_posts"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."merge_posts"(uuid, uuid) to authenticated, service_role;
 
--- Deletes a post with its votes: its author, or a moderator. False when
--- there was none.
-create or replace function "better_supabase"."delete_post"(post_id uuid)
-returns boolean
+
+-- Archives a post: it leaves list_posts and keeps its replies and votes, but takes no new votes or replies. Its author or a moderator.
+create or replace function "better_supabase"."archive_post"(post_id uuid)
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
@@ -3729,20 +4186,93 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."posts" x where x."id" = delete_post.post_id for update;
+  select * into v_row from "better_supabase"."posts" x where x."id" = archive_post.post_id for update;
   if not found then
-    return false;
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
-    raise exception 'not allowed to delete this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is not null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."org_id", 'post', v_row."id"::text));
+  end if;
+  update "better_supabase"."posts" x set
+    "archived_at" = now(),
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."org_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."archive_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."archive_post"(uuid) to authenticated, service_role;
+
+-- Brings an archived post back to list_posts. Its author or a moderator.
+create or replace function "better_supabase"."restore_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."posts" x where x."id" = restore_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to change this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_row."archived_at" is null then
+    return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."org_id", 'post', v_row."id"::text));
+  end if;
+  update "better_supabase"."posts" x set
+    "archived_at" = null,
+    "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."org_id", 'post', v_row."id"::text));
+end;
+$$;
+revoke execute on function "better_supabase"."restore_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."restore_post"(uuid) to authenticated, service_role;
+
+-- Removes a post for good, with its votes. Needs permissions.purge when the
+-- app sets it; otherwise the post's author or a moderator.
+create or replace function "better_supabase"."purge_post"(post_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."posts";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."posts" x where x."id" = purge_post.post_id for update;
+  if not found then
+    raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
+  end if;
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'posts.moderate'), false)) or coalesce(v_row."author_id" = auth.uid(), false)) then
+    raise exception 'not allowed to purge this post' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   delete from "better_supabase"."posts" x where x."id" = v_row."id";
   null;
-  return true;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'boardId', v_row."board_id", 'authorId', v_row."author_id", 'mine', coalesce(v_row."author_id" = (select auth.uid()), false), 'title', v_row."title", 'body', v_row."body", 'status', v_row."status", 'moderation', v_row."moderation_status", 'pinnedAt', v_row."pinned_at", 'lockedAt', v_row."locked_at", 'archivedAt', v_row."archived_at", 'mergedIntoId', v_row."merged_into_id", 'replyCount', v_row."reply_count", 'lastActivityAt', v_row."last_activity_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('votes', "better_supabase"."vote_tally"(v_row."org_id", 'post', v_row."id"::text));
 end;
 $$;
-revoke execute on function "better_supabase"."delete_post"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_post"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_post"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_post"(uuid) to authenticated, service_role;
 -- One post the caller reads, with its vote tally and the caller's vote, or
 -- null.
 create or replace function "better_supabase"."get_post"(post_id uuid)
@@ -3752,7 +4282,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+  select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."org_id" = x."org_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -3766,9 +4296,10 @@ revoke execute on function "better_supabase"."get_post"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_post"(uuid) to authenticated, service_role;
 
 -- Posts the caller reads. filter is { boardId?, status?, authorId?, sort?,
--- merged?, limit?, offset? }: sort active (pinned first, then the latest
+-- merged?, archived?, limit?, offset? }: sort active (pinned first, then the latest
 -- activity; the default), new or top (most votes). Merged posts only with
--- merged true.
+-- merged true; archived posts are hidden unless archived is set (true lists
+-- only the archived ones).
 create or replace function "better_supabase"."list_posts"(tenant uuid, filter jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -3787,7 +4318,7 @@ begin
   return (
     select coalesce(jsonb_agg(e.row order by e.n), '[]'::jsonb)
     from (
-      select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
+      select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'boardId', x."board_id", 'authorId', x."author_id", 'mine', coalesce(x."author_id" = (select auth.uid()), false), 'title', x."title", 'body', x."body", 'status', x."status", 'moderation', x."moderation_status", 'pinnedAt', x."pinned_at", 'lockedAt', x."locked_at", 'archivedAt', x."archived_at", 'mergedIntoId', x."merged_into_id", 'replyCount', x."reply_count", 'lastActivityAt', x."last_activity_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('votes', jsonb_build_object('score', coalesce(s."score", 0), 'up', coalesce(s."up", 0), 'down', coalesce(s."down", 0), 'vote', coalesce((
       select r."value" from "better_supabase"."reactions" r
       where r."org_id" = x."org_id" and r."subject_type" = 'post'
         and r."subject_id" = x."id"::text and r."kind" = 'vote'
@@ -3805,6 +4336,7 @@ begin
         and (v_filter ->> 'status' is null or x."status" = v_filter ->> 'status')
         and (v_filter ->> 'authorId' is null or x."author_id" = (v_filter ->> 'authorId')::uuid)
         and (coalesce((v_filter ->> 'merged')::boolean, false) or x."merged_into_id" is null)
+        and (case when v_filter ? 'archived' then (x."archived_at" is not null) = (v_filter ->> 'archived')::boolean else x."archived_at" is null end)
       order by n
       limit least(greatest(coalesce((v_filter ->> 'limit')::integer, 50), 1), 200)
       offset greatest(coalesce((v_filter ->> 'offset')::integer, 0), 0)
@@ -3816,7 +4348,7 @@ revoke execute on function "better_supabase"."list_posts"(uuid, jsonb) from publ
 grant execute on function "better_supabase"."list_posts"(uuid, jsonb) to authenticated, service_role;
 
 -- Sets the caller's vote on a post they read: 1 up, -1 down, 0 clears it.
--- Returns the post's tally. A merged post takes no votes.
+-- Returns the post's tally. A merged or archived post takes no votes.
 create or replace function "better_supabase"."vote_on_post"(post_id uuid, value integer)
 returns jsonb
 language plpgsql
@@ -3827,14 +4359,18 @@ as $$
 declare
   v_tenant uuid;
   v_merged uuid;
+  v_archived timestamptz;
 begin
-  select x."org_id", x."merged_into_id" into v_tenant, v_merged
+  select x."org_id", x."merged_into_id", x."archived_at" into v_tenant, v_merged, v_archived
   from "better_supabase"."posts" x where x."id" = vote_on_post.post_id and x."moderation_status" = 'visible';
   if not found then
     raise exception 'no such post' using errcode = 'P0002', hint = 'POST_NOT_FOUND';
   end if;
   if v_merged is not null then
     raise exception 'the post was merged; vote on the post it was merged into' using errcode = '42501', hint = 'POST_FORBIDDEN';
+  end if;
+  if v_archived is not null then
+    raise exception 'the post is archived' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
   return "better_supabase"."vote"(v_tenant, 'post', vote_on_post.post_id::text, vote_on_post.value);
 end;
@@ -3887,7 +4423,7 @@ create trigger "bsb_posts_removed"
   after delete on "better_supabase"."posts"
   for each row execute function "better_supabase"."posts_removed"();
 
--- Refuses a reply on a locked, merged or hidden post, unless a moderator
+-- Refuses a reply on a locked, archived, merged or hidden post, unless a moderator
 -- writes it.
 create or replace function "better_supabase"."posts_reply_guard"()
 returns trigger
@@ -3905,7 +4441,7 @@ begin
   if v_post."id" is null then
     return new;
   end if;
-  if (v_post."locked_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
+  if (v_post."locked_at" is not null or v_post."archived_at" is not null or v_post."merged_into_id" is not null or v_post."moderation_status" <> 'visible')
     and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."org_id", 'posts.moderate'), false)) then
     raise exception 'the post is locked' using errcode = '42501', hint = 'POST_FORBIDDEN';
   end if;
