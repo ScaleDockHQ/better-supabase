@@ -260,7 +260,7 @@ begin
 
   ${as(BOB)}
   begin
-    perform better_supabase.delete_calendar_event(v_series);
+    perform better_supabase.purge_calendar_event(v_series);
     raise exception 'bob deleted alice''s event';
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
@@ -390,7 +390,7 @@ begin
     raise exception 'alice sees bob''s private event';
   end if;
   begin
-    perform better_supabase.delete_calendar_event(v_secret);
+    perform better_supabase.purge_calendar_event(v_secret);
     raise exception 'alice deleted bob''s private event';
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
@@ -641,7 +641,7 @@ $$;`,
   );
 
   it(
-    "checks the create and delete keys, refuses changes to read-only events and shares only allowed types",
+    "checks the create and purge keys, refuses changes to read-only events and shares only allowed types",
     { timeout: 60_000 },
     async () => {
       const modules: AnyBlocksConfig = {
@@ -700,11 +700,11 @@ begin
   v_synced := (better_supabase.save_calendar_event(v_calendar, '{"title": "Synced", "startsAt": "2026-03-03T09:00:00Z", "endsAt": "2026-03-03T10:00:00Z"}') ->> 'id')::uuid;
   update public.events set source = 'google' where id = v_synced;
   perform better_supabase.save_calendar_event(v_calendar, jsonb_build_object('id', v_event, 'title', 'Daily standup'));
-  ${expectHint("perform better_supabase.delete_calendar_event(v_event)", "CALENDAR_FORBIDDEN")}
+  ${expectHint("perform better_supabase.purge_calendar_event(v_event)", "CALENDAR_FORBIDDEN")}
   insert into public.test_keys values ('${ALICE}', '${TENANT}', 'calendar.delete');
   ${expectHint(`perform better_supabase.save_calendar_event(v_calendar, jsonb_build_object('id', v_synced, 'title', 'Renamed'))`, "CALENDAR_EVENT_READ_ONLY")}
-  ${expectHint("perform better_supabase.delete_calendar_event(v_synced)", "CALENDAR_EVENT_READ_ONLY")}
-  perform better_supabase.delete_calendar_event(v_event);
+  ${expectHint("perform better_supabase.purge_calendar_event(v_synced)", "CALENDAR_EVENT_READ_ONLY")}
+  perform better_supabase.purge_calendar_event(v_event);
   perform better_supabase.create_share_link('${TENANT}', 'calendar', v_calendar::text, 'view');
   ${expectHint(`perform better_supabase.create_share_link('${TENANT}', 'calendar_user', '${ALICE}', 'view')`, "SHARE_SUBJECT_UNKNOWN")}
   perform better_supabase.create_share_link('${TENANT}', 'calendar_event', v_synced::text, 'view');

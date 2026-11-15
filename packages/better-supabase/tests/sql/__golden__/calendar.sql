@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:7e4151d455d13787caee2dce71d65b16035d116f4773cbb09dbae8803a2e8e9d
+-- @bsb-hash sha256:084112196927bfc1a6962a343ba73fc5c21062e1e99f02ee26eae3a98c8c3009
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -342,7 +342,7 @@ $$;
 revoke execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) from public, anon;
 grant execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_calendar_event"(event_id uuid)
+create or replace function "better_supabase"."purge_calendar_event"(event_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -350,7 +350,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := delete_calendar_event.event_id;
+  v_id uuid := purge_calendar_event.event_id;
   v_tenant uuid;
   v_calendar uuid;
 begin
@@ -370,8 +370,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_calendar_event"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_calendar_event"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_calendar_event"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_calendar_event"(uuid) to authenticated, service_role;
 
 -- Removes one occurrence of a series: adds an EXDATE and drops its override.
 create or replace function "better_supabase"."cancel_calendar_occurrence"(event_id uuid, original_starts_at timestamptz)
@@ -1841,7 +1841,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:71678e6b97077cef90bf89aa732f9650b11582417253e044d25da1bf81c1effe
+-- @bsb-hash sha256:169e893cf8edc68139cb9d0662b725a30169e651b27cab3d6d800ff1e559d44f
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2186,7 +2186,7 @@ $$;
 revoke execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) from public, anon;
 grant execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_calendar_event"(event_id uuid)
+create or replace function "better_supabase"."purge_calendar_event"(event_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2194,7 +2194,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := delete_calendar_event.event_id;
+  v_id uuid := purge_calendar_event.event_id;
   v_tenant uuid;
   v_calendar uuid;
 begin
@@ -2210,12 +2210,12 @@ begin
   end if;
   delete from "better_supabase"."calendar_events" where "id" = v_id;
   delete from "better_supabase"."recurrence_rules" where "subject_type" = 'calendar_event' and "subject_id" = v_id::text;
-  perform "better_supabase".emit_event('calendar_event.deleted', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'calendarId', v_calendar), 'calendar-events/' || v_id::text, (v_tenant)::text, null, 'better-supabase/calendar');
+  perform "better_supabase".emit_event('calendar_event.purged', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'calendarId', v_calendar), 'calendar-events/' || v_id::text, (v_tenant)::text, null, 'better-supabase/calendar');
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_calendar_event"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_calendar_event"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_calendar_event"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_calendar_event"(uuid) to authenticated, service_role;
 
 -- Removes one occurrence of a series: adds an EXDATE and drops its override.
 create or replace function "better_supabase"."cancel_calendar_occurrence"(event_id uuid, original_starts_at timestamptz)
@@ -3784,7 +3784,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:b1bb313e76f31a2da4552fc675c4ac2dc5e007d0f2cee1275a988812e9db83af
+-- @bsb-hash sha256:087d707e1a950ce808acd3c81526cc3ecf0b037e18782e470cd2ecc09a597101
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4130,7 +4130,7 @@ $$;
 revoke execute on function "app_private"."save_calendar_event"(uuid, jsonb, uuid) from public, anon;
 grant execute on function "app_private"."save_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
 
-create or replace function "app_private"."delete_calendar_event"(event_id uuid)
+create or replace function "app_private"."purge_calendar_event"(event_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -4138,7 +4138,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := delete_calendar_event.event_id;
+  v_id uuid := purge_calendar_event.event_id;
   v_tenant uuid;
   v_calendar uuid;
 begin
@@ -4158,8 +4158,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "app_private"."delete_calendar_event"(uuid) from public, anon;
-grant execute on function "app_private"."delete_calendar_event"(uuid) to authenticated, service_role;
+revoke execute on function "app_private"."purge_calendar_event"(uuid) from public, anon;
+grant execute on function "app_private"."purge_calendar_event"(uuid) to authenticated, service_role;
 
 -- Removes one occurrence of a series: adds an EXDATE and drops its override.
 create or replace function "app_private"."cancel_calendar_occurrence"(event_id uuid, original_starts_at timestamptz)
@@ -5629,7 +5629,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:1d699075012868555149ea21d22d06ed35d99cba9449f54e4959aebf81f190fb
+-- @bsb-hash sha256:c18672d0ca9ca59bf88f19880c781a05648c263c859f05b8b2f21430044c2473
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5970,7 +5970,7 @@ $$;
 revoke execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) from public, anon;
 grant execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_calendar_event"(event_id uuid)
+create or replace function "better_supabase"."purge_calendar_event"(event_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -5978,7 +5978,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := delete_calendar_event.event_id;
+  v_id uuid := purge_calendar_event.event_id;
   v_tenant uuid;
   v_calendar uuid;
 begin
@@ -5998,8 +5998,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_calendar_event"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_calendar_event"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_calendar_event"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_calendar_event"(uuid) to authenticated, service_role;
 
 -- Removes one occurrence of a series: adds an EXDATE and drops its override.
 create or replace function "better_supabase"."cancel_calendar_occurrence"(event_id uuid, original_starts_at timestamptz)
@@ -7483,14 +7483,14 @@ as $$ select "better_supabase"."save_calendar_event"($1, $2, $3) $$;
 revoke execute on function "api"."save_calendar_event"(uuid, jsonb, uuid) from public, anon;
 grant execute on function "api"."save_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
 
-create or replace function "api"."delete_calendar_event"(event_id uuid)
+create or replace function "api"."purge_calendar_event"(event_id uuid)
 returns boolean
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."delete_calendar_event"($1) $$;
-revoke execute on function "api"."delete_calendar_event"(uuid) from public, anon;
-grant execute on function "api"."delete_calendar_event"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."purge_calendar_event"($1) $$;
+revoke execute on function "api"."purge_calendar_event"(uuid) from public, anon;
+grant execute on function "api"."purge_calendar_event"(uuid) to authenticated, service_role;
 
 create or replace function "api"."cancel_calendar_occurrence"(event_id uuid, original_starts_at timestamptz)
 returns boolean
@@ -7651,7 +7651,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:45b967d60b6760011606fc3101947145dcaf8868bdc7053c60c04eba67726b8f
+-- @bsb-hash sha256:1385d3547b560197d5600434ce49d4918bdc4b6b21739df8a8487ed1f32a3f84
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7964,7 +7964,7 @@ $$;
 revoke execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) from public, anon;
 grant execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_calendar_event"(event_id uuid)
+create or replace function "better_supabase"."purge_calendar_event"(event_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -7972,7 +7972,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := delete_calendar_event.event_id;
+  v_id uuid := purge_calendar_event.event_id;
   v_tenant uuid;
   v_calendar uuid;
 begin
@@ -7992,8 +7992,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_calendar_event"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_calendar_event"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_calendar_event"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_calendar_event"(uuid) to authenticated, service_role;
 
 -- Removes one occurrence of a series: adds an EXDATE and drops its override.
 create or replace function "better_supabase"."cancel_calendar_occurrence"(event_id uuid, original_starts_at timestamptz)
@@ -9463,7 +9463,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:583b7e8216d5edbd96628b86ccaec10ff713d21117b8e2ebef10a02da7aa15cf
+-- @bsb-hash sha256:3dc899de340339770302342f1ab6f8a4b37fc48b8aa291f06dc0faa0d7bbe2d1
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9804,7 +9804,7 @@ $$;
 revoke execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) from public, anon;
 grant execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_calendar_event"(event_id uuid)
+create or replace function "better_supabase"."purge_calendar_event"(event_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -9812,7 +9812,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := delete_calendar_event.event_id;
+  v_id uuid := purge_calendar_event.event_id;
   v_tenant uuid;
   v_calendar uuid;
 begin
@@ -9832,8 +9832,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_calendar_event"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_calendar_event"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_calendar_event"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_calendar_event"(uuid) to authenticated, service_role;
 
 -- Removes one occurrence of a series: adds an EXDATE and drops its override.
 create or replace function "better_supabase"."cancel_calendar_occurrence"(event_id uuid, original_starts_at timestamptz)

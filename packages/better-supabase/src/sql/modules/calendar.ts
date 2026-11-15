@@ -659,7 +659,7 @@ end;
 $$;
 ${userGrant(`${fn("save_calendar_event")}(uuid, jsonb, uuid)`)}
 
-create or replace function ${fn("delete_calendar_event")}(event_id uuid)
+create or replace function ${fn("purge_calendar_event")}(event_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -667,7 +667,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := delete_calendar_event.event_id;
+  v_id uuid := purge_calendar_event.event_id;
   v_tenant ${ctx.idType};
   v_calendar uuid;
 begin
@@ -677,14 +677,14 @@ begin
   end if;
   if not ${writesEvent("v_id", "v_tenant")} then
     ${fail("CALENDAR_FORBIDDEN", "not allowed to change this calendar")}
-  end if;${actionCheck("delete", "v_tenant")}${readOnlyCheck("v_id")}
+  end if;${actionCheck("purge", "v_tenant")}${readOnlyCheck("v_id")}
   delete from ${events} where ${e("id")} = v_id;
   ${reminderRule(ctx, "delete")}
-  ${record("calendar_event.deleted", "v_id", "v_calendar", "v_tenant")}
+  ${record("calendar_event.purged", "v_id", "v_calendar", "v_tenant")}
   return true;
 end;
 $$;
-${userGrant(`${fn("delete_calendar_event")}(uuid)`)}
+${userGrant(`${fn("purge_calendar_event")}(uuid)`)}
 
 -- Removes one occurrence of a series: adds an EXDATE and drops its override.
 create or replace function ${fn("cancel_calendar_occurrence")}(event_id uuid, original_starts_at timestamptz)
@@ -943,7 +943,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "jsonb", "uuid"],
       returns: "jsonb",
     },
-    { name: "delete_calendar_event", args: ["uuid"], returns: "boolean" },
+    { name: "purge_calendar_event", args: ["uuid"], returns: "boolean" },
     {
       name: "cancel_calendar_occurrence",
       args: ["uuid", "timestamptz"],
