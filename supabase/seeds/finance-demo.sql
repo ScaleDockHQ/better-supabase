@@ -1,7 +1,7 @@
 -- Demo rows for the example's finance pages (apps/examples/nextjs, /finance/*)
 -- in the Acme organization: invoices with dunning and a delivery, expense
 -- reports, ledger and journal postings, billable time, a recognition
--- schedule, a tax return, periods, a payroll run, a legal entity, a funding
+-- schedule, a tax return, a payroll run, a legal entity, a funding
 -- award and a bank account with transactions. Runs after seed.sql.
 
 do $seed$
@@ -87,13 +87,6 @@ begin
       now() - (g || ' days')::interval, now() - (g || ' days')::interval + interval '90 minutes',
       g % 3 <> 0, 9500, 'EUR', 'Consulting block ' || g);
   end loop;
-
-  insert into better_supabase.periods (tenant_id, kind, starts_on, ends_on, status)
-  select t, 'fiscal_month', d::date, (d + interval '1 month - 1 day')::date,
-    case when d < date_trunc('month', current_date) - interval '2 month' then 'closed' else 'open' end
-  from generate_series(date_trunc('month', current_date) - interval '5 month',
-    date_trunc('month', current_date), interval '1 month') d
-  on conflict do nothing;
 
   insert into better_supabase.tax_returns (tenant_id, period, period_start, period_end, status, currency, boxes, filed_at)
   values

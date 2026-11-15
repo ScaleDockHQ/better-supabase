@@ -1232,7 +1232,7 @@
   "/[locale]/(app)/workflows/runs/page": {
     "raw": 1548769,
     "gzip": 494319,
-    "brotli": 432591
+    "brotli": 432579
   },
   "/[locale]/(app)/workflows/templates/page": {
     "raw": 1311167,

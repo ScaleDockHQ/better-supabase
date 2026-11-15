@@ -181,7 +181,7 @@
   },
   "/[locale]/(app)/beta/page": {
     "raw": 3086056,
-    "gzip": 937206,
+    "gzip": 937261,
     "brotli": 777761
   },
   "/[locale]/(app)/calendar/availability/page": {
@@ -571,7 +571,7 @@
   },
   "/[locale]/(app)/forbidden/page": {
     "raw": 3082919,
-    "gzip": 936068,
+    "gzip": 936123,
     "brotli": 776757
   },
   "/[locale]/(app)/forms/[id]/page": {
@@ -866,7 +866,7 @@
   },
   "/[locale]/(app)/settings/audit/page": {
     "raw": 3104271,
-    "gzip": 941012,
+    "gzip": 943405,
     "brotli": 783123
   },
   "/[locale]/(app)/settings/billing/account/page": {
@@ -981,12 +981,12 @@
   },
   "/[locale]/(app)/settings/page": {
     "raw": 3084012,
-    "gzip": 936712,
+    "gzip": 936765,
     "brotli": 777300
   },
   "/[locale]/(app)/settings/preferences/page": {
     "raw": 3085551,
-    "gzip": 937240,
+    "gzip": 937293,
     "brotli": 777721
   },
   "/[locale]/(app)/settings/privacy/page": {

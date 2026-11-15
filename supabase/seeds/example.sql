@@ -224,8 +224,9 @@ select better_supabase.take_forecast_snapshot('00000000-0000-4000-8000-000000000
 from better_supabase.pipelines p
 where p.key = 'sales' and p.tenant_id = '00000000-0000-4000-8000-000000000001';
 
--- Commission plans, their assignments and accrued commissions per rep, and
--- one referral code with a referral attributed to it.
+-- Commission plans, their assignments per rep, and one referral code. The accrued
+-- commissions and the referral attributed to the code are generated seeds of the
+-- commissions and referrals pages (`pnpm db:seed:pages`, ADR 1032).
 select better_supabase.save_commission_plan('00000000-0000-4000-8000-000000000001', 'Standard 5 percent', 'flat', 500, null, null, false);
 select better_supabase.save_commission_plan('00000000-0000-4000-8000-000000000001', 'Tiered quota', 'tiered', null,
   '[{"upTo": 1000000, "bps": 300}, {"bps": 600}]'::jsonb, null, false);
@@ -236,15 +237,8 @@ join (values ('Standard 5 percent', '00000000-0000-4000-8000-0000000000a1'::uuid
   on s.plan_name = plan.name
 where plan.tenant_id = '00000000-0000-4000-8000-000000000001';
 
-select better_supabase.accrue_commission('00000000-0000-4000-8000-000000000001', v.seller_id, 'deal', v.deal_id, v.basis, 'EUR', v.on_day, null, null)
-from (values
-  ('00000000-0000-4000-8000-0000000000a1'::uuid, '00000000-0000-4000-8000-0000000d0005', 450000::bigint, current_date - 6),
-  ('00000000-0000-4000-8000-0000000000a2'::uuid, '00000000-0000-4000-8000-0000000d0003', 300000::bigint, current_date - 3)
-) as v(seller_id, deal_id, basis, on_day);
-
 select better_supabase.create_referral_code('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1',
   'ACMEFRIENDS', null, 2500, 'EUR', 10, null);
-select better_supabase.attribute_referral('00000000-0000-4000-8000-000000000001', 'ACMEFRIENDS', null, null, 'friend@initech.test');
 
 -- The public store (/store/acme) and the stock ledger behind /shop/inventory:
 -- five active products, one draft the store hides, two locations, a lot-tracked
