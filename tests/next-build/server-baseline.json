@@ -112,12 +112,12 @@
   "/[locale]/(app)/assistant/evals/[name]/page": {
     "raw": 3626362,
     "gzip": 1078480,
-    "brotli": 896931
+    "brotli": 899222
   },
   "/[locale]/(app)/assistant/evals/page": {
     "raw": 3120671,
     "gzip": 947100,
-    "brotli": 786483
+    "brotli": 788485
   },
   "/[locale]/(app)/assistant/guardrails/page": {
     "raw": 3121819,
@@ -182,7 +182,7 @@
   "/[locale]/(app)/beta/page": {
     "raw": 3109775,
     "gzip": 942551,
-    "brotli": 781788
+    "brotli": 783958
   },
   "/[locale]/(app)/calendar/availability/page": {
     "raw": 3130619,
@@ -422,7 +422,7 @@
   "/[locale]/(app)/documents/[id]/page": {
     "raw": 3114629,
     "gzip": 947844,
-    "brotli": 784447
+    "brotli": 786421
   },
   "/[locale]/(app)/documents/page": {
     "raw": 3120670,
@@ -432,7 +432,7 @@
   "/[locale]/(app)/documents/register/[id]/page": {
     "raw": 3638236,
     "gzip": 1087516,
-    "brotli": 901423
+    "brotli": 903748
   },
   "/[locale]/(app)/documents/register/page": {
     "raw": 3627731,
@@ -712,7 +712,7 @@
   "/[locale]/(app)/notifications/page": {
     "raw": 3117818,
     "gzip": 943827,
-    "brotli": 784760
+    "brotli": 786972
   },
   "/[locale]/(app)/observations/page": {
     "raw": 3131763,
@@ -867,7 +867,7 @@
   "/[locale]/(app)/settings/audit/page": {
     "raw": 3127990,
     "gzip": 948690,
-    "brotli": 787116
+    "brotli": 789304
   },
   "/[locale]/(app)/settings/billing/account/page": {
     "raw": 3129533,
@@ -982,7 +982,7 @@
   "/[locale]/(app)/settings/page": {
     "raw": 3107731,
     "gzip": 942055,
-    "brotli": 781335
+    "brotli": 783503
   },
   "/[locale]/(app)/settings/preferences/page": {
     "raw": 3109270,
@@ -1032,7 +1032,7 @@
   "/[locale]/(app)/settings/signing-keys/page": {
     "raw": 3127274,
     "gzip": 947088,
-    "brotli": 787511
+    "brotli": 789723
   },
   "/[locale]/(app)/settings/sso/page": {
     "raw": 3131154,
@@ -1322,7 +1322,7 @@
   "/[locale]/(public)/portal/page": {
     "raw": 2948422,
     "gzip": 890978,
-    "brotli": 738004
+    "brotli": 739899
   },
   "/[locale]/(public)/status/[slug]/page": {
     "raw": 2952898,
@@ -1676,7 +1676,7 @@
   },
   "/api/outbox/route": {
     "raw": 4689304,
-    "gzip": 1411150,
+    "gzip": 1414709,
     "brotli": 1187347
   },
   "/api/passes/list/route": {
@@ -1831,7 +1831,7 @@
   },
   "/api/workflows/tick/route": {
     "raw": 4706299,
-    "gzip": 1415299,
+    "gzip": 1418859,
     "brotli": 1190396
   },
   "/manifest.webmanifest/route": {
