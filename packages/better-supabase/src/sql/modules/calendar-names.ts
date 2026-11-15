@@ -21,7 +21,7 @@ const EVENTS: BlockSqlEvents<CalendarEvents> = {
     subject: "calendar-events",
     payload: ["organizationId", "id", "calendarId"],
   },
-  "calendar_event.deleted": {
+  "calendar_event.purged": {
     subject: "calendar-events",
     payload: ["organizationId", "id", "calendarId"],
   },

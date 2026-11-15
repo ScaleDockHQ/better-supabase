@@ -1800,7 +1800,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "events": [
         "calendar.created",
         "calendar_event.created",
-        "calendar_event.deleted",
+        "calendar_event.purged",
         "calendar_event.updated"
       ],
       "subpath": "better-supabase/blocks/calendar",

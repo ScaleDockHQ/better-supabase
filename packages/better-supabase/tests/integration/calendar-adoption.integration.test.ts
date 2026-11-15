@@ -166,7 +166,7 @@ describe.skipIf(!live)("calendar adoption options", () => {
           }),
         ),
       ).toBe("CALENDAR_FORBIDDEN");
-      expect(hint(await calendar.delete(series.id))).toBe("CALENDAR_FORBIDDEN");
+      expect(hint(await calendar.purge(series.id))).toBe("CALENDAR_FORBIDDEN");
 
       const busy = await calendar
         .freeBusy({

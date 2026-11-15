@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:994528927e504be34f8341961882c1ac16878875edb744f72db869b9ffeab449
+-- @bsb-hash sha256:2874b1f7cee8f8ecea493cd3b674d229f3474bbc57af932842b0c060acf63ee4
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -342,7 +342,7 @@ $$;
 revoke execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) from public, anon;
 grant execute on function "better_supabase"."save_calendar_event"(uuid, jsonb, uuid) to authenticated, service_role;
 
-create or replace function "better_supabase"."delete_calendar_event"(event_id uuid)
+create or replace function "better_supabase"."purge_calendar_event"(event_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -350,7 +350,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_id uuid := delete_calendar_event.event_id;
+  v_id uuid := purge_calendar_event.event_id;
   v_tenant uuid;
   v_calendar uuid;
 begin
@@ -370,8 +370,8 @@ begin
   return true;
 end;
 $$;
-revoke execute on function "better_supabase"."delete_calendar_event"(uuid) from public, anon;
-grant execute on function "better_supabase"."delete_calendar_event"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."purge_calendar_event"(uuid) from public, anon;
+grant execute on function "better_supabase"."purge_calendar_event"(uuid) to authenticated, service_role;
 
 -- Removes one occurrence of a series: adds an EXDATE and drops its override.
 create or replace function "better_supabase"."cancel_calendar_occurrence"(event_id uuid, original_starts_at timestamptz)

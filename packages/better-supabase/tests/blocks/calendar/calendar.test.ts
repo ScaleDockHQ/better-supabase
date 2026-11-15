@@ -204,7 +204,7 @@ describe("calendar client", () => {
     const { calls, calendar } = recorder({
       list_calendar_events: [SERIES, single],
       cancel_calendar_occurrence: true,
-      delete_calendar_event: true,
+      purge_calendar_event: true,
     });
 
     const found = await calendar
@@ -233,7 +233,7 @@ describe("calendar client", () => {
         fn: "cancel_calendar_occurrence",
         args: { event_id: "s1", original_starts_at: "2026-03-30T07:00:00Z" },
       },
-      { fn: "delete_calendar_event", args: { event_id: "e1" } },
+      { fn: "purge_calendar_event", args: { event_id: "e1" } },
       {
         fn: "cancel_calendar_occurrence",
         args: { event_id: "s1", original_starts_at: "2026-04-06T07:00:00Z" },
@@ -369,20 +369,20 @@ describe("calendar client", () => {
 
   it("maps a database error to a Result", async () => {
     const { calendar } = recorder({
-      delete_calendar_event: Object.assign(new Error("event not found"), {
+      purge_calendar_event: Object.assign(new Error("event not found"), {
         code: "P0002",
         hint: "CALENDAR_EVENT_NOT_FOUND",
       }),
     });
 
-    const result = await calendar.delete("missing");
+    const result = await calendar.purge("missing");
     expect(result.ok).toBe(false);
   });
 
   it("deletes calendars and events, and lists the raw events", async () => {
     const { calls, calendar } = recorder({
       delete_calendar: true,
-      delete_calendar_event: true,
+      purge_calendar_event: true,
       list_calendar_events: [SERIES],
       list_calendars: [
         {
@@ -398,7 +398,7 @@ describe("calendar client", () => {
     });
 
     expect(await calendar.deleteCalendar("c1").orThrow()).toBe(true);
-    expect(await calendar.delete("e1").orThrow()).toBe(true);
+    expect(await calendar.purge("e1").orThrow()).toBe(true);
     expect(await calendar.listCalendars("org").orThrow()).toEqual([
       {
         id: "c1",
