@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 5 findings. */
 import { describe, expect, it, vi } from "vitest";
 
 import type { FilterQuery } from "../../../src/list/filter-query.ts";
