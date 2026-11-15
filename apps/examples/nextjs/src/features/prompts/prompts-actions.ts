@@ -5,6 +5,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { actionAccess } from "@/features/assistant/assistant-ops";
+import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { promptsBlock } from "./prompts-server";
@@ -34,12 +35,7 @@ export const savePromptVersion = bsbCore.action(
   async ({ name, template, label }, { tenant }) => {
     const saved = await promptsBlock(
       actionAccess(tenant, "ai_chat.manage"),
-    ).create({
-      name,
-      template,
-      organizationId: tenant,
-      ...(label === undefined ? {} : { label }),
-    });
+    ).create({ name, template, organizationId: tenant, ...present({ label }) });
 
     if (!saved.ok) {
       return saved;

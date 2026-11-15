@@ -4,11 +4,14 @@ import type {
   EvalSummary,
 } from "better-supabase/blocks/ai-evals";
 
+import * as v from "valibot";
+
 import type { OpsListQuery } from "@/components/ops-list/ops-list-params";
 
 import { opsAccess } from "@/features/assistant/assistant-ops";
 import { promptSubjects } from "@/features/prompts/prompts-queries";
 import { promptsBlock } from "@/features/prompts/prompts-server";
+import { present } from "@/lib/present";
 
 import type { EvalParams } from "./evals-search-params";
 
@@ -92,12 +95,19 @@ export interface EvalWorkspace {
   readonly comparison: EvalComparison | undefined;
 }
 
-const text = (value: unknown): string =>
-  value === undefined || value === null
-    ? ""
-    : typeof value === "string"
-      ? value
-      : JSON.stringify(value);
+const textSchema = v.union([
+  v.string(),
+  v.pipe(
+    v.nullish(v.never()),
+    v.transform(() => ""),
+  ),
+  v.pipe(
+    v.unknown(),
+    v.transform((value) => JSON.stringify(value)),
+  ),
+]);
+
+const text = <T>(value: T): string => v.parse(textSchema, value);
 
 /** The dataset, runs, trend and results of one prompt's evals. */
 export async function getEvalWorkspace(
@@ -146,7 +156,7 @@ export async function getEvalWorkspace(
           .results({
             runId: selected.id,
             limit: 100,
-            ...(params.failed ? { onlyFailed: true } : {}),
+            ...present({ onlyFailed: params.failed ? true : undefined }),
           })
           .orThrow(),
     selected === undefined || baseline === undefined
