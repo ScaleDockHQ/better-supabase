@@ -1,6 +1,6 @@
-import type { BlockListSpec } from "@/lib/block-list";
+import type { EntityListMap } from "@/lib/block-entity-page";
 
-import { defineBlockList } from "@/lib/block-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 export const STOCK_STATUS_VALUES = ["in_stock", "low", "out"] as const;
 
@@ -44,17 +44,16 @@ export const stockList = defineBlockList({
   pageSize: 25,
 });
 
-export const stockSpec: BlockListSpec<StockRow> = {
-  text: (row) => [row.productTitle, row.sku, row.locationName],
-  facets: { status: (row) => row.status, location: (row) => row.locationId },
+/** The stock list's URL names on the inventory block's level list. */
+export const stockMap: EntityListMap = {
   sorts: {
-    product: (a, b) =>
-      a.productTitle.localeCompare(b.productTitle) ||
-      a.locationName.localeCompare(b.locationName),
+    product: { by: "variantId" },
     // The emptiest first, so the levels that need an order come on top.
-    available: (a, b) => a.available - b.available,
-    on_hand: (a, b) => b.onHand - a.onHand,
+    available: { by: "available", direction: "asc" },
+    on_hand: { by: "onHand", direction: "desc" },
   },
+  filters: { location: "locationId" },
+  facets: { location: "locationId" },
 };
 
 /** One ledger movement of the movements overview. */
@@ -93,14 +92,15 @@ export const movementList = defineBlockList({
   pageSize: 25,
 });
 
-export const movementSpec: BlockListSpec<MovementRow> = {
-  text: (row) => [row.productTitle, row.sku, row.locationName, row.kind],
-  facets: { kind: (row) => row.kind, location: (row) => row.locationId ?? "" },
+/** The movements list's URL names on the inventory block's movement list. */
+export const movementMap: EntityListMap = {
   sorts: {
-    newest: (a, b) => b.effectiveAt.localeCompare(a.effectiveAt),
-    oldest: (a, b) => a.effectiveAt.localeCompare(b.effectiveAt),
-    quantity: (a, b) => Math.abs(b.quantity) - Math.abs(a.quantity),
+    newest: { by: "effectiveAt", direction: "desc" },
+    oldest: { by: "effectiveAt", direction: "asc" },
+    quantity: { by: "quantity", direction: "desc" },
   },
+  filters: { location: "locationId" },
+  facets: { location: "locationId" },
 };
 
 /** One lot with stock, on the lots overview. */
@@ -128,12 +128,15 @@ export const lotList = defineBlockList({
   pageSize: 25,
 });
 
-export const lotSpec: BlockListSpec<LotRow> = {
-  text: (row) => [row.code, row.productTitle, row.sku, row.locationName],
-  facets: { expiry: (row) => row.expiry, location: (row) => row.locationId },
+/** The lots list's URL names on the inventory block's lot list. */
+export const lotMap: EntityListMap = {
   sorts: {
-    expires: (a, b) => a.expiresOn.localeCompare(b.expiresOn),
-    on_hand: (a, b) => b.onHand - a.onHand,
-    code: (a, b) => a.code.localeCompare(b.code),
+    expires: { by: "expiresOn", direction: "asc" },
+    on_hand: { by: "onHand", direction: "desc" },
+    code: { by: "code", direction: "asc" },
   },
+  filters: { location: "locationId" },
+  facets: { location: "locationId" },
+  // Lots that never expire stay off the overview, as before.
+  defaultFilters: { expiry: ["expired", "soon", "later"] },
 };

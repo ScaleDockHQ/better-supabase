@@ -2,13 +2,8 @@ import { getExtracted } from "next-intl/server";
 
 import { RecordListSkeleton } from "@/components/record-list/record-list-skeleton";
 import { PeopleLoadError } from "@/features/people/components/people-load-error";
-import { pageBlockRows } from "@/lib/block-list";
 
 import { getQualificationTypes } from "../qualifications-queries";
-import {
-  qualificationTypeList,
-  qualificationTypeSpec,
-} from "../qualifications-types-list";
 import { QualificationTypeRecordList } from "./qualification-type-record-list";
 
 /** Render inside `<Suspense>`: the organization's qualification types. */
@@ -26,16 +21,7 @@ export async function QualificationTypeOverview() {
     return <PeopleLoadError title={t("Qualification types didn't load")} />;
   }
 
-  return (
-    <QualificationTypeRecordList
-      initial={pageBlockRows(
-        qualificationTypeList,
-        qualificationTypeSpec,
-        types.data,
-        qualificationTypeList.defaults,
-      )}
-    />
-  );
+  return <QualificationTypeRecordList initial={types.data} />;
 }
 
 export function QualificationTypeOverviewSkeleton() {

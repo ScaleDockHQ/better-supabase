@@ -6,17 +6,31 @@ import { cacheTag } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import type {
+  RecordListPage,
+  RecordListUrlQuery,
+} from "@/components/record-list/record-list-types";
+
 import { BILLING_TAG } from "@/features/billing/billing-cache";
 import { MANUFACTURING_TAG } from "@/features/manufacturing/manufacturing-cache";
 import { SHOP_TAG } from "@/features/shop/shop-cache";
 import { settle } from "@/features/shop/shop-queries";
+import { pageEntityRows } from "@/lib/block-entity-page";
 import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type { LotRow, MovementRow, StockRow } from "./inventory-list";
 
 import { INVENTORY_TAG } from "./inventory-cache";
-import { stockStatus } from "./inventory-list";
+import {
+  lotList,
+  lotMap,
+  movementList,
+  movementMap,
+  stockList,
+  stockMap,
+  stockStatus,
+} from "./inventory-list";
 
 type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 
@@ -115,7 +129,92 @@ export async function readStockRows(
 
 const MOVEMENT_LIMIT = 200;
 
-/** The newest ledger movements, named by product and location. */
+/** What the page methods leave out: the product and location names. */
+interface Directory {
+  readonly locations: readonly InventoryLocation[];
+  readonly product: ReadonlyMap<string, StockRow>;
+  readonly location: ReadonlyMap<string, string>;
+}
+
+function directoryOf(stock: StockData): Directory {
+  return {
+    locations: stock.locations,
+    product: new Map(stock.rows.map((row) => [row.variantId, row] as const)),
+    location: new Map(stock.locations.map((row) => [row.id, row.name])),
+  };
+}
+
+/**
+ * The block lists search ids and codes, not product titles. A search text that
+ * matches product titles or SKUs becomes a variant filter, so the database
+ * still filters and pages; any other text goes to the block's own search.
+ */
+function searchOf(
+  directory: Directory,
+  query: RecordListUrlQuery,
+): RecordListUrlQuery {
+  const needle = query.q?.trim().toLowerCase() ?? "";
+
+  if (needle === "") {
+    return query;
+  }
+
+  const variantIds = [
+    ...new Set(
+      [...directory.product.values()]
+        .filter(
+          (row) =>
+            row.productTitle.toLowerCase().includes(needle) ||
+            row.sku.toLowerCase().includes(needle),
+        )
+        .map((row) => row.variantId),
+    ),
+  ];
+
+  if (variantIds.length === 0) {
+    return query;
+  }
+
+  const { q: _q, ...rest } = query;
+
+  return { ...rest, facets: { ...query.facets, variantId: variantIds } };
+}
+
+const named = (directory: Directory, variantId: string | null) =>
+  variantId === null ? undefined : directory.product.get(variantId);
+
+function movementRowOf(
+  directory: Directory,
+  movement: {
+    readonly id: string;
+    readonly kind: string;
+    readonly variantId: string | null;
+    readonly locationId: string | null;
+    readonly quantity: string | null;
+    readonly documentType: string | null;
+    readonly effectiveAt: string;
+  },
+): MovementRow {
+  const product = named(directory, movement.variantId);
+
+  return {
+    id: movement.id,
+    kind: movement.kind,
+    variantId: movement.variantId,
+    productTitle: product?.productTitle ?? "–",
+    sku: product?.sku ?? "",
+    locationId: movement.locationId,
+    locationName:
+      (movement.locationId
+        ? directory.location.get(movement.locationId)
+        : null) ?? "–",
+    quantity: Number(movement.quantity ?? 0),
+    documentType: movement.documentType,
+    effectiveAt: movement.effectiveAt,
+  };
+}
+
+/** The newest ledger movements of one variant, named by product and location. */
 export async function readMovementRows(
   db: Db,
   organizationId: string,
@@ -135,88 +234,150 @@ export async function readMovementRows(
       .orThrow(),
   ]);
 
-  const product = new Map(
-    stock.rows.map((row) => [row.variantId, row] as const),
-  );
-
-  const location = new Map(stock.locations.map((row) => [row.id, row.name]));
+  const directory = directoryOf(stock);
 
   return {
     locations: stock.locations,
-    rows: movements.items.map((movement): MovementRow => {
-      const named =
-        movement.variantId === null
-          ? undefined
-          : product.get(movement.variantId);
-
-      return {
-        id: movement.id,
-        kind: movement.kind,
-        variantId: movement.variantId,
-        productTitle: named?.productTitle ?? "–",
-        sku: named?.sku ?? "",
-        locationId: movement.locationId,
-        locationName:
-          (movement.locationId ? location.get(movement.locationId) : null) ??
-          "–",
-        quantity: Number(movement.quantity ?? 0),
-        documentType: movement.documentType,
-        effectiveAt: movement.effectiveAt,
-      };
-    }),
+    rows: movements.items.map((movement) => movementRowOf(directory, movement)),
   };
 }
 
-/** Lots with stock that carry an expiry date, soonest first. */
-export async function readLotRows(
+/**
+ * One page of stock levels for a list query, searched, filtered and sorted by
+ * the inventory block's `levelPage` and counted by `levelFacets`.
+ */
+export async function loadStockPage(
   db: Db,
   organizationId: string,
-): Promise<{
-  readonly locations: readonly InventoryLocation[];
-  readonly rows: readonly LotRow[];
-}> {
-  const today = Temporal.Now.plainDateISO();
-  const horizon = today.add({ years: 10 }).toString();
-
-  const [stock, lots] = await Promise.all([
-    readStockRows(db, organizationId),
-    db.inventory.expiringLots({ organizationId, before: horizon }),
-  ]);
-
-  if (!lots.ok) {
-    throw new Error("The lots did not load");
-  }
-
-  const product = new Map(
-    stock.rows.map((row) => [row.variantId, row] as const),
+  query: RecordListUrlQuery,
+  stock?: StockData,
+): Promise<RecordListPage<StockRow>> {
+  const directory = directoryOf(
+    stock ?? (await readStockRows(db, organizationId)),
   );
 
-  const location = new Map(stock.locations.map((row) => [row.id, row.name]));
+  return pageEntityRows({
+    pager: {
+      page: (options) => db.inventory.levelPage({ organizationId, ...options }),
+      facets: (options) =>
+        db.inventory.levelFacets({ organizationId, ...options }),
+    },
+    map: stockMap,
+    query: searchOf(directory, query),
+    pageSize: stockList.config.pageSize,
+    rowsOf: (levels) =>
+      levels.map((level): StockRow => {
+        const product = named(directory, level.variantId);
+        const available = Number(level.available);
 
-  return {
-    locations: stock.locations,
-    rows: lots.data.map((lot): LotRow => {
-      const named = product.get(lot.variantId);
+        const reorderPoint =
+          level.reorderPoint === null ? null : Number(level.reorderPoint);
 
-      const daysLeft = today.until(Temporal.PlainDate.from(lot.expiresOn), {
-        largestUnit: "days",
-      }).days;
+        return {
+          id: `${level.variantId}:${level.locationId}`,
+          variantId: level.variantId,
+          productTitle: product?.productTitle ?? "–",
+          sku: product?.sku ?? "",
+          locationId: level.locationId,
+          locationName: directory.location.get(level.locationId) ?? "",
+          onHand: Number(level.onHand),
+          reserved: Number(level.allocated),
+          available,
+          incoming: Number(level.incoming),
+          reorderPoint,
+          status: stockStatus(available, reorderPoint),
+        };
+      }),
+  });
+}
 
-      return {
-        id: `${lot.lotId}:${lot.locationId}:${lot.binId ?? ""}`,
-        code: lot.code,
-        variantId: lot.variantId,
-        productTitle: named?.productTitle ?? "–",
-        sku: named?.sku ?? "",
-        locationId: lot.locationId,
-        locationName: location.get(lot.locationId) ?? "–",
-        expiresOn: lot.expiresOn,
-        onHand: lot.onHand,
-        daysLeft,
-        expiry: daysLeft < 0 ? "expired" : daysLeft <= 30 ? "soon" : "later",
-      };
-    }),
-  };
+/**
+ * One page of ledger movements for a list query, named by product and location,
+ * with the locations the list filters by.
+ */
+export async function loadMovementPage(
+  db: Db,
+  organizationId: string,
+  query: RecordListUrlQuery,
+): Promise<{
+  readonly locations: readonly InventoryLocation[];
+  readonly page: RecordListPage<MovementRow>;
+}> {
+  const directory = directoryOf(await readStockRows(db, organizationId));
+
+  const page = await pageEntityRows({
+    pager: {
+      page: (options) =>
+        db.inventory.movementPage({ organizationId, ...options }),
+      facets: (options) =>
+        db.inventory.movementFacets({ organizationId, ...options }),
+    },
+    map: movementMap,
+    query: searchOf(directory, query),
+    pageSize: movementList.config.pageSize,
+    rowsOf: (movements) =>
+      movements.map((movement) => movementRowOf(directory, movement)),
+  });
+
+  return { locations: directory.locations, page };
+}
+
+/**
+ * One page of lots with an expiry date for a list query, named by product and
+ * location, soonest first.
+ */
+export async function loadLotPage(
+  db: Db,
+  organizationId: string,
+  query: RecordListUrlQuery,
+): Promise<{
+  readonly locations: readonly InventoryLocation[];
+  readonly page: RecordListPage<LotRow>;
+}> {
+  const directory = directoryOf(await readStockRows(db, organizationId));
+  const today = Temporal.Now.plainDateISO();
+
+  const page = await pageEntityRows({
+    pager: {
+      page: (options) => db.inventory.lotPage({ organizationId, ...options }),
+      facets: (options) =>
+        db.inventory.lotFacets({ organizationId, ...options }),
+    },
+    map: lotMap,
+    query: searchOf(directory, query),
+    pageSize: lotList.config.pageSize,
+    rowsOf: (lots) =>
+      lots.flatMap((lot): LotRow[] => {
+        if (lot.expiresOn === null) {
+          return [];
+        }
+
+        const product = named(directory, lot.variantId);
+
+        const daysLeft = today.until(Temporal.PlainDate.from(lot.expiresOn), {
+          largestUnit: "days",
+        }).days;
+
+        return [
+          {
+            id: lot.id,
+            code: lot.code,
+            variantId: lot.variantId,
+            productTitle: product?.productTitle ?? "–",
+            sku: product?.sku ?? "",
+            locationId: lot.locationId,
+            locationName: directory.location.get(lot.locationId) ?? "–",
+            expiresOn: lot.expiresOn,
+            onHand: Number(lot.onHand),
+            daysLeft,
+            expiry:
+              daysLeft < 0 ? "expired" : daysLeft <= 30 ? "soon" : "later",
+          },
+        ];
+      }),
+  });
+
+  return { locations: directory.locations, page };
 }
 
 export interface StockOverviewData extends StockData {
@@ -225,6 +386,8 @@ export interface StockOverviewData extends StockData {
   readonly outCount: number;
   readonly expiringCount: number;
   readonly onHandTotal: number;
+  /** The first page of the stock list. */
+  readonly initial: RecordListPage<StockRow>;
 }
 
 async function loadStock(): Promise<StockOverviewData | null> {
@@ -242,8 +405,16 @@ async function loadStock(): Promise<StockOverviewData | null> {
     db.inventory.overview({ organizationId, limit: 1, expiryDays: 30 }),
   ]);
 
+  const initial = await loadStockPage(
+    db,
+    organizationId,
+    stockList.defaults,
+    data,
+  );
+
   return {
     ...data,
+    initial,
     lowCount: overview.ok ? overview.data.lowStockCount : 0,
     outCount: data.rows.filter((row) => row.status === "out").length,
     expiringCount: overview.ok ? overview.data.expiring.length : 0,
@@ -261,7 +432,9 @@ async function loadMovements() {
   cacheTag(INVENTORY_TAG, SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
   const organizationId = tenantOf(session);
 
-  return organizationId ? readMovementRows(db, organizationId) : null;
+  return organizationId
+    ? loadMovementPage(db, organizationId, movementList.defaults)
+    : null;
 }
 
 export function getMovements() {
@@ -274,7 +447,9 @@ async function loadLots() {
   cacheTag(INVENTORY_TAG, SHOP_TAG, MANUFACTURING_TAG, BILLING_TAG);
   const organizationId = tenantOf(session);
 
-  return organizationId ? readLotRows(db, organizationId) : null;
+  return organizationId
+    ? loadLotPage(db, organizationId, lotList.defaults)
+    : null;
 }
 
 export function getLots() {

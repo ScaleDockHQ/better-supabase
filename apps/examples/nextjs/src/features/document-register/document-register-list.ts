@@ -1,8 +1,8 @@
 import type { DriveDocumentStatus } from "better-supabase/blocks/drive";
 
-import type { BlockListSpec } from "@/lib/block-list";
+import type { EntityListMap } from "@/lib/block-entity-page";
 
-import { defineBlockList } from "@/lib/block-list";
+import { defineBlockList } from "@/lib/block-list-url";
 
 /** One controlled document, as the register and its list route send it. */
 export interface RegisterRow {
@@ -24,18 +24,12 @@ export const registerList = defineBlockList({
   pageSize: 25,
 });
 
-export const registerSpec: BlockListSpec<RegisterRow> = {
-  text: (row) => [row.number, row.name, row.type],
-  facets: {
-    type: (row) => row.type,
-    status: (row) => row.status,
-    review: (row) => (row.reviewDue ? "due" : "ok"),
-  },
+/** The register's URL names on the drive block's document list. */
+export const registerMap: EntityListMap = {
   sorts: {
-    number: (a, b) => a.number.localeCompare(b.number),
-    name: (a, b) => a.name.localeCompare(b.name),
-    // The nearest review first; documents without one last.
-    review: (a, b) =>
-      (a.nextReviewOn ?? "9999").localeCompare(b.nextReviewOn ?? "9999"),
+    number: { by: "number" },
+    name: { by: "name" },
+    // The nearest review first.
+    review: { by: "nextReviewOn" },
   },
 };
