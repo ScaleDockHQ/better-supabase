@@ -5,6 +5,12 @@ import type {
 } from "../context.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { lockTable, pageSize, userGrant } from "../shared.ts";
 import { bankingSql, linked } from "./banking-sql.ts";
@@ -276,6 +282,48 @@ export function batchFunctions(ctx: BlockSqlContext): string {
   const batchJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${b("id")}, 'organizationId', ${row}.${b("tenant")}, 'accountId', ${row}.${b("account")}, 'reference', ${row}.${b("reference")}, 'messageId', ${row}.${b("messageId")}, 'currency', ${row}.${b("currency")}, 'dueBy', ${row}.${b("dueBy")}, 'executionOn', ${row}.${b("executionOn")}, 'total', ${row}.${b("total")}::text, 'itemCount', ${row}.${b("itemCount")}, 'status', ${row}.${b("status")}, 'transactionId', ${row}.${b("transaction")}, 'createdBy', ${row}.${b("createdBy")}, 'createdAt', ${row}.${b("createdAt")}, 'postedAt', ${row}.${b("postedAt")}, 'reconciledAt', ${row}.${b("reconciledAt")}, 'items', coalesce((select jsonb_agg(jsonb_build_object('id', y.${p("id")}, 'invoiceId', y.${p("invoice")}, 'partyId', y.${p("party")}, 'creditorName', y.${p("creditorName")}, 'creditorIban', y.${p("creditorIban")}, 'creditorBic', y.${p("creditorBic")}, 'amount', y.${p("amount")}::text, 'discount', y.${p("discount")}::text, 'currency', y.${p("currency")}, 'endToEndId', y.${p("endToEndId")}, 'remittance', y.${p("remittance")}, 'status', y.${p("status")}) order by y.${p("creditorName")}, y.${p("id")}) from ${items} y where y.${p("batch")} = ${row}.${b("id")}), '[]'::jsonb))`;
 
+  const batchIdKey = {
+    expr: `x.${b("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const batchPage = {
+    name: "page_payment_batches",
+    from: batches,
+    alias: "x",
+    where: [
+      `x.${b("tenant")} = page_payment_batches.tenant`,
+      filterAny("status", `x.${b("status")}`),
+      filterAny("accountId", `x.${b("account")}::text`),
+      filterAny("currency", `x.${b("currency")}`),
+      `(v_search is null or x.${b("reference")} ilike v_search or x.${b("messageId")} ilike v_search)`,
+    ],
+    keys: [
+      { expr: `x.${b("createdAt")}`, dir: "desc", type: "timestamptz" },
+      batchIdKey,
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${b("createdAt")}`, dir: "desc", type: "timestamptz" },
+        batchIdKey,
+      ],
+      executionOn: [
+        {
+          expr: `coalesce(x.${b("executionOn")}, date '9999-12-31')`,
+          dir: "asc",
+          type: "date",
+        },
+        batchIdKey,
+      ],
+    },
+    facets: { status: `x.${b("status")}`, currency: `x.${b("currency")}` },
+    rowJson: batchJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => invalid(message),
+  } as const;
+
   const approvalGate = approval
     ? `
     if coalesce(${invoices.fn("invoice_approval_state")}(v_item.invoice_id) ->> 'status', 'not_required') = 'pending' then
@@ -428,6 +476,30 @@ end;
 $$;
 ${userGrant(`${fn("list_payment_batches")}(${idType}, text, integer)`)}
 
+-- One keyset page of an organization's payment batches, newest first: { items,
+-- next, more, total?, facets?, count? }. Filters: status, accountId, currency
+-- (lists), q (reference, message id).
+create or replace function ${fn("page_payment_batches")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_payment_batches.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(batchPage)}
+begin
+  if not ${q.allowed("page_payment_batches.tenant", q.read)} then
+    ${q.forbidden("not allowed to read payment batches")}
+  end if;
+  ${listBody(batchPage)}
+end;
+$$;
+${userGrant(`${fn("page_payment_batches")}(${idType}, jsonb)`)}
+
 -- Posts a draft batch: its bills count as paid, pending the bank's
 -- confirmation. Bills that still need approval refuse the post. Reconciling the
 -- bank transaction (a match of target type payment_batch) closes the items.
@@ -502,6 +574,7 @@ export function batchContract(
       args: ["{id}", "text", "integer"],
       returns: "jsonb",
     },
+    { name: "page_payment_batches", args: ["{id}", "jsonb"], returns: "jsonb" },
     { name: "post_payment_batch", args: ["uuid"], returns: "jsonb" },
     { name: "cancel_payment_batch", args: ["uuid"], returns: "jsonb" },
   ];

@@ -4,7 +4,18 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
@@ -22,6 +33,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { optionalPlainDateOf, plainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
@@ -48,6 +60,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { bankFeedOf } from "./feed.ts";
+import { bankAccountListSurface, paymentBatchListSurface } from "./lists.ts";
 import { bankReads } from "./reads.ts";
 import { sepaCreditTransferXml } from "./sepa.ts";
 
@@ -357,9 +370,30 @@ export interface Banking<
     input: BankAccountInput<F>;
     accountId?: string | undefined;
   }): AsyncResult<BankAccount<F>>;
+  /**
+   * The organization's bank accounts, by name.
+   *
+   * @deprecated Use `accountPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   accounts(options?: {
     readonly includeArchived?: boolean;
   }): AsyncResult<readonly BankAccount<F>[]>;
+  /**
+   * One keyset page of bank accounts by name. `filters` takes `currency` as a
+   * list and `archived` as `["true"]` for the archived ones; `q` searches the
+   * name, IBAN and holder. The organization comes from `organizationId` or
+   * `options.tenant`.
+   */
+  accountPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<BankAccount<F>>>;
+  /** The values of the `currency` facet and how many accounts hold each. */
+  accountFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many accounts match the page's filters. */
+  accountCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
   /**
    * Imports a statement, a parsed file or a feed page. A transaction whose
    * `externalId` the account has seen is skipped, so importing twice adds
@@ -439,10 +473,33 @@ export interface Banking<
    * `PAYMENT_BATCH_CREDITOR_MISSING` for a supplier without bank details.
    */
   createPaymentBatch(input: PaymentBatchInput): AsyncResult<PaymentBatch>;
+  /**
+   * The organization's payment batches, newest first.
+   *
+   * @deprecated Use `batchPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   paymentBatches(options?: {
     readonly status?: PaymentBatchStatus;
     readonly limit?: number;
   }): AsyncResult<readonly PaymentBatch[]>;
+  /**
+   * One keyset page of payment batches, newest first. `filters` takes `status`,
+   * `accountId` and `currency` as lists; `q` searches the reference and message
+   * id. The organization comes from `organizationId` or `options.tenant`.
+   */
+  batchPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<PaymentBatch>>;
+  /**
+   * The values of each facet (`status`, `currency`) and how many batches hold
+   * each.
+   */
+  batchFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many batches match the page's filters. */
+  batchCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
   getPaymentBatch(batchId: string): AsyncResult<PaymentBatch>;
   /**
    * Posts a draft batch: its bills count as paid, pending the bank. Matching
@@ -889,6 +946,24 @@ export function createBanking<
     "bank account fields",
   );
 
+  const accountList = entityList<BankAccount, TenantOption>({
+    entity: "bank account",
+    surface: bankAccountListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_bank_accounts",
+    rowOf: (row, fn) => accountOf(row, fn),
+  });
+
+  const batchList = entityList<PaymentBatch, TenantOption>({
+    entity: "payment batch",
+    surface: paymentBatchListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_payment_batches",
+    rowOf: (row, fn) => batchOf(row, fn),
+  });
+
   const client: Banking<F> = {
     saveAccount: ({ input: { fields: extra, ...input }, accountId }) =>
       tenant().andThen((organizationId) =>
@@ -906,6 +981,15 @@ export function createBanking<
             ).andThen(fields.row),
           ),
       ),
+    accountPage: (page = {}) =>
+      accountList
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    accountFacets: (facets = {}) => accountList.facets(facets),
+    accountCount: (count = {}) => accountList.count(count),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     accounts: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -1049,6 +1133,10 @@ export function createBanking<
           (value) => batchOf(value, "create_payment_batch"),
         ),
       ),
+    batchPage: (page = {}) => batchList.page(page),
+    batchFacets: (facets = {}) => batchList.facets(facets),
+    batchCount: (count = {}) => batchList.count(count),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     paymentBatches: (list = {}) =>
       tenant().andThen((organizationId) =>
         call(
@@ -1077,13 +1165,12 @@ export function createBanking<
         batchOf(value, "cancel_payment_batch"),
       ),
     exportSepaCreditTransfer: ({ batchId, ...sepa }) =>
-      client
-        .getPaymentBatch(batchId)
-        .andThen((batch) =>
-          client
-            .accounts({ includeArchived: true })
-            .andThen((accounts) => sepaFile(batch, accounts, sepa)),
-        ),
+      client.getPaymentBatch(batchId).andThen((batch) =>
+        client
+          // oxlint-disable-next-line typescript/no-deprecated -- an export needs every account, archived ones included (ADR 1077)
+          .accounts({ includeArchived: true })
+          .andThen((accounts) => sepaFile(batch, accounts, sepa)),
+      ),
     reviewQueue: ({ accountId, limit }) =>
       hooked
         .transactions({ accountId, status: "unmatched", limit: limit ?? 20 })

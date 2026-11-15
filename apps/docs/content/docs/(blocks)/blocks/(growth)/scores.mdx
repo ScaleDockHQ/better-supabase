@@ -208,3 +208,17 @@ const score = await scores
   .orThrow();
 // { score: 81, band: "hot", changed: true, breakdown: { rules, metrics } }
 ```
+
+## Paging score models
+
+`modelPage` pages the score models by name (ADR 1077). `models` stays as a deprecated alias until 0.70. Sorts are `name`, `key` and `version`, filters are `subjectType`, `enabled` and `archived`, and `q` searches the name and key. The organization comes from `organizationId` or the block's `tenant` option.
+
+```ts
+const models = await scores
+  .modelPage({ filters: { subjectType: ["company"] }, limit: 50 })
+  .orThrow();
+
+const facets = await scores.modelFacets().orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.

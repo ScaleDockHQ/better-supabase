@@ -1,6 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { archivedListFilter } from "../archive-sql.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { archiveFunctions } from "./scores-archive.ts";
@@ -72,6 +79,51 @@ export function scoresFunctions(ctx: BlockSqlContext): string {
 
   const modelJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${m("id")}, 'organizationId', ${row}.${m("tenant")}, 'key', ${row}.${m("key")}, 'name', ${row}.${m("name")}, 'description', ${field("models", row, "description")}, 'subjectType', ${row}.${m("subjectType")}, 'rules', ${row}.${m("rules")}, 'metrics', ${row}.${m("metrics")}, 'bands', ${row}.${m("bands")}, 'enabled', ${row}.${m("enabled")}, 'version', ${row}.${m("version")}, 'createdBy', ${field("models", row, "createdBy")}, 'createdAt', ${field("models", row, "createdAt")}, 'updatedAt', ${field("models", row, "updatedAt")}, 'archivedAt', ${field("models", row, "archivedAt")})`;
+
+  const modelIdKey = {
+    expr: `x.${m("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const modelKeyKeys = [
+    { expr: `x.${m("key")}`, dir: "asc", type: "text" },
+    modelIdKey,
+  ] as const;
+
+  const modelPage = {
+    name: "page_score_models",
+    from: models,
+    alias: "x",
+    where: [
+      `x.${m("tenant")} = page_score_models.tenant`,
+      filterAny("subjectType", `x.${m("subjectType")}`),
+      filterAny("enabled", `x.${m("enabled")}::text`),
+      ...(archivable ? [archivedListFilter("x", m("archivedAt"))] : []),
+      `(v_search is null or x.${m("name")} ilike v_search or x.${m("key")} ilike v_search)`,
+    ],
+    keys: modelKeyKeys,
+    sorts: {
+      name: [
+        { expr: `lower(x.${m("name")})`, dir: "asc", type: "text" },
+        modelIdKey,
+      ],
+      key: modelKeyKeys,
+      version: [
+        { expr: `x.${m("version")}`, dir: "desc", type: "integer" },
+        modelIdKey,
+      ],
+    },
+    facets: {
+      subjectType: `x.${m("subjectType")}`,
+      enabled: `x.${m("enabled")}::text`,
+    },
+    rowJson: modelJson("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) =>
+      fail("SCORES_MODEL_INVALID", message, "22023"),
+  } as const;
 
   const scoreJson = (row: string, key: string): string =>
     `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'modelId', ${row}.${s("model")}, 'modelKey', ${key}, 'modelVersion', ${row}.${s("modelVersion")}, 'subjectType', ${row}.${s("subjectType")}, 'subjectId', ${row}.${s("subjectId")}, 'score', ${row}.${s("score")}, 'band', ${row}.${s("band")}, 'breakdown', ${field("scores", row, "breakdown")}, 'current', ${row}.${s("current")}, 'computedAt', ${row}.${s("computedAt")})`;
@@ -323,6 +375,32 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_score_models")}(${idType}, text${archivable ? ", boolean" : ""})`)}
+
+-- The organization's score models as a keyset page, by name (ADR 1077). Needs
+-- scores.read. filters is { subjectType, enabled (each a value or a list),
+-- archived (["true"] lists the archived ones), search (name, key), sort (name,
+-- key, version), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function ${fn("page_score_models")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_score_models.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(modelPage)}
+begin
+  if not ${allowed("page_score_models.tenant", read)} then
+    ${forbidden("not allowed to read scores")}
+  end if;
+  ${listBody(modelPage)}
+end;
+$$;
+${userGrant(`${fn("page_score_models")}(${idType}, jsonb)`)}
 
 -- One score model with its saved versions, or null when the caller can't read it.
 create or replace function ${fn("get_score_model")}(model_id uuid)

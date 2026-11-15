@@ -1,6 +1,13 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { archivedListFilter } from "../archive-sql.ts";
+import {
+  filterAny,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { seedFunctionName } from "../seeds.ts";
 import { fail, userGrant } from "../shared.ts";
 import {
@@ -89,6 +96,42 @@ export function accountingSetupFunctions(ctx: BlockSqlContext): string {
   const config = accountingConfig(ctx);
   const sql = accountingSql(ctx);
   const json = accountingJson(ctx);
+
+  const accountIdKey = {
+    expr: `x.${a("id")}`,
+    dir: "asc",
+    type: "uuid",
+  } as const;
+
+  const accountPage = {
+    name: "page_accounting_accounts",
+    from: accounts,
+    alias: "x",
+    where: [
+      `x.${a("tenant")} = page_accounting_accounts.tenant`,
+      filterAny("type", `x.${a("type")}`),
+      filterAny("active", `x.${a("active")}::text`),
+      archivedListFilter("x", a("archivedAt")),
+      `(v_search is null or x.${a("code")} ilike v_search or x.${a("name")} ilike v_search)`,
+    ],
+    keys: [{ expr: `x.${a("code")}`, dir: "asc", type: "text" }, accountIdKey],
+    sorts: {
+      code: [
+        { expr: `x.${a("code")}`, dir: "asc", type: "text" },
+        accountIdKey,
+      ],
+      name: [
+        { expr: `lower(x.${a("name")})`, dir: "asc", type: "text" },
+        accountIdKey,
+      ],
+    },
+    facets: { type: `x.${a("type")}`, active: `x.${a("active")}::text` },
+    rowJson: json.account("x"),
+    defaultLimit: 100,
+    maxLimit: 500,
+    invalid: (message: string) => sql.invalid("ACCOUNTING_ACCOUNT", message),
+  } as const;
+
   const { allowed } = sql;
 
   // The generic chart is declared in `accounting.seeds` (variant "generic").
@@ -370,6 +413,28 @@ as $$
     and (coalesce(list_accounting_accounts.include_archived, false) or x.${a("archivedAt")} is null)
 $$;
 ${userGrant(`${fn("list_accounting_accounts")}(${idType}, boolean)`)}
+
+-- One keyset page of the chart of accounts by code: { items, next, more,
+-- total?, facets?, count? }. Filters: type, active (lists), archived (["true"]
+-- lists only the archived ones), q (code, name). Row level security decides who
+-- reads.
+create or replace function ${fn("page_accounting_accounts")}(tenant ${idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_accounting_accounts.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(accountPage)}
+begin
+  ${listBody(accountPage)}
+end;
+$$;
+${userGrant(`${fn("page_accounting_accounts")}(${idType}, jsonb)`)}
 
 -- Creates a journal, or changes one (journal_id, or the journal with the code).
 drop function if exists ${fn("save_accounting_journal")}(${idType}, text, text, text, uuid, text, uuid);

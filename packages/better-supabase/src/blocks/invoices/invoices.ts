@@ -1,8 +1,19 @@
 import type { Money } from "../../commerce/money.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -27,6 +38,7 @@ import { blockFields } from "../../core/block-fields.ts";
 import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { isRecord } from "../../core/guards.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
@@ -58,6 +70,7 @@ import {
   paymentTermsOf,
 } from "./collections.ts";
 import { invoiceEDelivery } from "./e-delivery.ts";
+import { invoiceListSurface } from "./lists.ts";
 import { invoiceOpenItems } from "./open-items.ts";
 import { invoiceSources } from "./sources.ts";
 
@@ -464,9 +477,30 @@ export interface Invoices<F extends object = Record<never, never>>
   match(invoiceId: string): AsyncResult<InvoiceMatch>;
   payments(invoiceId: string): AsyncResult<readonly InvoicePayment[]>;
   /**
+   * One keyset page of invoices, newest first. `filters` takes `status`,
+   * `currency` and `kind` as lists, and `subjectType` with `subjectId` for the
+   * invoices of one record; `q` searches the number. The organization comes
+   * from `organizationId` or `options.tenant`.
+   */
+  page(options?: PageOptions & TenantOption): AsyncResult<ListPage<Invoice<F>>>;
+  /**
+   * The values of each facet (`status`, `currency`) and how many invoices hold
+   * each.
+   */
+  facets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many invoices match the page's filters. */
+  count(options?: CountOptions & TenantOption): AsyncResult<Count>;
+  /** One invoice by id, or a `not_found` error when the caller can't read it. */
+  get(invoiceId: string): AsyncResult<Invoice<F>>;
+  /**
    * The invoices of one record, such as a company's, newest first, in the
    * block's tenant (`options.tenant`; without one the call fails with
    * `TENANT_REQUIRED`). Reads the company and contact columns.
+   *
+   * @deprecated Use `page` with `filters: { subjectType, subjectId }`, which
+   * pages by keyset and takes `q`, sorts and a count (ADR 1077).
    */
   list(input: {
     subject: RecordRef;
@@ -753,6 +787,15 @@ export function createInvoices<
       })),
     );
 
+  const invoiceList = entityList<Invoice, TenantOption>({
+    entity: "invoice",
+    surface: invoiceListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_invoices",
+    rowOf: (row) => invoiceOf(row),
+  });
+
   const client: Invoices<F> = {
     create: ({ organizationId, input, lines }) => {
       const { fields: extra, discountAmount, ...rest } = input;
@@ -987,6 +1030,16 @@ export function createInvoices<
     ...invoiceSources(call),
     match: (invoiceId) =>
       call("purchase_bill_match", { invoice: invoiceId }, matchOf),
+    page: (page = {}) =>
+      invoiceList
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    facets: (facets = {}) => invoiceList.facets(facets),
+    count: (count = {}) => invoiceList.count(count),
+    get: (invoiceId) => invoice("get_invoice", { invoice_id: invoiceId }),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     list: ({ subject, limit }) =>
       requireTenant(options.tenant).andThen((organizationId) =>
         call(

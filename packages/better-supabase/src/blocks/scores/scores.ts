@@ -1,6 +1,17 @@
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTenantOptions } from "../../core/block-tenant.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  TenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
@@ -9,6 +20,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
@@ -22,6 +34,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { scoreModelListSurface } from "./lists.ts";
 
 export interface ScoresOptions
   extends BlockTemporalOptions, BlockTenantOptions {
@@ -173,6 +186,24 @@ export interface Scores {
     /** Also list archived models. Default: hidden. */
     readonly includeArchived?: boolean;
   }): AsyncResult<readonly ScoreModel[]>;
+  /**
+   * One keyset page of the organization's models, by name. Needs `scores.read`.
+   * `filters` takes `subjectType` and `enabled` as lists, and `archived` as
+   * `["true"]` for the archived ones; `q` searches the name and key. The
+   * organization comes from `organizationId` or `options.tenant`.
+   */
+  modelPage(
+    options?: PageOptions & TenantOption,
+  ): AsyncResult<ListPage<ScoreModel>>;
+  /**
+   * The values of each facet (`subjectType`, `enabled`) and how many models
+   * hold each.
+   */
+  modelFacets(
+    options?: FacetOptions & TenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many models match the page's filters. */
+  modelCount(options?: CountOptions & TenantOption): AsyncResult<Count>;
   /** One model with its versions; `not_found` when the caller can't read it. */
   model(modelId: string): AsyncResult<ScoreModelDetail>;
   /**
@@ -376,7 +407,19 @@ export function createScores(options: ScoresOptions): Scores {
   const call = blockCall(options.transport, options.schema, options.mappers);
   const tenant = (): AsyncResult<string> => requireTenant(options.tenant);
 
+  const modelList = entityList<ScoreModel, TenantOption>({
+    entity: "score model",
+    surface: scoreModelListSurface,
+    call,
+    tenant: tenantOrOption(options.tenant),
+    fn: "page_score_models",
+    rowOf: (row, fn) => modelOf(row, fn),
+  });
+
   const client: Scores = {
+    modelPage: (page = {}) => modelList.page(page),
+    modelFacets: (facets = {}) => modelList.facets(facets),
+    modelCount: (count = {}) => modelList.count(count),
     saveModel: (input) =>
       tenant().andThen((organizationId) =>
         call(

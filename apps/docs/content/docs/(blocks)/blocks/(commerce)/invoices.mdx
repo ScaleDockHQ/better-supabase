@@ -861,3 +861,21 @@ result.skipped; // sources that were already invoiced
 ## Write an adapter
 
 A package for the `EInvoiceFormat` and `EInvoiceChannel` port starts from a tested template in [Write an adapter](/docs/extending/write-an-adapter). The port's contract is in [Extension interfaces](/docs/extending/interfaces).
+
+## Paging invoices
+
+`page` pages the invoices newest first and `get(id)` reads one with its lines and payments, or returns a `not_found` error (ADR 1077). `list` stays as a deprecated alias until 0.70; use `filters: { subjectType, subjectId }` for the invoices of one record. Sorts are `createdAt`, `dueOn` and `total`, filters are `status`, `currency`, `kind`, `subjectType` and `subjectId`, and `q` searches the number. The organization comes from `organizationId` or the block's `tenant` option.
+
+```ts
+const first = await invoices
+  .page({ filters: { status: ["issued"] }, sort: { by: "dueOn" }, limit: 25 })
+  .orThrow();
+
+const forCompany = await invoices
+  .page({ filters: { subjectType: ["company"], subjectId: [companyId] } })
+  .orThrow();
+
+const one = await invoices.get(first.items[0].id).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.

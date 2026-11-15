@@ -75,10 +75,10 @@
     "security-definer-functions": 96
   },
   "banking": {
-    "security-definer-functions": 96
+    "security-definer-functions": 103
   },
   "billable-time": {
-    "security-definer-functions": 73,
+    "security-definer-functions": 85,
     "row-triggers": 12
   },
   "billing": {
@@ -207,7 +207,7 @@
     "security-definer-functions": 9
   },
   "expenses": {
-    "security-definer-functions": 98
+    "security-definer-functions": 110
   },
   "field-encryption": {
     "security-definer-functions": 32
@@ -272,7 +272,7 @@
     "row-triggers": 6
   },
   "invoices": {
-    "security-definer-functions": 369,
+    "security-definer-functions": 381,
     "row-triggers": 6
   },
   "knowledge": {
@@ -462,7 +462,7 @@
     "security-definer-functions": 36
   },
   "scores": {
-    "security-definer-functions": 60
+    "security-definer-functions": 66
   },
   "search": {
     "security-definer-functions": 50,

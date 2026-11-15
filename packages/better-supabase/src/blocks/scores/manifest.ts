@@ -3,6 +3,7 @@ import type { ScoresEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { scoresEvents } from "./events.ts";
+import { scoreModelListSurface } from "./lists.ts";
 import { scoresSqlOptions } from "./options.ts";
 import { scoresBinding } from "./record-binding.ts";
 import { createScores } from "./scores.ts";
@@ -25,6 +26,7 @@ export const scoresBlock: BlockOf<
   category: "growth",
   entities: {
     score_model: {
+      ...scoreModelListSurface,
       mutability: "editable",
       emits: {
         create: true,

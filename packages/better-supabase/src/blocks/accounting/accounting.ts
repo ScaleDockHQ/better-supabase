@@ -4,8 +4,19 @@ import type {
   ExtraFields,
   FieldsOf,
 } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -15,6 +26,7 @@ import type { AccountingPostings } from "./postings.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
@@ -39,6 +51,10 @@ import {
   trialBalanceOf,
 } from "./decode.ts";
 import { accountingLedger } from "./ledger.ts";
+import {
+  accountingAccountListSurface,
+  accountingEntryListSurface,
+} from "./lists.ts";
 import { accountingPostings } from "./postings.ts";
 
 export interface AccountingOptions<
@@ -496,9 +512,34 @@ export interface Accounting<F extends object = Record<never, never>>
     role: AccountRole;
     accountId: string | null;
   }): AsyncResult<Readonly<Partial<Record<AccountRole, string>>>>;
+  /**
+   * The chart of accounts, by code.
+   *
+   * @deprecated Use `accountPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   accounts(
     input: { organizationId: string } & { readonly includeArchived?: boolean },
   ): AsyncResult<readonly AccountingAccount[]>;
+  /**
+   * One keyset page of the chart of accounts, by code. `filters` takes `type`
+   * and `active` as lists and `archived` as `["true"]` for the archived ones;
+   * `q` searches the code and name.
+   */
+  accountPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<AccountingAccount>>;
+  /**
+   * The values of each facet (`type`, `active`) and how many accounts hold
+   * each.
+   */
+  accountFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many accounts match the page's filters. */
+  accountCount(
+    options: CountOptions & RequiredTenantOption,
+  ): AsyncResult<Count>;
   /** Needs `accounting.manage`. */
   saveJournal(input: {
     organizationId: string;
@@ -561,10 +602,29 @@ export interface Accounting<F extends object = Record<never, never>>
   /** Drafts only. Needs `accounting.write`. */
   deleteEntry(entryId: string): AsyncResult<AccountingEntry<F>>;
   getEntry(entryId: string): AsyncResult<AccountingEntry<F> | undefined>;
-  /** The newest first, without lines. */
+  /**
+   * The newest first, without lines.
+   *
+   * @deprecated Use `entryPage`, which pages by keyset and takes `q`, sorts,
+   * array filters and a count (ADR 1077).
+   */
   entries(
     input: { organizationId: string } & AccountingEntryListOptions,
   ): AsyncResult<readonly AccountingEntry<F>[]>;
+  /**
+   * One keyset page of entries without lines, newest entry date first.
+   * `filters` takes `status` and `journalId` as lists and `since` and `until`
+   * as dates; `q` searches the number, reference and memo.
+   */
+  entryPage(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<AccountingEntry<F>>>;
+  /** The values of the `status` facet and how many entries hold each. */
+  entryFacets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many entries match the page's filters. */
+  entryCount(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
   /** What keeps a period from closing, such as `draft_entries`. */
   closeBlockers(periodId: string): AsyncResult<readonly string[]>;
   /** Needs `accounting.close`. */
@@ -616,6 +676,24 @@ export function createAccounting<
 
   const entry = (fn: string) => (value: unknown) => entryOf(value, fn);
   const period = (fn: string) => (value: unknown) => periodOf(value, fn);
+
+  const accountList = entityList<AccountingAccount, RequiredTenantOption>({
+    entity: "accounting account",
+    surface: accountingAccountListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_accounting_accounts",
+    rowOf: (row, fn) => accountOf(row, fn),
+  });
+
+  const entryList = entityList<AccountingEntry, RequiredTenantOption>({
+    entity: "accounting entry",
+    surface: accountingEntryListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_accounting_entries",
+    rowOf: (row, fn) => entryOf(row, fn),
+  });
 
   const client: Accounting<F> = {
     initialize: ({ organizationId, fiscalYear, input }) =>
@@ -717,6 +795,10 @@ export function createAccounting<
         { tenant: organizationId, role, account_id: accountId },
         (value) => rolesOf(value, "set_accounting_account_role"),
       ),
+    accountPage: (page) => accountList.page(page),
+    accountFacets: (facets) => accountList.facets(facets),
+    accountCount: (count) => accountList.count(count),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     accounts: ({ organizationId, ...list }) =>
       call(
         "list_accounting_accounts",
@@ -847,6 +929,15 @@ export function createAccounting<
       ).andThen((found) =>
         found === undefined ? AsyncResult.ok(undefined) : fields.row(found),
       ),
+    entryPage: (page) =>
+      entryList
+        .page(page)
+        .andThen((read) =>
+          fields.rows(read.items).map((items) => ({ ...read, items })),
+        ),
+    entryFacets: (facets) => entryList.facets(facets),
+    entryCount: (count) => entryList.count(count),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated alias is still implemented until 0.70 (ADR 1077)
     entries: ({ organizationId, ...list }) =>
       call(
         "list_accounting_entries",

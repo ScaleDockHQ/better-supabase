@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated list methods until 0.70 (ADR 1077). 5 findings. */
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
@@ -756,5 +757,29 @@ describe("bankingBlock", () => {
     expect(
       validate(bankRuleInputSchema, { priority: 1.5 }).issues,
     ).toBeDefined();
+  });
+});
+
+describe("banking pages", () => {
+  it("maps the rows of the account and batch pages", async () => {
+    const t = fieldsTransport({
+      page_bank_accounts: () => ({
+        items: [ACCOUNT],
+        hasMore: false,
+        nextCursor: null,
+      }),
+      page_payment_batches: () => ({
+        items: [BATCH],
+        hasMore: false,
+        nextCursor: null,
+      }),
+    });
+
+    const banking = createBanking({ transport: t, tenant: "org-1" });
+    const accounts = await banking.accountPage().orThrow();
+    const batches = await banking.batchPage().orThrow();
+
+    expect(accounts.items.map((row) => row.id)).toEqual([ACCOUNT.id]);
+    expect(batches.items.map((row) => row.id)).toEqual([BATCH.id]);
   });
 });

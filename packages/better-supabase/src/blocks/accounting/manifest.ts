@@ -4,6 +4,10 @@ import type { AccountingEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createAccounting } from "./accounting.ts";
 import { accountingEvents } from "./events.ts";
+import {
+  accountingAccountListSurface,
+  accountingEntryListSurface,
+} from "./lists.ts";
 import { accountingSqlOptions } from "./options.ts";
 import {
   accountingAccountInputSchema,
@@ -36,10 +40,15 @@ export const accountingBlock: BlockOf<
     "accounting_opening_balance",
   ],
   entities: {
-    accounting_account: { mutability: "editable", emits: { update: false } },
+    accounting_account: {
+      ...accountingAccountListSurface,
+      mutability: "editable",
+      emits: { update: false },
+    },
     accounting_journal: { mutability: "editable", emits: { update: false } },
     accounting_period: { mutability: "state-machine" },
     accounting_entry: {
+      ...accountingEntryListSurface,
       mutability: "editable",
       emits: { update: false, delete: false },
     },

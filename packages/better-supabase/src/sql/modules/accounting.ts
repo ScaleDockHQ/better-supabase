@@ -445,6 +445,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     {
+      name: "page_accounting_accounts",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
+    {
       name: "list_accounting_accounts",
       args: ["{id}", "boolean"],
       returns: "jsonb",
@@ -551,6 +556,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "delete_accounting_entry", args: ["uuid"], returns: "jsonb" },
     { name: "get_accounting_entry", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "page_accounting_entries",
+      args: ["{id}", "jsonb"],
+      returns: "jsonb",
+    },
     {
       name: "list_accounting_entries",
       args: ["{id}", "uuid", "text", "date", "date", "integer"],

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:11360012aaeb858ae2d0fb778b141c4b7a923048cdaca42efff5d95a7cc625c3
+-- @bsb-hash sha256:3b6595968e642082ac3cc3022b3bad8939595c333276e75237fb48df54dcf365
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -209,6 +209,269 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_time_rates"(uuid, uuid, text, text, integer) from public, anon;
 grant execute on function "better_supabase"."list_time_rates"(uuid, uuid, text, text, integer) to authenticated, service_role;
+
+-- The rate card as a keyset page, newest effective date first (ADR 1077). Needs
+-- billable_time.read. filters is { userId, subjectType, subjectId, currency
+-- (each a value or a list), search (record type and id), sort (effectiveFrom,
+-- rate), direction, facet, count, limit, after, offset, paged, total,
+-- totalCap }.
+create or replace function "better_supabase"."page_time_rates"(tenant uuid, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_time_rates.filters, '{}'::jsonb);
+  v_search text := case when nullif(trim(v_filters ->> 'search'), '') is null then null
+    else '%' || replace(replace(replace(trim(v_filters ->> 'search'), '\', '\\'), '%', '\%'), '_', '\_') || '%' end;
+  v_limit integer := least(greatest(coalesce((v_filters ->> 'limit')::integer, 50), 1), 200);
+  v_offset integer := greatest(coalesce((v_filters ->> 'offset')::integer, 0), 0);
+  v_after jsonb := v_filters -> 'after';
+  v_paged boolean := coalesce((v_filters ->> 'paged')::boolean, false);
+  v_total_cap integer := least(greatest(coalesce((v_filters ->> 'totalCap')::integer, 10000), 1), 100000);
+  v_items jsonb;
+  v_more boolean;
+  v_next jsonb;
+  v_total integer;
+  v_sort text := nullif(v_filters ->> 'sort', '');
+  v_dir text := nullif(v_filters ->> 'direction', '');
+  v_facet text := nullif(v_filters ->> 'facet', '');
+  v_count boolean := coalesce((v_filters ->> 'count')::boolean, false);
+  v_result jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', page_time_rates.tenant, 'billable_time.read'), false)) then
+    raise exception 'not allowed to read the rate card' using errcode = '42501', hint = 'BILLABLE_TIME_FORBIDDEN';
+  end if;
+  if v_filters ? 'after' and v_filters ? 'offset' then
+    raise exception 'after and offset are two ways to page; pass one' using errcode = '22023', hint = 'BILLABLE_TIME_INVALID';
+  end if;
+  if v_facet is not null then
+    if v_facet not in ('currency', 'subjectType') then
+      raise exception 'facet is one of currency, subjectType' using errcode = '22023', hint = 'BILLABLE_TIME_INVALID';
+    end if;
+    with s as (
+      select (case v_facet when 'currency' then (x."currency")::text when 'subjectType' then (coalesce(x."subject_type", ''))::text end) as v
+      from "better_supabase"."time_rates" x
+      where x."tenant_id" = page_time_rates.tenant
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."subject_id" ilike v_search or x."subject_type" ilike v_search)
+      limit v_total_cap + 1
+    )
+    select jsonb_build_object('facet', v_facet, 'values', coalesce(jsonb_agg(jsonb_build_object('value', g.v, 'count', jsonb_build_object('value', g.n, 'exact', g.exact)) order by g.n desc, g.v), '[]'::jsonb))
+    into v_result
+    from (
+      select s.v, count(*) as n, (select count(*) from s) <= v_total_cap as exact
+      from s where s.v is not null group by s.v order by n desc, s.v limit 100
+    ) g;
+    return v_result;
+  end if;
+  if v_count then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."time_rates" x
+      where x."tenant_id" = page_time_rates.tenant
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."subject_id" ilike v_search or x."subject_type" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+    return jsonb_build_object('value', least(v_total, v_total_cap), 'exact', v_total <= v_total_cap);
+  end if;
+  if v_sort is not null and v_sort not in ('effectiveFrom', 'rate') then
+    raise exception 'sort is one of effectiveFrom, rate' using errcode = '22023', hint = 'BILLABLE_TIME_INVALID';
+  end if;
+  if v_dir is not null and v_dir not in ('asc', 'desc') then
+    raise exception 'direction is asc or desc' using errcode = '22023', hint = 'BILLABLE_TIME_INVALID';
+  end if;
+  if v_sort is null and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BILLABLE_TIME_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'rate', x."rate"::text, 'currency', x."currency", 'effectiveFrom', x."effective_from", 'cost', x."cost_amount"::text, 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."effective_from")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_rates" x
+      where x."tenant_id" = page_time_rates.tenant
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."subject_id" ilike v_search or x."subject_type" ilike v_search)
+        and (v_after is null or (x."effective_from", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by x."effective_from" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort is null and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BILLABLE_TIME_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'rate', x."rate"::text, 'currency', x."currency", 'effectiveFrom', x."effective_from", 'cost', x."cost_amount"::text, 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."effective_from")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_rates" x
+      where x."tenant_id" = page_time_rates.tenant
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."subject_id" ilike v_search or x."subject_type" ilike v_search)
+        and (v_after is null or (x."effective_from" <= (v_after ->> 0)::date and ((x."effective_from" < (v_after ->> 0)::date) or (x."effective_from" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by x."effective_from" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'effectiveFrom' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BILLABLE_TIME_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'rate', x."rate"::text, 'currency', x."currency", 'effectiveFrom', x."effective_from", 'cost', x."cost_amount"::text, 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."effective_from")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_rates" x
+      where x."tenant_id" = page_time_rates.tenant
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."subject_id" ilike v_search or x."subject_type" ilike v_search)
+        and (v_after is null or (x."effective_from", x."id") > ((v_after ->> 0)::date, (v_after ->> 1)::uuid))
+      order by x."effective_from" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'effectiveFrom' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BILLABLE_TIME_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'rate', x."rate"::text, 'currency', x."currency", 'effectiveFrom', x."effective_from", 'cost', x."cost_amount"::text, 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."effective_from")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_rates" x
+      where x."tenant_id" = page_time_rates.tenant
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."subject_id" ilike v_search or x."subject_type" ilike v_search)
+        and (v_after is null or (x."effective_from" <= (v_after ->> 0)::date and ((x."effective_from" < (v_after ->> 0)::date) or (x."effective_from" = (v_after ->> 0)::date and x."id" > (v_after ->> 1)::uuid))))
+      order by x."effective_from" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rate' and coalesce(v_dir, 'desc') = 'asc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BILLABLE_TIME_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'rate', x."rate"::text, 'currency', x."currency", 'effectiveFrom', x."effective_from", 'cost', x."cost_amount"::text, 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."rate")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_rates" x
+      where x."tenant_id" = page_time_rates.tenant
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."subject_id" ilike v_search or x."subject_type" ilike v_search)
+        and (v_after is null or (x."rate", x."id") > ((v_after ->> 0)::bigint, (v_after ->> 1)::uuid))
+      order by x."rate" asc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  elsif v_sort = 'rate' and coalesce(v_dir, 'desc') = 'desc' then
+    if v_after is not null and (jsonb_typeof(v_after) <> 'array' or jsonb_array_length(v_after) <> 2) then
+    raise exception 'after is the nextCursor of the previous page' using errcode = '22023', hint = 'BILLABLE_TIME_INVALID';
+  end if;
+  select coalesce(jsonb_agg(p.j order by p.n) filter (where p.n <= v_limit), '[]'::jsonb),
+    count(*) > v_limit,
+    (array_agg(p.k order by p.n) filter (where p.n = v_limit))[1]
+  into v_items, v_more, v_next
+  from (
+    select row_number() over () as n, jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'userId', x."user_id", 'subjectType', x."subject_type", 'subjectId', x."subject_id", 'rate', x."rate"::text, 'currency', x."currency", 'effectiveFrom', x."effective_from", 'cost', x."cost_amount"::text, 'createdBy', x."created_by", 'createdAt', x."created_at") as j, jsonb_build_array((x."rate")::text, (x."id")::text) as k
+    from (
+      select * from "better_supabase"."time_rates" x
+      where x."tenant_id" = page_time_rates.tenant
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."subject_id" ilike v_search or x."subject_type" ilike v_search)
+        and (v_after is null or (x."rate" <= (v_after ->> 0)::bigint and ((x."rate" < (v_after ->> 0)::bigint) or (x."rate" = (v_after ->> 0)::bigint and x."id" > (v_after ->> 1)::uuid))))
+      order by x."rate" desc, x."id" asc
+      limit v_limit + 1 offset v_offset
+    ) x
+  ) p;
+  end if;
+  if not v_paged then
+    return v_items;
+  end if;
+  if coalesce((v_filters ->> 'total')::boolean, false) then
+    select count(*) into v_total from (
+      select 1 from "better_supabase"."time_rates" x
+      where x."tenant_id" = page_time_rates.tenant
+        and (not (v_filters -> 'userId' is not null and jsonb_typeof(v_filters -> 'userId') <> 'null' and not (jsonb_typeof(v_filters -> 'userId') = 'array' and jsonb_array_length(v_filters -> 'userId') = 0)) or x."user_id"::text = any((case when jsonb_typeof(v_filters -> 'userId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'userId')) else array[v_filters ->> 'userId'] end)::text[]))
+        and (not (v_filters -> 'subjectType' is not null and jsonb_typeof(v_filters -> 'subjectType') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectType') = 'array' and jsonb_array_length(v_filters -> 'subjectType') = 0)) or x."subject_type" = any((case when jsonb_typeof(v_filters -> 'subjectType') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectType')) else array[v_filters ->> 'subjectType'] end)::text[]))
+        and (not (v_filters -> 'subjectId' is not null and jsonb_typeof(v_filters -> 'subjectId') <> 'null' and not (jsonb_typeof(v_filters -> 'subjectId') = 'array' and jsonb_array_length(v_filters -> 'subjectId') = 0)) or x."subject_id" = any((case when jsonb_typeof(v_filters -> 'subjectId') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'subjectId')) else array[v_filters ->> 'subjectId'] end)::text[]))
+        and (not (v_filters -> 'currency' is not null and jsonb_typeof(v_filters -> 'currency') <> 'null' and not (jsonb_typeof(v_filters -> 'currency') = 'array' and jsonb_array_length(v_filters -> 'currency') = 0)) or x."currency" = any((case when jsonb_typeof(v_filters -> 'currency') = 'array' then array(select jsonb_array_elements_text(v_filters -> 'currency')) else array[v_filters ->> 'currency'] end)::text[]))
+        and (v_search is null or x."subject_id" ilike v_search or x."subject_type" ilike v_search)
+      limit v_total_cap + 1
+    ) c;
+  end if;
+  return jsonb_build_object('items', v_items, 'hasMore', v_more, 'nextCursor', case when v_more then v_next end)
+    || case when v_total is null then '{}'::jsonb
+      else jsonb_build_object('total', least(v_total, v_total_cap), 'totalCapped', v_total > v_total_cap) end;
+end;
+$$;
+revoke execute on function "better_supabase"."page_time_rates"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."page_time_rates"(uuid, jsonb) to authenticated, service_role;
+
+-- One rate card entry, or a not-found error. Needs billable_time.read.
+create or replace function "better_supabase"."get_time_rate"(rate_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."time_rates"%rowtype;
+begin
+  select * into v_row from "better_supabase"."time_rates" x where x."id" = get_time_rate.rate_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'billable_time.read'), false)) then
+    raise exception 'time rate not found' using errcode = 'P0002', hint = 'BILLABLE_TIME_RATE_NOT_FOUND';
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'rate', v_row."rate"::text, 'currency', v_row."currency", 'effectiveFrom', v_row."effective_from", 'cost', v_row."cost_amount"::text, 'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."get_time_rate"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_time_rate"(uuid) to authenticated, service_role;
 
 -- The rate card entry that applies to a member's time on a record on a day:
 -- member and record first, then the record, the member, the organization.

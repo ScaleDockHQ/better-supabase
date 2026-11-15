@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { accessRequestsBlock } from "../../src/blocks/access-requests/manifest.ts";
+import { accountingBlock } from "../../src/blocks/accounting/manifest.ts";
 import { agentCheckoutBlock } from "../../src/blocks/agent-checkout/manifest.ts";
 import { appraisalsBlock } from "../../src/blocks/appraisals/manifest.ts";
 import { approvalsBlock } from "../../src/blocks/approvals/manifest.ts";
 import { assetsBlock } from "../../src/blocks/assets/manifest.ts";
 import { attachmentsBlock } from "../../src/blocks/attachments/manifest.ts";
+import { bankingBlock } from "../../src/blocks/banking/manifest.ts";
+import { billableTimeBlock } from "../../src/blocks/billable-time/manifest.ts";
 import { casesBlock } from "../../src/blocks/cases/manifest.ts";
 import { commissionsBlock } from "../../src/blocks/commissions/manifest.ts";
 import { contactsBlock } from "../../src/blocks/contacts/manifest.ts";
@@ -22,6 +25,7 @@ import { donationsBlock } from "../../src/blocks/donations/manifest.ts";
 import { ePrescribingBlock } from "../../src/blocks/e-prescribing/manifest.ts";
 import { employeesBlock } from "../../src/blocks/employees/manifest.ts";
 import { enrollmentsBlock } from "../../src/blocks/enrollments/manifest.ts";
+import { expensesBlock } from "../../src/blocks/expenses/manifest.ts";
 import { forecastsBlock } from "../../src/blocks/forecasts/manifest.ts";
 import { formsBlock } from "../../src/blocks/forms/manifest.ts";
 import { guestsBlock } from "../../src/blocks/guests/manifest.ts";
@@ -29,6 +33,7 @@ import { importsBlock } from "../../src/blocks/imports/manifest.ts";
 import { incidentsBlock } from "../../src/blocks/incidents/manifest.ts";
 import { inspectionsBlock } from "../../src/blocks/inspections/manifest.ts";
 import { inventoryBlock } from "../../src/blocks/inventory/manifest.ts";
+import { invoicesBlock } from "../../src/blocks/invoices/manifest.ts";
 import { leasesBlock } from "../../src/blocks/leases/manifest.ts";
 import { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import { legalEntitiesBlock } from "../../src/blocks/legal-entities/manifest.ts";
@@ -47,6 +52,7 @@ import { quotesBlock } from "../../src/blocks/quotes/manifest.ts";
 import { referralsBlock } from "../../src/blocks/referrals/manifest.ts";
 import { rfqsBlock } from "../../src/blocks/rfqs/manifest.ts";
 import { risksBlock } from "../../src/blocks/risks/manifest.ts";
+import { scoresBlock } from "../../src/blocks/scores/manifest.ts";
 import { segmentsBlock } from "../../src/blocks/segments/manifest.ts";
 import { sequencesBlock } from "../../src/blocks/sequences/manifest.ts";
 import { shipmentsBlock } from "../../src/blocks/shipments/manifest.ts";
@@ -62,6 +68,12 @@ import { renderBlocks } from "../../src/sql/render.ts";
 // The drive document register renders only with `options.control`; its tests
 // render that option.
 const BLOCKS = [
+  accountingBlock,
+  bankingBlock,
+  billableTimeBlock,
+  expensesBlock,
+  invoicesBlock,
+  scoresBlock,
   contactsBlock,
   contractsBlock,
   dealsBlock,
@@ -175,6 +187,6 @@ describe("list surface of the blocks that page", () => {
   });
 
   it("declares the surface on every block that pages", () => {
-    expect(CASES).toHaveLength(76);
+    expect(CASES).toHaveLength(84);
   });
 });

@@ -351,3 +351,18 @@ alter table "better_supabase"."expense_reports" add column "project_code" text;
 ## File a report
 
 `file({ title, currency, note, lines, submit })` creates the report, adds each line and submits it. Pass `submit: false` to leave it as a draft.
+
+## Paging categories, reports and expenses
+
+`categoryPage`, `reportPage` and, when reports are off, `expensePage` page by keyset (ADR 1077). `categories`, `list` and `listExpenses` stay as deprecated aliases until 0.70. Category filters are `currency` and `archived`. Report filters are `userId`, `status`, `currency` and `mine` (`["true"]` limits a member with `expenses.read` to their own reports), and `q` searches the title. Expense filters add `categoryId`, and `q` searches the description and merchant.
+
+```ts
+const reports = await expenses
+  .reportPage({ filters: { status: ["submitted"], mine: ["true"] } })
+  .orThrow();
+
+const facets = await expenses.reportFacets().orThrow();
+const categories = await expenses.categoryPage({ q: "travel" }).orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.

@@ -17,6 +17,13 @@ import {
   TOTAL_COLUMNS,
 } from "../line-items-sql.ts";
 import { createdFromLink } from "../links.ts";
+import {
+  filterAny,
+  filterFirst,
+  listBody,
+  listDeclare,
+  searchPattern,
+} from "../list-template.ts";
 import { int8Text } from "../money-sql.ts";
 import {
   assignNumberSql,
@@ -282,6 +289,65 @@ export function invoiceFunctions(
     });
 
   const p = invoicePurchase(ctx, n, { i, balance, st, kd, record });
+
+  const invoiceIdKey = {
+    expr: `x.${i("id")}`,
+    dir: "desc",
+    type: "uuid",
+  } as const;
+
+  const subjectMatch =
+    (["company", "contact"] as const)
+      .filter((party) => invoiceParty(ctx, party) !== undefined)
+      .map(
+        (party) =>
+          `(${partyTypeSql(ctx, n, party, "x")} = ${filterFirst("subjectType")} and x.${i(`${party}Id`)}::text = ${filterFirst("subjectId")})`,
+      )
+      .join(" or ") || "false";
+
+  const invoicePage = {
+    name: "page_invoices",
+    from: t("invoices"),
+    alias: "x",
+    where: [
+      `x.${i("tenant")} = page_invoices.tenant`,
+      can("x", n.read),
+      filterAny("status", `x.${i("status")}`),
+      filterAny("currency", `x.${i("currency")}`),
+      ...(has("kind") ? [filterAny("kind", `x.${i("kind")}`)] : []),
+      `(${filterFirst("subjectId")} is null or (${subjectMatch}))`,
+      has("number")
+        ? `(v_search is null or x.${i("number")}::text ilike v_search)`
+        : "(v_search is null)",
+    ],
+    keys: [
+      { expr: `x.${i("createdAt")}`, dir: "desc", type: "timestamptz" },
+      invoiceIdKey,
+    ],
+    sorts: {
+      createdAt: [
+        { expr: `x.${i("createdAt")}`, dir: "desc", type: "timestamptz" },
+        invoiceIdKey,
+      ],
+      dueOn: [
+        {
+          expr: `coalesce(x.${i("dueOn")}, date '9999-12-31')`,
+          dir: "asc",
+          type: "date",
+        },
+        invoiceIdKey,
+      ],
+      total: [
+        { expr: `x.${i("total")}`, dir: "desc", type: "bigint" },
+        invoiceIdKey,
+      ],
+    },
+    facets: { status: `x.${i("status")}`, currency: `x.${i("currency")}` },
+    rowJson: row("x"),
+    defaultLimit: 50,
+    maxLimit: 200,
+    invalid: (message: string) => fail("INVOICE_INVALID", message, "22023"),
+  } as const;
 
   const checkParty = (
     kind: "COMPANY" | "CONTACT",
@@ -941,6 +1007,53 @@ begin
 end;
 $$;
 ${userGrant(`${fn("list_invoice_payments")}(uuid)`)}
+
+-- One keyset page of a tenant's invoices, newest first: { items, next, more,
+-- total?, facets?, count? }. Filters: status, currency, kind (lists), subjectType
+-- with subjectId (the record's invoices), q (number). Rows the caller can't read
+-- stay out.
+create or replace function ${fn("page_invoices")}(tenant ${ctx.idType}, filters jsonb default '{}')
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_filters jsonb := coalesce(page_invoices.filters, '{}'::jsonb);
+  v_search text := ${searchPattern()};
+  ${listDeclare(invoicePage)}
+begin
+  if not (${n.service} or ${ctx.scope.can("page_invoices.tenant", n.read)}) then
+    ${fail("INVOICE_FORBIDDEN", "not allowed to read this organization's invoices", "42501")}
+  end if;
+  ${listBody(invoicePage)}
+end;
+$$;
+${userGrant(`${fn("page_invoices")}(${ctx.idType}, jsonb)`)}
+
+-- One invoice with its lines and payments, or INVOICE_NOT_FOUND when the caller
+-- can't read it.
+create or replace function ${fn("get_invoice")}(invoice_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_json jsonb;
+begin
+  select ${row("x")} into v_json from ${t("invoices")} x
+  where x.${i("id")} = get_invoice.invoice_id and ${can("x", n.read)};
+  if v_json is null then
+    ${fail("INVOICE_NOT_FOUND", "no such invoice you can read", "P0002")}
+  end if;
+  return v_json;
+end;
+$$;
+${userGrant(`${fn("get_invoice")}(uuid)`)}
 
 -- A tenant's invoices of one record, such as a company's, newest first, for the
 -- record page. Without a company or contact column it reads nothing.
