@@ -4,6 +4,7 @@ import type { AiAccess, Prompts } from "better-supabase/blocks/prompts";
 import { generatedOptions } from "better-supabase/blocks";
 import { createPrompts, rpcTransport } from "better-supabase/blocks/prompts";
 
+import { present } from "@/lib/present";
 import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsbCore } from "@/lib/supabase/server-core";
 
@@ -15,7 +16,7 @@ import { bsbCore } from "@/lib/supabase/server-core";
 export function promptsBlock(access?: AiAccess): Prompts {
   return createPrompts({
     ...generatedOptions(blockConfig.prompts),
-    ...(access === undefined ? {} : { access }),
+    ...present({ access }),
     transport: rpcTransport(bsbCore.admin().$client, {
       schema: blockConfig.prompts.api,
     }),

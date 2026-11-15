@@ -9,6 +9,7 @@ import {
   ASSISTANT_PROMPT,
   opsAccess,
 } from "@/features/assistant/assistant-ops";
+import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { promptsBlock } from "./prompts-server";
@@ -68,7 +69,7 @@ async function savedPrompts(
 
   for (let pages = 0; pages < 10; pages += 1) {
     const page = await prompts
-      .list({ organizationId, limit: 200, ...(after ? { after } : {}) })
+      .list({ organizationId, limit: 200, ...present({ after }) })
       .orThrow();
 
     for (const item of page.items) {

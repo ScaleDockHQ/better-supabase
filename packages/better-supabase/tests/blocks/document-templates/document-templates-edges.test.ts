@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-deprecated -- these tests cover the deprecated array method until 0.70 (ADR 1077). 3 findings. */
 import { describe, expect, it } from "vitest";
 
 import { createDocumentTemplates } from "../../../src/blocks/document-templates/index.ts";

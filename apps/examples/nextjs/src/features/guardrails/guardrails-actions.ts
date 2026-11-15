@@ -6,6 +6,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import { actionAccess } from "@/features/assistant/assistant-ops";
+import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { guardrailsBlock } from "./guardrails-server";
@@ -45,25 +46,27 @@ export const savePolicy = bsbCore.action(
       organizationId: tenant,
       enabled: input.enabled,
       config: {
-        ...(input.injection === undefined
-          ? {}
-          : { injection: { action: input.injection } }),
-        ...(input.pii === undefined
-          ? {}
-          : {
-              pii: {
-                action: input.pii.action,
-                ...(input.pii.kinds.length === 0
-                  ? {}
-                  : { kinds: input.pii.kinds }),
-              },
-            }),
-        ...(input.denyTopics.length === 0
-          ? {}
-          : { denyTopics: input.denyTopics }),
-        ...(input.maxToolDepth === undefined
-          ? {}
-          : { maxToolDepth: input.maxToolDepth }),
+        ...present({
+          injection:
+            input.injection === undefined
+              ? undefined
+              : { action: input.injection },
+          pii:
+            input.pii === undefined
+              ? undefined
+              : {
+                  action: input.pii.action,
+                  ...present({
+                    kinds:
+                      input.pii.kinds.length === 0
+                        ? undefined
+                        : input.pii.kinds,
+                  }),
+                },
+          denyTopics:
+            input.denyTopics.length === 0 ? undefined : input.denyTopics,
+          maxToolDepth: input.maxToolDepth,
+        }),
       },
     });
 

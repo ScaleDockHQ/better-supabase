@@ -122,6 +122,8 @@ describe("leave module", () => {
       "split_leave_request",
       "leave_balances",
       "list_leave_requests",
+      "page_leave_requests",
+      "get_leave_request",
     ]);
   });
 

@@ -1,21 +1,17 @@
 import { createChat } from "@shadcn/helpers/ai-sdk";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+import * as v from "valibot";
 
 /**
  * What the user picked in the `askQuestions` tool, as the continuation reads
  * it.
  */
-const directionOf = (output: unknown): string => {
-  if (!isRecord(output) || !isRecord(output["answers"])) {
-    return "the first option";
-  }
-
-  const answer = output["answers"]["direction"];
-
-  return typeof answer === "string" ? answer : "the first option";
-};
+const directionSchema = v.fallback(
+  v.pipe(
+    v.object({ answers: v.object({ direction: v.string() }) }),
+    v.transform((output) => output.answers.direction),
+  ),
+  "the first option",
+);
 
 /**
  * A scripted conversation for the tour: reasoning, a tool call with its trace,
@@ -79,7 +75,7 @@ export function assistantTour() {
     })
     .assistant(({ writer, toolCall }) => {
       writer.text(
-        `Starting with ${directionOf(toolCall?.output)}. I will draft the checklist next.`,
+        `Starting with ${v.parse(directionSchema, toolCall?.output)}. I will draft the checklist next.`,
       );
     });
 }

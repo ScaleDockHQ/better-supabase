@@ -10,6 +10,7 @@ import {
   durableContext,
 } from "@/features/assistant/durable/durable-server";
 import { memory } from "@/features/knowledge/knowledge-server";
+import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { agentsBlock } from "./agents-server";
@@ -45,9 +46,12 @@ export const createAgent = bsbCore.action(
         name: input.name,
         description: input.description ?? "",
         instructions: input.instructions,
-        ...(input.model === undefined || input.model === ""
-          ? {}
-          : { model: input.model }),
+        ...present({
+          model:
+            input.model === undefined || input.model === ""
+              ? undefined
+              : input.model,
+        }),
         tools: input.tools,
         starters: input.starters,
       },

@@ -111,6 +111,21 @@ await db.documentTemplates
 
 A new organization gets a `letterhead` text block in the languages that have one (`nl`, `de` and `fr`): the entity's name, register number, tax number and bank account on one line, printed with `{{texts.letterhead}}`. It is a seed, so `upgrade` writes no rows: `seed_tenant_defaults` adds it when an organization is created, and running it again changes nothing. Change the text with `saveTextBlock`.
 
+## Paging templates
+
+`listTemplates` is deprecated. `templatePage` pages the organization's templates by keyset (ADR 1077). Sorts are `name` (the default) and `updatedAt`, newest first. Filters are `documentType`, `legalEntityId`, `language` and `active`, each a list of values, and `q` searches the name, document type and body. `templateFacets` counts `documentType`, `active` and `language`, and `templateCount` returns `{ value, exact }`.
+
+```ts
+const first = await templates
+  .templatePage({
+    filters: { documentType: ["invoice"], active: ["true"] },
+    q: "reminder",
+  })
+  .orThrow();
+```
+
+A cursor belongs to the sort it came from, so start again from the first page when `sort` changes. A sort, filter, facet or text the entity does not declare returns an `invalid_input` error. [Block lists](/docs/extending/block-lists) describes the options every block list shares.
+
 ## Which template a document gets
 
 `resolveTemplate` and `render` pick the first template that exists, in this

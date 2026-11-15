@@ -169,6 +169,8 @@ export function leaveContract(
       ],
       returns: "jsonb",
     },
+    { name: "page_leave_requests", args: ["{id}", "jsonb"], returns: "jsonb" },
+    { name: "get_leave_request", args: ["uuid"], returns: "jsonb" },
     ...(leaveStatusMode(ctx)
       ? [
           {

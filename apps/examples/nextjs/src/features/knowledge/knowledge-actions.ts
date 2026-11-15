@@ -5,6 +5,7 @@ import { refresh } from "next/cache";
 import { after } from "next/server";
 import * as v from "valibot";
 
+import { present } from "@/lib/present";
 import { bsbCore } from "@/lib/supabase/server-core";
 
 import { knowledge } from "./knowledge-server";
@@ -110,8 +111,10 @@ export const searchKnowledge = bsbCore.action(
         organizationId: tenant,
         query,
         k: k ?? 5,
-        ...(scope === undefined || scope === "" ? {} : { scopes: [{ scope }] }),
-        ...(byScoreOnly === undefined ? {} : { priorityOrder: false }),
+        ...present({
+          scopes: scope === undefined || scope === "" ? undefined : [{ scope }],
+          priorityOrder: byScoreOnly === undefined ? undefined : false,
+        }),
       })
       .map((hits): readonly SearchHit[] => {
         const best = hits.reduce((max, hit) => Math.max(max, hit.score), 0);

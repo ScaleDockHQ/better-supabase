@@ -5,6 +5,7 @@ import { cacheTag } from "next/cache";
 import type { Loaded } from "@/features/people/people-queries";
 
 import { settle } from "@/features/people/people-queries";
+import { readAllPages } from "@/lib/read-all-pages";
 import { bsb } from "@/lib/supabase/server";
 
 import type { TemplateRow } from "./document-templates-list";
@@ -17,7 +18,9 @@ type Db = Awaited<ReturnType<typeof bsb.cached>>["db"];
 export async function readTemplateRows(
   db: Db,
 ): Promise<readonly TemplateRow[]> {
-  const templates = await db.documentTemplates.listTemplates().orThrow();
+  const templates = await readAllPages((page) =>
+    db.documentTemplates.templatePage(page),
+  );
 
   return templates.map((template): TemplateRow => ({
     id: template.id,

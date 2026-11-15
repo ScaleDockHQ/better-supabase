@@ -2,11 +2,19 @@ import "server-only";
 import type { EvalItem } from "better-supabase/blocks/ai-evals";
 
 import { gateway, generateText } from "ai";
+import * as v from "valibot";
 
 import { env } from "@/env";
 
-const text = (value: unknown): string =>
-  typeof value === "string" ? value : JSON.stringify(value ?? "");
+const textSchema = v.union([
+  v.string(),
+  v.pipe(
+    v.unknown(),
+    v.transform((value) => JSON.stringify(value ?? "")),
+  ),
+]);
+
+const text = <T>(value: T): string => v.parse(textSchema, value);
 
 /** The model name a run records when no AI Gateway key is set (EX-302). */
 export const SCRIPTED_MODEL = "scripted";

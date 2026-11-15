@@ -1,7 +1,18 @@
 import type { Money } from "../../commerce/money.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
+import type {
+  Count,
+  FacetResult,
+  ListPage,
+  PageOptions,
+} from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
+import type {
+  CountOptions,
+  FacetOptions,
+  RequiredTenantOption,
+} from "../../core/entity-list.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
@@ -11,6 +22,7 @@ import type { BlockTemporalOptions } from "../shared.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { optionalPlainDateOf } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { entityList, tenantOrOption } from "../../core/entity-list.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { amountText, optionalMoneyOf } from "../money-codec.ts";
@@ -26,6 +38,7 @@ import {
   recordsOf,
   textOf,
 } from "../shared.ts";
+import { employeeListSurface } from "./lists.ts";
 
 export type EmployeeStatus =
   | "preboarding"
@@ -278,6 +291,26 @@ export interface Employees<
    * it.
    */
   delete(employeeId: string): AsyncResult<Employee<F>>;
+  /**
+   * One keyset page of the organization's employees, by name (ADR 1077). Needs
+   * `employees.read`. `filters` takes `status`, `employmentType`, `teamId`,
+   * `managerId` and `userId` as lists; `q` searches the name, email and job
+   * title.
+   */
+  page(
+    options: PageOptions & RequiredTenantOption,
+  ): AsyncResult<ListPage<Employee<F>>>;
+  /** The values of each facet and how many employees hold each. */
+  facets(
+    options: FacetOptions & RequiredTenantOption,
+  ): AsyncResult<readonly FacetResult[]>;
+  /** How many employees match the page's filters. */
+  count(options: CountOptions & RequiredTenantOption): AsyncResult<Count>;
+  /**
+   * One employee by id, or a `not_found` error. Needs `employees.read`, or
+   * being the employee or one of their managers.
+   */
+  get(employeeId: string): AsyncResult<Employee<F>>;
   /** The chart under `rootId`, or under everyone without a manager. */
   orgChart(input: {
     organizationId: string;
@@ -517,6 +550,15 @@ export function createEmployees<
       fields: value,
     }));
 
+  const list = entityList<Employee, RequiredTenantOption>({
+    entity: "employee",
+    surface: employeeListSurface,
+    call,
+    tenant: tenantOrOption(undefined),
+    fn: "page_employees",
+    rowOf: (row) => employeeOf(row),
+  });
+
   const entries = (value: unknown, name: string) =>
     recordsOf(value, name).map((row) => ({
       employee: employeeOf(row),
@@ -629,6 +671,30 @@ export function createEmployees<
       ).andThen(parsed),
     delete: (employeeId) =>
       call("delete_employee", { employee: employeeId }, employeeOf).andThen(
+        parsed,
+      ),
+    page: (page) =>
+      list.page(page).andThen((read) =>
+        AsyncResult.from(async () => {
+          const items: Employee<F>[] = [];
+
+          for (const item of read.items) {
+            const parsedItem = await parsed(item);
+
+            if (!parsedItem.ok) {
+              return parsedItem;
+            }
+
+            items.push(parsedItem.data);
+          }
+
+          return ok({ ...read, items });
+        }),
+      ),
+    facets: list.facets,
+    count: list.count,
+    get: (employeeId) =>
+      call("get_employee", { employee: employeeId }, employeeOf).andThen(
         parsed,
       ),
     orgChart: ({ organizationId, rootId }) =>
