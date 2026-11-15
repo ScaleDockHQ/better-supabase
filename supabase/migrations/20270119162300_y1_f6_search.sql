@@ -232,7 +232,7 @@ begin
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'qualification_type' then
-      select s."tenant_id", s."name"::text, null, null, '{}'::jsonb
+      select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."name"::text, s."key"::text), ''), null, '{}'::jsonb
         into v_tenant, v_title, v_body, v_url, v_facets
         from "better_supabase"."qualification_types" s
         where s."id" = (search_refresh.subject_id)::uuid;

@@ -31,11 +31,11 @@ import { createQuotes } from "../../src/blocks/quotes/index.ts";
 import { createSegments } from "../../src/blocks/segments/index.ts";
 import { createRfqs } from "../../src/blocks/rfqs/index.ts";
 import { createSequences } from "../../src/blocks/sequences/index.ts";
+import { createShipments } from "../../src/blocks/shipments/index.ts";
 import { createSignatures } from "../../src/blocks/signatures/index.ts";
 import { createTemplates } from "../../src/blocks/templates/index.ts";
-import { createVersions } from "../../src/blocks/versions/index.ts";
-import { createShipments } from "../../src/blocks/shipments/index.ts";
 import { createTills } from "../../src/blocks/tills/index.ts";
+import { createVersions } from "../../src/blocks/versions/index.ts";
 import { createWarehouse } from "../../src/blocks/warehouse/index.ts";
 import { fieldsTransport } from "./fields-transport.ts";
 
