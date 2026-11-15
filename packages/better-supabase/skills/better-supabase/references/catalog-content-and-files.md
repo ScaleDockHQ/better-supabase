@@ -58,7 +58,7 @@ Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-
 - Entities: `form`
 - Tables: `forms`
 - Permission keys: `forms.read`, `forms.manage`, `forms.submit`, `forms.review`
-- Events (`FormsEvents`): `form.created`, `form_submission.deleted`, `form_submission.reviewed`, `form_submission.submitted`, `form_version.published`
+- Events (`FormsEvents`): `form.created`, `form_submission.archived`, `form_submission.purged`, `form_submission.restored`, `form_submission.reviewed`, `form_submission.submitted`, `form_version.published`
 
 ## signatures
 
